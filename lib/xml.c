@@ -29,7 +29,6 @@ static xmlNodePtr seek(xmlNodePtr root, const char *elem)
 	xmlNodePtr childNode = root;
 	const char *path, *p;
 	char nodename[128];
-	int len;
 	int last = 0;
 
 	path = elem;
@@ -37,7 +36,6 @@ static xmlNodePtr seek(xmlNodePtr root, const char *elem)
 		path++;
 	if (path[0] == 0)
 		return NULL;
-	len = strlen(elem);
 	while (!last) {
 		if ((p = strchr(path, '/')) == NULL) {
 			p = path + strlen(path);
