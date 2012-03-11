@@ -1,0 +1,141 @@
+#!/bin/bash
+#
+# Usage:
+# /sbin/mount.ploop spec dir [-h] [-o options]
+#
+# (c) 2012. Parallels IP Holdings GmbH. All rights reserved.
+#
+
+PLOOP="/usr/sbin/ploop"
+DESCRIPTOR="DiskDescriptor.xml"
+DISK_DESCRIPTOR=""
+MOUNT_POINT=""
+OPTIONS=""
+OPTS_ORIG=""
+READLINK="/bin/readlink"
+MTAB="/etc/mtab"
+LOGFILE="/var/log/ploop_mount.log"
+
+function log(){
+	if [ "x$USER" = "x" ]; then
+		echo $* >> $LOGFILE
+	fi
+	echo $*
+}
+
+function parse_opt() {
+	local opts="$1"
+	local nparam="$2"
+	local string=""
+	local value=""
+	local param=""
+	while [ "x$opts" != "x" ]; do
+		string=`echo $opts | sed "s,\,.*,,g"`
+		echo $string | grep "=" > /dev/null 2>&1
+		if [ $? -eq 0 ]; then
+			value=`echo $string | sed "s,.*=,,g"`
+			param=`echo $string | sed "s,=.*,,g"`
+		else
+			param="$string"
+		fi
+		if [ "x$param" = "x$nparam" ]; then
+			[ "x$value" != "x" ] && echo $value
+			return 0
+		fi
+		opts=`echo $opts | sed -e "s,^$string,,g" -e "s,^\,,,g"`
+	done
+	return 1
+}
+
+function canonicalize() {
+	echo `$READLINK -f "$1" 2>/dev/null`
+}
+
+function check_bin() {
+	if [ ! -x $1 ]; then
+		log "$1 utility is not found"
+		exit 2
+	fi
+}
+
+# Place the timestamp into log
+if [ "x$USER" = "x" ]; then
+	date >> $LOGFILE
+fi
+
+check_bin $PLOOP
+check_bin $READLINK
+
+case "$1" in
+	-h|--help|-?)
+		log "mount.ploop is a private mount(8) wrapper for ploop."
+		log "Don't use it directly!"
+		exit 1
+	;;
+esac
+
+# Parse the parameters
+if [ "x$1" = "x" ]; then
+	log "ploop-related $DESCRIPTOR was not given"
+	exit 32
+else
+	DISK_DESCRIPTOR=`canonicalize $1`
+	if [ ! -f $DISK_DESCRIPTOR ]; then
+		log "$DISK_DESCRIPTOR does not exist"
+		exit 32
+	fi
+	shift
+fi
+
+if [ "x$1" = "x" ]; then
+	log "Mount point was not given"
+	exit 32
+else
+	MOUNT_POINT=`canonicalize $1`
+	if [ ! -d $MOUNT_POINT ]; then
+		log "$MOUNT_POINT does not exist"
+		exit 32
+	fi
+	shift
+fi
+
+# Parse options
+while [ "x$1" != "x" ]; do
+	if [ "x$1" = "x-o" ]; then
+		shift
+		OPTS_ORIG="$1"
+		ro=`parse_opt $1 ro`
+		if [ $? -eq 0 -a "x$ro" != "x" ]; then
+			OPTIONS="$OPTIONS -r"
+		fi
+		shift
+	fi
+	shift
+done
+
+# Check that it's already mounted
+for mpoint in `awk '{print $2}' /proc/mounts`; do
+	if [ $mpoint = $MOUNT_POINT ]; then
+		log "$MOUNT_POINT already mounted"
+		exit 32
+	fi
+done
+
+# Call the ploop utility
+if [ "x$USER" = "x" ]; then
+	$PLOOP mount $OPTIONS -m $MOUNT_POINT $DISK_DESCRIPTOR >> $LOGFILE 2>&1
+else
+	$PLOOP mount $OPTIONS -m $MOUNT_POINT $DISK_DESCRIPTOR
+fi
+
+if [ $? -ne 0 ]; then
+	log "$PLOOP mount $OPTIONS -m $MOUNT_POINT $DISK_DESCRIPTOR command failed"
+	exit 32
+fi
+
+# Fill /etc/mtab
+if [ -f $MTAB ]; then
+	echo "$DISK_DESCRIPTOR $MOUNT_POINT ploop $OPTS_ORIG 0 0" >> $MTAB
+fi
+
+exit 0

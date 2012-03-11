@@ -1,0 +1,16 @@
+.depend
+ploop.8
+ploop.o
+ploop-stat.o
+ploop-fsck.o
+ploop-merge.o
+ploop-copy.o
+ploop-grow.o
+ploop-balloon.o
+ploop
+ploop-stat
+ploop-fsck
+ploop-merge
+ploop-copy
+ploop-grow
+ploop-balloon

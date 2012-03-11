@@ -1,0 +1,61 @@
+#!/bin/bash
+#
+# Usage:
+# /sbin/umount.ploop [-h] mount_point
+#
+# (c) 2012. Parallels IP Holdings GmbH. All rights reserved.
+#
+
+PLOOP="/usr/sbin/ploop"
+MOUNT_POINT=""
+PLOOP_DEV=""
+MTAB="/etc/mtab"
+DESCRIPTOR="DiskDescriptor.xml"
+
+if [ ! -x $PLOOP ]; then
+	echo "$PLOOP utility is not found"
+	exit 2
+fi
+
+case $1 in
+  -h|--help|-?)
+      echo "umount.ploop is a private mount(8) wrapper for ploop."
+      echo "Don't use it directly!"
+      exit 1
+      ;;
+esac
+
+# Parse the parameters. umount always call us with canonicalized mpoint
+if [ "x$1" = "x" ]; then
+	echo "ploop-related mount point was not given"
+	exit 32
+else
+	MOUNT_POINT=$1
+fi
+
+# Check that it's already mounted
+PLOOP_DEV=`awk -v mpoint=$MOUNT_POINT '{if ($2 == mpoint) print $1}' /proc/mounts 2>/dev/null`
+if [ "x$PLOOP_DEV" = "x" ]; then
+	echo "$MOUNT_POINT is not mounted"
+	exit 32
+fi
+
+# Call the ploop utility
+$PLOOP umount -d $PLOOP_DEV
+
+if [ $? -ne 0 ]; then
+	echo "$PLOOP umount -d $PLOOP_DEV command failed"
+	exit 32
+fi
+
+# Clear /etc/mtab
+grep -v -E "^[a-zA-Z0-9/\.]*/$DESCRIPTOR $MOUNT_POINT ploop " $MTAB > $MTAB.$$
+if [ $? -ne 0 ]; then
+	echo "Failed to save $MTAB"
+	exit 32
+else
+	mv -f $MTAB.$$ $MTAB
+	chmod 0644 $MTAB
+fi
+
+exit 0

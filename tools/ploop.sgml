@@ -1,0 +1,1041 @@
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook V3.1//EN"[]>
+<refentry id="ploop">
+
+<refmeta>
+<refentrytitle>ploop</refentrytitle>
+<manvolnum>8</manvolnum>
+</refmeta>
+
+<refnamediv>
+<refname>ploop</refname>
+<refpurpose>control ploop device</refpurpose>
+</refnamediv>
+
+<refsynopsisdiv>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">init</arg>
+<arg choice="req"><replaceable/OPTIONS/</arg>
+</cmdsynopsis>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">mount</arg>
+<arg choice="req"><replaceable/OPTIONS/</arg>
+</cmdsynopsis>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">umount</arg>
+<arg choice="req"><replaceable/OPTIONS/</arg>
+</cmdsynopsis>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">snapshot</arg>
+<arg choice="req"><replaceable/OPTIONS/</arg>
+</cmdsynopsis>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">merge</arg>
+<arg choice="req"><replaceable/OPTIONS/</arg>
+</cmdsynopsis>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">shrink</arg>
+<arg choice="req"><replaceable/OPTIONS/</arg>
+</cmdsynopsis>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">replace</arg>
+<arg choice="req"><replaceable/OPTIONS/</arg>
+</cmdsynopsis>
+
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">fsck</arg>
+<arg choice="req"><replaceable/OPTIONS/</arg>
+</cmdsynopsis>
+
+
+<para>
+Advanced commands:
+</para>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">add</arg>
+<arg choice="req"><replaceable/OPTIONS/</arg>
+</cmdsynopsis>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">delete</arg>
+<arg choice="req"><replaceable/OPTIONS/</arg>
+</cmdsynopsis>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">start</arg>
+<arg choice="req"><replaceable/OPTIONS/</arg>
+</cmdsynopsis>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">stop</arg>
+<arg choice="req"><replaceable/OPTIONS/</arg>
+</cmdsynopsis>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">clear</arg>
+<arg choice="req"><replaceable/OPTIONS/</arg>
+</cmdsynopsis>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">stat</arg>
+<arg choice="opt"><replaceable/OPTIONS/</arg>
+</cmdsynopsis>
+
+</refsynopsisdiv>
+
+
+
+<refsect1><title>DESCRIPTION</title>
+
+<refsect2><title><anchor id="ploop.init">ploop init</title>
+
+<para>
+Create and initialize image file.
+</para>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">init</arg>
+<arg choice="opt">-f <replaceable/FORMAT/</arg>
+<arg choice="opt">-s <replaceable/SIZE/</arg>
+<arg choice="req"><replaceable/DELTA/</arg>
+</cmdsynopsis>
+
+<variablelist>
+
+ <varlistentry>
+  <term><option><replaceable/DELTA/</option></term>
+  <listitem><para>
+    Path where delta image file is to be created. If the file already
+    exists <link linkend="ploop.init"><literal>ploop init</literal></link>
+    exits with an error.
+  </para></listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option>-s <replaceable/SIZE/</option></term>
+  <listitem><para>
+   Size of block device. <replaceable/SIZE/ is decimal number of 512 byte
+   sectors. Also <replaceable/SIZE/ can be decimal integer value followed by
+   suffix <literal/K/, <literal/M/ or <literal/G/. In this case
+   <replaceable/SIZE/specifies size of device in Kilo/Mega/Gigabytes.
+  </para></listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option>-f <replaceable/FORMAT/</option></term>
+  <listitem><para>
+  <replaceable/FORMAT/ is either <literal/ploop1/ or <literal/raw/.
+  Default value is <literal/ploop1/.
+  </para></listitem>
+ </varlistentry>
+
+</variablelist>
+
+<refsect3><title/Example/
+<literallayout>
+ploop init -s 32g /tmp/delta0
+</literallayout>
+<para>
+to create <literal/ploop1/ image to simulate 32 Gig block device.
+</para>
+</refsect3>
+
+
+</refsect2>
+
+<refsect2><title><anchor id="ploop.mount">ploop mount</title>
+
+<para>
+Compose ploop device from one or more delta images and start it.
+</para>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">mount</arg>
+<arg choice="req">-d <replaceable/DEVICE/</arg>
+<arg choice="opt"><option>-rP</option></arg>
+<arg choice="opt">-b <replaceable/IO_MODULE/</arg>
+<arg choice="opt">-f <replaceable/FORMAT/</arg>
+<arg choice="opt" rep="repeat"><replaceable/TOP_DELTA/</arg>
+<arg choice="req"><replaceable/BASE_DELTA/</arg>
+</cmdsynopsis>
+
+<variablelist>
+
+ <varlistentry>
+  <term><option><replaceable/TOP_DELTA/, <replaceable/BASE_DELTA/</option></term>
+  <listitem><para>
+   List of image files. <replaceable/TOP_DELTA/ is top delta, which will
+   be writable unless the device is read-only.
+  </para></listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option>-r</option></term>
+  <listitem><para>
+   Compose read-only device. All the image files will be open read-only.
+  </para></listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option>-P</option></term>
+  <listitem><para>
+   After the device is composed and started partition table is rescanned.
+   This option should be used for partitioned devices and should not be used
+   for devices, which do not contain any partition table.
+  </para></listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option>-b <replaceable/IO_MODULE/</option></term>
+  <listitem><para>
+   Specify IO engine to be used for delta files. <replaceable/IO_MODULE/
+   can be <literal/nfs/ or <literal/direct/. Default value is
+   <literal/direct/.
+  </para>
+  <para>
+  Neither tools nor ploop driver try to guess valid IO engine.
+  </para>
+  <para>
+  If IO engine is different for different deltas,
+  <link linkend="ploop.add"><literal>ploop add</literal></link>
+  should be used.
+  </para>
+  </listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option>-f <replaceable/FORMAT/</option></term>
+  <listitem><para>
+   Specify format of base delta. <replaceable/FORMAT/
+   can be <literal/ploop1/ or <literal/raw/. Default value is
+   <literal/ploop1/.
+  </para>
+  </listitem>
+ </varlistentry>
+
+</variablelist>
+
+<para>
+This operation is aggragate for sequence of
+<link linkend="ploop.add"><literal/ploop add/</link>
+, followed by <link linkend="ploop.start"><literal/ploop start/</link>.
+</para>
+
+<refsect3><title/Example/
+<literallayout>
+ploop mount -d /dev/ploop0 /tmp/delta0
+</literallayout>
+<para>
+to mount <literal/ploop1/ image <literal>/tmp/delta0</literal>
+on <literal>/dev/ploop0</literal>.
+</para>
+</refsect3>
+
+</refsect2>
+
+
+
+<refsect2><title><anchor id="ploop.umount">ploop umount</title>
+
+<para>
+Unmount ploop device.
+</para>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">umount</arg>
+<arg choice="req">-d <replaceable/DEVICE/</arg>
+</cmdsynopsis>
+
+<variablelist>
+
+ <varlistentry>
+  <term><option>-d <replaceable/DEVICE/</option></term>
+  <listitem><para>
+   Specifies ploop device. F.e. <literal>/dev/ploop0</literal>
+  </para></listitem>
+ </varlistentry>
+
+</variablelist>
+
+<para>
+This operation is aggragate for
+<link linkend="ploop.stop"><literal/ploop stop/</link>
+, followed by <link linkend="ploop.clear"><literal/ploop clear/</link>.
+</para>
+
+
+</refsect2>
+
+
+<refsect2><title><anchor id="ploop.snapshot">ploop snapshot</title>
+
+<para>
+Create snapshot.
+</para>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">snapshot</arg>
+<arg choice="req">-d <replaceable/DEVICE/</arg>
+<arg choice="opt"><option>-F</option></arg>
+<arg choice="opt">-b <replaceable/IO_MODULE/</arg>
+<arg choice="req"><replaceable/DELTA/</arg>
+</cmdsynopsis>
+
+<variablelist>
+
+ <varlistentry>
+  <term><option><replaceable/DELTA/</option></term>
+  <listitem><para>
+    Path where delta image file is to be created. If the file already
+    exists <link linkend="ploop.snapshot"><literal>ploop snapshot</literal></link>
+    exits with an error.
+  </para></listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option>-d <replaceable/DEVICE/</option></term>
+  <listitem><para>
+   Specifies ploop device. F.e. <literal>/dev/ploop0</literal>
+  </para></listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option>-F</option></term>
+  <listitem><para>
+   Freeze filesystem before doing snapshot. If the option is not given,
+   file system is not frozen and snapshot contains inconsistent file
+   system. If you need quick snapshot, do not use this option, replaying
+   journal will be made when you mount the snapshot. Use this option,
+   is are going to shrink the device (see
+   <link linkend="ploop.shrink"><literal>ploop shrink</literal></link>)
+   or you are going to mount this snapshot read-only for backup or something
+   like this.
+  </para></listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option>-b <replaceable/IO_MODULE/</option></term>
+  <listitem><para>
+   Specify IO engine to be used for delta file. <replaceable/IO_MODULE/
+   can be <literal/nfs/ or <literal/direct/. Default value is
+   <literal/direct/.
+  </para>
+  </listitem>
+ </varlistentry>
+
+</variablelist>
+
+<refsect3><title/Example/
+<literallayout>
+ploop snapshot -F -d /dev/ploop0 /tmp/delta1
+</literallayout>
+<para>
+to synchronize file system and to snapshot  <literal>/dev/ploop0</literal>.
+New data will be written out to <literal>/tmp/delta1</literal>.
+</para>
+</refsect3>
+
+</refsect2>
+
+
+
+<refsect2><title><anchor id="ploop.merge">ploop merge</title>
+
+<para>
+Merge delta(s) to previous one and delete them.
+</para>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">merge</arg>
+<arg choice="req">-d <replaceable/DEVICE/</arg>
+<arg choice="opt">-l <arg choice="opt"><replaceable/TOP_LEVEL/..</arg><replaceable/LEVEL/</arg>
+</cmdsynopsis>
+
+<para>
+The second form is used to merge unmounted deltas.
+</para>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">merge</arg>
+<arg choice="opt">-f <replaceable/FORMAT/</arg>
+<arg choice="req" rep="repeat"><replaceable/DELTA_TO_DELETE/</arg>
+<arg choice="req"><replaceable/BASE_DELTA/</arg>
+</cmdsynopsis>
+
+
+<variablelist>
+
+ <varlistentry>
+  <term><option>-d <replaceable/DEVICE/</option></term>
+  <listitem><para>
+   Specifies ploop device. F.e. <literal>/dev/ploop0</literal>
+  </para></listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option>-l <replaceable/[TOP_LEVEL..]LEVEL/</option></term>
+  <listitem><para>
+  <replaceable/LEVEL/ is level of delta, where we are going to merge
+  data from newer deltas. <replaceable/TOP_LEVEL/ is level of the newest
+  delta to merge.
+  </para></listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option>-f <replaceable/FORMAT/</option></term>
+  <listitem><para>
+   Specify format of delta. <replaceable/FORMAT/
+   can be <literal/ploop1/ or <literal/raw/. Default value is
+   <literal/ploop1/.
+  </para>
+  </listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option><replaceable/DELTA_TO_DELETE/</option></term>
+  <listitem><para>
+  Data from this image transferred to <replaceable/BASE_DELTA/
+  </para>
+  </listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option><replaceable/BASE_DELTA/</option></term>
+  <listitem><para>
+  This data collects all data from <replaceable/DELTA_TO_DELETE/.
+  </para>
+  </listitem>
+ </varlistentry>
+
+</variablelist>
+
+<para>
+If <replaceable/LEVEL/ is not given,
+<link linkend="ploop.merge"><literal/ploop merge/</link> merges
+top delta to previous one.
+</para>
+
+<refsect3><title/Example/
+<literallayout>
+ploop merge -d /dev/ploop0
+</literallayout>
+<para>
+to merge top level data to previous and one and to remove it.
+</para>
+</refsect3>
+
+
+</refsect2>
+
+<refsect2><title><anchor id="ploop.shrink">ploop shrink</title>
+
+<para>
+Delete unused clusters and shrink image file.
+</para>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">shrink</arg>
+<arg choice="req">-d <replaceable/DEVICE/</arg>
+<arg choice="req">-l <replaceable/LEVEL/</arg>
+<arg choice="opt">-o <replaceable/OUTPUT/</arg>
+<arg choice="opt">-m</arg>
+</cmdsynopsis>
+
+<para>
+The second form works on unmounted deltas:
+</para>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">shrink</arg>
+<arg choice="opt">-o <replaceable/OUTPUT/</arg>
+<arg choice="opt">-m</arg>
+<arg choice="req"><replaceable/TOP_DELTA/</arg>
+<arg choice="opt" rep="repeat"><replaceable/DELTA/</arg>
+</cmdsynopsis>
+
+
+<variablelist>
+
+ <varlistentry>
+  <term><option>-d <replaceable/DEVICE/</option></term>
+  <listitem><para>
+   Specifies ploop device. F.e. <literal>/dev/ploop0</literal>
+  </para></listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option>-l <replaceable/LEVEL/</option></term>
+  <listitem><para>
+  <replaceable/LEVEL/ is level of delta to shrink.
+  </para></listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option>-o <replaceable/OUTPUT/</option></term>
+  <listitem><para>
+  If this option is not given, shrinking is made in place.
+  Otherwise, <link linkend="ploop.shrink"><literal/ploop shrink/</link>
+  creates new delta image.
+  </para></listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option>-m</option></term>
+  <listitem><para>
+  Merge deltas before shrinking. This option is invalid when shrkinking
+  is made in place.
+  </para></listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option><replaceable/TOP_DELTA/</option></term>
+  <listitem><para>
+  Image file to shrink.
+  </para>
+  </listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option><replaceable/DELTA/</option></term>
+  <listitem><para>
+  Additional deltas, if they are required in addition to <replaceable/TOP_DELTA/
+  to form a consistent file system. If option <option/-m/ is given, data
+  from those deltas are transferred too, so that <replaceable/OUTPUT/ becomes
+  equivalent to the whole bunch of deltas.
+  </para>
+  </listitem>
+ </varlistentry>
+
+</variablelist>
+
+<para>
+</para>
+
+</refsect2>
+
+
+<refsect2><title><anchor id="ploop.fsck">ploop fsck</title>
+
+<para>
+Check structure of ploop image. This procedure is required
+after crash, when image was not unmounted.
+</para>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">fsck</arg>
+<arg choice="opt">-fcr</arg>
+<arg choice="req"><replaceable/DELTA/</arg>
+</cmdsynopsis>
+
+
+<variablelist>
+
+ <varlistentry>
+  <term><option><replaceable/DELTA/</option></term>
+  <listitem><para>
+  Image file to check.
+  </para></listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option>-f</option></term>
+  <listitem><para>
+  Force checking even if image file is not dirty.
+  </para></listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option>-r</option></term>
+  <listitem><para>
+  Check the image, but do not touch it.
+  </para></listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option>-c</option></term>
+  <listitem><para>
+  Turn on more expensive checks, which are not required while regular
+  fsck after crash.
+  </para></listitem>
+ </varlistentry>
+
+</variablelist>
+
+<para>
+Normally this command is used as recovery from crash, when images
+were not cleanly unmounted. Also it is necessary after abort of ploop
+device, which can happen f.e. when volume with delta runs out of space.
+But it can be used even on mounted (read-only) images to recover
+after crashed merge.
+</para>
+
+</refsect2>
+
+
+<refsect2><title><anchor id="ploop.add">ploop add</title>
+
+<para>
+Advanced command. Add delta to ploop device.
+</para>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">add</arg>
+<arg choice="req">-d <replaceable/DEVICE/</arg>
+<arg choice="opt"><option>-w</option></arg>
+<arg choice="opt">-b <replaceable/IO_MODULE/</arg>
+<arg choice="opt">-f <replaceable/FORMAT/</arg>
+<arg choice="req"><replaceable/DELTA/</arg>
+</cmdsynopsis>
+
+<variablelist>
+
+ <varlistentry>
+  <term><option><replaceable/DELTA/</option></term>
+  <listitem><para>
+   Image file to add.
+  </para></listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option>-w</option></term>
+  <listitem><para>
+   This delta is writable. After adding writable delta new deltas
+   cannot be added.
+  </para></listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option>-b <replaceable/IO_MODULE/</option></term>
+  <listitem><para>
+   Specify IO engine to be used for this delta. <replaceable/IO_MODULE/
+   can be <literal/nfs/ or <literal/direct/. Default value is
+   <literal/direct/.
+  </para>
+  <para>
+  Neither tools nor ploop driver try to guess valid IO engine.
+  </para>
+  </listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option>-f <replaceable/FORMAT/</option></term>
+  <listitem><para>
+   Specify format of delta. <replaceable/FORMAT/
+   can be <literal/ploop1/ or <literal/raw/. Default value is
+   <literal/ploop1/.
+  </para>
+  </listitem>
+ </varlistentry>
+
+</variablelist>
+
+</refsect2>
+
+
+<refsect2><title><anchor id="ploop.start">ploop start</title>
+
+<para>
+Start ploop device. Before this it must be composed using
+<link linkend="ploop.add"><literal/ploop add/</link>.
+</para>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">start</arg>
+<arg choice="req">-d <replaceable/DEVICE/</arg>
+</cmdsynopsis>
+
+<variablelist>
+
+ <varlistentry>
+  <term><option>-d <replaceable/DEVICE/</option></term>
+  <listitem><para>
+   Specifies ploop device. F.e. <literal>/dev/ploop0</literal>
+  </para></listitem>
+ </varlistentry>
+
+</variablelist>
+
+</refsect2>
+
+<refsect2><title><anchor id="ploop.stop">ploop stop</title>
+
+<para>
+Stop ploop device. Do not destroy it, it can be restarted with
+<link linkend="ploop.start"><literal/ploop start/</link>.
+</para>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">stop</arg>
+<arg choice="req">-d <replaceable/DEVICE/</arg>
+</cmdsynopsis>
+
+<variablelist>
+
+ <varlistentry>
+  <term><option>-d <replaceable/DEVICE/</option></term>
+  <listitem><para>
+   Specifies ploop device. F.e. <literal>/dev/ploop0</literal>
+  </para></listitem>
+ </varlistentry>
+
+</variablelist>
+
+</refsect2>
+
+<refsect2><title><anchor id="ploop.clear">ploop clear</title>
+
+<para>
+Decompose ploop device. It must be already stopped (or never started).
+</para>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">clear</arg>
+<arg choice="req">-d <replaceable/DEVICE/</arg>
+</cmdsynopsis>
+
+<variablelist>
+
+ <varlistentry>
+  <term><option>-d <replaceable/DEVICE/</option></term>
+  <listitem><para>
+   Specifies ploop device. F.e. <literal>/dev/ploop0</literal>
+  </para></listitem>
+ </varlistentry>
+
+</variablelist>
+
+</refsect2>
+
+<refsect2><title><anchor id="ploop.delete">ploop delete</title>
+
+<para>
+Delete delta.
+</para>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">delete</arg>
+<arg choice="req">-d <replaceable/DEVICE/</arg>
+<arg choice="req">-l <replaceable/LEVEL/</arg>
+</cmdsynopsis>
+
+<variablelist>
+
+ <varlistentry>
+  <term><option>-d <replaceable/DEVICE/</option></term>
+  <listitem><para>
+   Specifies ploop device. F.e. <literal>/dev/ploop0</literal>
+  </para></listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option>-l <replaceable/LEVEL/</option></term>
+  <listitem><para>
+  Level of delta to delete.
+  </para></listitem>
+ </varlistentry>
+
+</variablelist>
+
+<para>
+The operation is dangerous. Unless deleted delta is covered by higher
+delta or backed by lower delta, it can change content of the disk
+and corrupt or even destroy file system.
+</para>
+
+</refsect2>
+
+
+<refsect2><title><anchor id="ploop.replace">ploop replace</title>
+
+<para>
+Replace delta. The option is advanced, replacing deltas is safe only
+provided image is correctly prepared using <literal/ploop shrink/ and/or
+<literal/ploop merge/.
+</para>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">replace</arg>
+<arg choice="req">-d <replaceable/DEVICE/</arg>
+<arg choice="req">-l <replaceable/LEVEL/</arg>
+<arg choice="opt">-b <replaceable/IO_MODULE/</arg>
+<arg choice="opt">-f <replaceable/FORMAT/</arg>
+<arg choice="req"><replaceable/DELTA/</arg>
+</cmdsynopsis>
+
+<variablelist>
+
+ <varlistentry>
+  <term><option><replaceable/DELTA/</option></term>
+  <listitem><para>
+  Image to insert instead of existing one.
+  </para></listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option>-d <replaceable/DEVICE/</option></term>
+  <listitem><para>
+   Specifies ploop device. F.e. <literal>/dev/ploop0</literal>
+  </para></listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option>-l <replaceable/LEVEL/</option></term>
+  <listitem><para>
+  Level of delta to replace.
+  </para></listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option>-b <replaceable/IO_MODULE/</option></term>
+  <listitem><para>
+   Specify IO engine to be used for this delta. <replaceable/IO_MODULE/
+   can be <literal/nfs/ or <literal/direct/. Default value is
+   <literal/direct/.
+  </para>
+  <para>
+  Neither tools nor ploop driver try to guess valid IO engine.
+  </para>
+  </listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option>-f <replaceable/FORMAT/</option></term>
+  <listitem><para>
+   Specify format of delta. <replaceable/FORMAT/
+   can be <literal/ploop1/ or <literal/raw/. Default value is
+   <literal/ploop1/.
+  </para>
+  </listitem>
+ </varlistentry>
+
+</variablelist>
+
+<para>
+The operation is dangerous. Unless delta is equivalent to replaced
+one, it can change content of the disk and corrupt or even destroy
+file system.
+</para>
+
+</refsect2>
+
+<refsect2><title><anchor id="ploop.stat">ploop stat</title>
+
+<para>
+Print some statistics about ploop device. The command is advanced,
+statistics counters are used only for debugging and diagnostics.
+</para>
+
+<cmdsynopsis>
+<command>ploop</command>
+<arg choice="req">stat</arg>
+<arg choice="opt">-cl</arg>
+<arg choice="opt">-d <replaceable/DEVICE/</arg>
+</cmdsynopsis>
+
+
+<variablelist>
+
+ <varlistentry>
+  <term><option>-d <replaceable/DEVICE/</option></term>
+  <listitem><para>
+   Specifies ploop device. F.e. <literal>/dev/ploop0</literal>
+  </para></listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option>-l</option></term>
+  <listitem><para>
+  Load counters. This option is to be used, when we want to inherit
+  counters after some device is decomposed and recomposed again.
+  </para></listitem>
+ </varlistentry>
+
+ <varlistentry>
+  <term><option>-c</option></term>
+  <listitem><para>
+  Clear counters.
+  </para></listitem>
+ </varlistentry>
+
+</variablelist>
+
+<para>
+Semantics of counters is undefined and depends on version
+of ploop device driver. Statistic counters are used only
+for debugging and diagnostics.
+</para>
+
+</refsect2>
+
+
+</refsect1>
+
+<refsect1><title>PLOOP DEVICE</title>
+
+<para>
+<literal/ploop/ device simulates block device redirecting IO operations
+to a (set of) files residing on some file system. Main design goals are:
+</para>
+
+<orderedlist numeration="arabic">
+  <listitem><para>
+Provide performance of file systems based on <literal/ploop/ volumes
+comparable with performance of file systems based on real block device.
+  </para></listitem>
+
+  <listitem><para>
+Preserve the properties of real block devices, which provide reliability
+of existing journaling file systems.
+  </para></listitem>
+</orderedlist>
+
+<para>
+These goals seriously limit space for manoeuvre, both from viewpoint
+of image file format and properties of backing file system.
+</para>
+
+<para>
+Raw linear image, implemented by module <literal/pfmt_raw.ko/
+is the simplest one. More complicated format <literal/ploop1/
+is implemented by module <literal/pfmt_ploop1.ko/, reliability
+of updates of internal indices is guaranteed by strict ordering
+of operations, so that if some IO operation fails due to any reason
+(such as unexpected powerdown or just lack of space on backing file
+system) index and data remain in consistent state, which allow
+to recover replaying journal of file system on <literal/ploop/ volume.
+</para>
+
+<para>
+Current version of <literal/ploop/ supports two IO backends
+(<replaceable/IO_MODULE/ in command description): <literal/direct/
+is implemented by module <literal/pio_direct.ko/, it uses direct IO
+and can be used for file systems which support <literal/bmap/ i.e. allow
+to retrieve information about physical location of file blocks on
+real block device. This is enough to support raw linear images,
+but growing <literal/ploop1/ images require a facility to grow
+files. At the moment, <literal/ploop/ supports growing images
+on <literal/ext3/ (and <literal/ext4/) and on <literal/pcss/.
+Unfortunalely, <literal/xfs/ provides way to grow files in context
+of virtual block device only in newere kernels, f.e. 2.6.26.
+<literal/xfs/ in older kernels f.e. 2.6.18 is not supported.
+</para>
+
+<para>
+Also, it is possible to use <literal/nfs/ as backing file system.
+This is possible due to strict integrity guarantees given by <literal/NFS/
+protocol. If some particular server implementation does not follow
+<literal/NFS/ specifications, <literal/ploop/ must not be used.
+Good example is Linux <literal/nfsd/ exporting volumes with <literal/async/
+flag, which explicitly and deliberately violates <literal/NFS/ protocol.
+From the other hand, volumes can be exported with flag <literal/sync/.
+</para>
+
+<para>
+It is important to emphasize that <literal/ploop/ is not an enhancement
+to existing <literal/loop/ device. <literal/loop/ device does not even try
+to provide properties required for any block device to base not a read-only
+file system on top of it. F.e. it is quite useless to create a journaling file
+system on <literal/loop/ device.
+</para>
+
+<para>
+Differences between <literal/ploop/ and <literal/loop/ visible for user are:
+</para>
+
+<orderedlist numeration="arabic">
+  <listitem><para>
+  <literal/ploop/ supports not only linear raw image format, but also
+  packed formats.
+  </para></listitem>
+</orderedlist>
+
+
+</refsect1>
+
+<refsect1><title>EXAMPLES</title>
+
+<refsect2><title>Migration on shared storage</title>
+<para>
+Virtual machine based on device <literal/ploop0/ composed of two
+deltas <literal/delta0/ and <literal/delta1/ located on shared storage,
+visible from hosts <literal/src/ and <literal/dst/. The goal is to migrate
+virtual machine running on <literal/src/ to <literal/dst/.
+First step is to suspend virtual machine, after this we snapshot the device:
+</para>
+
+<literallayout>
+src> ploop snapshot -F -d /dev/ploop0 tmp_delta_src
+</literallayout>
+
+<para>
+Virtual machine is suspened, so that logically snapshot is not required,
+however base images must be moved to read-only state to sync shared
+storage and we should protect base image of modifications which are possible
+while killing virtual machine, which is possible if virtual machine
+is actually a container. Now it is possible to compose the device
+on target host:
+</para>
+
+<literallayout>
+dst> ploop mount -r -d /dev/ploop0 delta1 delta0
+dst> ploop snapshot -d /dev/ploop0 tmp_delta_dst
+</literallayout>
+
+<para>
+Now we can kill virtual machine at source host and to resume it
+at destination host. After this we can destroy <literal/ploop/ device
+on source, delete <literal/tmp_delta_src/ and merge <literal/tmp_delta_dst/
+</para>
+
+<literallayout>
+src> ploop umount -d /dev/ploop0
+src> rm tmp_delta_src
+dst> ploop merge -d /dev/ploop0
+dst> rm tmp_delta_dst
+</literallayout>
+
+</refsect2>
+
+
+</refsect1>
+
+
+</refentry>
+

@@ -1,0 +1,172 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <malloc.h>
+#include <sys/stat.h>
+#include <sys/mount.h>
+#include <getopt.h>
+#include <linux/types.h>
+#include <string.h>
+
+#include "ploop.h"
+
+int raw;
+struct delta delta;
+struct ploop_pvd_header new_vh;
+char *device;
+
+void usage(char *pname)
+{
+	fprintf(stderr, "Usage: %s [-s NEW_SIZE] -d DEVICE\n"
+		        "       %s [-s NEW_SIZE] [-f raw] DELTA\n",
+		pname, pname);
+}
+
+static int grow_raw_device_offline(const char *image, off_t new_size)
+{
+	int ret;
+	off_t old_size;
+
+	ret = read_size_from_image(image, 1, &old_size);
+	if (ret)
+		return ret;
+
+	if (!new_size) {
+		printf("%s size is %llu sectors\n",
+			image, (unsigned long long)old_size);
+		return 0;
+	}
+
+	new_size = (new_size + (4096 >> 9) - 1) & ~((4096 >> 9) - 1);
+
+	if (new_size == old_size)
+		return 0;
+
+	if (new_size < old_size) {
+		fprintf(stderr, "Use truncate(1) for offline truncate "
+			"of raw delta\n");
+		return -1;
+	} else {
+		grow_raw_delta(image, (new_size - old_size) << 9);
+	}
+
+	return 0;
+}
+
+static int grow_delta_offline(char *image, off_t new_size)
+{
+	off_t old_size;
+	int old_l1_size, new_l1_size; /* # L2 clu-blocks */
+	struct ploop_pvd_header *vh;
+	void *buf;
+
+	if (open_delta(&delta, image, new_size ? O_RDWR : O_RDONLY, OD_OFFLINE)) {
+		perror("open_delta");
+		return SYSEXIT_OPEN;
+	}
+
+	vh = (struct ploop_pvd_header *)delta.hdr0;
+	old_size = vh->m_SizeInSectors;
+	old_l1_size = vh->m_FirstBlockOffset / (CLUSTER >> 9);
+
+	if (!new_size) {
+		printf("%s size is %llu sectors\n",
+			image, (unsigned long long)old_size);
+		return 0;
+	}
+
+	generate_pvd_header(&new_vh, new_size);
+
+	if (new_vh.m_SizeInSectors == old_size)
+		return 0;
+
+	if (new_vh.m_SizeInSectors < old_size) {
+		fprintf(stderr, "Use ploop-shrink for offline truncate "
+			"of ploop1 delta\n");
+		return -1;
+	}
+
+	if (dirty_delta(&delta)) {
+		perror("dirty_delta");
+		return SYSEXIT_WRITE;
+	}
+
+	new_l1_size = new_vh.m_FirstBlockOffset / (CLUSTER >> 9);
+
+	if (posix_memalign(&buf, 4096, CLUSTER))
+		return -1;
+
+	grow_delta(&delta, new_vh.m_SizeInSectors, buf, NULL);
+
+	if (clear_delta(&delta)) {
+		perror("clear_delta");
+		exit(SYSEXIT_WRITE);
+	}
+
+	if (fsync(delta.fd)) {
+		perror("fsync");
+		exit(SYSEXIT_FSYNC);
+	}
+	return 0;
+}
+
+int
+main(int argc, char ** argv)
+{
+	char *pname = argv[0];
+	int i;
+	off_t new_size = 0; /* in sectors */
+
+	while ((i = getopt(argc, argv, "f:d:s:")) != EOF) {
+		switch (i) {
+		case 'f':
+			if (strcmp(optarg, "raw") == 0)
+				raw = 1;
+			else if (strcmp(optarg, "direct") != 0) {
+				usage(pname);
+				return -1;
+			}
+			break;
+		case 'd':
+			device = optarg;
+			break;
+		case 's':
+			if (parse_size(optarg, &new_size)) {
+				usage(pname);
+				return -1;
+			}
+			break;
+		default:
+			usage(pname);
+			return -1;
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (((argc != 0 || !device) && (argc != 1 || device)) ||
+	    (raw && device)) {
+		usage(pname);
+		return -1;
+	}
+
+	if (!raw && new_size && new_size < (CLUSTER >> 9)) {
+		fprintf(stderr, "minimal allowed size is %lu sectors\n",
+			CLUSTER >> 9);
+		return -1;
+	}
+
+	ploop_set_verbose_level(3);
+
+	if (device)
+		return ploop_grow_device(device, new_size);
+	else if (raw)
+		return grow_raw_device_offline(argv[0], new_size);
+	else
+		return grow_delta_offline(argv[0], new_size);
+
+	return 0;
+}

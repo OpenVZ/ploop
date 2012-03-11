@@ -1,0 +1,341 @@
+This document explains how to use user-space ploop utility for typical
+use-cases.
+
+0. Getting help
+
+All user-space ploop management operations are available via "ploop"
+utility. Run it w/o args to get help:
+
+# ploop
+
+Run with a cmd as the only arg to get cmd-specific help, e.g.:
+
+# ploop init
+
+1. Initialize image file.
+
+In-kernel ploop operates on image files of "raw" or "ploop1" format.
+An image file should be created and initialized (entirely in user-space)
+before asking in-kernel ploop to start using it.
+
+To create and initialize image file of "ploop1" format:
+
+# ploop init -s 1g -f ploop1 /ploop.image
+
+the same for "raw" format:
+
+# ploop init -s 1g -f raw /ploop.image
+
+where /ploop.image is full path to new image file and 1g is block-device size
+equal to 1GB. These commands succeed only if the file /ploop.image didn't
+exist at the time of running "ploop init".
+
+2. Load modules
+
+Further ploop commands assume that all necessary modules are loaded:
+
+# modprobe ploop
+# modprobe pfmt_ploop1
+# modprobe pfmt_raw
+# modprobe pio_direct
+
+It's not always required to load both pfmt_ploop1 (support of ploop1 format) and
+pfmt_raw (support of raw format). If we're going to use ploop1 image file,
+loading pfmt_raw can be omitted. If we're going to use raw image file and have no
+plans to snapshot it, pfmt_ploop1 can be omitted.
+
+3. Create device file
+
+# mknod /dev/ploop0 b 182 0
+
+This example above uses 0 as minor number. In practice, it can be any multiple
+of 16 in 0..1048575 range: 0, 16, 32, 48, etc.
+
+Other minors (not multiple of 16) are reserved for partitions. E.g. if primary
+partition number 1 is created on /dev/ploop0, /dev/ploop0p1 will have minor
+equal to 1.
+
+4. Bind ploop to image file
+
+Assuming that steps 1-3 were done, the following commands are to "mount"
+ploop device over image file.
+
+For ploop1 format:
+
+# ploop mount -f ploop1 -d /dev/ploop0 /ploop.image
+
+For raw format:
+
+# ploop mount -f raw -d /dev/ploop0 /ploop.image
+
+Since this point, /dev/ploop0 is operable. One can read/write any data from/to
+it (e.g. with "dd"), manipulate partition table on it (with "fdisk"), format
+it with mkfs.ext4 and mount it on some mount-point. In the other words, since
+now /dev/ploop0 can be used as any other ordinary block device.
+
+5. Snapshot
+
+Let /dev/ploop0 be a ploop device running over /ploop.image (i.e. step 4 was
+done) and /ploop-delta.image - some full path to non-existent file. Then the
+command:
+
+# ploop snapshot -d /dev/ploop0 /ploop-delta.image
+
+will create empty "ploop1" image file and register it in kernel ploop
+forming "snapshotted" configuration top_delta-->base_delta where base_delta
+is /ploop.image and top_delta is /ploop-delta.image.
+
+Since now, all i/o targeted at /dev/ploop0 will change only top_delta.
+Actually, while performing snapshot operation in kernel, ploop re-open
+base_delta "read-only". So, when "ploop snapshot" completed, it's quite safe,
+for example, to backup base_delta.
+
+It's allowable to snapshot snapshotted configuration. Following example above,
+the command:
+
+# ploop snapshot -d /dev/ploop0 /ploop-delta1.image
+
+will form top_delta-->delta-->base_delta configuration where:
+
+top_delta := /ploop-delta1.image
+delta := /ploop-delta.image
+base_delta := /ploop.image.
+
+All deltas in snapshotted configuration are enumerated in kernel ploop in
+the natural order starting from 0 for base_delta:
+
+base_delta' number is 0
+delta' number is 1
+top_delta' number is 2.
+
+This knowledge is useful for online merge below.
+
+
+6. Merge
+
+Merge operation implies copying all new data from an upper delta to a lower
+delta. In simplest case of delta2-->delta1 configuration, merge will copy
+new data from delta2 to delta1. In case of deltaN-->...-->delta1 configuration.
+merge will copy new data from <deltaN, ..., delta2> to delta1.
+
+There are two types of merge: offline and online. "offline" means that we have
+a bunch of stand-alone image files w/o kernel ploop running over them.
+"online" means that we have kernel ploop running over them. It's OK to perform
+online merge concurrently with other i/o activity (i.e. no need to stop ploop
+device or freeze upper-layer apps).
+
+6.1 Offline merge.
+
+ploop has no heruistic about determining raw/ploop1 format of image file. So,
+in case of offline merge, user should specify the format of base_delta
+explicitly. If it's ploop1, merge command looks like:
+
+# ploop merge /ploop-delta.image /ploop.image
+
+This will merge /ploop-delta.image into /ploop.image. More than one source
+delta can be specified:
+
+# ploop merge /ploop-d2.image /ploop-d1.image /ploop-d.image /ploop.image
+
+This will merge /ploop-d2.image, /ploop-d1.image and /ploop-d.image into
+/ploop.image.
+
+When merge completed, source deltas can be deleted because all data that
+was present in them has been copied to destination delta.
+
+For raw format, "-f raw" should be added as option. E.g.:
+
+# ploop merge -f raw /ploop-d1.image /ploop.image
+
+6.2 Online merge.
+
+In this case user should only specify ploop device and a range of deltas in the
+form of LEVEL1..LEVEL2 where LEVEL1 and LEVEL2 should be non-negative integers
+corresponding to in-kernel delta enumeration (see the end of 5th section above)
+and LEVEL1 must be lesser than LEVEL2. When merge completed, source deltas are
+deregistered from kernel ploop and can be deleted by user.
+
+Let's consider simple snapshotted configuration as example:
+
+# ploop mount -f ploop1 -d /dev/ploop0 /ploop.image
+# ploop snapshot -d /dev/ploop0 /ploop-delta.image
+# ploop snapshot -d /dev/ploop0 /ploop-delta1.image
+
+In this configuration the command:
+
+# ploop merge -d /dev/ploop0 -l 0..2
+
+will merge /ploop-delta1.image and /ploop-delta.image into /ploop.image. Here
+/ploop-delta1.image and /ploop-delta.image are source deltas and can be
+deleted.
+
+Alternatively, the command:
+
+# ploop merge -d /dev/ploop0 -l 0..1
+
+will merge /ploop-delta.image into /ploop.image. Here /ploop-delta.image is
+source delta and can be deleted.
+
+The last example is:
+
+# ploop merge -d /dev/ploop0 -l 1..2
+
+It will merge /ploop-delta1.image into /ploop-delta.image. Here
+/ploop-delta1.image is source delta and can be deleted.
+
+7. Migration support
+
+Assuming that /dev/ploop0 is ploop device running over /ploop.image,
+/ploop1.image is the path to non-existent file and external_stop is some
+executable script or binary, the following command:
+
+# ploop copy -s /dev/ploop0 -d /ploop1.image -F external_stop
+
+will copy /home/ploop.image to /home/ploop1.image iteratively. external_stop
+should be an utility that completely freeze all i/o targeted at ploop device.
+For instance, container freeze.
+
+From user view, the command above should be equivalent to "external_stop;
+cp /home/ploop.image /home/ploop1.image". The benefit of "ploop copy" is
+minimizing duration of freezed state: it will try to copy the most part
+of data before calling external_stop and only some (hopefully small)
+amount of data after external_stop.
+
+It's also possible to split copy operation in two nodes:
+
+node01# ploop copy -d /ploop1.image
+node02# ploop copy -s /dev/ploop0 -F external_stop
+
+In this case "ploop copy" on node02 will write data to standard output
+in some special binary format and "ploop copy" on node01 will read data
+from stndard input, parse that special format and store data in
+/home/ploop1.image ("-s" stands for "source", "-d" stands for "destination").
+This should work if standard output of node02 and standard input of node01
+are bound via pipe or socket connection.
+
+8. Grow ploop device.
+
+"ploop grow" command is to extend image file as neccessary (offline or online)
+and propogate new block-device size to linux kernel (in online case).
+
+8.1 Offline grow.
+
+To grow image file offline, user should specify its format explicitly. The
+default is "ploop1" format:
+
+# ploop grow -s 32g /ploop.image
+
+will re-arrange "ploop1" image file /ploop.image to become 32GB size long.
+
+For "raw" format, the command:
+
+# ploop grow -s 32g -f raw /ploop.image
+
+will do the same.
+
+8.2 Online grow.
+
+Assuming that /dev/ploop0 is runnung ploop device, the command:
+
+# ploop grow -s 32g -d /dev/ploop0
+
+will re-arrange underlying image file, update internal kernel ploop structures
+and propogate changes to linux kernel making ploop device 32GB size long.
+
+If user had ext4 formatted and mounted on /dev/ploop0, ext4 fs can be extended
+online (when "ploop grow" completed):
+
+# resize2fs /dev/ploop0 32g
+
+9. Ballooning
+
+ploop doesn't support pure shrinking block-device size due to lack of online
+shrink support in ext4. As a workaround, "ballooning" technique is proposed.
+Ballooning operation consists of inflating special balloon file in user-space
+(the file will be invisible for ordinary users, e.g. inside container),
+loading fiemap info of inflated balloon to kernel, relocating blocks of
+image file from the tail to the space specified by fiemap info and truncating
+tail of image file.
+
+Desired outcome is image file of smaller size. However, it's quite possible
+that inflated balloon file will span only blocks that were never touched
+before. They will look as "not allocated" space from kernel ploop view. In this
+case nothing will be relocated and nothing truncated.
+
+So, if balloon operation succeeded, it's only guaranteed that user of ploop
+device won't be able to consume more space than initial block device size
+minus size of inflated balloon. On the other hand, if user of block device
+used a lot of space on it, then freed significant part of used space,
+balloon operation will result in significant truncate of image file.
+
+To enable ballooning, ext4 residing on ploop device should be mounted
+with special "balloon_ino" option:
+
+# mount -t ext4 -o balloon_ino=12 /dev/ploop0 /mnt_ploop
+
+where 12 is inode number of balloon file as reported by "ls -i".
+(it's assumed that initially, e.g. while constructing container,
+someone mounted ext4 on ploop device w/o balloon_ino option, then created
+empty balloon file there, found out its inode number and saved it for the
+future use)
+
+Currently, only online ballooning is supported. The following command performs
+this operation:
+
+# ploop balloon change -s 1g -d /dev/ploop0 -m /mnt_ploop
+
+where 1g is desired new size of balloon file, /dev/ploop0 is ploop block
+device, /mnt_ploop is mount-point where ext4 residing on /dev/ploop0 is
+mounted to.
+
+If balloon file was empty, the command above simply iflates it to become
+1GB size. If it was non-empty but smaller than 1GB, that command extends it
+to given size (1GB). If it was non-empty but larger that 1GB, that
+command truncates it down to given size. If it was exactly 1GB size, the
+command does nothing.
+
+Along with "change" sub-command, "ploop balloon" supports a few auxiliary ones:
+
+# ploop balloon show -m /mnt_ploop
+
+will show current ploop balloon size.
+
+# ploop balloon status -d /dev/ploop0 -m /mnt_ploop
+
+will report current in-kernel status of maintenance like "merge in progress",
+"grow in progress", "ballooning started", etc. This is useful because on the
+one hand balloon operation can't be performed while merge or grow is in
+progress, and on the other hand previous "ploop balloon" could be killed by
+someone before its completion.
+
+# ploop balloon clear -d /dev/ploop0 -m /mnt_ploop
+
+will flush stale in-kernel "BALLOON" state of maintenance. This is useful if
+previous "ploop balloon" died early leaving in-kernel ploop locked.
+
+# ploop balloon complete -d /dev/ploop0 -m /mnt_ploop
+
+will complete previously interrupted balloon operation. An expectation is that
+user monitors exit status of ploop commands he/she runs in some way. If
+user issued "ploop balloon change" and it was killed in the middle, the user
+knows that it didn't complete with zero exit status. Then user shoud inquire
+current maintenance state with "ploop balloon status" command, and, if it
+reported "FBLOAD" or "RELOC", the user should use "ploop balloon complete"
+before proceeding with any other maintenance operations (shanphsot, merge,
+grow, balloon).
+
+# ploop balloon check -d /dev/ploop0 -m /mnt_ploop
+
+will check whether existent balloon file was properly processed. This is useful
+if previous "ploop balloon" was interrupted, but "ploop balloon status"
+reports "OFF" or "BALLOON" maintenance state. In this case it's possible
+that balloon file was inflated but no further processing happened.
+
+"ploop balloon check" reports total number of free blocks in existent balloon
+file. If it's not zero, the user should use the following command to repair
+balloon:
+
+# ploop balloon repair -d /dev/ploop0 -m /mnt_ploop
+
+This command does essentially the same as "ploop balloon change" but w/o
+inflating balloon.

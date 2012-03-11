@@ -1,0 +1,1983 @@
+#include <stdio.h>
+#include <ctype.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <linux/types.h>
+#include <linux/loop.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/mount.h>
+#include <sys/sysmacros.h>
+#include <sys/param.h>
+#include <sys/file.h>
+#include <fcntl.h>
+#include <sys/vfs.h>
+#include <sys/syscall.h>
+#include <assert.h>
+#include <mntent.h>
+
+#include "ploop.h"
+
+static __thread struct ploop_cancel_handle __cancel_data;
+
+static int ploop_mount_fs(struct ploop_mount_param *param);
+
+struct ploop_cancel_handle *ploop_get_cancel_handle(void)
+{
+	return &__cancel_data;
+}
+
+/* set cancel flag
+ * Note: this function also clear the flag
+ */
+int is_operation_cancelled(void)
+{
+	struct ploop_cancel_handle *cancel_data;
+
+	cancel_data = ploop_get_cancel_handle();
+	if (cancel_data->flags) {
+		cancel_data->flags = 0;
+		return 1;
+	}
+	return 0;
+}
+
+void ploop_cancel_operation(struct ploop_cancel_handle *handle)
+{
+	ploop_log(0, "cancel operation");
+	handle->flags = 1;
+}
+
+static void free_mount_param(struct ploop_mount_param *param)
+{
+	free(param->target);
+	free(param->guid);
+}
+
+static off_t bytes2sec(__u64 bytes)
+{
+	return (bytes >> 9) + ((bytes % 512) ? 1 : 0);
+}
+
+int sys_fallocate(int fd, int mode, off_t offset, off_t len)
+{
+	return syscall(__NR_fallocate, fd, mode, offset, len);
+}
+
+int get_list_size(char **list)
+{
+	int i;
+	for (i = 0; list[i] != NULL; i++);
+
+	return i;
+}
+
+char **make_images_list(struct ploop_disk_images_data *di, char *guid, int reverse)
+{
+	int n;
+	char **images;
+	char *file;
+	int done = 0;
+	int snap_id;
+
+	assert(guid);
+
+	if (di->nimages == 0) {
+		ploop_err(0, "No images");
+		return NULL;
+	}
+
+	images = malloc(sizeof(char *) * (di->nimages + 1));
+	if (images == NULL)
+		return NULL;
+
+	for (n = 0; n < di->nsnapshots; n++) {
+		snap_id = find_snapshot_by_guid(di, guid);
+		if (snap_id == -1) {
+			ploop_err(0, "Can't find snapshot by uuid %s", guid);
+			goto err;
+		}
+		file = find_image_by_guid(di, guid);
+		if (file == NULL) {
+			ploop_err(0, "Can't find image by guid %s", guid);
+			goto err;
+		}
+		images[n] = strdup(file);
+		if (images[n] == NULL)
+			goto err;
+		if (n == di->nimages) {
+			ploop_err(0, "Inconsistency detected: snapshots > images");
+			goto err;
+		}
+		guid = di->snapshots[snap_id]->parent_guid;
+		if (!strcmp(guid, NONE_UUID)) {
+			done = 1;
+			break;
+		}
+	}
+	if (!done) {
+		ploop_err(0, "Inconsistency detected, base image not found");
+		goto err;
+	}
+	images[++n] = NULL;
+
+	if (!reverse) {
+		int i;
+
+		for (i = 0; i < n / 2; i++) {
+			file = images[n-i-1];
+			images[n-i-1] = images[i];
+			images[i] = file;
+		}
+	}
+	return images;
+
+err:
+	images[n] = NULL;
+	free_images_list(images);
+	return NULL;
+}
+
+void free_images_list(char **images)
+{
+	int i;
+
+	if (images == NULL)
+		return;
+	for (i = 0; images[i] != NULL; i++)
+		free(images[i]);
+
+	free(images);
+}
+
+static int WRITE(int fd, void * buf, unsigned int size)
+{
+	ssize_t res;
+
+	res = write(fd, buf, size);
+	if (res == size)
+		return 0;
+
+	if (res >= 0)
+		errno = EIO;
+	ploop_err(errno, "WRITE");
+
+	return -1;
+}
+
+int PWRITE(struct delta * delta, void * buf, unsigned int size, off_t off)
+{
+	ssize_t res;
+
+	res = delta->fops->pwrite(delta->fd, buf, size, off);
+	if (res == size)
+		return 0;
+	if (res >= 0)
+		errno = EIO;
+	ploop_err(errno, "pwrite %d", size);
+
+	return -1;
+}
+
+int PREAD(struct delta * delta, void *buf, unsigned int size, off_t off)
+{
+	ssize_t res;
+
+	res = delta->fops->pread(delta->fd, buf, size, off);
+	if (res == size)
+		return 0;
+	if (res >= 0)
+		errno = EIO;
+	ploop_err(errno, "pread %d", size);
+
+	return -1;
+}
+
+static int get_temp_mountpoint(const char *file, int create, char *buf, int len)
+{
+	struct stat st;
+
+	snprintf(buf, len, "%s.mnt", file);
+
+	if (create) {
+		if (stat(buf, &st) == 0)
+			return 0;
+		if (mkdir(buf, 0700)) {
+			ploop_err(errno, "mkdir %s", buf);
+			return SYSEXIT_MKDIR;
+		}
+	}
+	return 0;
+}
+
+static int create_empty_delta(const char *path, off_t bdsize)
+{
+	int fd;
+	void * buf = NULL;
+	struct ploop_pvd_header *vh;
+	__u32 SizeToFill;
+
+	if (bdsize > (__u32)-1)
+		return -1;
+
+	if (posix_memalign(&buf, 4096, CLUSTER)) {
+		ploop_err(errno, "posix_memalign");
+		return -1;
+	}
+
+	ploop_log(0, "Creating delta %s size=%ld sectors",
+			path, bdsize);
+	fd = open(path, O_RDWR|O_CREAT|O_EXCL, 0600);
+	if (fd < 0) {
+		ploop_err(errno, "Can't open %s", path);
+		free(buf);
+		return -1;
+	}
+
+	memset(buf, 0, CLUSTER);
+
+	vh = buf;
+	SizeToFill = generate_pvd_header(vh, bdsize);
+	vh->m_Flags = CIF_Empty;
+
+	if (WRITE(fd, buf, CLUSTER))
+		goto out_close;
+
+	if (SizeToFill > CLUSTER) {
+		int i;
+		memset(buf, 0, CLUSTER);
+		for (i = 1; i < SizeToFill / CLUSTER; i++)
+			if (WRITE(fd, buf, CLUSTER))
+				goto out_close;
+	}
+
+	if (fsync(fd)) {
+		ploop_err(errno, "fsync");
+		goto out_close;
+	}
+	free(buf);
+
+	return fd;
+
+out_close:
+	close(fd);
+	unlink(path);
+	free(buf);
+	return -1;
+}
+
+static int create_empty_preallocated_delta(const char *path, off_t bdsize)
+{
+	struct delta odelta = {};
+	int rc, clu, i;
+	void * buf = NULL;
+	struct ploop_pvd_header vh;
+	__u32 SizeToFill;
+	__u32 l2_slot = 0;
+	off_t off;
+
+	if (bdsize > (__u32)-1)
+		return -1;
+
+	if (posix_memalign(&buf, 4096, CLUSTER)) {
+		ploop_err(errno, "posix_memalign");
+		return -1;
+	}
+
+	ploop_log(0, "Creating preallocated delta %s size=%ld sectors",
+			path, bdsize);
+	rc = open_delta_simple(&odelta, path, O_RDWR|O_CREAT|O_EXCL, OD_OFFLINE);
+	if (rc) {
+		free(buf);
+		return -1;
+	}
+
+	memset(buf, 0, CLUSTER);
+	SizeToFill = generate_pvd_header(&vh, bdsize);
+	memcpy(buf, &vh, sizeof(struct ploop_pvd_header));
+	vh.m_Flags = CIF_Empty;
+
+	if (sys_fallocate(odelta.fd, 0, 0, (off_t)(vh.m_FirstBlockOffset + vh.m_SizeInSectors) << 9)) {
+		ploop_err(errno, "Failed to fallocate");
+		goto out_close;
+	}
+
+	for (clu = 0; clu < SizeToFill / CLUSTER; clu++) {
+		if (is_operation_cancelled())
+			goto out_close;
+
+		if (clu > 0)
+			memset(buf, 0, CLUSTER);
+		for (i = (clu == 0 ? 16 : 0); i < (CLUSTER / sizeof(__u32)) &&
+				l2_slot < vh.m_Size;
+				i++, l2_slot++)
+		{
+			off = vh.m_FirstBlockOffset + (l2_slot * (1<<PLOOP1_DEF_CLUSTER_LOG));
+			((__u32*)buf)[i] = off;
+		}
+		if (WRITE(odelta.fd, buf, CLUSTER))
+			goto out_close;
+	}
+	// FIXME: workaround until ploop will support fallocate
+	memset(buf, 0, CLUSTER);
+	for (i = 0; i< vh.m_Size; i++) {
+		if (is_operation_cancelled())
+			goto out_close;
+
+		off_t off = (off_t)vh.m_FirstBlockOffset + (i * 1<<PLOOP1_DEF_CLUSTER_LOG);
+		if (PWRITE(&odelta, buf, CLUSTER, off << 9))
+			goto out_close;
+	}
+
+	if (fsync(odelta.fd)) {
+		ploop_err(errno, "fsync");
+		goto out_close;
+	}
+	free(buf);
+
+	return odelta.fd;
+
+out_close:
+	close(odelta.fd);
+	unlink(path);
+	free(buf);
+	return -1;
+}
+
+static int create_raw_delta(const char * path, off_t bdsize)
+{
+	int fd;
+	void * buf = NULL;
+	off_t pos;
+
+	ploop_log(0, "Creating raw delta %s size=%ld sectors",
+			path, bdsize);
+
+	if (posix_memalign(&buf, 4096, CLUSTER)) {
+		ploop_err(errno, "posix_memalign");
+		return -1;
+	}
+
+	fd = open(path, O_RDWR|O_CREAT|O_EXCL, 0600);
+	if (fd < 0) {
+		ploop_err(errno, "Can't open %s", path);
+		free(buf);
+		return -1;
+	}
+
+	memset(buf, 0, CLUSTER);
+
+	pos = 0;
+	while (pos < bdsize) {
+		if (is_operation_cancelled())
+			goto out_close;
+		off_t copy = bdsize - pos;
+		if (copy > CLUSTER/512)
+			copy = CLUSTER/512;
+		if (WRITE(fd, buf, copy*512))
+			goto out_close;
+		pos += copy;
+	}
+
+	if (fsync(fd)) {
+		ploop_err(errno, "fsync");
+		goto out_close;
+	}
+
+	free(buf);
+	close(fd);
+
+	return fd;
+
+out_close:
+	close(fd);
+	unlink(path);
+	free(buf);
+	return -1;
+}
+
+void get_disk_descriptor_fname(struct ploop_disk_images_data *di, char *buf, int size)
+{
+	if (di->runtime->xml_fname == NULL) {
+		// Use default DiskDescriptor.xml
+		const char *image = di->images[0]->file;
+
+		get_basedir(image, buf, size - sizeof(DISKDESCRIPTOR_XML));
+
+		strcat(buf, "/"DISKDESCRIPTOR_XML);
+	} else {
+		// Use custom
+		snprintf(buf, size, "%s", di->runtime->xml_fname);
+	}
+}
+
+static void fill_diskdescriptor(struct ploop_pvd_header *vh, struct ploop_disk_images_data *di)
+{
+	di->size = vh->m_SizeInSectors;
+	di->heads = vh->m_Heads;
+	di->cylinders = vh->m_Cylinders;
+	di->sectors = vh->m_Sectors;
+}
+
+static int create_image(struct ploop_disk_images_data *di,
+		const char *file, off_t size_sec, int mode)
+{
+	int fd = -1;
+	int ret;
+	struct ploop_pvd_header vh = {};
+	char fname[MAXPATHLEN];
+	struct stat st;
+
+	if (size_sec == 0 || file == NULL)
+		return SYSEXIT_PARAM;
+	if (stat(file, &st) == 0) {
+		ploop_err(0, "File already exists %s", file);
+		return SYSEXIT_PARAM;
+	}
+
+	ret = SYSEXIT_NOMEM;
+	di->size = size_sec;
+	di->raw = mode == PLOOP_RAW_MODE;
+
+	ret = SYSEXIT_CREAT;
+	if (mode == PLOOP_RAW_MODE)
+		fd = create_raw_delta(file, size_sec);
+	else if (mode == PLOOP_EXPANDED_MODE)
+		fd = create_empty_delta(file, size_sec);
+	else if (mode == PLOOP_EXPANDED_PREALLOCATED_MODE)
+		fd = create_empty_preallocated_delta(file, size_sec);
+	if (fd < 0)
+		goto err;
+	close(fd);
+
+	generate_pvd_header(&vh, size_sec);
+	fill_diskdescriptor(&vh, di);
+
+	if (realpath(file, fname) == NULL) {
+		ploop_err(errno, "failed realpath(%s)", file);
+		goto err;
+	}
+
+	if (ploop_di_add_image(di, fname, BASE_UUID, NONE_UUID)) {
+		ret = SYSEXIT_NOMEM;
+		goto err;
+	}
+
+	get_disk_descriptor_fname(di, fname, sizeof(fname));
+	if (ploop_store_diskdescriptor(fname, di))
+		goto err;
+	ret = 0;
+err:
+	if (ret)
+		unlink(file);
+
+	return ret;
+}
+
+static int create_balloon_file(struct ploop_disk_images_data *di,
+		char *device, char *fstype)
+{
+	int fd, ret;
+	char mnt[MAXPATHLEN];
+	char fname[MAXPATHLEN + sizeof(BALLOON_FNAME)];
+	struct ploop_mount_param mount_param = {};
+
+	if (device == NULL)
+		return -1;
+	ploop_log(0, "Creating balloon file " BALLOON_FNAME);
+	ret = get_temp_mountpoint(di->images[0]->file, 1, mnt, sizeof(mnt));
+	if (ret)
+		return ret;
+	strcpy(mount_param.device, device);
+	mount_param.target = mnt;
+	ret = ploop_mount_fs(&mount_param);
+	if (ret)
+		return ret;
+	snprintf(fname, sizeof(fname), "%s/"BALLOON_FNAME, mnt);
+
+	fd = open(fname, O_CREAT|O_RDONLY|O_TRUNC, 0600);
+	if (fd == -1) {
+		ploop_err(errno, "Can't open %s", mnt);
+		umount(mnt);
+		return SYSEXIT_OPEN;
+	}
+	close(fd);
+
+	return 0;
+}
+
+static int ploop_init_image(struct ploop_disk_images_data *di, struct ploop_create_param *param)
+{
+	int ret;
+	struct ploop_mount_param mount_param = {};
+
+	if (param->fstype == NULL)
+		return SYSEXIT_PARAM;
+
+	if (di->nimages == 0) {
+		ploop_err(0, "No images specified");
+		return SYSEXIT_PARAM;
+	}
+	ret = ploop_mount_image(di, &mount_param);
+	if (ret)
+		return ret;
+	if (!param->without_partition) {
+		off_t size;
+
+		ret = ploop_get_size(mount_param.device, &size);
+		if (ret)
+			goto err;
+
+		ret = create_gpt_partition(mount_param.device, size);
+		if (ret)
+			goto err;
+	}
+	ret = make_fs(mount_param.device, param->fstype);
+	if (ret)
+		goto err;
+	ret = create_balloon_file(di, mount_param.device, param->fstype);
+	if (ret)
+		goto err;
+
+err:
+	if (ploop_umount(mount_param.device, NULL)) {
+		if (ret == 0)
+			ret = SYSEXIT_UMOUNT;
+	} else {
+		char dev[MAXPATHLEN];
+		ploop_get_base_delta_uuid_fname(di->images[0]->file, dev, sizeof(dev));
+		unlink(dev);
+	}
+
+	return ret;
+}
+
+int ploop_drop_image(struct ploop_disk_images_data *di)
+{
+	int i;
+	char fname[MAXPATHLEN];
+
+	if (di->nimages == 0)
+		return SYSEXIT_PARAM;
+
+	get_disk_descriptor_fname(di, fname, sizeof(fname));
+	unlink(fname);
+
+	get_disk_descriptor_lock_fname(di, fname, sizeof(fname));
+	unlink(fname);
+
+	for (i = 0; i < di->nimages; i++) {
+		ploop_log(1, "Dropping image %s", di->images[i]->file);
+		unlink(di->images[i]->file);
+	}
+
+	get_temp_mountpoint(di->images[0]->file, 0, fname, sizeof(fname));
+	unlink(fname);
+
+	return 0;
+}
+
+int ploop_create_image(struct ploop_create_param *param)
+{
+	struct ploop_disk_images_data *di;
+	int ret;
+
+	di = ploop_alloc_diskdescriptor();
+	if (di == NULL)
+		return SYSEXIT_NOMEM;
+
+	ret = create_image(di, param->image, param->size, param->mode);
+	if (ret)
+		return ret;
+	if (param->fstype != NULL) {
+		ret = ploop_init_image(di, param);
+		if (ret)
+			ploop_drop_image(di);
+
+		ploop_free_diskdescriptor(di);
+	}
+	return ret;
+}
+
+int ploop_getdevice(int *minor)
+{
+	int lfd;
+	struct stat st;
+	struct ploop_getdevice_ctl req;
+	int err, ret = 0;
+
+
+	if (stat("/dev/ploop0", &st))
+		mknod("/dev/ploop0", S_IFBLK, gnu_dev_makedev(PLOOP_DEV_MAJOR, 0));
+
+	lfd = open("/dev/ploop0", O_RDONLY);
+	if (lfd < 0) {
+		err = errno;
+		ploop_err(errno, "Can't open device /dev/ploop0");
+		errno = err;
+		return SYSEXIT_DEVICE;
+	}
+
+	if (ioctl(lfd, PLOOP_IOC_GETDEVICE, &req) < 0) {
+		err = errno;
+		ploop_err(errno, "PLOOP_IOC_GETDDEVICE");
+		errno = err;
+		ret = SYSEXIT_DEVIOC;
+	}
+	*minor = req.minor;
+
+	close(lfd);
+	return ret;
+}
+
+/* Workaround for bug #PCLIN-30116 */
+int do_ioctl(int fd, int req)
+{
+	int i, ret;
+
+	for (i = 0; i < 60; i++) {
+		ret = ioctl(fd, req, 0);
+		if (ret == 0 || (ret == -1 && errno != EBUSY))
+			return ret;
+		sleep(1);
+	}
+	return ret;
+}
+
+int do_umount(const char *mnt)
+{
+	int i, ret;
+
+	for (i = 0; i < 60; i++) {
+		ret = umount(mnt);
+		if (ret == 0 || (ret == -1 && errno != EBUSY))
+			return ret;
+		ploop_log(3, "retry umount %s", mnt);
+		sleep(1);
+	}
+	return ret;
+}
+
+int delete_deltas(int devfd, const char *devname)
+{
+	int top;
+
+	if (ploop_get_top_level(devfd, devname, &top))
+		return errno;
+
+	while (top >= 0) {
+		int err = ioctl(devfd, PLOOP_IOC_DEL_DELTA, &top);
+		if (err < 0) {
+			err = errno;
+			ploop_err(errno, "PLOOP_IOC_DEL_DELTA dev=%s lvl=%d",
+					devname, top);
+			return err;
+		}
+		top--;
+	}
+
+	return 0;
+}
+
+static int ploop_stop(int fd, const char *devname)
+{
+	if (do_ioctl(fd, PLOOP_IOC_STOP) < 0) {
+		if (errno != EINVAL) {
+			ploop_err(errno, "PLOOP_IOC_STOP");
+			return SYSEXIT_DEVIOC;
+		}
+		if (delete_deltas(fd, devname))
+			return SYSEXIT_DEVIOC;
+	}
+
+	if (ioctl(fd, PLOOP_IOC_CLEAR, 0) < 0) {
+		ploop_err(errno, "PLOOP_IOC_CLEAR");
+		return SYSEXIT_DEVIOC;
+	}
+	return 0;
+}
+
+static int get_mount_dir(const char *dev, char *buf, int size)
+{
+	FILE *fp;
+	struct mntent *ent;
+	int ret = 1;
+	int len;
+	const char *ep;
+
+	len = strlen(dev);
+	if (len == 0)
+		return -1;
+
+	fp = fopen("/proc/mounts", "r");
+	if (fp == NULL) {
+		ploop_err(errno, "Can't open /proc/mounts");
+		return -1;
+	}
+	while ((ent = getmntent(fp))) {
+		ep = ent->mnt_fsname + len;
+		// check for /dev/ploopN or /dev/ploopNp1
+		if (strncmp(dev, ent->mnt_fsname, len) == 0 &&
+			(*ep == '\0' || strcmp(ep, "p1") == 0))
+		{
+			snprintf(buf, size, "%s", ent->mnt_dir);
+			ret = 0;
+			break;
+		}
+	}
+	fclose(fp);
+	return ret;
+}
+
+int ploop_fname_cmp(const char *p1, const char *p2)
+{
+	struct stat st1, st2;
+
+	if (stat(p1, &st1)) {
+		ploop_err(errno, "stat %s", p1);
+		return -1;
+	}
+	if (stat(p2, &st2)) {
+		ploop_err(errno, "stat %s", p2);
+		return -1;
+	}
+	if (st1.st_dev == st2.st_dev &&
+	    st1.st_ino == st2.st_ino)
+		return 0;
+	return 1;
+}
+
+static int get_dev_by_mnt(const char *path, int dev, char *buf, int size)
+{
+	FILE *fp;
+	struct mntent *ent;
+	int len;
+
+	fp = fopen("/proc/mounts", "r");
+	if (fp == NULL) {
+		ploop_err(errno, "Can't open /proc/mounts");
+		return -1;
+	}
+	while ((ent = getmntent(fp))) {
+		if (strncmp(ent->mnt_fsname, "/dev/ploop", 10) != 0)
+			continue;
+		if (ploop_fname_cmp(path, ent->mnt_dir) == 0 ) {
+			fclose(fp);
+			len = strlen(ent->mnt_fsname);
+			if (dev) {
+				// return device in case partition used ploop1p1 -> ploop1
+				if (strcmp(ent->mnt_fsname + len - 2, "p1") == 0 &&
+						isdigit(ent->mnt_fsname[len - 3]))
+					len -= 2; // strip p1
+			}
+			if (len + 1 > size) {
+				ploop_err(0, "Buffer is too short");
+				return -1;
+			}
+
+			snprintf(buf, len + 1, "%s", ent->mnt_fsname);
+			return 0;
+		}
+	}
+	fclose(fp);
+	return 1;
+}
+
+int ploop_get_partition_by_mnt(const char *path, char *buf, int size)
+{
+	return get_dev_by_mnt(path, 0, buf, size);
+}
+
+int ploop_get_dev_by_mnt(const char *path, char *buf, int size)
+{
+	return get_dev_by_mnt(path, 1, buf, size);
+}
+
+void ploop_resolve_magic_fname(char *fname)
+{
+	char *p;
+
+	p = strrchr(fname, '.');
+	if (p != NULL && strcmp(p + 1, BASE_UUID_MAGIC) == 0)
+		*p = 0;
+}
+
+void ploop_get_base_delta_uuid_fname(char *delta, char *out, int len)
+{
+	snprintf(out, len, "%s."BASE_UUID_MAGIC, delta);
+}
+
+char *ploop_get_base_delta_uuid(struct ploop_disk_images_data *di)
+{
+	int i;
+
+	for (i = 0; i < di->nsnapshots; i++)
+		if (strcmp(di->snapshots[i]->parent_guid, NONE_UUID) == 0)
+			return di->snapshots[i]->guid;
+
+	return NULL;
+}
+
+static const char *get_top_delta_guid(struct ploop_disk_images_data *di)
+{
+	return di->top_guid;
+}
+
+int ploop_get_top_delta_fname(struct ploop_disk_images_data *di, char *out, int len)
+{
+	const char *fname;
+
+	fname = find_image_by_guid(di, get_top_delta_guid(di));
+	if (fname == NULL){
+		ploop_err(0, "Can't find image by uuid %s", di->top_guid);
+		return -1;
+	}
+	if (snprintf(out, len, "%s", fname) > len -1) {
+		ploop_err(0, "not enough space to store data");
+		return -1;
+	}
+	return 0;
+}
+
+/* Image can be mounted readonly several times and new ploop device is used
+ * To assocoate ploop device with Diskdescriptor.xml we create base delta magic file,
+ * For any action on Diskdescriptor.xml we will find the device by this file
+ */
+static int create_base_magic_delta(char **delta)
+{
+	char fname[MAXPATHLEN];
+
+	ploop_get_base_delta_uuid_fname(*delta, fname, sizeof(fname));
+	unlink(fname);
+	if (link(*delta, fname)) {
+		ploop_err(errno, "Failed to create link %s %s",
+				*delta, fname);
+		return SYSEXIT_CREAT;
+	}
+	free(*delta);
+	*delta = strdup(fname);
+
+	return 0;
+}
+
+int ploop_find_dev_by_uuid(struct ploop_disk_images_data *di,
+		int check_state, char *out, int len)
+{
+	char fname[MAXPATHLEN];
+	int ret;
+	int running = 0;
+
+	if (di->nimages <= 0) {
+		ploop_err(0, "No images found in " DISKDESCRIPTOR_XML);
+		return -1;
+	}
+	ploop_get_base_delta_uuid_fname(di->images[0]->file, fname, sizeof(fname));
+	ret = ploop_find_dev_by_delta(fname, out, len);
+	if (ret == 0 && check_state) {
+		if (ploop_get_attr(out, "running", &running)) {
+			ploop_err(0, "Can't get running attr for %s",
+					out);
+			return -1;
+		}
+		if (!running) {
+			ploop_err(0, "Unexpectedly found stopped ploop device %s",
+					out);
+			return -1;
+		}
+	}
+
+	return ret;
+}
+
+static int reread_part(char *device)
+{
+	int fd;
+
+	fd = open(device, O_RDONLY);
+	if (fd == -1) {
+		ploop_err(errno, "Can't open %s", device);
+		return -1;
+	}
+	if (ioctl(fd, BLKRRPART, 0) < 0)
+		ploop_err(errno, "BLKRRPART %s", device);
+	close(fd);
+
+	return 0;
+}
+
+static int ploop_mount_fs(struct ploop_mount_param *param)
+{
+	unsigned long flags = param->ro ? MS_RDONLY : 0;
+	char buf[MAXPATHLEN + sizeof(BALLOON_FNAME)];
+	struct stat st;
+	char *fstype = param->fstype == NULL ? DEFAULT_FSTYPE : param->fstype;
+	char data[1024];
+	char balloon_ino[64] = "";
+	char part_device[64];
+
+	if (reread_part(param->device))
+		return SYSEXIT_MOUNT;
+
+	if (get_partition_device_name(param->device, part_device, sizeof(part_device)))
+		return SYSEXIT_MOUNT;
+	/* Two step mount
+	 * 1 mount ro and read balloon inode
+	 * 2 remount with balloon_ino=ino
+	 */
+	if (mount(part_device, param->target,	fstype, MS_RDONLY, NULL)) {
+		ploop_err(errno, "Can't mount file system dev=%s target=%s",
+				part_device, param->target);
+		return SYSEXIT_MOUNT;
+	}
+	snprintf(buf, sizeof(buf), "%s/" BALLOON_FNAME, param->target);
+	if (stat(buf, &st) == 0)
+		sprintf(balloon_ino, "balloon_ino=%llu,",
+				(unsigned long long) st.st_ino);
+
+	snprintf(data, sizeof(data), "%s%s%s",
+			balloon_ino,
+			param->quota ? "usrjquota=aquota.user,grpjquota=aquota.group,jqfmt=vfsv0," : "",
+			param->mount_data ? param->mount_data : "");
+
+	ploop_log(0, "mount %s at %s fstype=%s data='%s' %s",
+			part_device, param->target, fstype,
+			data, param->ro  ? "ro":"");
+
+	if (mount(part_device, param->target, fstype, flags | MS_REMOUNT, data)) {
+		ploop_err(errno, "Can't mount file system dev=%s target=%s",
+				part_device, param->target);
+		umount(param->target);
+		return SYSEXIT_MOUNT;
+	}
+
+	return 0;
+}
+
+static int add_delta(int lfd, char *image, struct ploop_ctl_delta *req)
+{
+	int fd;
+	int ro = (req->c.pctl_flags == PLOOP_FMT_RDONLY);
+
+	fd = open(image, ro ? O_RDONLY : O_RDWR);
+	if (fd < 0) {
+		ploop_err(errno, "Can't open file %s", image);
+		close(fd);
+		return SYSEXIT_OPEN;
+	}
+
+	req->f.pctl_fd = fd;
+
+	if (ioctl(lfd, PLOOP_IOC_ADD_DELTA, req) < 0) {
+		ploop_err(errno, "PLOOP_IOC_ADD_DELTA %s", image);
+		close(fd);
+		return SYSEXIT_DEVIOC;
+	}
+	close(fd);
+	return 0;
+}
+
+/* NB: caller will take care about *lfd_p even if we fail */
+static int add_deltas(char **images, struct ploop_mount_param *param, int raw,
+			    int *lfd_p)
+{
+	int lckfd = -1;
+	char *device = param->device;
+	int i;
+	int ret = 0;
+
+	if (device[0] == '\0') {
+		char buf[64];
+		int minor;
+		struct stat st;
+
+		lckfd = ploop_global_lock();
+		if (lckfd == -1)
+			return SYSEXIT_LOCK;
+
+		ret = ploop_getdevice(&minor);
+		if (ret)
+			goto err;
+		snprintf(device, sizeof(param->device), "/dev/%s",
+				make_sysfs_dev_name(minor, buf, sizeof(buf)));
+		if (stat(device, &st)) {
+			char devicep1[64];
+
+			/* Create pair /dev/ploopN & /dev/ploopNp1 */
+			if (mknod(device, S_IFBLK, gnu_dev_makedev(PLOOP_DEV_MAJOR, minor)))
+				ploop_err(errno, "mknod %s", device);
+			chmod(device, 0600);
+			snprintf(devicep1, sizeof(devicep1), "%sp1", device);
+			if (mknod(devicep1, S_IFBLK, gnu_dev_makedev(PLOOP_DEV_MAJOR, minor+1)))
+				ploop_err(errno, "mknod %s", devicep1);
+			chmod(devicep1, 0600);
+		}
+	}
+
+	*lfd_p = open(device, O_RDONLY);
+	if (*lfd_p < 0) {
+		ploop_err(errno, "Can't open device %s", device);
+		ret = SYSEXIT_DEVICE;
+		goto err;
+	}
+
+	for (i = 0; images[i] != NULL; i++) {
+		struct ploop_ctl_delta req;
+		int ro = (images[i+1] != NULL || param->ro) ? 1: 0;
+		char *image = images[i];
+
+		memset(&req, 0, sizeof(req));
+
+		req.c.pctl_format = PLOOP_FMT_PLOOP1;
+		if (raw && i == 0)
+			req.c.pctl_format = PLOOP_FMT_RAW;
+		if (ro)
+			req.c.pctl_flags = PLOOP_FMT_RDONLY;
+		req.c.pctl_cluster_log = 9;
+		req.c.pctl_size = 0;
+		req.c.pctl_chunks = 1;
+
+		req.f.pctl_fd = -1;
+		req.f.pctl_type = PLOOP_IO_DIRECT;
+		if (ploop_is_on_nfs(image))
+			req.f.pctl_type = PLOOP_IO_NFS;
+
+		ploop_log(0, "Adding delta dev=%s img=%s (%s)",
+				device, image, ro ? "ro" : "rw");
+		ret = add_delta(*lfd_p, image, &req);
+		if (ret) {
+			i--; /* image is not added */
+			goto err;
+		}
+	}
+	if (ioctl(*lfd_p, PLOOP_IOC_START, 0) < 0) {
+		ploop_err(errno, "PLOOP_IOC_START");
+		ret = SYSEXIT_DEVIOC;
+		i--; /* trick */
+		goto err;
+	}
+
+err:
+	if (ret && *lfd_p != -1) {
+		int err = 0;
+
+		for (; i >= 0; i--) {
+			err = ioctl(*lfd_p, PLOOP_IOC_DEL_DELTA, &i);
+			if (err < 0) {
+				ploop_err(errno, "PLOOP_IOC_DEL_DELTA level=%d", i);
+				break;
+			}
+		}
+		if (err == 0 && ioctl(*lfd_p, PLOOP_IOC_CLEAR, 0) < 0)
+			ploop_err(errno, "PLOOP_IOC_CLEAR");
+	}
+	ploop_unlock(&lckfd);
+	return ret;
+}
+
+int ploop_mount(char **images, struct ploop_mount_param *param, int raw)
+{
+	int lfd = -1;
+	struct stat st;
+	int i;
+	int ret = 0;
+
+	if (images == NULL || images[0] == NULL) {
+		ploop_err(0, "ploop_mount: no deltas to mount");
+		return SYSEXIT_PARAM;
+	}
+
+	if (param->target != NULL && stat(param->target, &st)) {
+		ploop_err(0, "Mount point %s does not exist", param->target);
+		return SYSEXIT_PARAM;
+	}
+
+	for (i = 0; images[i] != NULL; i++) {
+		int ro;
+
+		if (raw && i == 0)
+			continue;
+
+		ro  = (images[i+1] != NULL || param->ro) ? 1 : 0;
+		ret = ploop_fsck(images[i], 0, 0, 1, ro, 0);
+		if (ret) {
+			ploop_err(0, "%s (%s): irrecoverable errors",
+					images[i], ro ? "ro" : "rw");
+			goto err;
+		}
+	}
+
+	ret = add_deltas(images, param, raw, &lfd);
+
+	if (ret)
+		goto err;
+
+	if (param->target != NULL) {
+		ret = ploop_mount_fs(param);
+		if (ret)
+			ploop_stop(lfd, param->device);
+	}
+
+err:
+	if (lfd >= 0)
+		close(lfd);
+
+	return ret;
+}
+
+static int mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *param, int flags)
+{
+	int ret;
+	char **images;
+	char *guid;
+
+	if (param->guid != NULL) {
+		if (find_image_by_guid(di, param->guid) == NULL) {
+			ploop_err(0, "Uuid %s not found", param->guid);
+			return SYSEXIT_PARAM;
+		}
+		guid = param->guid;
+	} else
+		guid = di->top_guid;
+
+	if (!param->ro) {
+		int nr_ch = ploop_get_child_count_by_uuid(di, guid);
+		if (nr_ch != 0) {
+			ploop_err(0, "Unable to mount (rw) snapshot %s: "
+				"it has %d child%s", guid,
+				nr_ch, (nr_ch == 1) ? "" : "ren");
+			return SYSEXIT_PARAM;
+		}
+	}
+
+	images = make_images_list(di, guid, 0);
+	if (images == NULL)
+		return SYSEXIT_NOMEM;
+	if (!(flags & PLOOP_MOUNT_SNAPSHOT)) {
+		ret = create_base_magic_delta(&images[0]);
+		if (ret)
+			goto err;
+	}
+
+	ret = ploop_mount(images, param, di->raw);
+	if (ret)
+		unlink(images[0]);
+
+err:
+	free_images_list(images);
+
+	return ret;
+}
+
+static int auto_mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *param, int *mounted)
+{
+	char mnt[MAXPATHLEN];
+	int ret = 0;
+	int dev_mounted = 0;
+	int fs_mounted = 0;
+
+	ret = ploop_find_dev_by_uuid(di, 1, param->device, sizeof(param->device));
+	if (ret == -1)
+		return SYSEXIT_MOUNT;
+	if (ret == 0) {
+		dev_mounted = 1;
+		ret = get_mount_dir(param->device, mnt, sizeof(mnt));
+		if (ret == -1) {
+			ploop_err(0, "Can't find mount point for %s",
+				param->device);
+			return SYSEXIT_MOUNT;
+		} else if (ret == 0) {
+			param->target = strdup(mnt);
+			fs_mounted = 1;
+		}
+	}
+	if (!fs_mounted) {
+		ret = get_temp_mountpoint(di->images[0]->file, 1, mnt, sizeof(mnt));
+		if (ret)
+			return ret;
+		param->target = strdup(mnt);
+	}
+
+	if (!dev_mounted) {
+		ret = mount_image(di, param, 0);
+		if (ret == 0)
+			*mounted = 1;
+	} else if (!fs_mounted) {
+		ret = ploop_mount_fs(param);
+	}
+	return ret;
+}
+
+int ploop_mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *param)
+{
+	int ret;
+	char dev[64];
+
+	if (ploop_lock_di(di))
+		return SYSEXIT_LOCK;
+
+	ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
+	if (ret == -1) {
+		ploop_unlock_di(di);
+		return -1;
+	}
+	if (ret == 0) {
+		ploop_err(0, "Image %s already mounted to %s",
+				di->images[0]->file, dev);
+
+		ret = SYSEXIT_MOUNT;
+		goto err;
+	}
+
+	ret = mount_image(di, param, 0);
+err:
+	ploop_unlock_di(di);
+
+	return ret;
+}
+
+int ploop_mount_snapshot(struct ploop_disk_images_data *di, struct ploop_mount_param *param)
+{
+	return mount_image(di, param, PLOOP_MOUNT_SNAPSHOT);
+}
+
+int ploop_umount(const char *device, struct ploop_disk_images_data *di)
+{
+	char mnt[MAXPATHLEN] = "";
+	int lfd, ret;
+
+	if (!device) {
+		ploop_err(0, "ploop_umount: device is not specified");
+		return -1;
+	}
+
+	if (get_mount_dir(device, mnt, sizeof(mnt)) == 0) {
+		if (di != NULL)
+			store_statfs_info(mnt, di->images[0]->file);
+		ploop_log(0, "Umounting fs at %s", mnt);
+		if (do_umount(mnt)) {
+			ploop_err(errno, "umount %s failed", mnt);
+			return SYSEXIT_UMOUNT;
+		}
+	}
+
+	ploop_log(0, "Unmounting device %s", device);
+	lfd = open(device, O_RDONLY);
+	if (lfd < 0) {
+		ploop_err(errno, "Can't open dev %s", device);
+		return SYSEXIT_DEVICE;
+	}
+
+	ret = ploop_stop(lfd, device);
+	close(lfd);
+
+	return ret;
+}
+
+int ploop_umount_image(struct ploop_disk_images_data *di)
+{
+	int ret;
+	char dev[MAXPATHLEN];
+
+	if (di->nimages == 0) {
+		ploop_err(0, "No images specified");
+		return SYSEXIT_PARAM;
+	}
+
+	if (ploop_lock_di(di))
+		return SYSEXIT_LOCK;
+
+	ret = ploop_find_dev_by_uuid(di, 0, dev, sizeof(dev));
+	if (ret == -1) {
+		ploop_unlock_di(di);
+		return -1;
+	}
+	if (ret != 0) {
+		ploop_unlock_di(di);
+		ploop_err(0, "Image %s is not mounted", di->images[0]->file);
+		return -1;
+	}
+
+	ret = ploop_umount(dev, di);
+	if (ret == 0) {
+		ploop_get_base_delta_uuid_fname(di->images[0]->file, dev, sizeof(dev));
+		unlink(dev);
+	}
+
+	ploop_unlock_di(di);
+
+	return ret;
+}
+
+int ploop_grow_device(const char *device, off_t new_size)
+{
+	int fd, ret;
+	struct ploop_ctl ctl;
+	off_t size;
+
+	ret = ploop_get_size(device, &size);
+	if (ret)
+		return ret;
+	ploop_log(0, "Growing dev=%s size=%llu sectors (new size=%llu)",
+				device, (unsigned long long)size,
+				(unsigned long long)new_size);
+	if (new_size == size)
+		return 0;
+
+	if (new_size < size) {
+		ploop_err(0, "Incorrect new size specified %ld current size %ld",
+				new_size, size);
+		return SYSEXIT_PARAM;
+	}
+
+	fd = open(device, O_RDONLY);
+	if (fd < 0) {
+		ploop_err(errno, "Can't open device %s", device);
+		return SYSEXIT_DEVICE;
+	}
+
+	memset(&ctl, 0, sizeof(ctl));
+
+	ctl.pctl_cluster_log = 9;
+	ctl.pctl_size = new_size;
+
+	if (ioctl(fd, PLOOP_IOC_GROW, &ctl) < 0) {
+		ploop_err(errno, "PLOOP_IOC_GROW");
+		close(fd);
+		return SYSEXIT_DEVIOC;
+	}
+	close(fd);
+
+	return 0;
+}
+
+int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_param *param)
+{
+	int ret;
+	struct ploop_mount_param mount_param = {};
+	char buf[MAXPATHLEN];
+	int were_mounted = 0;
+	int balloonfd = -1;
+	struct stat st;
+	off_t dev_size = 0;
+	__u64 balloon_size = 0;
+	__u64 new_balloon_size = 0;
+
+	if (di->nimages == 0) {
+		ploop_err(0, "No images in DiskDescriptor");
+		return -1;
+	}
+	if (ploop_lock_di(di))
+		return SYSEXIT_LOCK;
+
+	ret = ploop_find_dev_by_uuid(di, 1, buf, sizeof(buf));
+	if (ret == -1)
+		goto err;
+	if (ret != 0) {
+		ret = auto_mount_image(di, &mount_param, &were_mounted);
+		if (ret)
+			goto err;
+	} else {
+		strncpy(mount_param.device, buf, sizeof(mount_param.device));
+		if (get_mount_dir(mount_param.device, buf, sizeof(buf))) {
+			ploop_err(0, "Can't find mount point for %s", buf);
+			ret = SYSEXIT_PARAM;
+			goto err;
+		}
+		mount_param.target = strdup(buf);
+	}
+
+	ret = ploop_get_size(mount_param.device, &dev_size);
+	if (ret)
+		goto err;
+
+	ret = get_balloon(mount_param.target, &st, &balloonfd);
+	if (ret)
+		goto err;
+	balloon_size = bytes2sec(st.st_size);
+
+	if (param->size == 0) {
+		struct statfs fs;
+		int delta = 1024 * 1024;
+
+		/* Inflate balloon up to max free space */
+		if (statfs(mount_param.target, &fs) != 0) {
+			ploop_err(errno, "statfs(%s)", mount_param.target);
+			ret = SYSEXIT_FSTAT;
+			goto err;
+		}
+		if (fs.f_bfree <= delta / fs.f_bsize) {
+			ret = 0; // no free space
+			goto err;
+		}
+
+		new_balloon_size = balloon_size + (fs.f_bfree * fs.f_bsize >> 9);
+		new_balloon_size -= delta >> 9;
+		ret = ploop_balloon_change_size(mount_param.device,
+				balloonfd, new_balloon_size);
+	} else if (param->size > dev_size) {
+		// GROW
+		if (balloon_size != 0) {
+			ret = ploop_balloon_change_size(mount_param.device,
+					balloonfd, 0);
+			if (ret)
+				goto err;
+		}
+		ret = ploop_grow_device(mount_param.device, param->size);
+		if (ret)
+			goto err;
+		ret = resize_fs(mount_param.device);
+		if (ret)
+			goto err;
+		tune_fs(mount_param.target, mount_param.device, param->size);
+	} else {
+		// SHRINK
+		/* FIXME: resize file system in case fs_size != dev_size
+		 */
+		new_balloon_size = dev_size - param->size;
+		if (new_balloon_size != balloon_size) {
+			ret = ploop_balloon_change_size(mount_param.device,
+					balloonfd, new_balloon_size);
+			if (ret)
+				goto err;
+			tune_fs(mount_param.target, mount_param.device, param->size);
+		}
+	}
+
+err:
+	close(balloonfd);
+	if (were_mounted)
+		ploop_umount(mount_param.device, NULL);
+	ploop_unlock_di(di);
+	free_mount_param(&mount_param);
+
+	return ret;
+}
+
+static int expanded2raw(struct ploop_disk_images_data *di)
+{
+	struct delta delta = {};
+	struct delta odelta = {};
+	int off = 16;
+	__u32 clu;
+	char buf[CLUSTER];
+	char tmp[MAXPATHLEN];
+	char fname[MAXPATHLEN];
+	int ret = -1;
+
+	ploop_log(0, "Converting image to raw...");
+	if (open_delta(&delta, di->images[0]->file, O_RDONLY, OD_OFFLINE))
+		return SYSEXIT_OPEN;
+	snprintf(tmp, sizeof(tmp), "%s.tmp",
+			di->images[0]->file);
+	ret = open_delta_simple(&odelta, tmp, O_RDWR|O_CREAT|O_EXCL|O_TRUNC, OD_OFFLINE);
+	if (ret)
+		goto err;
+
+	for (clu = 0; clu < delta.l2_size; clu++) {
+		int l2_cluster = (clu + off) / (CLUSTER / sizeof(__u32));
+		__u32 l2_slot  = (clu + off) % (CLUSTER / sizeof(__u32));
+
+		if (l2_cluster >= delta.l1_size) {
+			ploop_err(0, "abort: l2_cluster >= delta.l1_size");
+
+			goto err;
+		}
+
+		if (delta.l2_cache != l2_cluster) {
+			if (PREAD(&delta, delta.l2, CLUSTER, (off_t)l2_cluster * CLUSTER))
+				goto err;
+			delta.l2_cache = l2_cluster;
+		}
+		if ((delta.l2[l2_slot] % (1 << PLOOP1_DEF_CLUSTER_LOG)) != 0) {
+			ploop_err(0, "Image corrupted: delta.l2[%d]=%d",
+					l2_slot, delta.l2[l2_slot]);
+			goto err;
+		}
+		if (delta.l2[l2_slot] != 0) {
+			if (PREAD(&delta, buf, CLUSTER, (delta.l2[l2_slot] << PLOOP1_SECTOR_LOG)))
+				goto err;
+		} else {
+			bzero(buf, sizeof(buf));
+		}
+
+		if (PWRITE(&odelta, buf, CLUSTER, clu * CLUSTER))
+			goto err;
+	}
+
+	if (fsync(odelta.fd))
+		ploop_err(errno, "fsync");
+	di->raw = 1;
+
+	get_disk_descriptor_fname(di, fname, sizeof(fname));
+	if (ploop_store_diskdescriptor(fname, di))
+		goto err;
+
+	if (rename(tmp, di->images[0]->file)) {
+		ploop_err(errno, "rename %s %s",
+			tmp, di->images[0]->file);
+		goto err;
+	}
+	ret = 0;
+err:
+	close(odelta.fd);
+	if (ret)
+		unlink(tmp);
+	close_delta(&delta);
+
+	return ret;
+}
+
+static int expanded2preallocated(struct ploop_disk_images_data *di)
+{
+	struct delta delta = {};
+	int i;
+	int off = 16;
+	__u32 clu;
+	void *buf = NULL;
+	int clu_to_fill;
+	off_t data_off;
+	int ret = -1;
+
+	ploop_log(0, "Converting image to preallocated...");
+	if (open_delta(&delta, di->images[0]->file, O_RDWR, OD_OFFLINE))
+		return SYSEXIT_OPEN;
+	if (posix_memalign(&buf, 4096, CLUSTER)) {
+		ploop_err(errno, "posix_memalign");
+		goto err;
+	}
+	bzero(buf, CLUSTER);
+	// First stage: write data blocks
+	// clu_to_fill = total_data_clu - (allocated_clu - total_idx_clu)
+	clu_to_fill = delta.l2_size - (delta.alloc_head - delta.l1_size);
+	data_off = delta.alloc_head;
+	for (i = 0; i < clu_to_fill; i++) {
+		if (PWRITE(&delta, buf, CLUSTER, (data_off + i) * CLUSTER)) {
+			free(buf);
+			goto err;
+		}
+	}
+	free(buf); buf = NULL;
+	if (fsync(delta.fd)) {
+		ploop_err(errno, "fsync");
+		goto err;
+	}
+	// Second stage: update index
+	for (clu = 0; clu < delta.l2_size; clu++) {
+		int l2_cluster = (clu + off) / (CLUSTER / sizeof(__u32));
+		__u32 l2_slot  = (clu + off) % (CLUSTER / sizeof(__u32));
+
+		if (l2_cluster >= delta.l1_size) {
+			ploop_err(0, "abort: l2_cluster >= delta.l1_size");
+			goto err;
+		}
+
+		if (delta.l2_cache != l2_cluster) {
+			if (PREAD(&delta, delta.l2, CLUSTER, (off_t)l2_cluster * CLUSTER))
+				goto err;
+			delta.l2_cache = l2_cluster;
+		}
+		if (delta.l2[l2_slot] == 0) {
+			off_t idx_off = (off_t)l2_cluster * CLUSTER + (l2_slot*sizeof(__u32));
+			delta.l2[l2_slot] = data_off << PLOOP1_DEF_CLUSTER_LOG;
+
+			if (PWRITE(&delta, &delta.l2[l2_slot], sizeof(__u32), idx_off))
+				goto err;
+			data_off++;
+		}
+	}
+
+	if (fsync(delta.fd)) {
+		ploop_err(errno, "fsync");
+		goto err;
+	}
+	ret = 0;
+err:
+	close_delta(&delta);
+	return ret;
+}
+
+int ploop_convert_image(struct ploop_disk_images_data *di, int mode, int flags)
+{
+	int ret = -1;
+
+	if (di->raw) {
+		ploop_err(0, "Only expanded image type is supported");
+		return SYSEXIT_PARAM;
+	}
+	if (di->nimages == 0) {
+		ploop_err(0, "No images specified");
+		return SYSEXIT_PARAM;
+	}
+	if (ploop_lock_di(di))
+		return SYSEXIT_LOCK;
+
+	if (mode == PLOOP_EXPANDED_PREALLOCATED_MODE)
+		ret = expanded2preallocated(di);
+	else if (mode == PLOOP_RAW_MODE)
+		ret = expanded2raw(di);
+
+	ploop_unlock_di(di);
+
+	return ret;
+}
+
+int ploop_get_info(struct ploop_disk_images_data *di, struct ploop_info *info)
+{
+	char mnt[MAXPATHLEN];
+	char dev[64];
+
+	if (di->nimages == 0)
+		return SYSEXIT_PARAM;
+	if (ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev)) == 0 &&
+			get_mount_dir(dev, mnt, sizeof(mnt)) == 0)
+	{
+		if (get_statfs_info(mnt, info))
+			return -1;
+		return 0;
+	}
+
+	return read_statfs_info(di->images[0]->file, info);
+}
+
+static int do_snapshot(int lfd, int fd, struct ploop_ctl_delta *req)
+{
+	req->f.pctl_fd = fd;
+
+	if (ioctl(lfd, PLOOP_IOC_SNAPSHOT, req) < 0) {
+		ploop_err(errno, "PLOOP_IOC_SNAPSHOT");
+		return SYSEXIT_DEVIOC;
+	}
+
+	return 0;
+}
+
+int create_snapshot(const char *device, const char *delta, int syncfs)
+{
+	int ret;
+	int lfd = -1;
+	int fd = -1;
+	__u64 bdsize;
+	struct ploop_ctl_delta req;
+
+	lfd = open(device, O_RDONLY);
+	if (lfd < 0) {
+		ploop_err(errno, "Can't open device %s", device);
+		return SYSEXIT_DEVICE;
+	}
+
+	if (ioctl(lfd, BLKGETSIZE64, &bdsize) < 0) {
+		ploop_err(errno, "ioctl(BLKGETSIZE) %s", device);
+		ret = SYSEXIT_BLKDEV;
+		goto err;
+	}
+	bdsize >>= 9;
+
+	if (bdsize == 0) {
+		ploop_err(0, "Can't get block device %s size", device);
+		ret = SYSEXIT_BLKDEV;
+		goto err;
+	}
+
+	fd = create_empty_delta(delta, bdsize);
+	if (fd < 0) {
+		ret = SYSEXIT_OPEN;
+		goto err;
+	}
+
+	memset(&req, 0, sizeof(req));
+
+	req.c.pctl_format = PLOOP_FMT_PLOOP1;
+	req.c.pctl_flags = syncfs ? PLOOP_FLAG_FS_SYNC : 0;
+	req.c.pctl_cluster_log = 9;
+	req.c.pctl_size = 0;
+	req.c.pctl_chunks = 1;
+
+	req.f.pctl_type = PLOOP_IO_DIRECT;
+	if (ploop_is_on_nfs(delta))
+		req.f.pctl_type = PLOOP_IO_NFS;
+
+	ploop_log(0, "Creating snapshot dev=%s img=%s", device, delta);
+	ret = do_snapshot(lfd, fd, &req);
+
+	if (ret)
+		unlink(delta);
+err:
+	close(lfd);
+	close(fd);
+
+	return ret;
+}
+
+int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapshot_param *param)
+{
+	int ret;
+	int fd;
+	char dev[64];
+	char uuid[61];
+	char uuid1[61];
+	char fname[MAXPATHLEN];
+	char conf[MAXPATHLEN];
+	char conf_tmp[MAXPATHLEN];
+	int online = 0;
+
+	if (di->nimages == 0) {
+		ploop_err(0, "No images");
+		return SYSEXIT_PARAM;
+	}
+	if (param->guid != NULL && !is_valid_guid(param->guid)) {
+		ploop_err(0, "Incorrect guid %s", param->guid);
+		return SYSEXIT_PARAM;
+	}
+
+	if (ploop_lock_di(di))
+		return SYSEXIT_LOCK;
+
+	ret = gen_uuid_pair(uuid, sizeof(uuid), uuid1, sizeof(uuid1));
+	if (ret) {
+		ploop_err(errno, "Can't generate uuid");
+		goto err_cleanup1;
+	}
+	if (param->guid != NULL) {
+		if (find_snapshot_by_guid(di, param->guid) != -1) {
+			ploop_err(0, "The snapshot %s already exist",
+				param->guid);
+			ret = SYSEXIT_PARAM;
+			goto err_cleanup1;
+		}
+		if (param->snap_guid)
+			ploop_di_change_guid(di, di->top_guid, param->guid);
+		else
+			strcpy(uuid, param->guid);
+	}
+	snprintf(fname, sizeof(fname), "%s.%s",
+			di->images[0]->file, uuid1);
+	ret = ploop_di_add_image(di, fname, uuid, get_top_delta_guid(di));
+	if (ret)
+		goto err_cleanup1;
+
+	get_disk_descriptor_fname(di, conf, sizeof(conf));
+	snprintf(conf_tmp, sizeof(conf_tmp), "%s.tmp", conf);
+	ret = ploop_store_diskdescriptor(conf_tmp, di);
+	if (ret)
+		goto err_cleanup1;
+
+	ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
+	if (ret == -1)
+		goto err_cleanup2;
+
+	if (ret != 0) {
+		// offline snapshot
+		fd = create_empty_delta(fname, di->size);
+		if (fd != -1) {
+			ret = 0;
+			close(fd);
+		} else {
+			ret = SYSEXIT_CREAT;
+		}
+	} else {
+		// Always sync fs
+		online = 1;
+		ret = create_snapshot(dev, fname, 1);
+	}
+	if (ret)
+		goto err_cleanup2;
+
+	if (rename(conf_tmp, conf)) {
+		ploop_err(errno, "Can't rename %s %s",
+				conf_tmp, conf);
+		ret = SYSEXIT_RENAME;
+	}
+
+	if (ret && !online && unlink(fname))
+		ploop_err(errno, "Can't unlink %s",
+				fname);
+
+	ploop_log(0, "ploop snapshot %s has been successfully created",
+			di->top_guid);
+err_cleanup2:
+	if (ret && !online && unlink(conf_tmp))
+		ploop_err(errno, "Can't unlink %s",
+				conf_tmp);
+err_cleanup1:
+	ploop_unlock_di(di);
+
+	return ret;
+}
+
+int ploop_switch_snapshot(struct ploop_disk_images_data *di, const char *guid, int flags)
+{
+	int ret;
+	int fd;
+	char dev[64];
+	char uuid[61];
+	char uuid1[61];
+	char new_top_delta_fnanme[MAXPATHLEN];
+	char *old_top_delta_fname = NULL;
+	char conf[MAXPATHLEN];
+	char conf_tmp[MAXPATHLEN];
+
+	if (ploop_lock_di(di))
+		return SYSEXIT_LOCK;
+
+	ret = SYSEXIT_PARAM;
+	if (strcmp(di->top_guid, guid) == 0) {
+		ploop_err(errno, "Nothing to do, already on %s snapshot",
+				guid);
+		goto err_cleanup1;
+
+	}
+	if (find_snapshot_by_guid(di, guid) == -1) {
+		ploop_err(0, "Can't find snapshot by uuid %s",
+				guid);
+		goto err_cleanup1;
+	}
+	ret = gen_uuid_pair(uuid, sizeof(uuid), uuid1, sizeof(uuid1));
+	if (ret) {
+		ploop_err(errno, "Can't generate uuid");
+		goto err_cleanup1;
+	}
+	if (!(flags & PLOOP_LEAVE_TOP_DELTA)) {
+		// device should be stopped
+		ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
+		if (ret == -1) {
+			ret = SYSEXIT_PARAM;
+			goto err_cleanup1;
+		} else if (ret == 0) {
+			ret = SYSEXIT_PARAM;
+			ploop_err(0, "Unable to perform switch to snapshot operation on running device (%s)",
+					dev);
+			goto err_cleanup1;
+		}
+
+		ret = ploop_di_remove_image(di, di->top_guid, &old_top_delta_fname);
+		if (ret)
+			goto err_cleanup1;
+	}
+	snprintf(new_top_delta_fnanme, sizeof(new_top_delta_fnanme), "%s.%s",
+			di->images[0]->file, uuid1);
+	ret = ploop_di_add_image(di, new_top_delta_fnanme, uuid, guid);
+	if (ret)
+		goto err_cleanup1;
+
+	get_disk_descriptor_fname(di, conf, sizeof(conf));
+	snprintf(conf_tmp, sizeof(conf_tmp), "%s.tmp", conf);
+	ret = ploop_store_diskdescriptor(conf_tmp, di);
+	if (ret)
+		goto err_cleanup1;
+
+	// offline snapshot
+	fd = create_empty_delta(new_top_delta_fnanme, di->size);
+	if (fd == -1) {
+		ret = SYSEXIT_CREAT;
+		goto err_cleanup2;
+	}
+	close(fd);
+
+	if (rename(conf_tmp, conf)) {
+		ploop_err(errno, "Can't rename %s %s",
+				conf_tmp, conf);
+		ret = SYSEXIT_RENAME;
+		goto err_cleanup3;
+	}
+	if (old_top_delta_fname != NULL) {
+		ploop_log(0, "delete %s", old_top_delta_fname);
+		if (unlink(old_top_delta_fname))
+			ploop_err(errno, "Can't unlink %s",
+					old_top_delta_fname);
+	}
+
+	ploop_log(0, "ploop snapshot has been successfully switched");
+err_cleanup3:
+	if (ret && unlink(new_top_delta_fnanme))
+		ploop_err(errno, "Can't unlink %s",
+				conf_tmp);
+err_cleanup2:
+	if (ret && unlink(conf_tmp))
+		ploop_err(errno, "Can't unlink %s",
+				conf_tmp);
+err_cleanup1:
+	ploop_unlock_di(di);
+	free(old_top_delta_fname);
+
+	return ret;
+}
+
+int ploop_delete_top_delta(struct ploop_disk_images_data *di)
+{
+	return ploop_delete_snapshot(di, di->top_guid);
+}
+
+/* delete snapshot by guid
+ * 1) if guid is not active and last -> delete guid
+ * 2) if guid is not last merge with child -> delete child
+ */
+int ploop_delete_snapshot(struct ploop_disk_images_data *di, const char *guid)
+{
+	int ret;
+	char conf[MAXPATHLEN];
+	char *fname = NULL;
+	int nelem = 0;
+	char dev[64];
+	int snap_id;
+
+	if (ploop_lock_di(di))
+		return SYSEXIT_LOCK;
+
+	ret = SYSEXIT_PARAM;
+	snap_id = find_snapshot_by_guid(di, guid);
+	if (snap_id == -1) {
+		ploop_err(0, "Can't find snapshot by uuid %s",
+				guid);
+		goto err;
+	}
+	ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
+	if (ret == -1)
+		goto err;
+	else if (ret == 0 && strcmp(di->top_guid, guid) == 0) {
+		ret = SYSEXIT_PARAM;
+		ploop_err(0, "Unable to delete active snapshot %s",
+				guid);
+		goto err;
+	}
+
+	nelem = ploop_get_child_count_by_uuid(di, guid);
+	if (nelem == 0) {
+		if (strcmp(di->snapshots[snap_id]->parent_guid, NONE_UUID) == 0) {
+			ret = SYSEXIT_PARAM;
+			ploop_err(0, "Unable to delete base image");
+			goto err;
+		}
+		/* snapshot is not active and last -> delete */
+		ret = ploop_di_remove_image(di, guid, &fname);
+		if (ret)
+			goto err;
+		get_disk_descriptor_fname(di, conf, sizeof(conf));
+		ret = ploop_store_diskdescriptor(conf, di);
+		if (ret)
+			goto err;
+		ploop_log(0, "remove %s", fname);
+		if (fname != NULL && unlink(fname)) {
+			ploop_err(errno, "unlink %s", fname);
+			ret = SYSEXIT_UNLINK;
+		}
+		if (ret == 0)
+			ploop_log(0, "ploop snapshot %s has been successfully deleted",
+				guid);
+	} else if (nelem == 1) {
+		ret = ploop_merge_snapshot_by_guid(di, guid, PLOOP_MERGE_WITH_CHILD);
+	} else {
+		/* There no functionality to merge snapshot with >1 child */
+		ret = SYSEXIT_PARAM;
+		ploop_err(0, "There are %d references on %s snapshot: operation not supported",
+				nelem, guid);
+	}
+
+err:
+	free(fname);
+	ploop_unlock_di(di);
+
+	return ret;
+}
