@@ -19,8 +19,8 @@ all: $(PROGS)
 
 $(PROGS): $(LIBPLOOP)
 
-.depend:
-	$(CC) $(CFLAGS) -M $(SOURCES) > $@
+.depend: $(SOURCES)
+	$(CC) $(CFLAGS) -M $^ > $@
 
 -include .depend
 

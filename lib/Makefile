@@ -20,6 +20,8 @@ LIBOBJS=uuid.o \
 	pcopy.o \
 	di.o
 
+SOURCES=$(LIBOBJS:.o=.c)
+
 CFLAGS += $(shell pkg-config libxml-2.0 --cflags) -fPIC
 LDFLAGS += -L.
 LDLIBS += $(shell pkg-config libxml-2.0 --libs)
@@ -33,8 +35,8 @@ $(LIBPLOOP): $(LIBOBJS)
 $(LIBPLOOP_DYN): $(LIBOBJS)
 	$(CC) $(CFLAGS) $(INC) $(LDFLAGS) -shared  $^ ${LDLIBS} -o $@
 
-.depend:
-	$(CC) $(CFLAGS) -M $(LIBOBJS:.o=.c) > $@
+.depend: $(SOURCES)
+	$(CC) $(CFLAGS) -M $^ > $@
 -include .depend
 
 install: all
