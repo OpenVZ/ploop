@@ -4,7 +4,7 @@ Name: ploop
 Version: 5.0.0
 Release: 100
 Group: Applications/System
-License: Parallels
+License: GNU GPL
 Source: ploop.tar.bz2
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 Requires: parted
