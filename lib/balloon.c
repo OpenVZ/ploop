@@ -572,12 +572,14 @@ int ploop_baloon_complete(const char *device)
 	reverse_map_len = delta.l2_size + delta.l2_size;
 	reverse_map = alloc_reverse_map(reverse_map_len);
 	if (reverse_map == NULL) {
+		close_delta(&delta);
 		ret = SYSEXIT_MALLOC;
 		goto err;
 	}
 
 	ret = range_build(freezed_a_h, n_free_blocks, reverse_map, reverse_map_len,
 		    &delta, freemap, &rangemap, &relocmap);
+	close_delta(&delta);
 	if (ret)
 		goto err;
 reloc:
