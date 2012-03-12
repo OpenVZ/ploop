@@ -38,4 +38,4 @@ install: $(PROGS)
 		$(INSTALL) -s -m 755 $$file $(DESTDIR)$(USRSBINDIR)/$$file; \
 	done
 clean:
-	rm -f $(PROGS) $(OBJS) $(MANS) .depend
+	rm -f $(PROGS) $(OBJS) $(MANS)

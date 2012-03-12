@@ -45,4 +45,4 @@ install: all
 	$(INSTALL) -m 755 $(LIBPLOOP_DYN) $(DESTDIR)/$(LIBDIR)
 
 clean:
-	rm -f $(PROGS) *.o *.a *.so .depend
+	rm -f $(PROGS) *.o *.a *.so
