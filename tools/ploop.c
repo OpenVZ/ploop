@@ -690,8 +690,7 @@ static int plooptool_replace(int argc, char **argv)
 static void usage_snapshot(void)
 {
 	fprintf(stderr, "Usage: ploop snapshot [-u <uuid>] DiskDescriptor.xml\n"
-			"       ploop snapshot [-F] [-b IO_MODULE] -d DEVICE DELTA\n"
-			"         IO_MODULE := { direct | nfs }\n"
+			"       ploop snapshot [-F] -d DEVICE DELTA\n"
 			"         DEVICE := ploop device, f.e. /dev/ploop0\n"
 			"         DELTA := path to new image file\n"
 			"         -F    - synchronize file system before taking snapshot\n"
@@ -702,20 +701,11 @@ static int plooptool_snapshot(int argc, char **argv)
 {
 	int i, ret;
 	char *device = NULL;
-	int nfs = 0;
 	int syncfs = 0;
 	struct ploop_snapshot_param param = {};
 
 	while ((i = getopt(argc, argv, "b:Fd:u:")) != EOF) {
 		switch (i) {
-		case 'b':
-			if (strcmp(optarg, "nfs") == 0)
-				nfs = 1;
-			else if (strcmp(optarg, "direct") != 0) {
-				usage_snapshot();
-				return -1;
-			}
-			break;
 		case 'd':
 			device = optarg;
 			break;
