@@ -58,7 +58,6 @@ static int grow_raw_device_offline(const char *image, off_t new_size)
 static int grow_delta_offline(char *image, off_t new_size)
 {
 	off_t old_size;
-	int old_l1_size, new_l1_size; /* # L2 clu-blocks */
 	struct ploop_pvd_header *vh;
 	void *buf;
 
@@ -69,7 +68,6 @@ static int grow_delta_offline(char *image, off_t new_size)
 
 	vh = (struct ploop_pvd_header *)delta.hdr0;
 	old_size = vh->m_SizeInSectors;
-	old_l1_size = vh->m_FirstBlockOffset / (CLUSTER >> 9);
 
 	if (!new_size) {
 		printf("%s size is %llu sectors\n",
@@ -92,8 +90,6 @@ static int grow_delta_offline(char *image, off_t new_size)
 		perror("dirty_delta");
 		return SYSEXIT_WRITE;
 	}
-
-	new_l1_size = new_vh.m_FirstBlockOffset / (CLUSTER >> 9);
 
 	if (posix_memalign(&buf, 4096, CLUSTER))
 		return -1;
