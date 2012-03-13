@@ -36,7 +36,6 @@ if [ -f $SCRIPT ]; then
 fi
 
 %files
-%attr(644,root,root) /etc/modprobe.d/*
 %attr(755,root,root) /sbin/*
 %attr(755,root,root) %{_sbindir}/ploop
 %attr(755,root,root) %{_sbindir}/ploop-*
@@ -70,7 +69,6 @@ Headers and a static version of ploop library
 %attr(644,root,root) %{_incdir}/libploop.h
 %attr(644,root,root) %{_incdir}/ploop_if.h
 %attr(644,root,root) %{_incdir}/ploop1_image.h
-%attr(644,root,root) %{_incdir}/ploop_net_proto.h
 
 %changelog
 * Sun Mar 11 2012 Kir Kolyshkin <kir@parallels.com> 5.0.0-100
