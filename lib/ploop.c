@@ -1465,7 +1465,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 err:
 	close(balloonfd);
 	if (were_mounted)
-		ploop_umount(mount_param.device, NULL);
+		ploop_umount(mount_param.device, di);
 	ploop_unlock_di(di);
 	free_mount_param(&mount_param);
 
