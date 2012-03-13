@@ -99,8 +99,7 @@ static int grow_delta_offline(char *image, off_t new_size)
 		return 0;
 
 	if (new_vh.m_SizeInSectors < old_size) {
-		fprintf(stderr, "Use ploop-shrink for offline truncate "
-			"of ploop1 delta\n");
+		fprintf(stderr, "Error: new size is less than the old size\n");
 		return -1;
 	}
 
