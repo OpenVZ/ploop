@@ -15,7 +15,7 @@ all install clean:
 tar: $(TARBALL)
 $(TARBALL): clean
 	rm -f ../$(NAMEVER)
-	ln -s $(NAME) ../$(NAMEVER)
+	ln -s `pwd | awk -F / '{print $$NF}'` ../$(NAMEVER)
 	tar --directory .. --exclude-vcs --exclude .depend \
 		--exclude $(NAMEVER)/$(NAME)-\*.tar\* \
 		-cvhjf ../$(TARBALL) $(NAMEVER)
