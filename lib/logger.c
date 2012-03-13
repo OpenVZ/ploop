@@ -29,31 +29,7 @@ static int _s_log_enable = 1;
 static int _s_log_level = 3;
 static int _s_log_verbose_level = -2; // disable stdout/stderr
 static FILE *_s_log_file = NULL;
-#ifdef __i386__
-#include <pthread.h>
 
-/* Workaround for non NPTL glibc
- * Private thread specific data */
-static pthread_key_t buf_key;
-static pthread_once_t buf_key_once = PTHREAD_ONCE_INIT;
-
-static void buffer_destroy(void *buf)
-{
-	if (buf != NULL) free(buf);
-}
-
-static void buffer_key_alloc(void)
-{
-	pthread_key_create(&buf_key, buffer_destroy);
-	pthread_setspecific(buf_key, calloc(1, LOG_BUF_SIZE));
-}
-
-static char *get_buffer(void)
-{
-	pthread_once(&buf_key_once, buffer_key_alloc);
-	return pthread_getspecific(buf_key);
-}
-#else
 /* Thread Local Storage */
 static __thread char _g_log_buf[LOG_BUF_SIZE];
 
@@ -61,7 +37,7 @@ static char *get_buffer(void)
 {
 	return _g_log_buf;
 }
-#endif
+
 static inline void get_date(char *buf, int len)
 {
 	struct tm *p_tm_time;
