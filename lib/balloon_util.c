@@ -157,9 +157,9 @@ int fiemap_get(int fd, __u64 off, __u64 start, off_t size, struct pfiemap **pfie
 			    ~FIEMAP_EXTENT_LAST) {
 				ploop_err(0, "Skipping extent (%llu/%llu"
 					"/%llu) with unexpected flags=%s",
-					fm_ext[i].fe_length,
-					fm_ext[i].fe_logical,
-					fm_ext[i].fe_physical,
+					(long long unsigned)fm_ext[i].fe_length,
+					(long long unsigned)fm_ext[i].fe_logical,
+					(long long unsigned)fm_ext[i].fe_physical,
 					fl(fm_ext[i].fe_flags));
 				continue;
 			}
