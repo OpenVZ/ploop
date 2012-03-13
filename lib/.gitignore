@@ -1,2 +1,4 @@
 .depend
 *.o
+libploop.a
+libploop.so
