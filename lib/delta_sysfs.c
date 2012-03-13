@@ -26,7 +26,6 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <sys/param.h>
-#include <linux/kdev_t.h>
 #include <linux/fs.h>
 #include <sys/ioctl.h>
 

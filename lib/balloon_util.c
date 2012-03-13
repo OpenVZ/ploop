@@ -30,7 +30,6 @@
 #include <string.h>
 #include <linux/fs.h>
 #include <linux/fiemap.h>
-#include <linux/kdev_t.h>
 
 #include "ploop.h"
 

@@ -5,7 +5,6 @@
 
 #ifndef __ASSEMBLY__
 
-#include <linux/posix_types.h>
 
 
 /*

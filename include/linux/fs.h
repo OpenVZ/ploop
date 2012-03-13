@@ -6,9 +6,7 @@
  * structures etc.
  */
 
-#include <linux/limits.h>
 #include <linux/ioctl.h>
-#include <linux/blk_types.h>
 #include <linux/types.h>
 
 /*
