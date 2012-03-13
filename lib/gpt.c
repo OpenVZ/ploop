@@ -91,8 +91,9 @@ int get_partition_device_name(const char *device, char *out, int size)
 		if (ret == -1)
 			ploop_err(errno, "Can't read %s", device);
 		else
-			ploop_err(0, "short read from %s %d != %lu",
-					device, ret, sizeof(signature));
+			ploop_err(0, "short read from %s %d != %u",
+					device, ret,
+					(unsigned)sizeof(signature));
 		close(fd);
 		return -1;
 	}
@@ -163,7 +164,7 @@ int resize_gpt_partition(const char *devname)
 	if (ret)
 		return -1;
 
-	ploop_log(1, "Resizing GPT partition to %ld", size);
+	ploop_log(1, "Resizing GPT partition to %ld", (long)size);
 	fd = open(devname, O_RDWR);
 	if (fd == -1) {
 		ploop_err(errno, "open %s", devname);
