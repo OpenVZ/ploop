@@ -1,12 +1,27 @@
 include Makefile.inc
 
+NAME=ploop
+SPEC=$(NAME).spec
+VERSION=$(shell awk '/^Version:/{print $$2}' $(SPEC))
+NAMEVER=$(NAME)-$(VERSION)
+TARBALL=$(NAMEVER).tar.bz2
+
 SUBDIRS=include lib tools scripts
 
 all install clean:
 	@set -e; \
 	for d in $(SUBDIRS); do $(MAKE) -C $$d $@; done
 
-rpms: clean
-	cd .. && tar -cvjf ploop.tar.bz2 ploop --exclude-vcs && \
-		rpmbuild -ta ploop.tar.bz2 ${RPMB_ARGS}
+tar: $(TARBALL)
+$(TARBALL): clean
+	rm -f ../$(NAMEVER)
+	ln -s $(NAME) ../$(NAMEVER)
+	tar --directory .. --exclude-vcs --exclude .depend \
+		--exclude $(NAMEVER)/$(NAME)-\*.tar\* \
+		-cvhjf ../$(TARBALL) $(NAMEVER)
+	rm -f $(TARBALL)
+	mv ../$(TARBALL) .
+	rm -f ../$(NAMEVER)
 
+rpms: tar
+	rpmbuild -ta $(TARBALL) ${RPMB_ARGS}

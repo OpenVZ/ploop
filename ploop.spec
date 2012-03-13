@@ -5,7 +5,7 @@ Version: 5.0.0
 Release: 100
 Group: Applications/System
 License: GNU GPL
-Source: ploop.tar.bz2
+Source: ploop-%{version}.tar.bz2
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 Requires: parted
 BuildRequires: libxml2-devel
@@ -14,7 +14,7 @@ BuildRequires: libxml2-devel
 This package contains tools to work with ploop devices and images.
 
 %prep
-%setup -q -n %{name}
+%setup -q
 
 %build
 make LIBDIR=%{_libdir} all
