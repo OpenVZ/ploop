@@ -197,6 +197,7 @@ enum {
 
 	PLOOP_MNTN_TRACK,    /* tracking is in progress */
 
+	PLOOP_MNTN_NOFAST = 256,
 	/* all types below requires fast-path disabled ! */
 
 	PLOOP_MNTN_MERGE,    /* merge is in progress */
@@ -209,7 +210,7 @@ enum {
  * NB: PLOOP_MNTN_TRACK is handled separately because
  * READ-requests may go fast-path even while tracking.
  */
-#define FAST_PATH_DISABLED(t) (t >= PLOOP_MNTN_MERGE)
+#define FAST_PATH_DISABLED(t) (t > PLOOP_MNTN_NOFAST)
 
 #define PLOOPCTLTYPE	'P'
 
