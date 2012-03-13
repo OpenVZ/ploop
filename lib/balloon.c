@@ -337,7 +337,7 @@ int ploop_balloon_change_size(const char *device, int balloonfd, off_t new_size)
 	new_size = ((new_size << 9) + st.st_blksize - 1) & ~(st.st_blksize - 1);
 
 	ploop_log(0, "change balloon size old_size=%ld new_size=%ld",
-			old_size, new_size);
+			(long)old_size, (long)new_size);
 
 	pfiemap = fiemap_alloc(128);
 	freemap = freemap_alloc(128);
