@@ -247,7 +247,7 @@ static int create_empty_delta(const char *path, off_t bdsize)
 	}
 
 	ploop_log(0, "Creating delta %s size=%ld sectors",
-			path, bdsize);
+			path, (long)bdsize);
 	fd = open(path, O_RDWR|O_CREAT|O_EXCL, 0600);
 	if (fd < 0) {
 		ploop_err(errno, "Can't open %s", path);
@@ -306,7 +306,7 @@ static int create_empty_preallocated_delta(const char *path, off_t bdsize)
 	}
 
 	ploop_log(0, "Creating preallocated delta %s size=%ld sectors",
-			path, bdsize);
+			path, (long)bdsize);
 	rc = open_delta_simple(&odelta, path, O_RDWR|O_CREAT|O_EXCL, OD_OFFLINE);
 	if (rc) {
 		free(buf);
@@ -372,7 +372,7 @@ static int create_raw_delta(const char * path, off_t bdsize)
 	off_t pos;
 
 	ploop_log(0, "Creating raw delta %s size=%ld sectors",
-			path, bdsize);
+			path, (long)bdsize);
 
 	if (posix_memalign(&buf, 4096, CLUSTER)) {
 		ploop_err(errno, "posix_memalign");
@@ -1346,7 +1346,7 @@ int ploop_grow_device(const char *device, off_t new_size)
 
 	if (new_size < size) {
 		ploop_err(0, "Incorrect new size specified %ld current size %ld",
-				new_size, size);
+				(long)new_size, (long)size);
 		return SYSEXIT_PARAM;
 	}
 
