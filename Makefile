@@ -12,6 +12,7 @@ all install clean:
 	@set -e; \
 	for d in $(SUBDIRS); do $(MAKE) -C $$d $@; done
 
+dist: tar
 tar: $(TARBALL)
 $(TARBALL): clean
 	rm -f ../$(NAMEVER)
