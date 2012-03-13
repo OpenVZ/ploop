@@ -22,8 +22,6 @@
 #include <unistd.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <linux/types.h>
-#include <linux/loop.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
