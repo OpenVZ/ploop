@@ -1,8 +1,8 @@
 %define _incdir /usr/include/ploop
 Summary: ploop tools
 Name: ploop
-Version: 5.0.0
-Release: 100
+Version: 1.0
+Release: 1
 Group: Applications/System
 License: GNU GPL
 Source: ploop-%{version}.tar.bz2
@@ -71,5 +71,5 @@ Headers and a static version of ploop library
 %attr(644,root,root) %{_incdir}/ploop1_image.h
 
 %changelog
-* Sun Mar 11 2012 Kir Kolyshkin <kir@parallels.com> 5.0.0-100
+* Tue Mar 13 2012 Kir Kolyshkin <kir@openvz.org> 1.0-1
 - initial version
