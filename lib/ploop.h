@@ -11,6 +11,16 @@
 
 #define PLOOP_DEV_MAJOR 182
 
+#ifndef __NR_fallocate
+#if defined __i386__
+#define __NR_fallocate	324
+#elif defined __x86_64__
+#define __NR_fallocate	285
+#else
+#error "No fallocate syscall known for this arch"
+#endif
+#endif /* ! __NR_fallocate */
+
 #define DISKDESCRIPTOR_XML      "DiskDescriptor.xml"
 /* Compatibility: Parallels use this UUID to mark top delta */
 #define BASE_UUID		"{5fbaabe3-6958-40FF-92a7-860e329aab41}"
