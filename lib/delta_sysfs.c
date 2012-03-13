@@ -434,7 +434,7 @@ int ploop_find_dev_by_delta(char *delta, char *buf, int size)
 					st1.st_rdev != dev)
 			{
 				ploop_err(0, "Inconsistency in device number detected for %s sys_dev=%lu dev=%lu",
-						buf, dev, st1.st_rdev);
+						buf, (unsigned long)dev, (unsigned long)st1.st_rdev);
 				ret = -1;
 			} else
 				ret = 0;
