@@ -23,7 +23,7 @@
 
 #define DISKDESCRIPTOR_XML      "DiskDescriptor.xml"
 /* Compatibility: Parallels use this UUID to mark top delta */
-#define BASE_UUID		"{5fbaabe3-6958-40FF-92a7-860e329aab41}"
+#define BASE_UUID		"{5fbaabe3-6958-40ff-92a7-860e329aab41}"
 #define NONE_UUID		"{00000000-0000-0000-0000-000000000000}"
 #define BASE_UUID_MAGIC		"d5c3fc07-bc9a-4edc-8038-f1367d5755df"
 #define DEFAULT_FSTYPE		"ext4"

@@ -37,6 +37,11 @@ static void free_image_data(struct ploop_image_data *data)
 	}
 }
 
+static int guidcmp(const char *p1, const char *p2)
+{
+	return strcasecmp(p1, p2);
+}
+
 int ploop_add_image_entry(struct ploop_disk_images_data *di, const char *fname, const char *guid)
 {
 	struct ploop_image_data **tmp;
@@ -164,16 +169,16 @@ void ploop_di_change_guid(struct ploop_disk_images_data *di, const char *guid, c
 	int i;
 
 	for (i = 0; i < di->nimages; i++)
-		if (strcmp(di->images[i]->guid, guid) == 0)
+		if (guidcmp(di->images[i]->guid, guid) == 0)
 			strcpy(di->images[i]->guid, new_guid);
 	for (i = 0; i < di->nsnapshots; i++) {
-		if (strcmp(di->snapshots[i]->guid, guid) == 0)
+		if (guidcmp(di->snapshots[i]->guid, guid) == 0)
 			strcpy(di->snapshots[i]->guid, new_guid);
-		if (strcmp(di->snapshots[i]->parent_guid, guid) == 0)
+		if (guidcmp(di->snapshots[i]->parent_guid, guid) == 0)
 			strcpy(di->snapshots[i]->parent_guid, new_guid);
 	}
 
-	if (strcmp(di->top_guid, guid) == 0)
+	if (guidcmp(di->top_guid, guid) == 0)
 		strcpy(di->top_guid, new_guid);
 }
 
@@ -240,7 +245,7 @@ static int find_image_idx_by_guid(struct ploop_disk_images_data *di, const char 
 	int i;
 
 	for (i = 0; i < di->nimages; i++) {
-		if (!strcmp(guid, di->images[i]->guid))
+		if (!guidcmp(guid, di->images[i]->guid))
 			return i;
 	}
 	return -1;
@@ -267,7 +272,7 @@ int find_snapshot_by_guid(struct ploop_disk_images_data *di, const char *guid)
 	if (guid == NULL)
 		return -1;
 	for (i = 0; i < di->nsnapshots; i++)
-		if (strcmp(di->snapshots[i]->guid, guid) == 0)
+		if (guidcmp(di->snapshots[i]->guid, guid) == 0)
 			return i;
 	return -1;
 }
@@ -285,7 +290,7 @@ int ploop_get_child_by_uuid(struct ploop_disk_images_data *di, const char *guid,
 	int i;
 
 	for (i = 0; i < di->nsnapshots; i++) {
-		if (strcmp(di->snapshots[i]->parent_guid, guid) == 0) {
+		if (guidcmp(di->snapshots[i]->parent_guid, guid) == 0) {
 			*child_guid = di->snapshots[i]->guid;
 			return 0;
 		}
@@ -300,7 +305,7 @@ char *ploop_find_parent_by_guid(struct ploop_disk_images_data *di, const char *g
 	i = find_snapshot_by_guid(di, guid);
 	if (i == -1)
 		return NULL;
-	if (strcmp(di->snapshots[i]->parent_guid, NONE_UUID) == 0)
+	if (guidcmp(di->snapshots[i]->parent_guid, NONE_UUID) == 0)
 		return NULL;
 	return di->snapshots[i]->parent_guid;
 }
@@ -310,7 +315,7 @@ int ploop_get_child_count_by_uuid(struct ploop_disk_images_data *di, const char 
 	int i, n = 0;
 
 	for (i = 0; i < di->nsnapshots; i++)
-		if (strcmp(di->snapshots[i]->parent_guid, guid) == 0)
+		if (guidcmp(di->snapshots[i]->parent_guid, guid) == 0)
 			n++;
 	return n;
 }
@@ -380,7 +385,7 @@ int ploop_di_remove_image(struct ploop_disk_images_data *di, const char *guid, c
 				(nr_ch == 1) ? "" : "ren");
 		return SYSEXIT_PARAM;
 	}
-	if (strcmp(snapshot->parent_guid, NONE_UUID) == 0) {
+	if (guidcmp(snapshot->parent_guid, NONE_UUID) == 0) {
 		ploop_err(0, "Unable to delete image %s: it is a base image",
 				guid);
 		return SYSEXIT_PARAM;
@@ -394,7 +399,7 @@ int ploop_di_remove_image(struct ploop_disk_images_data *di, const char *guid, c
 
 	ploop_log(3, "del snapshot %s", guid);
 	// update top uuid
-	if (strcmp(guid, di->top_guid) == 0)
+	if (guidcmp(guid, di->top_guid) == 0)
 		strcpy(di->top_guid, snapshot->parent_guid);
 	remove_data_from_array((void**)di->snapshots, di->nsnapshots, snap_id);
 	di->nsnapshots--;
@@ -434,7 +439,7 @@ int ploop_di_merge_image(struct ploop_disk_images_data *di, const char *guid, ch
 				guid, nr_ch);
 		return SYSEXIT_PARAM;
 	}
-	if (strcmp(snapshot->parent_guid, NONE_UUID) == 0) {
+	if (guidcmp(snapshot->parent_guid, NONE_UUID) == 0) {
 		ploop_err(0, "Unable to merge image %s: it is a base image",
 				guid);
 		return SYSEXIT_PARAM;
@@ -452,10 +457,10 @@ int ploop_di_merge_image(struct ploop_disk_images_data *di, const char *guid, ch
 	 * so it has merge S2 to S1 and we should update all S1 referrences to S2
 	 */
 	for (i = 0; i < di->nsnapshots; i++)
-		if (strcmp(di->snapshots[i]->guid, snapshot->parent_guid) == 0)
+		if (guidcmp(di->snapshots[i]->guid, snapshot->parent_guid) == 0)
 			strcpy(di->snapshots[i]->guid, guid);
 	for (i = 0; i < di->nimages; i++)
-		if (strcmp(di->images[i]->guid, snapshot->parent_guid) == 0)
+		if (guidcmp(di->images[i]->guid, snapshot->parent_guid) == 0)
 			strcpy(di->images[i]->guid, guid);
 	remove_data_from_array((void**)di->snapshots, di->nsnapshots, snap_id);
 	di->nsnapshots--;
