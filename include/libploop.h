@@ -112,6 +112,7 @@ struct ploop_cancel_handle;
 extern "C" {
 #endif
 
+int ploop_getdevice(int *minor);
 int ploop_read_diskdescriptor(const char *dir, struct ploop_disk_images_data *di);
 struct ploop_disk_images_data *ploop_alloc_diskdescriptor(void);
 void ploop_free_diskdescriptor(struct ploop_disk_images_data *di);
