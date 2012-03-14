@@ -32,7 +32,6 @@ enum ploop_image_mode {
 struct ploop_mount_param {
 	char device[64];
 	int ro;
-	int nfs;
 	int partitioned;
 	char *fstype;
 	char *target;
