@@ -320,7 +320,7 @@ static int plooptool_add(int argc, char **argv)
 
 static void usage_start(void)
 {
-	fprintf(stderr, "Usage: ploop start [-P] -d DEVICE\n" 
+	fprintf(stderr, "Usage: ploop start [-P] -d DEVICE\n"
 			"       DEVICE := ploop device, e.g. /dev/ploop0\n"
 			"       -P     - rescan partition table\n");
 }
@@ -377,7 +377,7 @@ static int plooptool_start(int argc, char **argv)
 
 static void usage_stop(void)
 {
-	fprintf(stderr, "Usage: ploop stop -d DEVICE\n" 
+	fprintf(stderr, "Usage: ploop stop -d DEVICE\n"
 			"       DEVICE := ploop device, e.g. /dev/ploop0\n");
 }
 
@@ -424,7 +424,7 @@ static int plooptool_stop(int argc, char **argv)
 
 static void usage_clear(void)
 {
-	fprintf(stderr, "Usage: ploop clear -d DEVICE\n" 
+	fprintf(stderr, "Usage: ploop clear -d DEVICE\n"
 			"       DEVICE := ploop device, e.g. /dev/ploop0\n");
 }
 
