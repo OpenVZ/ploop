@@ -283,7 +283,7 @@ static int plooptool_add(int argc, char **argv)
 
 	lfd = open(addopts.device, O_RDONLY);
 	if (lfd < 0) {
-		perror("Cannot open device");
+		perror("Can't open device");
 		return SYSEXIT_DEVICE;
 	}
 
@@ -358,7 +358,7 @@ static int plooptool_start(int argc, char **argv)
 
 	lfd = open(startopts.device, O_RDONLY);
 	if (lfd < 0) {
-		perror("Cannot open device");
+		perror("Can't open device");
 		return SYSEXIT_DEVICE;
 	}
 
@@ -410,7 +410,7 @@ static int plooptool_stop(int argc, char **argv)
 
 	lfd = open(stopopts.device, O_RDONLY);
 	if (lfd < 0) {
-		perror("Cannot open device");
+		perror("Can't open device");
 		return SYSEXIT_DEVICE;
 	}
 
@@ -457,7 +457,7 @@ static int plooptool_clear(int argc, char **argv)
 
 	lfd = open(stopopts.device, O_RDONLY);
 	if (lfd < 0) {
-		perror("Cannot open device");
+		perror("Can't open device");
 		return SYSEXIT_DEVICE;
 	}
 
@@ -645,7 +645,7 @@ static int plooptool_replace(int argc, char **argv)
 
 	lfd = open(replaceopts.device, O_RDONLY);
 	if (lfd < 0) {
-		perror("Cannot open device");
+		perror("Can't open device");
 		return SYSEXIT_DEVICE;
 	}
 
