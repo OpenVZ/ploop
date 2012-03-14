@@ -35,7 +35,7 @@ static struct ploop_cancel_handle *_s_cancel_handle;
 void usage_summary(void)
 {
 	fprintf(stderr, "Usage: ploop init -s SIZE [-f FORMAT] NEW_DELTA\n"
-			"       ploop mount [-rP] [-b nfs] [-f raw] -d DEVICE [ TOP_DELTA ... ] BASE_DELTA\n"
+			"       ploop mount [-rP] [-f raw] -d DEVICE [ TOP_DELTA ... ] BASE_DELTA\n"
 			"       ploop umount -d DEVICE\n"
 			"       ploop { delete | rm } -d DEVICE -l LEVEL\n"
 			"       ploop merge -d DEVICE [-l LEVEL[..TOP_LEVEL]]\n"
@@ -43,7 +43,7 @@ void usage_summary(void)
 			"       ploop fsck [-fcr] DELTA\n"
 			"       ploop getdev\n"
 			"       ploop resize -s SIZE BASE_DELTA\n"
-			"       ploop snapshot [-F] [-b nfs] -d DEVICE NEW_DELTA\n"
+			"       ploop snapshot [-F] -d DEVICE NEW_DELTA\n"
 			"       ploop snapshot DiskDescriptor.xml\n"
 			"       ploop snapshot-delete -u <uuid> DiskDescriptor.xml\n"
 			"       ploop snapshot-merge [-u <uuid>] DiskDescriptor.xml\n"
@@ -132,10 +132,9 @@ static int plooptool_init(int argc, char **argv)
 
 static void usage_mount(void)
 {
-	fprintf(stderr, "Usage: ploop mount [-rP] [-b IO_MODULE] [-f FORMAT] [-d DEVICE] [TOP_DELTA ... ] BASE_DELTA\n"
+	fprintf(stderr, "Usage: ploop mount [-rP] [-f FORMAT] [-d DEVICE] [TOP_DELTA ... ] BASE_DELTA\n"
 			"     : ploop mount [-rP] [-m DIR] [-u UUID] DiskDescriptor.xml\n"
 			"       FORMAT := { raw | ploop1 }\n"
-			"       IO_MODULE := { direct | nfs }\n"
 			"       DEVICE := ploop device, f.e. /dev/ploop0\n"
 			"       *DELTA := path to image file\n"
 			"       -r     - mount images read-only\n"
@@ -152,7 +151,7 @@ static int plooptool_mount(int argc, char **argv)
 	int base = 0;
 	struct ploop_mount_param mountopts = {};
 
-	while ((i = getopt(argc, argv, "rb:f:Pd:m:t:u:o:")) != EOF) {
+	while ((i = getopt(argc, argv, "rf:Pd:m:t:u:o:")) != EOF) {
 		switch (i) {
 		case 'd':
 			strncpy(mountopts.device, optarg, sizeof(mountopts.device)-1);
@@ -164,14 +163,6 @@ static int plooptool_mount(int argc, char **argv)
 			if (strcmp(optarg, "raw") == 0)
 				raw = 1;
 			else if (strcmp(optarg, "ploop1") != 0) {
-				usage_mount();
-				return -1;
-			}
-			break;
-		case 'b':
-			if (strcmp(optarg, "nfs") == 0)
-				mountopts.nfs = 1;
-			else if (strcmp(optarg, "direct") != 0) {
 				usage_mount();
 				return -1;
 			}
@@ -236,9 +227,8 @@ err:
 
 static void usage_add(void)
 {
-	fprintf(stderr, "Usage: ploop add [-w] [-b IO_MODULE] [-f FORMAT] -d DEVICE DELTA\n"
+	fprintf(stderr, "Usage: ploop add [-w] [-f FORMAT] -d DEVICE DELTA\n"
 			"       FORMAT := { raw | ploop1 }\n"
-			"       IO_MODULE := { direct | nfs }\n"
 			"       DEVICE := ploop device, f.e. /dev/ploop0\n"
 			"       DELTA := path to image file\n");
 }
@@ -256,11 +246,11 @@ static int plooptool_add(int argc, char **argv)
 	struct {
 		int rw;
 		int raw;
-		int nfs;
 		char * device;
+		const char* image;
 	} addopts = { };
 
-	while ((i = getopt(argc, argv, "wb:f:d:")) != EOF) {
+	while ((i = getopt(argc, argv, "wf:d:")) != EOF) {
 		switch (i) {
 		case 'd':
 			addopts.device = optarg;
@@ -272,14 +262,6 @@ static int plooptool_add(int argc, char **argv)
 			if (strcmp(optarg, "raw") == 0)
 				addopts.raw = 1;
 			else if (strcmp(optarg, "ploop1") != 0) {
-				usage_add();
-				return -1;
-			}
-			break;
-		case 'b':
-			if (strcmp(optarg, "nfs") == 0)
-				addopts.nfs = 1;
-			else if (strcmp(optarg, "direct") != 0) {
 				usage_add();
 				return -1;
 			}
@@ -297,6 +279,7 @@ static int plooptool_add(int argc, char **argv)
 		usage_add();
 		return -1;
 	}
+	addopts.image = argv[0];
 
 	lfd = open(addopts.device, O_RDONLY);
 	if (lfd < 0) {
@@ -305,7 +288,7 @@ static int plooptool_add(int argc, char **argv)
 	}
 
 
-	fd = open(argv[0], addopts.rw ? O_RDWR : O_RDONLY);
+	fd = open(addopts.image, addopts.rw ? O_RDWR : O_RDONLY);
 	if (fd < 0) {
 		perror("open file");
 		return SYSEXIT_OPEN;
@@ -324,7 +307,7 @@ static int plooptool_add(int argc, char **argv)
 
 	req.f.pctl_fd = fd;
 	req.f.pctl_type = PLOOP_IO_DIRECT;
-	if (addopts.nfs)
+	if (ploop_is_on_nfs(addopts.image))
 		req.f.pctl_type = PLOOP_IO_NFS;
 
 	if (ioctl(lfd, PLOOP_IOC_ADD_DELTA, &req) < 0) {
@@ -604,10 +587,9 @@ static int plooptool_rm(int argc, char **argv)
 
 static void usage_replace(void)
 {
-	fprintf(stderr, "Usage: ploop replace [-b IO_MODULE] [-f FORMAT] -l LEVEL -d DEVICE DELTA\n"
+	fprintf(stderr, "Usage: ploop replace [-f FORMAT] -l LEVEL -d DEVICE DELTA\n"
 			"       LEVEL := NUMBER, distance from base\n"
 			"       FORMAT := { raw | ploop1 }\n"
-			"       IO_MODULE := { direct | nfs }\n"
 			"       DEVICE := ploop device, f.e. /dev/ploop0\n"
 			"       DELTA := path to new image file\n");
 }
@@ -625,20 +607,11 @@ static int plooptool_replace(int argc, char **argv)
 		char * device;
 		char * deltafile;
 		int level;
-		int nfs;
 		int raw;
 	} replaceopts = { .level = -1, };
 
-	while ((i = getopt(argc, argv, "b:f:l:d:")) != EOF) {
+	while ((i = getopt(argc, argv, "f:l:d:")) != EOF) {
 		switch (i) {
-		case 'b':
-			if (strcmp(optarg, "nfs") == 0)
-				replaceopts.nfs = 1;
-			else if (strcmp(optarg, "direct") != 0) {
-				usage_replace();
-				return -1;
-			}
-			break;
 		case 'f':
 			if (strcmp(optarg, "raw") == 0)
 				replaceopts.raw = 1;
@@ -695,7 +668,7 @@ static int plooptool_replace(int argc, char **argv)
 
 	req.f.pctl_fd = fd;
 	req.f.pctl_type = PLOOP_IO_DIRECT;
-	if (replaceopts.nfs)
+	if (ploop_is_on_nfs(replaceopts.deltafile))
 		req.f.pctl_type = PLOOP_IO_NFS;
 
 	if (ioctl(lfd, PLOOP_IOC_REPLACE_DELTA, &req) < 0) {
