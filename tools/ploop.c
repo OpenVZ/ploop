@@ -135,7 +135,7 @@ static void usage_mount(void)
 	fprintf(stderr, "Usage: ploop mount [-rP] [-f FORMAT] [-d DEVICE] [TOP_DELTA ... ] BASE_DELTA\n"
 			"     : ploop mount [-rP] [-m DIR] [-u UUID] DiskDescriptor.xml\n"
 			"       FORMAT := { raw | ploop1 }\n"
-			"       DEVICE := ploop device, f.e. /dev/ploop0\n"
+			"       DEVICE := ploop device, e.g. /dev/ploop0\n"
 			"       *DELTA := path to image file\n"
 			"       -r     - mount images read-only\n"
 			"       -P     - rescan partition table upon mount\n"
@@ -229,7 +229,7 @@ static void usage_add(void)
 {
 	fprintf(stderr, "Usage: ploop add [-w] [-f FORMAT] -d DEVICE DELTA\n"
 			"       FORMAT := { raw | ploop1 }\n"
-			"       DEVICE := ploop device, f.e. /dev/ploop0\n"
+			"       DEVICE := ploop device, e.g. /dev/ploop0\n"
 			"       DELTA := path to image file\n");
 }
 
@@ -321,7 +321,7 @@ static int plooptool_add(int argc, char **argv)
 static void usage_start(void)
 {
 	fprintf(stderr, "Usage: ploop start [-P] -d DEVICE\n" 
-			"       DEVICE := ploop device, f.e. /dev/ploop0\n"
+			"       DEVICE := ploop device, e.g. /dev/ploop0\n"
 			"       -P     - rescan partition table\n");
 }
 
@@ -378,7 +378,7 @@ static int plooptool_start(int argc, char **argv)
 static void usage_stop(void)
 {
 	fprintf(stderr, "Usage: ploop stop -d DEVICE\n" 
-			"       DEVICE := ploop device, f.e. /dev/ploop0\n");
+			"       DEVICE := ploop device, e.g. /dev/ploop0\n");
 }
 
 static int plooptool_stop(int argc, char **argv)
@@ -425,7 +425,7 @@ static int plooptool_stop(int argc, char **argv)
 static void usage_clear(void)
 {
 	fprintf(stderr, "Usage: ploop clear -d DEVICE\n" 
-			"       DEVICE := ploop device, f.e. /dev/ploop0\n");
+			"       DEVICE := ploop device, e.g. /dev/ploop0\n");
 }
 
 static int plooptool_clear(int argc, char **argv)
@@ -472,7 +472,7 @@ static int plooptool_clear(int argc, char **argv)
 static void usage_umount(void)
 {
 	fprintf(stderr, "Usage: ploop umount -d DEVICE\n"
-			"       DEVICE := ploop device, f.e. /dev/ploop0\n");
+			"       DEVICE := ploop device, e.g. /dev/ploop0\n");
 }
 
 static int plooptool_umount(int argc, char **argv)
@@ -535,7 +535,7 @@ static void usage_rm(void)
 {
 	fprintf(stderr, "Usage: ploop { delete | rm } -d DEVICE -l LEVEL\n"
 			"       LEVEL := NUMBER, distance from base delta\n"
-			"       DEVICE := ploop device, f.e. /dev/ploop0\n");
+			"       DEVICE := ploop device, e.g. /dev/ploop0\n");
 }
 
 static int plooptool_rm(int argc, char **argv)
@@ -590,7 +590,7 @@ static void usage_replace(void)
 	fprintf(stderr, "Usage: ploop replace [-f FORMAT] -l LEVEL -d DEVICE DELTA\n"
 			"       LEVEL := NUMBER, distance from base\n"
 			"       FORMAT := { raw | ploop1 }\n"
-			"       DEVICE := ploop device, f.e. /dev/ploop0\n"
+			"       DEVICE := ploop device, e.g. /dev/ploop0\n"
 			"       DELTA := path to new image file\n");
 }
 
@@ -682,7 +682,7 @@ static void usage_snapshot(void)
 {
 	fprintf(stderr, "Usage: ploop snapshot [-u <uuid>] DiskDescriptor.xml\n"
 			"       ploop snapshot [-F] -d DEVICE DELTA\n"
-			"         DEVICE := ploop device, f.e. /dev/ploop0\n"
+			"         DEVICE := ploop device, e.g. /dev/ploop0\n"
 			"         DELTA := path to new image file\n"
 			"         -F    - synchronize file system before taking snapshot\n"
 		);
