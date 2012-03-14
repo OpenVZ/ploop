@@ -886,27 +886,17 @@ static void usage_getdevice(void)
 
 static int plooptool_getdevice(int argc, char **argv)
 {
-	int lfd;
-	struct ploop_getdevice_ctl req;
+	int minor, ret;
 
 	if (argc != 1) {
 		usage_getdevice();
 		return -1;
 	}
+	ret = ploop_getdevice(&minor);
+	if (ret == 0)
+		printf("Next unused minor: %d\n", minor);
 
-	lfd = open("/dev/ploop0", O_RDONLY);
-	if (lfd < 0) {
-		perror("Cannot open device");
-		return SYSEXIT_DEVICE;
-	}
-
-	if (ioctl(lfd, PLOOP_IOC_GETDEVICE, &req) < 0) {
-		perror("PLOOP_IOC_GETDEVICE");
-		return SYSEXIT_DEVIOC;
-	}
-
-	printf("Next unused minor: %d\n", req.minor);
-	return 0;
+	return ret;
 }
 
 static void usage_resize(void)
