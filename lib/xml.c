@@ -177,8 +177,8 @@ static int parse_xml(const char *basedir, xmlNode *root_node, struct ploop_disk_
 		if (ploop_add_image_entry(di, image, guid))
 			return -1;
 	}
-	cur_node = seek(root_node, "/SnapshotTree");
-	ERR(cur_node, "/SnapshotTree");
+	cur_node = seek(root_node, "/Snapshots");
+	ERR(cur_node, "/Snapshots");
 
 	node = seek(cur_node, "TopGUID");
 	if (node != NULL) {
@@ -187,7 +187,7 @@ static int parse_xml(const char *basedir, xmlNode *root_node, struct ploop_disk_
 		di->top_guid = strdup(data);
 	}
 
-	cur_node = seek(root_node, "/SnapshotTree/Shot");
+	cur_node = seek(root_node, "/Snapshots/Shot");
 	if (cur_node != NULL) {
 		for (; cur_node; cur_node = cur_node->next) {
 			if (cur_node->type != XML_ELEMENT_NODE)
@@ -241,6 +241,13 @@ static int validate_disk_descriptor(struct ploop_disk_images_data *di)
 			return ret;
 		if (di->top_guid == NULL)
 			di->top_guid = strdup(BASE_UUID);
+	}
+	if (di->top_guid == NULL && find_snapshot_by_guid(di, BASE_UUID) != -1) {
+		/* Parallels Vm compatibility.
+		 * The top delta is hardcoded {5fbaabe3-6958-40ff-92a7-860e329aab41}
+		 */
+		ploop_err(0, "No TopGuid found use " BASE_UUID);
+		di->top_guid = strdup(BASE_UUID);
 	}
 	if (!is_valid_guid(di->top_guid)) {
 		ploop_err(0, "Validation of %s failed: invalid top delta %s",
@@ -474,54 +481,11 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 		goto err;
 	}
 	/****************************************
-	  Compatibility entry. handle validation in PrlDiskDescriptor::OpenDescriptor()
-		<Shot>
-		 <GUID>{5fbaabe3-6958-40ff-92a7-860e329aab41}</GUID>
-		 <ParentGUID>{00000000-0000-0000-0000-000000000000}</ParentGUID>
-		</Shot>
+	 *	Snapshots
 	 ****************************************/
 	rc = xmlTextWriterStartElement(writer, BAD_CAST "Snapshots");
 	if (rc < 0) {
 		ploop_err(0, "Error at xmlTextWriter Snapshots");
-		goto err;
-	}
-	rc = xmlTextWriterStartElement(writer, BAD_CAST "Shot");
-	if (rc < 0) {
-		ploop_err(0, "Error at xmlTextWriter Shot");
-		goto err;
-	}
-
-	rc = xmlTextWriterWriteElement(writer, BAD_CAST "GUID",
-			BAD_CAST BASE_UUID);
-	if (rc < 0) {
-		ploop_err(0, "Error at xmlTextWriter GUID");
-		goto err;
-	}
-	rc = xmlTextWriterWriteElement(writer, BAD_CAST "ParentGUID",
-			BAD_CAST NONE_UUID);
-	if (rc < 0) {
-		ploop_err(0, "Error at xmlTextWriter ParentGUID");
-		goto err;
-	}
-	/*  Close Shot */
-	rc = xmlTextWriterEndElement(writer);
-	if (rc < 0) {
-		ploop_err(0, "Error at xmlTextWriterEndElement");
-		goto err;
-	}
-	/*  Close Snapshots */
-	rc = xmlTextWriterEndElement(writer);
-	if (rc < 0) {
-		ploop_err(0, "Error at xmlTextWriterEndElement");
-		goto err;
-	}
-
-	/****************************************
-	 *	Snapshot
-	 ****************************************/
-	rc = xmlTextWriterStartElement(writer, BAD_CAST "SnapshotTree");
-	if (rc < 0) {
-		ploop_err(0, "Error at xmlTextWriter SnapshotTree");
 		goto err;
 	}
 	if (di->top_guid != NULL) {
@@ -563,7 +527,7 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 			goto err;
 		}
 	}
-	/* Close SnapshotTree */
+	/* Close Snapshots */
 	rc = xmlTextWriterEndElement(writer);
 	if (rc < 0) {
 		ploop_err(0, "Error at xmlTextWriterEndElement");
