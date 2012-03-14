@@ -139,6 +139,12 @@ struct xfer_desc
 	__u64	pos;
 };
 
+struct ploop_disk_images_runtime_data {
+	int lckfd;
+	char *xml_fname;
+	int vm_compat;
+};
+
 enum {
 	PLOOP_MERGE_WITH_CHILD = 0,
 	PLOOP_MERGE_WITH_PARENT = 1,
