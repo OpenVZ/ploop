@@ -133,7 +133,7 @@ static int plooptool_init(int argc, char **argv)
 static void usage_mount(void)
 {
 	fprintf(stderr, "Usage: ploop mount [-rP] [-f FORMAT] [-d DEVICE] [TOP_DELTA ... ] BASE_DELTA\n"
-			"     : ploop mount [-rP] [-m DIR] [-u UUID] DiskDescriptor.xml\n"
+			"       ploop mount [-rP] [-m DIR] [-u UUID] DiskDescriptor.xml\n"
 			"       FORMAT := { raw | ploop1 }\n"
 			"       DEVICE := ploop device, e.g. /dev/ploop0\n"
 			"       *DELTA := path to image file\n"
