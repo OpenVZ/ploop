@@ -63,6 +63,7 @@ struct ploop_snapshot_data {
 struct ploop_disk_images_runtime_data {
 	int lckfd;
 	char *xml_fname;
+	int vm_compat;
 };
 
 struct ploop_disk_images_data {

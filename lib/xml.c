@@ -248,6 +248,7 @@ static int validate_disk_descriptor(struct ploop_disk_images_data *di)
 		 */
 		ploop_err(0, "No TopGuid found use " BASE_UUID);
 		di->top_guid = strdup(BASE_UUID);
+		di->runtime->vm_compat = 1;
 	}
 	if (!is_valid_guid(di->top_guid)) {
 		ploop_err(0, "Validation of %s failed: invalid top delta %s",

@@ -46,6 +46,15 @@ struct ploop_cancel_handle *ploop_get_cancel_handle(void)
 	return &__cancel_data;
 }
 
+static int not_supported_for_vm(struct ploop_disk_images_data *di)
+{
+	if (!di->runtime->vm_compat)
+		return 0;
+
+	ploop_err(0, "Operation is not supported for Vm");
+	return SYSEXIT_PARAM;
+}
+
 /* set cancel flag
  * Note: this function also clear the flag
  */
@@ -1739,6 +1748,10 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 	char conf_tmp[MAXPATHLEN];
 	int online = 0;
 
+	ret = not_supported_for_vm(di);
+	if (ret)
+		return ret;
+
 	if (di->nimages == 0) {
 		ploop_err(0, "No images");
 		return SYSEXIT_PARAM;
@@ -1834,6 +1847,10 @@ int ploop_switch_snapshot(struct ploop_disk_images_data *di, const char *guid, i
 	char *old_top_delta_fname = NULL;
 	char conf[MAXPATHLEN];
 	char conf_tmp[MAXPATHLEN];
+
+	ret = not_supported_for_vm(di);
+	if (ret)
+		return ret;
 
 	if (ploop_lock_di(di))
 		return SYSEXIT_LOCK;
@@ -1938,6 +1955,10 @@ int ploop_delete_snapshot(struct ploop_disk_images_data *di, const char *guid)
 	int nelem = 0;
 	char dev[64];
 	int snap_id;
+
+	ret = not_supported_for_vm(di);
+	if (ret)
+		return ret;
 
 	if (ploop_lock_di(di))
 		return SYSEXIT_LOCK;
