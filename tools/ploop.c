@@ -901,7 +901,7 @@ static int plooptool_getdevice(int argc, char **argv)
 
 static void usage_resize(void)
 {
-	fprintf(stderr, "Usage: resize -s NEW_SIZE DiskDescriptor.xml\n");
+	fprintf(stderr, "Usage: ploop resize -s NEW_SIZE DiskDescriptor.xml\n");
 }
 
 static int plooptool_resize(int argc, char **argv)
@@ -953,7 +953,7 @@ static int plooptool_resize(int argc, char **argv)
 
 static void usage_convert(void)
 {
-	fprintf(stderr, "Usage: convert -t <raw|preallocated>\n");
+	fprintf(stderr, "Usage: ploop convert -t <raw|preallocated>\n");
 }
 
 static int plooptool_convert(int argc, char **argv)
@@ -1002,7 +1002,7 @@ static int plooptool_convert(int argc, char **argv)
 
 static void usage_info(void)
 {
-	fprintf(stderr, "Usage: info\n");
+	fprintf(stderr, "Usage: ploop info\n");
 }
 
 static void print_info(struct ploop_info *info)
