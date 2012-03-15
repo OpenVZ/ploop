@@ -451,13 +451,11 @@ int ploop_get_top_level(int devfd, const char *devname, int *top)
 	char name[64];
 	struct stat st;
 	FILE * fp;
-	int err, len;
+	int len;
 	char nbuf[4096];
 
 	if (fstat(devfd, &st)) {
-		err = errno;
 		ploop_err(errno, "fstat %s", devname);
-		errno = err;
 		return -1;
 	}
 
@@ -466,16 +464,12 @@ int ploop_get_top_level(int devfd, const char *devname, int *top)
 
 	fp = fopen(path, "r");
 	if (fp == NULL) {
-		err = errno;
 		ploop_err(errno, "fopen %s (%s)", path, devname);
-		errno = err;
 		return -1;
 	}
 	if (fgets(nbuf, sizeof(nbuf), fp) == NULL) {
-		err = errno;
 		ploop_err(errno, "fgets from %s (%s)", path, devname);
 		fclose(fp);
-		errno = err;
 		return -1;
 	}
 	len = strlen(nbuf);

@@ -627,7 +627,7 @@ int ploop_getdevice(int *minor)
 	int lfd;
 	struct stat st;
 	struct ploop_getdevice_ctl req;
-	int err, ret = 0;
+	int ret = 0;
 	const char *dev = "/dev/ploop0";
 
 	if (stat(dev, &st))
@@ -638,16 +638,12 @@ int ploop_getdevice(int *minor)
 
 	lfd = open(dev, O_RDONLY);
 	if (lfd < 0) {
-		err = errno;
 		ploop_err(errno, "Can't open device %s", dev);
-		errno = err;
 		return SYSEXIT_DEVICE;
 	}
 
 	if (ioctl(lfd, PLOOP_IOC_GETDEVICE, &req) < 0) {
-		err = errno;
 		ploop_err(errno, "PLOOP_IOC_GETDDEVICE");
-		errno = err;
 		ret = SYSEXIT_DEVIOC;
 	}
 	*minor = req.minor;
@@ -692,12 +688,10 @@ int delete_deltas(int devfd, const char *devname)
 		return errno;
 
 	while (top >= 0) {
-		int err = ioctl(devfd, PLOOP_IOC_DEL_DELTA, &top);
-		if (err < 0) {
-			err = errno;
+		if (ioctl(devfd, PLOOP_IOC_DEL_DELTA, &top) < 0) {
 			ploop_err(errno, "PLOOP_IOC_DEL_DELTA dev=%s lvl=%d",
 					devname, top);
-			return err;
+			return errno;
 		}
 		top--;
 	}
