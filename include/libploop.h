@@ -94,7 +94,7 @@ struct ploop_snapshot_param {
 struct ploop_merge_param {
 	int merge_top_only;
 	int merge_all;
-	char *guid;
+	const char *guid;
 	char dummy[32];
 };
 
