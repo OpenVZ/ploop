@@ -259,15 +259,6 @@ int ploop_add_image_entry(struct ploop_disk_images_data *di, const char *fname, 
 int ploop_add_snapshot_entry(struct ploop_disk_images_data *di, const char *guid,
 		const char *parent_guid);
 
-
-// PCS
-int init_remote_lib(void);
-int ploop_remote_connect(void);
-int ploop_remote_resolve_delta(const char *path, char *buf, int size);
-int ploop_remote_api_resolve(const char *path, char *buf, int size);
-int is_remote_fname(const char *fname);
-int ploop_is_remote_device(const char *device);
-
 //balloon
 char *mntn2str(int mntn_type);
 int get_balloon(const char *mount_point, struct stat *st, int *outfd);
