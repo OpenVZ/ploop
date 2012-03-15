@@ -631,7 +631,10 @@ int ploop_getdevice(int *minor)
 	const char *dev = "/dev/ploop0";
 
 	if (stat(dev, &st))
-		mknod(dev, S_IFBLK, gnu_dev_makedev(PLOOP_DEV_MAJOR, 0))
+		if (mknod(dev, S_IFBLK, gnu_dev_makedev(PLOOP_DEV_MAJOR, 0))) {
+			ploop_err(errno, "mknod %s", dev);
+			return SYSEXIT_MKNOD;
+		}
 
 	lfd = open(dev, O_RDONLY);
 	if (lfd < 0) {
@@ -975,7 +978,7 @@ static int create_ploop_dev(int minor)
 	if (stat(device, &st)) {
 		if (mknod(device, S_IFBLK, gnu_dev_makedev(PLOOP_DEV_MAJOR, minor))) {
 			ploop_err(errno, "mknod %s", device);
-			return -1;
+			return SYSEXIT_MKNOD;
 		}
 		chmod(device, 0600);
 	}
@@ -983,7 +986,7 @@ static int create_ploop_dev(int minor)
 	if (stat(devicep1, &st)) {
 		if (mknod(devicep1, S_IFBLK, gnu_dev_makedev(PLOOP_DEV_MAJOR, minor+1))) {
 			ploop_err(errno, "mknod %s", devicep1);
-			return -1;
+			return SYSEXIT_MKNOD;
 		}
 		chmod(devicep1, 0600);
 	}
