@@ -249,7 +249,7 @@ int ploop_get_size(const char * device, off_t * res)
 	return 0;
 }
 
-static int read_line(char *path, char *nbuf, int len)
+int read_line(const char *path, char *nbuf, int len)
 {
 	FILE *fp;
 

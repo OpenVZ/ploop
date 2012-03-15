@@ -26,6 +26,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/param.h>
+#include <sys/types.h>
+#include <dirent.h>
 
 #include "ploop.h"
 
@@ -142,11 +144,189 @@ int is_valid_guid(const char *guid)
 	return 1;
 }
 
-int is_magic_fname(const char *fname)
+#define PLOOP_REG_DIR	"/dev/ploop/"
+static void get_image_hash_name(const char *module, const char *image,
+		char *buf, int size)
 {
-	char *p = strrchr(fname, '.');
+	char *p;
+	int i, r;
 
-	if (p != NULL && strcmp(p + 1, BASE_UUID_MAGIC) == 0)
-		return 1;
+	r = snprintf(buf, size, PLOOP_REG_DIR "%s",
+			 module == NULL ? ":" : module);
+	if (r > size)
+		return;
+	p = buf + r;
+	size = size - r;
+	for (i = 0; image[i] != '\0' && i < size - 1; i++, p++)
+		*p = (image[i] == '/' ? ':' : image[i]);
+	*p = '\0';
+}
+
+static int is_registration_valid(const char *image, char *dev)
+{
+	char buf[64];
+	char sysfname[MAXPATHLEN];
+	struct stat st;
+	int ret;
+
+	snprintf(buf, sizeof(buf), "/sys/block/%s/pdelta/0/image", dev);
+	ret = stat(buf, &st);
+	if (ret == 0) {
+		ret = read_line(buf, sysfname, sizeof(sysfname));
+		if (ret == -1)
+			return -1;
+		ret = ploop_fname_cmp((char *)image, sysfname);
+		if (ret == -1)
+			return -1;
+		if (ret == 0)
+			return 1;
+	} else if (errno != ENOENT) {
+		ploop_err(errno, "Can't stat %s", buf);
+		return -1;
+	}
 	return 0;
+}
+
+int ploop_find_dev(const char *component_name, const char *image,
+		char *out, int size)
+{
+	char fname[MAXPATHLEN];
+	char dev[64];
+	struct stat st;
+	int ret, n;
+
+	get_image_hash_name(component_name, image, fname, sizeof(fname));
+	ret = lstat(fname, &st);
+	if (ret == 0) {
+		n = readlink(fname, dev, sizeof(dev) - 1);
+		if (n == -1) {
+			ploop_err(errno, "failed to readlink %s", fname);
+			return -1;
+		}
+		dev[n] = 0;
+		ret = is_registration_valid(image, dev);
+		if (ret == -1)
+			return -1;
+		else if (ret) {
+			snprintf(out, size, "/dev/%s", dev);
+			return 0;
+		}
+		ploop_err(0, "Removing stale registration %s %s",
+				fname, dev);
+		unlink(fname);
+		return 1;
+	} else if (errno != ENOENT) {
+		ploop_err(errno, "Can't lstat %s", fname);
+		return -1;
+	}
+	return 1;
+}
+
+static int remove_stale_device(const char *dev)
+{
+	char fname[MAXPATHLEN];
+	char buf[64];
+	DIR * dp;
+	struct dirent *de;
+	struct stat st;
+	int n, ret;
+
+	dp = opendir(PLOOP_REG_DIR);
+	if (dp == NULL) {
+		ploop_err(errno, "opendir " PLOOP_REG_DIR);
+		return 0;
+	}
+
+	while ((de = readdir(dp)) != NULL) {
+		snprintf(fname, sizeof(fname), PLOOP_REG_DIR"%s",
+				de->d_name);
+		if (lstat(fname, &st) != 0)
+			continue;
+		if (!S_ISLNK(st.st_mode))
+			continue;
+		n = readlink(fname, buf, sizeof(buf) -1);
+		if (n == -1) {
+			ploop_err(errno, "failed to readlink %s",
+					de->d_name);
+			continue;
+		}
+		buf[n] = 0;
+		if (strcmp(dev, buf) != 0)
+			continue;
+		snprintf(fname, sizeof(fname),
+				"/sys/block/%s/pdelta/0/image", dev);
+		ret = stat(buf, &st);
+		if (ret == -1 && errno == ENOENT) {
+			snprintf(fname, sizeof(fname), PLOOP_REG_DIR"%s",
+					de->d_name);
+
+			ploop_log(0, "remove stale registration %s %s",
+					fname, dev);
+			if (unlink(fname) == -1) {
+				ploop_err(errno, "failed to unlink %s",
+						fname);
+				return -1;
+			}
+		} else if (ret == -1) {
+			ploop_err(errno, "failed to stat %s",
+					fname);
+			return -1;
+		} else {
+			ploop_err(0, "Collision detected: device %s "
+					"already used", dev);
+			return -1;
+		}
+	}
+	closedir(dp);
+	return 0;
+}
+
+int register_ploop_dev(const char *component_name, const char *image,
+		const char *dev)
+{
+	char fname[MAXPATHLEN];
+	char buf[64];
+	const char *device;
+	int ret;
+
+	if (mkdir(PLOOP_REG_DIR, 0700) && errno != EEXIST) {
+		 ploop_err(0, "Can't create directory " PLOOP_REG_DIR);
+		return -1;
+	}
+	ret = ploop_find_dev(component_name, image, buf, sizeof(buf));
+	if (ret == -1)
+		return -1;
+	else if (ret == 0) {
+		ploop_err(0, "Image %s already used by device %s",
+				image, buf);
+		return -1;
+	}
+
+	if (strncmp(dev, "/dev/", 5) == 0)
+		device = dev + 5;
+	else
+		device = dev;
+
+	if (remove_stale_device(device))
+		return -1;
+	get_image_hash_name(component_name, image, fname, sizeof(fname));
+	if (symlink(device, fname)) {
+		ploop_err(errno, "Can't create symlink %s -> %s",
+				fname, device);
+		return -1;
+	}
+	ploop_log(4, "register %s %s", fname, dev);
+	return 0;
+}
+
+void unregister_ploop_dev(const char *component_name, const char *image)
+{
+	char fname[MAXPATHLEN];
+
+	get_image_hash_name(component_name, image, fname, sizeof(fname));
+
+	ploop_log(4, "unregister %s", fname);
+	if (unlink(fname))
+		ploop_err(errno, "Can't unlink %s", fname);
+
 }

@@ -219,7 +219,7 @@ err:
 		ploop_free_diskdescriptor(di);
 	}
 	else
-		ret = ploop_mount(argv, &mountopts, raw);
+		ret = ploop_mount(NULL, argv, &mountopts, raw);
 
 	return ret;
 

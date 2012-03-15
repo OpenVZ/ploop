@@ -568,14 +568,9 @@ static int ploop_init_image(struct ploop_disk_images_data *di, struct ploop_crea
 		goto err;
 
 err:
-	if (ploop_umount(mount_param.device, NULL)) {
+	if (ploop_umount_image(di))
 		if (ret == 0)
 			ret = SYSEXIT_UMOUNT;
-	} else {
-		char dev[MAXPATHLEN];
-		ploop_get_base_delta_uuid_fname(di->images[0]->file, dev, sizeof(dev));
-		unlink(dev);
-	}
 
 	return ret;
 }
@@ -821,20 +816,6 @@ int ploop_get_dev_by_mnt(const char *path, char *buf, int size)
 	return get_dev_by_mnt(path, 1, buf, size);
 }
 
-void ploop_resolve_magic_fname(char *fname)
-{
-	char *p;
-
-	p = strrchr(fname, '.');
-	if (p != NULL && strcmp(p + 1, BASE_UUID_MAGIC) == 0)
-		*p = 0;
-}
-
-void ploop_get_base_delta_uuid_fname(char *delta, char *out, int len)
-{
-	snprintf(out, len, "%s."BASE_UUID_MAGIC, delta);
-}
-
 char *ploop_get_base_delta_uuid(struct ploop_disk_images_data *di)
 {
 	int i;
@@ -867,31 +848,9 @@ int ploop_get_top_delta_fname(struct ploop_disk_images_data *di, char *out, int 
 	return 0;
 }
 
-/* Image can be mounted readonly several times and new ploop device is used
- * To assocoate ploop device with Diskdescriptor.xml we create base delta magic file,
- * For any action on Diskdescriptor.xml we will find the device by this file
- */
-static int create_base_magic_delta(char **delta)
-{
-	char fname[MAXPATHLEN];
-
-	ploop_get_base_delta_uuid_fname(*delta, fname, sizeof(fname));
-	unlink(fname);
-	if (link(*delta, fname)) {
-		ploop_err(errno, "Failed to create link %s %s",
-				*delta, fname);
-		return SYSEXIT_CREAT;
-	}
-	free(*delta);
-	*delta = strdup(fname);
-
-	return 0;
-}
-
 int ploop_find_dev_by_uuid(struct ploop_disk_images_data *di,
 		int check_state, char *out, int len)
 {
-	char fname[MAXPATHLEN];
 	int ret;
 	int running = 0;
 
@@ -899,8 +858,8 @@ int ploop_find_dev_by_uuid(struct ploop_disk_images_data *di,
 		ploop_err(0, "No images found in " DISKDESCRIPTOR_XML);
 		return -1;
 	}
-	ploop_get_base_delta_uuid_fname(di->images[0]->file, fname, sizeof(fname));
-	ret = ploop_find_dev_by_delta(fname, out, len);
+	ret = ploop_find_dev(di->runtime->component_name, di->images[0]->file,
+			out, len);
 	if (ret == 0 && check_state) {
 		if (ploop_get_attr(out, "running", &running)) {
 			ploop_err(0, "Can't get running attr for %s",
@@ -1004,19 +963,47 @@ static int add_delta(int lfd, char *image, struct ploop_ctl_delta *req)
 	return 0;
 }
 
+static int create_ploop_dev(int minor)
+{
+	char device[64];
+	char devicep1[64];
+	struct stat st;
+
+	strcpy(device, "/dev/");
+	make_sysfs_dev_name(minor, device + 5, sizeof(device) - 5);
+	/* Create pair /dev/ploopN & /dev/ploopNp1 */
+	if (stat(device, &st)) {
+		if (mknod(device, S_IFBLK, gnu_dev_makedev(PLOOP_DEV_MAJOR, minor))) {
+			ploop_err(errno, "mknod %s", device);
+			return -1;
+		}
+		chmod(device, 0600);
+	}
+	snprintf(devicep1, sizeof(devicep1), "%sp1", device);
+	if (stat(devicep1, &st)) {
+		if (mknod(devicep1, S_IFBLK, gnu_dev_makedev(PLOOP_DEV_MAJOR, minor+1))) {
+			ploop_err(errno, "mknod %s", devicep1);
+			return -1;
+		}
+		chmod(devicep1, 0600);
+	}
+	return 0;
+}
+
 /* NB: caller will take care about *lfd_p even if we fail */
-static int add_deltas(char **images, struct ploop_mount_param *param, int raw,
-			    int *lfd_p)
+static int add_deltas(struct ploop_disk_images_data *di,
+		char **images, struct ploop_mount_param *param,
+		int raw, int *lfd_p)
 {
 	int lckfd = -1;
 	char *device = param->device;
 	int i;
 	int ret = 0;
+	int registered = 0;
 
 	if (device[0] == '\0') {
 		char buf[64];
 		int minor;
-		struct stat st;
 
 		lckfd = ploop_global_lock();
 		if (lckfd == -1)
@@ -1027,25 +1014,24 @@ static int add_deltas(char **images, struct ploop_mount_param *param, int raw,
 			goto err;
 		snprintf(device, sizeof(param->device), "/dev/%s",
 				make_sysfs_dev_name(minor, buf, sizeof(buf)));
-		if (stat(device, &st)) {
-			char devicep1[64];
-
-			/* Create pair /dev/ploopN & /dev/ploopNp1 */
-			if (mknod(device, S_IFBLK, gnu_dev_makedev(PLOOP_DEV_MAJOR, minor)))
-				ploop_err(errno, "mknod %s", device);
-			chmod(device, 0600);
-			snprintf(devicep1, sizeof(devicep1), "%sp1", device);
-			if (mknod(devicep1, S_IFBLK, gnu_dev_makedev(PLOOP_DEV_MAJOR, minor+1)))
-				ploop_err(errno, "mknod %s", devicep1);
-			chmod(devicep1, 0600);
+		ret = create_ploop_dev(minor);
+		if (ret)
+			goto err;
+		if (di != NULL) {
+			ret = register_ploop_dev(di->runtime->component_name,
+					images[0], device);
+			if (ret)
+				goto err;
+			registered = 1;
 		}
+
 	}
 
 	*lfd_p = open(device, O_RDONLY);
 	if (*lfd_p < 0) {
 		ploop_err(errno, "Can't open device %s", device);
 		ret = SYSEXIT_DEVICE;
-		goto err;
+		goto err1;
 	}
 
 	for (i = 0; images[i] != NULL; i++) {
@@ -1074,7 +1060,7 @@ static int add_deltas(char **images, struct ploop_mount_param *param, int raw,
 		ret = add_delta(*lfd_p, image, &req);
 		if (ret) {
 			i--; /* image is not added */
-			goto err;
+			goto err1;
 		}
 	}
 	if (ioctl(*lfd_p, PLOOP_IOC_START, 0) < 0) {
@@ -1084,7 +1070,7 @@ static int add_deltas(char **images, struct ploop_mount_param *param, int raw,
 		goto err;
 	}
 
-err:
+err1:
 	if (ret && *lfd_p != -1) {
 		int err = 0;
 
@@ -1098,11 +1084,15 @@ err:
 		if (err == 0 && ioctl(*lfd_p, PLOOP_IOC_CLEAR, 0) < 0)
 			ploop_err(errno, "PLOOP_IOC_CLEAR");
 	}
+	if (ret && registered)
+		unregister_ploop_dev(di->runtime->component_name, images[0]);
+err:
 	ploop_unlock(&lckfd);
 	return ret;
 }
 
-int ploop_mount(char **images, struct ploop_mount_param *param, int raw)
+int ploop_mount(struct ploop_disk_images_data *di, char **images,
+		struct ploop_mount_param *param, int raw)
 {
 	int lfd = -1;
 	struct stat st;
@@ -1134,7 +1124,7 @@ int ploop_mount(char **images, struct ploop_mount_param *param, int raw)
 		}
 	}
 
-	ret = add_deltas(images, param, raw, &lfd);
+	ret = add_deltas(di, images, param, raw, &lfd);
 
 	if (ret)
 		goto err;
@@ -1180,17 +1170,7 @@ static int mount_image(struct ploop_disk_images_data *di, struct ploop_mount_par
 	images = make_images_list(di, guid, 0);
 	if (images == NULL)
 		return SYSEXIT_NOMEM;
-	if (!(flags & PLOOP_MOUNT_SNAPSHOT)) {
-		ret = create_base_magic_delta(&images[0]);
-		if (ret)
-			goto err;
-	}
-
-	ret = ploop_mount(images, param, di->raw);
-	if (ret)
-		unlink(images[0]);
-
-err:
+	ret = ploop_mount(di, images, param, di->raw);
 	free_images_list(images);
 
 	return ret;
@@ -1298,6 +1278,9 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	ret = ploop_stop(lfd, device);
 	close(lfd);
 
+	if (ret == 0 && di != NULL)
+		unregister_ploop_dev(di->runtime->component_name, di->images[0]->file);
+
 	return ret;
 }
 
@@ -1326,10 +1309,6 @@ int ploop_umount_image(struct ploop_disk_images_data *di)
 	}
 
 	ret = ploop_umount(dev, di);
-	if (ret == 0) {
-		ploop_get_base_delta_uuid_fname(di->images[0]->file, dev, sizeof(dev));
-		unlink(dev);
-	}
 
 	ploop_unlock_di(di);
 
@@ -1654,16 +1633,18 @@ int ploop_get_info(struct ploop_disk_images_data *di, struct ploop_info *info)
 	char mnt[MAXPATHLEN];
 	char dev[64];
 
-	if (di->nimages == 0)
-		return SYSEXIT_PARAM;
+	if (ploop_lock_di(di))
+		return SYSEXIT_LOCK;
 	if (ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev)) == 0 &&
 			get_mount_dir(dev, mnt, sizeof(mnt)) == 0)
 	{
+		ploop_unlock_di(di);
 		if (get_statfs_info(mnt, info))
 			return -1;
 		return 0;
 	}
 
+	ploop_unlock_di(di);
 	return read_statfs_info(di->images[0]->file, info);
 }
 

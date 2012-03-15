@@ -25,7 +25,6 @@
 /* Compatibility: Parallels use this UUID to mark top delta */
 #define BASE_UUID		"{5fbaabe3-6958-40ff-92a7-860e329aab41}"
 #define NONE_UUID		"{00000000-0000-0000-0000-000000000000}"
-#define BASE_UUID_MAGIC		"d5c3fc07-bc9a-4edc-8038-f1367d5755df"
 #define DEFAULT_FSTYPE		"ext4"
 #define BALLOON_FNAME		".balloon-c3a5ae3d-ce7f-43c4-a1ea-c61e2b4504e8"
 
@@ -143,6 +142,7 @@ struct ploop_disk_images_runtime_data {
 	int lckfd;
 	char *xml_fname;
 	int vm_compat;
+	char *component_name;
 };
 
 enum {
@@ -230,7 +230,8 @@ void ploop_log(int level, const char *format, ...)
 void ploop_err(int err_no, const char *format, ...)
 	__attribute__ ((__format__ (__printf__, 2, 3)));
 char *make_sysfs_dev_name(int minor, char *buf, int len);
-int ploop_mount(char **images, struct ploop_mount_param *param, int raw);
+int ploop_mount(struct ploop_disk_images_data *di, char **images,
+		struct ploop_mount_param *param, int raw);
 int create_snapshot(const char *device, const char *delta, int syncfs);
 int get_list_size(char **list);
 char **make_images_list(struct ploop_disk_images_data *di, char *guid, int reverse);
@@ -244,7 +245,6 @@ void get_disk_descriptor_lock_fname(struct ploop_disk_images_data *di, char *out
 int ploop_find_dev_by_uuid(struct ploop_disk_images_data *di, int check_state, char *out, int len);
 int sys_fallocate(int fd, int mode, off_t offset, off_t len);
 
-void ploop_resolve_magic_fname(char *fname);
 int delete_deltas(int devfd, const char *devname);
 
 // manage struct ploop_disk_images_data
@@ -258,6 +258,9 @@ int find_snapshot_by_guid(struct ploop_disk_images_data *di, const char *guid);
 int ploop_add_image_entry(struct ploop_disk_images_data *di, const char *fname, const char *guid);
 int ploop_add_snapshot_entry(struct ploop_disk_images_data *di, const char *guid,
 		const char *parent_guid);
+int ploop_find_dev(const char *module, const char *image, char *out, int size);
+int register_ploop_dev(const char *module, const char *image, const char *dev);
+void unregister_ploop_dev(const char *module, const char *image);
 
 //balloon
 char *mntn2str(int mntn_type);
@@ -295,7 +298,7 @@ int ploop_get_child_count_by_uuid(struct ploop_disk_images_data *di, const char 
 int ploop_get_child_by_uuid(struct ploop_disk_images_data *di, const char *guid,  char **child_guid);
 int ploop_fname_cmp(const char *p1, const char *p2);
 int is_valid_guid(const char *guid);
-int is_magic_fname(const char *fname);
+int read_line(const char *path, char *nbuf, int len);
 
 // merge
 int get_delta_info(const char *device, int merge_top_only, struct merge_info *info);
