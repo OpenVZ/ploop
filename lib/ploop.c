@@ -628,15 +628,15 @@ int ploop_getdevice(int *minor)
 	struct stat st;
 	struct ploop_getdevice_ctl req;
 	int err, ret = 0;
+	const char *dev = "/dev/ploop0";
 
+	if (stat(dev, &st))
+		mknod(dev, S_IFBLK, gnu_dev_makedev(PLOOP_DEV_MAJOR, 0))
 
-	if (stat("/dev/ploop0", &st))
-		mknod("/dev/ploop0", S_IFBLK, gnu_dev_makedev(PLOOP_DEV_MAJOR, 0));
-
-	lfd = open("/dev/ploop0", O_RDONLY);
+	lfd = open(dev, O_RDONLY);
 	if (lfd < 0) {
 		err = errno;
-		ploop_err(errno, "Can't open device /dev/ploop0");
+		ploop_err(errno, "Can't open device %s", dev);
 		errno = err;
 		return SYSEXIT_DEVICE;
 	}
