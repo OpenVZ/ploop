@@ -41,9 +41,12 @@ $(LIBPLOOP_DYN): $(LIBOBJS)
 -include .depend
 
 install: all
-	$(INSTALL) -d $(DESTDIR)/$(LIBDIR)
-	$(INSTALL) -m 644 $(LIBPLOOP) $(DESTDIR)/$(LIBDIR)
-	$(INSTALL) -m 755 $(LIBPLOOP_DYN) $(DESTDIR)/$(LIBDIR)
+	$(Q) $(INSTALL) -d $(DESTDIR)/$(LIBDIR)
+	$(E) "  INSTALL " $(LIBPLOOP)
+	$(Q) $(INSTALL) -m 644 $(LIBPLOOP) $(DESTDIR)/$(LIBDIR)
+	$(E) "  INSTALL " $(LIBPLOOP_DYN)
+	$(Q) $(INSTALL) -m 755 $(LIBPLOOP_DYN) $(DESTDIR)/$(LIBDIR)
 
 clean:
-	rm -f $(PROGS) *.o *.a *.so
+	$(E) "  CLEAN   "
+	$(Q) rm -f $(PROGS) *.o *.a *.so

@@ -35,10 +35,11 @@ man: $(MANS)
 	$(Q) -rm -rf .tmpman
 
 install: $(PROGS)
-	$(INSTALL) -d $(DESTDIR)$(USRSBINDIR)
-	$(INSTALL) -d $(DESTDIR)/var/lock/ploop
-	for file in $(PROGS); do \
-		$(INSTALL) -s -m 755 $$file $(DESTDIR)$(USRSBINDIR)/$$file; \
-	done
+	$(Q) $(INSTALL) -d $(DESTDIR)$(USRSBINDIR)
+	$(Q) $(INSTALL) -d $(DESTDIR)/var/lock/ploop
+	$(E) "  INSTALL " $(PROGS)
+	$(Q) $(INSTALL) -s -m 755 $(PROGS) $(DESTDIR)$(USRSBINDIR)/
+
 clean:
-	rm -f $(PROGS) $(OBJS) $(MANS)
+	$(E) "  CLEAN   "
+	$(Q) rm -f $(PROGS) $(OBJS) $(MANS)
