@@ -346,16 +346,6 @@ static int create_empty_preallocated_delta(const char *path, off_t bdsize)
 		if (WRITE(odelta.fd, buf, CLUSTER))
 			goto out_close;
 	}
-	// FIXME: workaround until ploop will support fallocate
-	memset(buf, 0, CLUSTER);
-	for (i = 0; i< vh.m_Size; i++) {
-		if (is_operation_cancelled())
-			goto out_close;
-
-		off_t off = (off_t)vh.m_FirstBlockOffset + (i * 1<<PLOOP1_DEF_CLUSTER_LOG);
-		if (PWRITE(&odelta, buf, CLUSTER, off << 9))
-			goto out_close;
-	}
 
 	if (fsync(odelta.fd)) {
 		ploop_err(errno, "fsync");
