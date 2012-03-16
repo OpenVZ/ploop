@@ -174,13 +174,6 @@ extern int open_delta(struct delta * delta, const char * path, int rw, int od_fl
 extern int open_delta_simple(struct delta * delta, const char * path, int rw, int od_flags);
 extern int dirty_delta(struct delta * delta);
 extern int clear_delta(struct delta * delta);
-extern int locate_l1_entry(struct delta_array *p, int level, int index);
-extern int check_l2_cache(struct delta * delta, __u32 idx);
-extern int delta_locate(struct delta_array *p, off_t pos, off_t *opos);
-extern int delta_read(struct delta_array *p, void * buf, unsigned int size, off_t pos);
-extern int delta_read_2(struct delta_array *p, void * buf, unsigned int size,
-			off_t pos, int * level);
-extern __u64 delta_bd_size(struct delta *);
 extern int parse_size(char * opt, off_t * sz);
 extern int read_size_from_image(const char *img_name, int raw, off_t * res);
 extern int grow_delta(struct delta *odelta, off_t bdsize, void *buf,
