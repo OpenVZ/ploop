@@ -19,17 +19,19 @@ all: $(PROGS)
 
 $(PROGS): $(LIBPLOOP)
 
-.depend: $(SOURCES)
-	$(CC) $(CFLAGS) -M $^ > $@
+%: %.o
+	$(E) "  LD      " $@
+	$(Q) $(CC) $(LDFLAGS) $< $(LDLIBS) -o $@
 
 -include .depend
 
 man: $(MANS)
 
 %.8: %.sgml
-	@-mkdir .tmpman
-	@set -e; cd .tmpman; LC_ALL=C docbook2man ../$< ; mv $@ ..
-	@-rm -rf .tmpman
+	$(E) "  GEN     " $@
+	$(Q) -mkdir .tmpman
+	$(Q) set -e; cd .tmpman; LC_ALL=C docbook2man ../$< ; mv $@ ..
+	$(Q) -rm -rf .tmpman
 
 install: $(PROGS)
 	$(INSTALL) -d $(DESTDIR)$(USRSBINDIR)

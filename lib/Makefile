@@ -29,14 +29,14 @@ LDLIBS += $(shell pkg-config libxml-2.0 --libs)
 all: $(LIBPLOOP) $(LIBPLOOP_DYN)
 
 $(LIBPLOOP): $(LIBOBJS)
-	$(AR) rcs $@ $+
-	ranlib $@
+	$(E) "  LINK    " $@
+	$(Q) $(AR) rcs $@ $+
+	$(Q) ranlib $@
 
 $(LIBPLOOP_DYN): $(LIBOBJS)
-	$(CC) $(CFLAGS) $(INC) $(LDFLAGS) -shared  $^ ${LDLIBS} -o $@
+	$(E) "  LINK    " $@
+	$(Q) $(CC) $(CFLAGS) $(INC) $(LDFLAGS) -shared  $^ ${LDLIBS} -o $@
 
-.depend: $(SOURCES)
-	$(CC) $(CFLAGS) -M $^ > $@
 -include .depend
 
 install: all

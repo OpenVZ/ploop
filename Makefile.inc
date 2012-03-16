@@ -12,3 +12,20 @@ CFLAGS += $(if $(DEBUG),-g -O0 -DDEBUG,-O2)
 LDFLAGS += $(if $(DEBUG),-g -rdynamic,)
 
 export CFLAGS CC
+
+ifeq ($(strip $(V)),)
+	E = @echo
+	Q = @
+else
+	E = @\#
+	Q =
+endif
+export E Q
+
+%.o: %.c
+	$(E) "  CC      " $@
+	$(Q) $(CC) $(CFLAGS) -c $< -o $@
+
+.depend: $(SOURCES)
+	$(E) "  DEP     " $@
+	$(Q) $(CC) $(CFLAGS) -M $^ > $@
