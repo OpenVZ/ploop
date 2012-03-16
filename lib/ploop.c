@@ -1524,33 +1524,15 @@ err:
 static int expanded2preallocated(struct ploop_disk_images_data *di)
 {
 	struct delta delta = {};
-	int i;
 	int off = 16;
 	__u32 clu;
-	void *buf = NULL;
-	int clu_to_fill;
 	off_t data_off;
 	int ret = -1;
 
 	ploop_log(0, "Converting image to preallocated...");
 	if (open_delta(&delta, di->images[0]->file, O_RDWR, OD_OFFLINE))
 		return SYSEXIT_OPEN;
-	if (posix_memalign(&buf, 4096, CLUSTER)) {
-		ploop_err(errno, "posix_memalign");
-		goto err;
-	}
-	bzero(buf, CLUSTER);
-	// First stage: write data blocks
-	// clu_to_fill = total_data_clu - (allocated_clu - total_idx_clu)
-	clu_to_fill = delta.l2_size - (delta.alloc_head - delta.l1_size);
 	data_off = delta.alloc_head;
-	for (i = 0; i < clu_to_fill; i++) {
-		if (PWRITE(&delta, buf, CLUSTER, (data_off + i) * CLUSTER)) {
-			free(buf);
-			goto err;
-		}
-	}
-	free(buf); buf = NULL;
 	if (fsync(delta.fd)) {
 		ploop_err(errno, "fsync");
 		goto err;
@@ -1573,6 +1555,11 @@ static int expanded2preallocated(struct ploop_disk_images_data *di)
 		if (delta.l2[l2_slot] == 0) {
 			off_t idx_off = (off_t)l2_cluster * CLUSTER + (l2_slot*sizeof(__u32));
 			delta.l2[l2_slot] = data_off << PLOOP1_DEF_CLUSTER_LOG;
+
+			if (sys_fallocate(delta.fd, 0, data_off * CLUSTER, CLUSTER)) {
+				ploop_err(errno, "Failed to fallocate");
+				goto err;
+			}
 
 			if (PWRITE(&delta, &delta.l2[l2_slot], sizeof(__u32), idx_off))
 				goto err;
