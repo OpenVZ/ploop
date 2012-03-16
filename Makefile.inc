@@ -26,6 +26,6 @@ export E Q
 	$(E) "  CC      " $@
 	$(Q) $(CC) $(CFLAGS) -c $< -o $@
 
-.depend: $(SOURCES)
+.depend:
 	$(E) "  DEP     " $@
 	$(Q) $(CC) $(CFLAGS) -M $^ > $@

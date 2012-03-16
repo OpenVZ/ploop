@@ -37,6 +37,7 @@ $(LIBPLOOP_DYN): $(LIBOBJS)
 	$(E) "  LINK    " $@
 	$(Q) $(CC) $(CFLAGS) $(INC) $(LDFLAGS) -shared  $^ ${LDLIBS} -o $@
 
+.depend: $(SOURCES)
 -include .depend
 
 install: all

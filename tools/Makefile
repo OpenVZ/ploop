@@ -23,6 +23,7 @@ $(PROGS): $(LIBPLOOP)
 	$(E) "  LD      " $@
 	$(Q) $(CC) $(LDFLAGS) $< $(LDLIBS) -o $@
 
+.depend: $(SOURCES)
 -include .depend
 
 man: $(MANS)
