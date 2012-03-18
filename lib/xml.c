@@ -243,10 +243,10 @@ static int validate_disk_descriptor(struct ploop_disk_images_data *di)
 			di->top_guid = strdup(BASE_UUID);
 	}
 	if (di->top_guid == NULL && find_snapshot_by_guid(di, BASE_UUID) != -1) {
-		/* Parallels Vm compatibility.
+		/* Parallels VM compatibility.
 		 * The top delta is hardcoded {5fbaabe3-6958-40ff-92a7-860e329aab41}
 		 */
-		ploop_err(0, "No TopGuid found use " BASE_UUID);
+		ploop_err(0, "No TopGuid found, using " BASE_UUID);
 		di->top_guid = strdup(BASE_UUID);
 		di->runtime->vm_compat = 1;
 	}
