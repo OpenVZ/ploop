@@ -300,7 +300,7 @@ static int do_inflate(int fd, int mntn_type, off_t old_size, off_t *new_size, in
 	if (err)
 		return err;
 
-	ploop_log(0, "Successfully inflate balloon from %llu to %llu bytes",
+	ploop_log(0, "Successfully inflated balloon from %llu to %llu bytes",
 			(unsigned long long)old_size, (unsigned long long)*new_size);
 	return 0;
 }
@@ -336,7 +336,7 @@ int ploop_balloon_change_size(const char *device, int balloonfd, off_t new_size)
 	old_size = st.st_size;
 	new_size = ((new_size << 9) + st.st_blksize - 1) & ~(st.st_blksize - 1);
 
-	ploop_log(0, "change balloon size old_size=%ld new_size=%ld",
+	ploop_log(0, "Changing balloon size old_size=%ld new_size=%ld",
 			(long)old_size, (long)new_size);
 
 	pfiemap = fiemap_alloc(128);

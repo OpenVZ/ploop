@@ -913,7 +913,7 @@ static int ploop_mount_fs(struct ploop_mount_param *param)
 			param->quota ? "usrjquota=aquota.user,grpjquota=aquota.group,jqfmt=vfsv0," : "",
 			param->mount_data ? param->mount_data : "");
 
-	ploop_log(0, "mount %s at %s fstype=%s data='%s' %s",
+	ploop_log(0, "Mounting %s at %s fstype=%s data='%s' %s",
 			part_device, param->target, fstype,
 			data, param->ro  ? "ro":"");
 

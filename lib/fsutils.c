@@ -91,7 +91,7 @@ void tune_fs(const char *target, const char *device, unsigned long long size_sec
 	}
 	snprintf(cmd, sizeof(cmd), "/sbin/tune2fs -r %llu %s",
 			reserved_blocks, part_device);
-	ploop_log(0, "%s", cmd);
+	ploop_log(0, "Executing: %s", cmd);
 	system(cmd);
 }
 
@@ -128,7 +128,7 @@ int resize_fs(const char *device)
 			return ret;
 	}
 	snprintf(buf, sizeof(buf), "%s -p %s", prog, part_device);
-	ploop_err(0, "%s", buf);
+	ploop_err(0, "Executing: %s", buf);
 	ret = system(buf);
 	if (ret) {
 		ploop_err(0, "Failed to resize fs (cmd: %s)", buf);
