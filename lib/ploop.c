@@ -829,7 +829,7 @@ int ploop_get_top_delta_fname(struct ploop_disk_images_data *di, char *out, int 
 		return -1;
 	}
 	if (snprintf(out, len, "%s", fname) > len -1) {
-		ploop_err(0, "not enough space to store data");
+		ploop_err(0, "Not enough space to store data");
 		return -1;
 	}
 	return 0;

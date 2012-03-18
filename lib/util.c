@@ -200,7 +200,7 @@ int ploop_find_dev(const char *component_name, const char *image,
 	if (ret == 0) {
 		n = readlink(fname, dev, sizeof(dev) - 1);
 		if (n == -1) {
-			ploop_err(errno, "failed to readlink %s", fname);
+			ploop_err(errno, "Can't readlink %s", fname);
 			return -1;
 		}
 		dev[n] = 0;
@@ -246,7 +246,7 @@ static int remove_stale_device(const char *dev)
 			continue;
 		n = readlink(fname, buf, sizeof(buf) -1);
 		if (n == -1) {
-			ploop_err(errno, "failed to readlink %s",
+			ploop_err(errno, "Can't readlink %s",
 					de->d_name);
 			continue;
 		}
@@ -260,15 +260,15 @@ static int remove_stale_device(const char *dev)
 			snprintf(fname, sizeof(fname), PLOOP_REG_DIR"%s",
 					de->d_name);
 
-			ploop_log(0, "remove stale registration %s %s",
+			ploop_log(0, "Removing stale registration %s %s",
 					fname, dev);
 			if (unlink(fname) == -1) {
-				ploop_err(errno, "failed to unlink %s",
+				ploop_err(errno, "Can't unlink %s",
 						fname);
 				return -1;
 			}
 		} else if (ret == -1) {
-			ploop_err(errno, "failed to stat %s",
+			ploop_err(errno, "Can't stat %s",
 					fname);
 			return -1;
 		} else {

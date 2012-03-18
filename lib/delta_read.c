@@ -187,7 +187,7 @@ int open_delta(struct delta * delta, const char * path, int rw, int od_flags)
 	    vh->m_Sectors != (1 << PLOOP1_DEF_CLUSTER_LOG))
 	{
 
-		ploop_err(errno, "invalid image header %s", path);
+		ploop_err(errno, "Invalid image header %s", path);
 		close_delta(delta);
 		errno = EINVAL;
 		return -1;
