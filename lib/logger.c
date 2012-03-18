@@ -119,15 +119,19 @@ void ploop_set_verbose_level(int level)
 
 int ploop_set_log_file(const char *fname)
 {
-	FILE *fp;
+	FILE *fp = NULL;
 
-	fp = fopen(fname, "a");
-	if (fp== NULL) {
-		ploop_err(errno, "Can't open %s", fname);
-		return -1;
+	if (fname != NULL) {
+		fp = fopen(fname, "a");
+		if (fp == NULL) {
+			ploop_err(errno, "Can't open %s", fname);
+			return -1;
+		}
 	}
+
 	if (_s_log_file != NULL)
 		fclose(_s_log_file);
 	_s_log_file = fp;
+
 	return 0;
 }
