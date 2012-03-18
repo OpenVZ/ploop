@@ -146,7 +146,8 @@ const char *ploop_get_last_error(void);
 int ploop_set_log_file(const char *fname);
 /* set log file logging level */
 void ploop_set_log_level(int level);
-/* set console logging level (-2 - disable) */
+#define PLOOP_LOG_NOCONSOLE -2
+/* set console logging level (PLOOP_LOG_NOCONSOLE to disable) */
 void ploop_set_verbose_level(int level);
 int ploop_is_file_on_remote(const char *path);
 int ploop_check_remote_state(void);

@@ -24,10 +24,12 @@
 #include <stdio.h>
 #include <time.h>
 
+#include "libploop.h"
+
 #define LOG_BUF_SIZE	8192
 static int _s_log_enable = 1;
 static int _s_log_level = 3;
-static int _s_log_verbose_level = -2; // disable stdout/stderr
+static int _s_log_verbose_level = PLOOP_LOG_NOCONSOLE; // disable stdout/stderr
 static FILE *_s_log_file = NULL;
 
 /* Thread Local Storage */
@@ -63,7 +65,8 @@ static void logger_ap(int level, int err_no, const char *format, va_list ap)
 			 strerror(err_no));
 	}
 	if (_s_log_enable) {
-		if (_s_log_verbose_level != -2 && _s_log_verbose_level >= level) {
+		if (_s_log_verbose_level != PLOOP_LOG_NOCONSOLE &&
+				_s_log_verbose_level >= level) {
 			fprintf(std, "%s\n", buf);
 			fflush(std);
 		}
