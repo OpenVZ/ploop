@@ -48,7 +48,7 @@ void usage_summary(void)
 			"       ploop snapshot-delete -u <uuid> DiskDescriptor.xml\n"
 			"       ploop snapshot-merge [-u <uuid>] DiskDescriptor.xml\n"
 			"       ploop snapshot-switch -u <uuid> DiskDescriptor.xml\n"
-			"Also:  ploop { stat | add | start | stop | clear | replace } ...\n"
+			"Also:  ploop { stat | start | stop | clear } ...\n"
 	       );
 }
 
@@ -234,99 +234,6 @@ err:
 
 	return ret;
 
-}
-
-static void usage_add(void)
-{
-	fprintf(stderr, "Usage: ploop add [-w] [-f FORMAT] -d DEVICE DELTA\n"
-			"       FORMAT := { raw | ploop1 }\n"
-			"       DEVICE := ploop device, e.g. /dev/ploop0\n"
-			"       DELTA := path to image file\n");
-}
-
-static int plooptool_add(int argc, char **argv)
-{
-	int i;
-	int lfd;
-	int fd;
-	struct {
-		struct ploop_ctl c;
-		struct ploop_ctl_chunk f;
-	} req;
-
-	struct {
-		int rw;
-		int raw;
-		char * device;
-		const char* image;
-	} addopts = { };
-
-	while ((i = getopt(argc, argv, "wf:d:")) != EOF) {
-		switch (i) {
-		case 'd':
-			addopts.device = optarg;
-			break;
-		case 'w':
-			addopts.rw = 1;
-			break;
-		case 'f':
-			if (strcmp(optarg, "raw") == 0)
-				addopts.raw = 1;
-			else if (strcmp(optarg, "ploop1") != 0) {
-				usage_add();
-				return -1;
-			}
-			break;
-		default:
-			usage_add();
-			return -1;
-		}
-	}
-
-	argc -= optind;
-	argv += optind;
-
-	if (argc < 1 || !addopts.device) {
-		usage_add();
-		return -1;
-	}
-	addopts.image = argv[0];
-
-	lfd = open(addopts.device, O_RDONLY);
-	if (lfd < 0) {
-		perror("Can't open device");
-		return SYSEXIT_DEVICE;
-	}
-
-
-	fd = open(addopts.image, addopts.rw ? O_RDWR : O_RDONLY);
-	if (fd < 0) {
-		perror("open file");
-		return SYSEXIT_OPEN;
-	}
-
-	memset(&req, 0, sizeof(req));
-
-	req.c.pctl_format = PLOOP_FMT_PLOOP1;
-	if (addopts.raw)
-		req.c.pctl_format = PLOOP_FMT_RAW;
-	if (!addopts.rw)
-		req.c.pctl_flags = PLOOP_FMT_RDONLY;
-	req.c.pctl_cluster_log = 9;
-	req.c.pctl_size = 0;
-	req.c.pctl_chunks = 1;
-
-	req.f.pctl_fd = fd;
-	req.f.pctl_type = PLOOP_IO_DIRECT;
-	if (ploop_is_on_nfs(addopts.image))
-		req.f.pctl_type = PLOOP_IO_NFS;
-
-	if (ioctl(lfd, PLOOP_IOC_ADD_DELTA, &req) < 0) {
-		perror("PLOOP_IOC_ADD_DELTA");
-		return SYSEXIT_DEVIOC;
-	}
-
-	return 0;
 }
 
 static void usage_start(void)
@@ -591,99 +498,6 @@ static int plooptool_rm(int argc, char **argv)
 	level = rmopts.level;
 	if (ioctl(lfd, PLOOP_IOC_DEL_DELTA, &level) < 0) {
 		perror("PLOOP_IOC_DEL_DELTA");
-		return SYSEXIT_DEVIOC;
-	}
-	return 0;
-}
-
-static void usage_replace(void)
-{
-	fprintf(stderr, "Usage: ploop replace [-f FORMAT] -l LEVEL -d DEVICE DELTA\n"
-			"       LEVEL := NUMBER, distance from base\n"
-			"       FORMAT := { raw | ploop1 }\n"
-			"       DEVICE := ploop device, e.g. /dev/ploop0\n"
-			"       DELTA := path to new image file\n");
-}
-
-static int plooptool_replace(int argc, char **argv)
-{
-	int i;
-	int lfd, fd;
-	struct {
-		struct ploop_ctl c;
-		struct ploop_ctl_chunk f;
-	} req;
-
-	struct {
-		char * device;
-		char * deltafile;
-		int level;
-		int raw;
-	} replaceopts = { .level = -1, };
-
-	while ((i = getopt(argc, argv, "f:l:d:")) != EOF) {
-		switch (i) {
-		case 'f':
-			if (strcmp(optarg, "raw") == 0)
-				replaceopts.raw = 1;
-			else if (strcmp(optarg, "direct") != 0) {
-				usage_replace();
-				return -1;
-			}
-			break;
-		case 'l':
-			replaceopts.level = atoi(optarg);
-			break;
-		case 'd':
-			replaceopts.device = optarg;
-			break;
-		default:
-			usage_replace();
-			return -1;
-		}
-	}
-
-	argc -= optind;
-	argv += optind;
-
-	if (argc != 1 || !replaceopts.device ||
-	    replaceopts.level < 0 || replaceopts.level > 127) {
-		usage_replace();
-		return -1;
-	}
-
-	replaceopts.deltafile = argv[0];
-
-	lfd = open(replaceopts.device, O_RDONLY);
-	if (lfd < 0) {
-		perror("Can't open device");
-		return SYSEXIT_DEVICE;
-	}
-
-	fd = open(replaceopts.deltafile, O_RDONLY);
-	if (fd < 0) {
-		perror("open file");
-		return SYSEXIT_OPEN;
-	}
-
-	memset(&req, 0, sizeof(req));
-
-	req.c.pctl_format = PLOOP_FMT_PLOOP1;
-	if (replaceopts.raw)
-		req.c.pctl_format = PLOOP_FMT_RAW;
-	req.c.pctl_flags = PLOOP_FMT_RDONLY;
-	req.c.pctl_cluster_log = 9;
-	req.c.pctl_size = 0;
-	req.c.pctl_chunks = 1;
-	req.c.pctl_level = replaceopts.level;
-
-	req.f.pctl_fd = fd;
-	req.f.pctl_type = PLOOP_IO_DIRECT;
-	if (ploop_is_on_nfs(replaceopts.deltafile))
-		req.f.pctl_type = PLOOP_IO_NFS;
-
-	if (ioctl(lfd, PLOOP_IOC_REPLACE_DELTA, &req) < 0) {
-		perror("PLOOP_IOC_REPLACE_DELTA");
 		return SYSEXIT_DEVIOC;
 	}
 	return 0;
@@ -1095,8 +909,6 @@ int main(int argc, char **argv)
 
 	if (strcmp(cmd, "init") == 0)
 		return plooptool_init(argc, argv);
-	if (strcmp(cmd, "add") == 0)
-		return plooptool_add(argc, argv);
 	if (strcmp(cmd, "start") == 0)
 		return plooptool_start(argc, argv);
 	if (strcmp(cmd, "stop") == 0)
@@ -1109,8 +921,6 @@ int main(int argc, char **argv)
 		return plooptool_umount(argc, argv);
 	if (strcmp(cmd, "delete") == 0 || strcmp(cmd, "rm") == 0)
 		return plooptool_rm(argc, argv);
-	if (strcmp(cmd, "replace") == 0)
-		return plooptool_replace(argc, argv);
 	if (strcmp(cmd, "snapshot") == 0)
 		return plooptool_snapshot(argc, argv);
 	if (strcmp(cmd, "snapshot-switch") == 0)
