@@ -34,7 +34,7 @@
 #define OD_ALLOW_DIRTY  0x1
 #define OD_OFFLINE      0x2
 
-#define S2B(sec) (sec << PLOOP1_SECTOR_LOG)
+#define S2B(sec) ((sec) << PLOOP1_SECTOR_LOG)
 
 /* mount flags */
 #define PLOOP_MOUNT_SNAPSHOT   0x01
