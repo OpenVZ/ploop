@@ -598,13 +598,20 @@ int ploop_create_image(struct ploop_create_param *param)
 {
 	struct ploop_disk_images_data *di;
 	int ret;
+	__u32 blocksize;
+
+	blocksize = param->blocksize ?
+			param->blocksize : (1 << PLOOP1_DEF_CLUSTER_LOG);
+	if (!is_valid_blocksize(blocksize)) {
+		ploop_err(0, "Incorrect blocksize specified: %d",
+				blocksize);
+		return SYSEXIT_PARAM;
+	}
 
 	di = ploop_alloc_diskdescriptor();
 	if (di == NULL)
 		return SYSEXIT_NOMEM;
-
-	di->blocksize = param->blocksize ?
-			param->blocksize : (1 << PLOOP1_DEF_CLUSTER_LOG);
+	di->blocksize = blocksize;
 	ret = create_image(di, param->image, di->blocksize,
 			param->size, param->mode);
 	if (ret)
