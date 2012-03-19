@@ -83,5 +83,5 @@ int main(int argc, char ** argv)
 
 	ploop_set_verbose_level(3);
 
-	return ploop_fsck(argv[0], force, hard_force, check, ro, !silent);
+	return ploop_fsck(argv[0], force, hard_force, check, ro, !silent, NULL);
 }

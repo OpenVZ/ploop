@@ -93,7 +93,7 @@ static int grow_delta_offline(char *image, off_t new_size)
 		return 0;
 	}
 
-	generate_pvd_header(&new_vh, new_size);
+	generate_pvd_header(&new_vh, new_size, delta.blocksize);
 
 	if (new_vh.m_SizeInSectors == old_size)
 		return 0;
@@ -108,7 +108,7 @@ static int grow_delta_offline(char *image, off_t new_size)
 		return SYSEXIT_WRITE;
 	}
 
-	if (posix_memalign(&buf, 4096, CLUSTER))
+	if (posix_memalign(&buf, 4096, S2B(delta.blocksize)))
 		return -1;
 
 	grow_delta(&delta, new_vh.m_SizeInSectors, buf, NULL);

@@ -238,23 +238,26 @@ static int get_temp_mountpoint(const char *file, int create, char *buf, int len)
 	return 0;
 }
 
-static int create_empty_delta(const char *path, off_t bdsize)
+static int create_empty_delta(const char *path, __u32 blocksize, off_t bdsize)
 {
 	int fd;
 	void * buf = NULL;
 	struct ploop_pvd_header *vh;
 	__u32 SizeToFill;
+	__u64 cluster = S2B(blocksize);
+
+	assert(blocksize);
 
 	if (bdsize > (__u32)-1)
 		return -1;
 
-	if (posix_memalign(&buf, 4096, CLUSTER)) {
+	if (posix_memalign(&buf, 4096, cluster)) {
 		ploop_err(errno, "posix_memalign");
 		return -1;
 	}
 
-	ploop_log(0, "Creating delta %s size=%ld sectors",
-			path, (long)bdsize);
+	ploop_log(0, "Creating delta %s bs=%d size=%ld sectors",
+			path, blocksize, (long)bdsize);
 	fd = open(path, O_RDWR|O_CREAT|O_EXCL, 0600);
 	if (fd < 0) {
 		ploop_err(errno, "Can't open %s", path);
@@ -262,25 +265,25 @@ static int create_empty_delta(const char *path, off_t bdsize)
 		return -1;
 	}
 
-	memset(buf, 0, CLUSTER);
+	memset(buf, 0, cluster);
 
 	vh = buf;
-	SizeToFill = generate_pvd_header(vh, bdsize);
+	SizeToFill = generate_pvd_header(vh, bdsize, blocksize);
 	vh->m_Flags = CIF_Empty;
 
-	if (WRITE(fd, buf, CLUSTER))
+	if (WRITE(fd, buf, cluster))
 		goto out_close;
 
-	if (SizeToFill > CLUSTER) {
+	if (SizeToFill > cluster) {
 		int i;
-		memset(buf, 0, CLUSTER);
-		for (i = 1; i < SizeToFill / CLUSTER; i++)
-			if (WRITE(fd, buf, CLUSTER))
+		memset(buf, 0, cluster);
+		for (i = 1; i < SizeToFill / cluster; i++)
+			if (WRITE(fd, buf, cluster))
 				goto out_close;
 	}
 
 	if (fsync(fd)) {
-		ploop_err(errno, "fsync");
+		ploop_err(errno, "fsync %s", path);
 		goto out_close;
 	}
 	free(buf);
@@ -294,7 +297,7 @@ out_close:
 	return -1;
 }
 
-static int create_empty_preallocated_delta(const char *path, off_t bdsize)
+static int create_empty_preallocated_delta(const char *path, __u32 blocksize, off_t bdsize)
 {
 	struct delta odelta = {};
 	int rc, clu, i;
@@ -303,25 +306,26 @@ static int create_empty_preallocated_delta(const char *path, off_t bdsize)
 	__u32 SizeToFill;
 	__u32 l2_slot = 0;
 	off_t off;
+	__u64 cluster = S2B(blocksize);
 
 	if (bdsize > (__u32)-1)
 		return -1;
 
-	if (posix_memalign(&buf, 4096, CLUSTER)) {
+	if (posix_memalign(&buf, 4096, cluster)) {
 		ploop_err(errno, "posix_memalign");
 		return -1;
 	}
 
-	ploop_log(0, "Creating preallocated delta %s size=%ld sectors",
-			path, (long)bdsize);
+	ploop_log(0, "Creating preallocated delta %s bs=%d size=%ld sectors",
+			path, blocksize, (long)bdsize);
 	rc = open_delta_simple(&odelta, path, O_RDWR|O_CREAT|O_EXCL, OD_OFFLINE);
 	if (rc) {
 		free(buf);
 		return -1;
 	}
 
-	memset(buf, 0, CLUSTER);
-	SizeToFill = generate_pvd_header(&vh, bdsize);
+	memset(buf, 0, cluster);
+	SizeToFill = generate_pvd_header(&vh, bdsize, blocksize);
 	memcpy(buf, &vh, sizeof(struct ploop_pvd_header));
 	vh.m_Flags = CIF_Empty;
 
@@ -330,20 +334,20 @@ static int create_empty_preallocated_delta(const char *path, off_t bdsize)
 		goto out_close;
 	}
 
-	for (clu = 0; clu < SizeToFill / CLUSTER; clu++) {
+	for (clu = 0; clu < SizeToFill / cluster; clu++) {
 		if (is_operation_cancelled())
 			goto out_close;
 
 		if (clu > 0)
-			memset(buf, 0, CLUSTER);
-		for (i = (clu == 0 ? 16 : 0); i < (CLUSTER / sizeof(__u32)) &&
+			memset(buf, 0, cluster);
+		for (i = (clu == 0 ? 16 : 0); i < (cluster / sizeof(__u32)) &&
 				l2_slot < vh.m_Size;
 				i++, l2_slot++)
 		{
-			off = vh.m_FirstBlockOffset + (l2_slot * (1<<PLOOP1_DEF_CLUSTER_LOG));
+			off = vh.m_FirstBlockOffset + (l2_slot * blocksize);
 			((__u32*)buf)[i] = off;
 		}
-		if (WRITE(odelta.fd, buf, CLUSTER))
+		if (WRITE(odelta.fd, buf, cluster))
 			goto out_close;
 	}
 
@@ -371,7 +375,7 @@ static int create_raw_delta(const char * path, off_t bdsize)
 	ploop_log(0, "Creating raw delta %s size=%ld sectors",
 			path, (long)bdsize);
 
-	if (posix_memalign(&buf, 4096, CLUSTER)) {
+	if (posix_memalign(&buf, 4096, DEF_CLUSTER)) {
 		ploop_err(errno, "posix_memalign");
 		return -1;
 	}
@@ -383,15 +387,15 @@ static int create_raw_delta(const char * path, off_t bdsize)
 		return -1;
 	}
 
-	memset(buf, 0, CLUSTER);
+	memset(buf, 0, DEF_CLUSTER);
 
 	pos = 0;
 	while (pos < bdsize) {
 		if (is_operation_cancelled())
 			goto out_close;
 		off_t copy = bdsize - pos;
-		if (copy > CLUSTER/512)
-			copy = CLUSTER/512;
+		if (copy > DEF_CLUSTER/512)
+			copy = DEF_CLUSTER/512;
 		if (WRITE(fd, buf, copy*512))
 			goto out_close;
 		pos += copy;
@@ -438,7 +442,7 @@ static void fill_diskdescriptor(struct ploop_pvd_header *vh, struct ploop_disk_i
 }
 
 static int create_image(struct ploop_disk_images_data *di,
-		const char *file, off_t size_sec, int mode)
+		const char *file, __u32 blocksize, off_t size_sec, int mode)
 {
 	int fd = -1;
 	int ret;
@@ -461,14 +465,14 @@ static int create_image(struct ploop_disk_images_data *di,
 	if (mode == PLOOP_RAW_MODE)
 		fd = create_raw_delta(file, size_sec);
 	else if (mode == PLOOP_EXPANDED_MODE)
-		fd = create_empty_delta(file, size_sec);
+		fd = create_empty_delta(file, blocksize, size_sec);
 	else if (mode == PLOOP_EXPANDED_PREALLOCATED_MODE)
-		fd = create_empty_preallocated_delta(file, size_sec);
+		fd = create_empty_preallocated_delta(file, blocksize, size_sec);
 	if (fd < 0)
 		goto err;
 	close(fd);
 
-	generate_pvd_header(&vh, size_sec);
+	generate_pvd_header(&vh, size_sec, blocksize);
 	fill_diskdescriptor(&vh, di);
 
 	if (realpath(file, fname) == NULL) {
@@ -546,7 +550,7 @@ static int ploop_init_image(struct ploop_disk_images_data *di, struct ploop_crea
 		if (ret)
 			goto err;
 
-		ret = create_gpt_partition(mount_param.device, size);
+		ret = create_gpt_partition(mount_param.device, size, di->blocksize);
 		if (ret)
 			goto err;
 	}
@@ -599,7 +603,10 @@ int ploop_create_image(struct ploop_create_param *param)
 	if (di == NULL)
 		return SYSEXIT_NOMEM;
 
-	ret = create_image(di, param->image, param->size, param->mode);
+	di->blocksize = param->blocksize ?
+			param->blocksize : (1 << PLOOP1_DEF_CLUSTER_LOG);
+	ret = create_image(di, param->image, di->blocksize,
+			param->size, param->mode);
 	if (ret)
 		return ret;
 	if (param->fstype != NULL) {
@@ -980,7 +987,7 @@ static int create_ploop_dev(int minor)
 /* NB: caller will take care about *lfd_p even if we fail */
 static int add_deltas(struct ploop_disk_images_data *di,
 		char **images, struct ploop_mount_param *param,
-		int raw, int *lfd_p)
+		int raw, __u32 blocksize, int *lfd_p)
 {
 	int lckfd = -1;
 	char *device = param->device;
@@ -1033,7 +1040,7 @@ static int add_deltas(struct ploop_disk_images_data *di,
 			req.c.pctl_format = PLOOP_FMT_RAW;
 		if (ro)
 			req.c.pctl_flags = PLOOP_FMT_RDONLY;
-		req.c.pctl_cluster_log = 9;
+		req.c.pctl_cluster_log = ffs(blocksize) - 1;
 		req.c.pctl_size = 0;
 		req.c.pctl_chunks = 1;
 
@@ -1085,6 +1092,8 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 	struct stat st;
 	int i;
 	int ret = 0;
+	__u32 blocksize = 0;
+	__u32 prev_blocksize;
 
 	if (images == NULL || images[0] == NULL) {
 		ploop_err(0, "ploop_mount: no deltas to mount");
@@ -1103,15 +1112,30 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 			continue;
 
 		ro  = (images[i+1] != NULL || param->ro) ? 1 : 0;
-		ret = ploop_fsck(images[i], 0, 0, 1, ro, 0);
+		ret = ploop_fsck(images[i], 0, 0, 1, ro, 0, &blocksize);
 		if (ret) {
 			ploop_err(0, "%s (%s): irrecoverable errors",
 					images[i], ro ? "ro" : "rw");
 			goto err;
 		}
+		if (raw && i == 1)
+			prev_blocksize = blocksize;
+		if (i != 0 && prev_blocksize != blocksize) {
+			ploop_err(0, "Incorrect blocksize %s bs=%d [prev bs=%d]",
+					images[i], blocksize, prev_blocksize);
+			ret = SYSEXIT_PARAM;
+			goto err;
+		}
+		prev_blocksize = blocksize;
+	}
+	if (di != NULL && (raw && i != 1) && di->blocksize != blocksize) {
+		 ploop_err(0, "Inconsistent di blocksize=%d != image blocksize=%d",
+				 di->blocksize, blocksize);
+		 ret = SYSEXIT_PARAM;
+		 goto err;
 	}
 
-	ret = add_deltas(di, images, param, raw, &lfd);
+	ret = add_deltas(di, images, param, raw, blocksize, &lfd);
 
 	if (ret)
 		goto err;
@@ -1302,7 +1326,7 @@ int ploop_umount_image(struct ploop_disk_images_data *di)
 	return ret;
 }
 
-int ploop_grow_device(const char *device, off_t new_size)
+int ploop_grow_device(const char *device, __u32 blocksize, off_t new_size)
 {
 	int fd, ret;
 	struct ploop_ctl ctl;
@@ -1331,7 +1355,7 @@ int ploop_grow_device(const char *device, off_t new_size)
 
 	memset(&ctl, 0, sizeof(ctl));
 
-	ctl.pctl_cluster_log = 9;
+	ctl.pctl_cluster_log = ffs(blocksize) - 1;
 	ctl.pctl_size = new_size;
 
 	if (ioctl(fd, PLOOP_IOC_GROW, &ctl) < 0) {
@@ -1416,7 +1440,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			if (ret)
 				goto err;
 		}
-		ret = ploop_grow_device(mount_param.device, param->size);
+		ret = ploop_grow_device(mount_param.device, di->blocksize, param->size);
 		if (ret)
 			goto err;
 		ret = resize_fs(mount_param.device);
@@ -1451,16 +1475,24 @@ static int expanded2raw(struct ploop_disk_images_data *di)
 {
 	struct delta delta = {};
 	struct delta odelta = {};
-	int off = 16;
 	__u32 clu;
-	char buf[CLUSTER];
+	void *buf = NULL;
 	char tmp[MAXPATHLEN];
 	char fname[MAXPATHLEN];
 	int ret = -1;
+	__u64 cluster;
 
 	ploop_log(0, "Converting image to raw...");
+	// FIXME: deny snapshots
 	if (open_delta(&delta, di->images[0]->file, O_RDONLY, OD_OFFLINE))
 		return SYSEXIT_OPEN;
+	cluster = S2B(delta.blocksize);
+
+	if (posix_memalign(&buf, 4096, cluster)) {
+		ploop_err(errno, "posix_memalign");
+		goto err;
+	}
+
 	snprintf(tmp, sizeof(tmp), "%s.tmp",
 			di->images[0]->file);
 	ret = open_delta_simple(&odelta, tmp, O_RDWR|O_CREAT|O_EXCL|O_TRUNC, OD_OFFLINE);
@@ -1468,8 +1500,8 @@ static int expanded2raw(struct ploop_disk_images_data *di)
 		goto err;
 
 	for (clu = 0; clu < delta.l2_size; clu++) {
-		int l2_cluster = (clu + off) / (CLUSTER / sizeof(__u32));
-		__u32 l2_slot  = (clu + off) % (CLUSTER / sizeof(__u32));
+		int l2_cluster = (clu + PLOOP_MAP_OFFSET) / (cluster / sizeof(__u32));
+		__u32 l2_slot  = (clu + PLOOP_MAP_OFFSET) % (cluster / sizeof(__u32));
 
 		if (l2_cluster >= delta.l1_size) {
 			ploop_err(0, "abort: l2_cluster >= delta.l1_size");
@@ -1478,23 +1510,23 @@ static int expanded2raw(struct ploop_disk_images_data *di)
 		}
 
 		if (delta.l2_cache != l2_cluster) {
-			if (PREAD(&delta, delta.l2, CLUSTER, (off_t)l2_cluster * CLUSTER))
+			if (PREAD(&delta, delta.l2, cluster, (off_t)l2_cluster * cluster))
 				goto err;
 			delta.l2_cache = l2_cluster;
 		}
-		if ((delta.l2[l2_slot] % (1 << PLOOP1_DEF_CLUSTER_LOG)) != 0) {
+		if ((delta.l2[l2_slot] % delta.blocksize) != 0) {
 			ploop_err(0, "Image corrupted: delta.l2[%d]=%d",
 					l2_slot, delta.l2[l2_slot]);
 			goto err;
 		}
 		if (delta.l2[l2_slot] != 0) {
-			if (PREAD(&delta, buf, CLUSTER, (delta.l2[l2_slot] << PLOOP1_SECTOR_LOG)))
+			if (PREAD(&delta, buf, cluster, S2B(delta.l2[l2_slot])))
 				goto err;
 		} else {
-			bzero(buf, sizeof(buf));
+			bzero(buf, cluster);
 		}
 
-		if (PWRITE(&odelta, buf, CLUSTER, clu * CLUSTER))
+		if (PWRITE(&odelta, buf, cluster, clu * cluster))
 			goto err;
 	}
 
@@ -1517,6 +1549,7 @@ err:
 	if (ret)
 		unlink(tmp);
 	close_delta(&delta);
+	free(buf);
 
 	return ret;
 }
@@ -1524,14 +1557,16 @@ err:
 static int expanded2preallocated(struct ploop_disk_images_data *di)
 {
 	struct delta delta = {};
-	int off = 16;
 	__u32 clu;
 	off_t data_off;
 	int ret = -1;
+	__u64 cluster;
 
 	ploop_log(0, "Converting image to preallocated...");
+	// FIXME: deny on snapshots
 	if (open_delta(&delta, di->images[0]->file, O_RDWR, OD_OFFLINE))
 		return SYSEXIT_OPEN;
+	cluster = S2B(delta.blocksize);
 	data_off = delta.alloc_head;
 	if (fsync(delta.fd)) {
 		ploop_err(errno, "fsync");
@@ -1539,8 +1574,8 @@ static int expanded2preallocated(struct ploop_disk_images_data *di)
 	}
 	// Second stage: update index
 	for (clu = 0; clu < delta.l2_size; clu++) {
-		int l2_cluster = (clu + off) / (CLUSTER / sizeof(__u32));
-		__u32 l2_slot  = (clu + off) % (CLUSTER / sizeof(__u32));
+		int l2_cluster = (clu + PLOOP_MAP_OFFSET) / (cluster / sizeof(__u32));
+		__u32 l2_slot  = (clu + PLOOP_MAP_OFFSET) % (cluster / sizeof(__u32));
 
 		if (l2_cluster >= delta.l1_size) {
 			ploop_err(0, "abort: l2_cluster >= delta.l1_size");
@@ -1548,15 +1583,16 @@ static int expanded2preallocated(struct ploop_disk_images_data *di)
 		}
 
 		if (delta.l2_cache != l2_cluster) {
-			if (PREAD(&delta, delta.l2, CLUSTER, (off_t)l2_cluster * CLUSTER))
+			if (PREAD(&delta, delta.l2, cluster, (off_t)l2_cluster * cluster))
 				goto err;
 			delta.l2_cache = l2_cluster;
 		}
 		if (delta.l2[l2_slot] == 0) {
-			off_t idx_off = (off_t)l2_cluster * CLUSTER + (l2_slot*sizeof(__u32));
-			delta.l2[l2_slot] = data_off << PLOOP1_DEF_CLUSTER_LOG;
+			off_t idx_off = (off_t)l2_cluster * cluster + (l2_slot*sizeof(__u32));
 
-			if (sys_fallocate(delta.fd, 0, data_off * CLUSTER, CLUSTER)) {
+			delta.l2[l2_slot] = data_off * delta.blocksize;
+
+			if (sys_fallocate(delta.fd, 0, data_off * cluster, cluster)) {
 				ploop_err(errno, "Failed to fallocate");
 				goto err;
 			}
@@ -1634,7 +1670,7 @@ static int do_snapshot(int lfd, int fd, struct ploop_ctl_delta *req)
 	return 0;
 }
 
-int create_snapshot(const char *device, const char *delta, int syncfs)
+int create_snapshot(const char *device, const char *delta, __u32 blocksize, int syncfs)
 {
 	int ret;
 	int lfd = -1;
@@ -1653,7 +1689,7 @@ int create_snapshot(const char *device, const char *delta, int syncfs)
 		ret = SYSEXIT_BLKDEV;
 		goto err;
 	}
-	bdsize >>= 9;
+	bdsize = bytes2sec(bdsize);
 
 	if (bdsize == 0) {
 		ploop_err(0, "Can't get block device %s size", device);
@@ -1661,7 +1697,7 @@ int create_snapshot(const char *device, const char *delta, int syncfs)
 		goto err;
 	}
 
-	fd = create_empty_delta(delta, bdsize);
+	fd = create_empty_delta(delta, blocksize, bdsize);
 	if (fd < 0) {
 		ret = SYSEXIT_OPEN;
 		goto err;
@@ -1671,7 +1707,7 @@ int create_snapshot(const char *device, const char *delta, int syncfs)
 
 	req.c.pctl_format = PLOOP_FMT_PLOOP1;
 	req.c.pctl_flags = syncfs ? PLOOP_FLAG_FS_SYNC : 0;
-	req.c.pctl_cluster_log = 9;
+	req.c.pctl_cluster_log = ffs(blocksize) - 1;
 	req.c.pctl_size = 0;
 	req.c.pctl_chunks = 1;
 
@@ -1754,7 +1790,7 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 
 	if (ret != 0) {
 		// offline snapshot
-		fd = create_empty_delta(fname, di->size);
+		fd = create_empty_delta(fname, di->blocksize, di->size);
 		if (fd != -1) {
 			ret = 0;
 			close(fd);
@@ -1764,7 +1800,7 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 	} else {
 		// Always sync fs
 		online = 1;
-		ret = create_snapshot(dev, fname, 1);
+		ret = create_snapshot(dev, fname, di->blocksize, 1);
 	}
 	if (ret)
 		goto err_cleanup2;
@@ -1857,7 +1893,7 @@ int ploop_switch_snapshot(struct ploop_disk_images_data *di, const char *guid, i
 		goto err_cleanup1;
 
 	// offline snapshot
-	fd = create_empty_delta(new_top_delta_fnanme, di->size);
+	fd = create_empty_delta(new_top_delta_fnanme, di->blocksize, di->size);
 	if (fd == -1) {
 		ret = SYSEXIT_CREAT;
 		goto err_cleanup2;

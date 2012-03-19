@@ -330,3 +330,14 @@ void unregister_ploop_dev(const char *component_name, const char *image)
 		ploop_err(errno, "Can't unlink %s", fname);
 
 }
+
+int is_valid_blocksize(__u32 blocksize)
+{
+	/* 32K <= blocksize <= 64M */
+	if (blocksize < 64 ||
+	    blocksize > (64 * 1024 * 1024) >> 9)
+		return 0;
+	if (blocksize != 1UL << (ffs(blocksize)-1))
+		return 0;
+	return 1;
+}

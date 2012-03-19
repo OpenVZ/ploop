@@ -141,23 +141,25 @@ static int zero_index_fix(struct ploop_fsck_desc *d, __u32 clu,
 	return ret;
 }
 
-int check_one_slot(struct ploop_fsck_desc *d, __u32 clu, __u32 isec)
+static int check_one_slot(struct ploop_fsck_desc *d, __u32 clu, __u32 isec, __u32 blocksize)
 {
-	__u32 iblk = isec >> PLOOP1_DEF_CLUSTER_LOG;
+	__u64 cluster = S2B(blocksize);
+	__u32 cluster_log = ffs(blocksize) - 1;
+	__u32 iblk = isec >> cluster_log;
 
-	if ((clu << PLOOP1_DEF_CLUSTER_LOG) > d->bd_size) {
+	if ((clu << cluster_log) > d->bd_size) {
 		ploop_log(0, "Data cluster (%u) beyond block device size... ",
 				clu);
 		return zero_index_fix(d, clu, SOFT_FIX, ZEROFIX, NONFATAL);
 	}
 
-	if (isec % (1 << PLOOP1_DEF_CLUSTER_LOG) != 0) {
+	if (isec % (1 << cluster_log) != 0) {
 		ploop_log(0, "L2 slot (%u) corrupted... ",
 				clu);
 		return zero_index_fix(d, clu, HARD_FIX, ZEROFIX, FATAL);
 	}
 
-	if ((off_t)iblk * CLUSTER + CLUSTER > d->size) {
+	if ((off_t)iblk * cluster + cluster > d->size) {
 		ploop_log(0, "Data cluster %u beyond EOF, vsec=%u... ",
 			iblk, clu);
 		return zero_index_fix(d, clu, HARD_FIX, ZEROFIX, FATAL);
@@ -178,7 +180,8 @@ int check_one_slot(struct ploop_fsck_desc *d, __u32 clu, __u32 isec)
 	return 0;
 }
 
-int ploop_fsck(char *img, int force, int hard_force, int check, int ro, int verbose)
+int ploop_fsck(char *img, int force, int hard_force, int check,
+		int ro, int verbose, __u32 *blocksize_p)
 {
 	struct ploop_fsck_desc d;
 	int i, j;
@@ -187,8 +190,8 @@ int ploop_fsck(char *img, int force, int hard_force, int check, int ro, int verb
 	int ret2;
 	off_t bd_size;
 	struct stat stb;
-	unsigned char buf[CLUSTER];
-	__u32 *l2_ptr = (__u32*)buf;
+	void *buf = NULL;
+	__u32 *l2_ptr = NULL;
 
 	struct ploop_pvd_header vh_buf;
 	struct ploop_pvd_header *vh = &vh_buf;
@@ -203,6 +206,7 @@ int ploop_fsck(char *img, int force, int hard_force, int check, int ro, int verb
 
 	int fatality = 0;   /* fatal errors detected */
 	int clean = 1;	    /* image is clean */
+	__u64 cluster;
 
 	fd = open(img, ro ? O_RDONLY : O_RDWR);
 	if (fd < 0) {
@@ -231,16 +235,26 @@ int ploop_fsck(char *img, int force, int hard_force, int check, int ro, int verb
 		ploop_err(0, "Wrong type in image %s", img);
 		goto done;
 	}
-	if (vh->m_Sectors != 1 << PLOOP1_DEF_CLUSTER_LOG) {
-		ploop_err(0, "Wrong cluster size in image %s", img);
+	if (!is_valid_blocksize(vh->m_Sectors)) {
+		ploop_err(0, "Wrong cluster size %d in image %s",
+				vh->m_Sectors, img);
 		goto done;
 	}
 
-	l1_slots = vh->m_FirstBlockOffset >> PLOOP1_DEF_CLUSTER_LOG;
+	l1_slots = vh->m_FirstBlockOffset >> (ffs(vh->m_Sectors) - 1);
 	if (vh->m_FirstBlockOffset % vh->m_Sectors != 0 || l1_slots == 0) {
 		ploop_err(0, "Wrong first block offset in image %s", img);
 		goto done;
 	}
+	if (blocksize_p != NULL)
+		*blocksize_p = vh->m_Sectors;
+	cluster = S2B(vh->m_Sectors);
+	if (posix_memalign(&buf, 4096, cluster)) {
+		ret = SYSEXIT_NOMEM;
+		ploop_err(errno, "posix_memalign");
+		goto done;
+	}
+	l2_ptr = (__u32*)buf;
 
 	ret = 0;
 	bd_size = vh->m_SizeInSectors;
@@ -253,7 +267,7 @@ int ploop_fsck(char *img, int force, int hard_force, int check, int ro, int verb
 	}
 
 	if (check) {
-		bmap_size = (stb.st_size + CLUSTER - 1)/(CLUSTER);
+		bmap_size = (stb.st_size + cluster - 1)/(cluster);
 		bmap_size = (bmap_size + 31)/8;
 		bmap = malloc(bmap_size);
 		if (bmap == NULL) {
@@ -288,23 +302,23 @@ int ploop_fsck(char *img, int force, int hard_force, int check, int ro, int verb
 	for (i = 0; i < l1_slots; i++) {
 		int skip = (i == 0) ? sizeof(*vh) / sizeof(__u32) : 0;
 
-		ret = READ(fd, buf, sizeof(buf), i * CLUSTER,
+		ret = READ(fd, buf, cluster, i * cluster,
 			   "read index table");
 		if (ret)
 			goto done;
 
 		if (!ro && vh->m_DiskInUse) {
-			ret = WRITE(fd, buf, sizeof(buf), i * CLUSTER,
+			ret = WRITE(fd, buf, cluster, i * cluster,
 				    "re-write index table");
 			if (ret)
 				goto done;
 		}
 
-		for (j = skip; j < CLUSTER/4; j++, l2_slot++) {
+		for (j = skip; j < cluster/4; j++, l2_slot++) {
 			if (l2_ptr[j] == 0)
 				continue;
 
-			ret = check_one_slot(&d, l2_slot, l2_ptr[j]);
+			ret = check_one_slot(&d, l2_slot, l2_ptr[j], vh->m_Sectors);
 			if (ret)
 				goto done;
 		}
@@ -336,17 +350,17 @@ int ploop_fsck(char *img, int force, int hard_force, int check, int ro, int verb
 		goto done;
 	}
 
-	if ((off_t)alloc_head * CLUSTER < stb.st_size) {
+	if ((off_t)alloc_head * cluster < stb.st_size) {
 		if (!ro) {
 			ploop_log(0, "Trimming tail");
-			if (ftruncate(fd, (off_t)alloc_head * CLUSTER)) {
+			if (ftruncate(fd, (off_t)alloc_head * cluster)) {
 				ploop_err(errno, "ftruncate");
 				ret = SYSEXIT_FTRUNCATE;
 				goto done;
 			}
 		} else {
 			ploop_err(0, "Want to trim tail");
-			alloc_head = (stb.st_size + CLUSTER - 1)/(CLUSTER);
+			alloc_head = (stb.st_size + cluster - 1)/(cluster);
 		}
 	}
 
@@ -390,6 +404,7 @@ done:
 
 	if (bmap)
 		free(bmap);
+	free(buf);
 
 	return ret;
 }

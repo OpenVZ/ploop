@@ -393,7 +393,7 @@ int ploop_balloon_change_size(const char *device, int balloonfd, off_t new_size)
 	ret = fiemap_get(balloonfd, dev_start << 9, old_size, new_size, &pfiemap);
 	if (ret)
 		goto err;
-	fiemap_adjust(pfiemap);
+	fiemap_adjust(pfiemap, delta.blocksize);
 	ret = fiemap_build_rmap(pfiemap, reverse_map, reverse_map_len, &delta);
 	if (ret)
 		goto err;
@@ -435,7 +435,7 @@ int ploop_balloon_change_size(const char *device, int balloonfd, off_t new_size)
 		goto err;
 	ploop_log(0, "TRUNCATED: %u cluster-blocks (%llu bytes)",
 			relocblks->alloc_head,
-			(unsigned long long)(relocblks->alloc_head * CLUSTER));
+			(unsigned long long)(relocblks->alloc_head * S2B(delta.blocksize)));
 out:
 	ret = 0;
 err:
@@ -611,7 +611,7 @@ reloc:
 
 	ploop_log(0, "TRUNCATED: %u cluster-blocks (%llu bytes)",
 			relocblks->alloc_head,
-			(unsigned long long)(relocblks->alloc_head * CLUSTER));
+			(unsigned long long)(relocblks->alloc_head * S2B(delta.blocksize)));
 err:
 
 	close(fd);
@@ -732,7 +732,7 @@ int ploop_baloon_check_and_repair(const char *device, char *mount_point, int rep
 	ret = fiemap_get(balloonfd, dev_start << 9, 0, st.st_size, &pfiemap);
 	if (ret)
 		goto err;
-	fiemap_adjust(pfiemap);
+	fiemap_adjust(pfiemap, delta.blocksize);
 
 	ret = fiemap_build_rmap(pfiemap, reverse_map, reverse_map_len, &delta);
 	if (ret)
@@ -785,7 +785,7 @@ int ploop_baloon_check_and_repair(const char *device, char *mount_point, int rep
 
 	ploop_log(0, "TRUNCATED: %u cluster-blocks (%llu bytes)",
 			relocblks->alloc_head,
-			(unsigned long long)(relocblks->alloc_head * CLUSTER));
+			(unsigned long long)(relocblks->alloc_head * S2B(delta.blocksize)));
 
 err:
 	if (drop_state) {

@@ -29,10 +29,10 @@
 
 #include "ploop.h"
 
-int create_gpt_partition(const char *device, off_t size)
+int create_gpt_partition(const char *device, off_t size, __u32 blocksize)
 {
 	char cmd[512];
-	unsigned long long start = 1UL << PLOOP1_DEF_CLUSTER_LOG;
+	unsigned long long start = blocksize;
 	unsigned long long end = size - start;
 
 	if (size <= start) {

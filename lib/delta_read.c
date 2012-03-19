@@ -32,8 +32,6 @@ int init_delta_array(struct delta_array * p)
 	p->delta_max = 0;
 	p->delta_arr = NULL;
 	p->data_cache_cluster = -1;
-	if (posix_memalign(&p->data_cache, 4096, CLUSTER))
-		return -1;
 	p->raw_fd = -1;
 	p->bd_size = 0;
 	return 0;
@@ -47,7 +45,6 @@ void deinit_delta_array(struct delta_array * p)
 		close_delta(&p->delta_arr[i]);
 	if (p->raw_fd != -1)
 		close(p->raw_fd);
-	free(p->data_cache);
 	free(p->delta_arr);
 }
 
@@ -101,6 +98,8 @@ static struct delta_fops local_delta_fops = {
 
 void close_delta(struct delta *delta)
 {
+	int err = errno;
+
 	free(delta->hdr0);
 	delta->hdr0 = NULL;
 	free(delta->l2);
@@ -109,6 +108,7 @@ void close_delta(struct delta *delta)
 		delta->fops->close(delta->fd);
 	delta->fops = NULL;
 	delta->fd = -1;
+	errno = err;
 }
 
 int open_delta_simple(struct delta * delta, const char * path, int rw, int od_flags)
@@ -130,11 +130,12 @@ int open_delta_simple(struct delta * delta, const char * path, int rw, int od_fl
 
 int open_delta(struct delta * delta, const char * path, int rw, int od_flags)
 {
-	struct ploop_pvd_header *vh;
-	void * p;
+	struct ploop_pvd_header vh;
+	void *p;
 	ssize_t res;
 	struct stat stat;
 	int rc;
+	__u64 cluster;
 
 	rc = open_delta_simple(delta, path, rw, od_flags);
 	if (rc != 0)
@@ -142,10 +143,8 @@ int open_delta(struct delta * delta, const char * path, int rw, int od_flags)
 
 	rc = delta->fops->fstat(delta->fd, &stat);
 	if (rc != 0) {
-		rc = errno;
 		ploop_err(errno, "stat %s", path);
 		close_delta(delta);
-		errno = rc;
 		return -1;
 	}
 
@@ -154,37 +153,41 @@ int open_delta(struct delta * delta, const char * path, int rw, int od_flags)
 	delta->l2_cache = -1;
 	delta->dirtied = 0;
 
-	if (posix_memalign(&p, 4096, CLUSTER)) {
-		rc = errno;
+	res = delta->fops->pread(delta->fd, &vh,
+			sizeof(struct ploop_pvd_header), 0);
+	if (res != sizeof(struct ploop_pvd_header)) {
+		if (res >= 0)
+			 errno = EIO;
 		close_delta(delta);
-		errno = rc;
+		return -1;
+	}
+	delta->blocksize = vh.m_Sectors;
+	cluster = S2B(vh.m_Sectors);
+
+	if (posix_memalign(&p, 4096, cluster)) {
+		close_delta(delta);
 		return -1;
 	}
 	delta->hdr0 = p;
 
-	if (posix_memalign(&p, 4096, CLUSTER)) {
-		rc = errno;
+	if (posix_memalign(&p, 4096, cluster)) {
 		close_delta(delta);
-		errno = rc;
 		return -1;
 	}
 	delta->l2 = p;
 
-	vh = (void*)delta->hdr0;
-
-	res = delta->fops->pread(delta->fd, delta->hdr0, CLUSTER, 0);
-	if (res != CLUSTER) {
+	res = delta->fops->pread(delta->fd, delta->hdr0, cluster, 0);
+	if (res != cluster) {
 		if (res >= 0)
-			rc = errno = EIO;
+			errno = EIO;
 		ploop_err(errno, "read %s", path);
 		close_delta(delta);
-		errno = rc;
 		return -1;
 	}
 
-	if (memcmp(vh->m_Sig, SIGNATURE_STRUCTURED_DISK, sizeof(vh->m_Sig)) ||
-	    vh->m_Type != PRL_IMAGE_COMPRESSED ||
-	    vh->m_Sectors != (1 << PLOOP1_DEF_CLUSTER_LOG))
+	if (memcmp(vh.m_Sig, SIGNATURE_STRUCTURED_DISK, sizeof(vh.m_Sig)) ||
+	    vh.m_Type != PRL_IMAGE_COMPRESSED ||
+	    !is_valid_blocksize(vh.m_Sectors))
 	{
 
 		ploop_err(errno, "Invalid image header %s", path);
@@ -192,12 +195,12 @@ int open_delta(struct delta * delta, const char * path, int rw, int od_flags)
 		errno = EINVAL;
 		return -1;
 	}
-	delta->alloc_head = stat.st_size / (vh->m_Sectors * 512);
+	delta->alloc_head = stat.st_size / (vh.m_Sectors * 512);
 
-	delta->l1_size = vh->m_FirstBlockOffset / vh->m_Sectors;
-	delta->l2_size = vh->m_SizeInSectors / vh->m_Sectors;
+	delta->l1_size = vh.m_FirstBlockOffset / vh.m_Sectors;
+	delta->l2_size = vh.m_SizeInSectors / vh.m_Sectors;
 
-	if (vh->m_DiskInUse && !(od_flags & OD_ALLOW_DIRTY)) {
+	if (vh.m_DiskInUse && !(od_flags & OD_ALLOW_DIRTY)) {
 		ploop_err(0, "Image is in use %s", path);
 		close_delta(delta);
 		errno = EBUSY;
@@ -281,7 +284,7 @@ int parse_size(char * opt, off_t * sz)
 	default:
 		return -1;
 	}
-	if (val > ((__u64)CLUSTER << 32) / 512)
+	if (val >= (0xffffffffULL << PLOOP1_SECTOR_LOG))
 		return -1;
 	return 0;
 }
@@ -320,7 +323,7 @@ int read_size_from_image(const char *img_name, int raw, off_t * res)
 		if (open_delta(&delta, img_name, O_RDONLY, OD_NOFLAGS))
 			return SYSEXIT_OPEN;
 
-		*res = delta.l2_size * (1 << PLOOP1_DEF_CLUSTER_LOG);
+		*res = delta.l2_size * delta.blocksize;
 	} else {
 		struct stat stat;
 
@@ -343,7 +346,7 @@ int read_size_from_image(const char *img_name, int raw, off_t * res)
 /*
  * delta: output delta
  * iblk: iblock number of block to relocate
- * buf: a buffer of CLUSTER bytes
+ * buf: a buffer of (blocksize << 9) bytes
  * map: if not NULL, will be filled with <req_cluster, iblk> of
  *	relocated block
  *
@@ -356,9 +359,12 @@ static int relocate_block(struct delta *delta, __u32 iblk, void *buf,
 	int   l2_cluster = 0;
 	__u32 l2_slot = 0;
 	__u32 clu = 0;
+	__u64 cluster = S2B(delta->blocksize);
+
+	assert(cluster);
 
 	for (clu = 0; clu < delta->l2_size; clu++) {
-		int n = CLUSTER / sizeof(__u32);
+		int n = cluster / sizeof(__u32);
 
 		l2_cluster = (clu + PLOOP_MAP_OFFSET) / n;
 		l2_slot	   = (clu + PLOOP_MAP_OFFSET) % n;
@@ -369,34 +375,34 @@ static int relocate_block(struct delta *delta, __u32 iblk, void *buf,
 		}
 
 		if (delta->l2_cache != l2_cluster) {
-			if (READ(delta, delta->l2, CLUSTER,
-				 (off_t)l2_cluster * CLUSTER)) {
+			if (READ(delta, delta->l2, cluster,
+				 (off_t)l2_cluster * cluster)) {
 				ploop_err(errno, "Can't read L2 table");
 				return -1;
 			}
 			delta->l2_cache = l2_cluster;
 		}
 
-		if (delta->l2[l2_slot] == iblk * (CLUSTER >> 9))
+		if (delta->l2[l2_slot] == iblk * (cluster >> 9))
 			break;
 	}
 
 	if (clu >= delta->l2_size)
 		return 0; /* found nothing */
 
-	if (READ(delta, buf, CLUSTER,
+	if (READ(delta, buf, cluster,
 		 (off_t)delta->l2[l2_slot] << 9)) {
 		ploop_err(errno, "Can't read block to relocate");
 		return -1;
 	}
 
-	delta->l2[l2_slot] = delta->alloc_head++ * (CLUSTER >> 9);
+	delta->l2[l2_slot] = delta->alloc_head++ * (cluster >> 9);
 	if (delta->l2[l2_slot] == 0) {
 		ploop_err(0, "relocate_block: delta->l2[l2_slot] == 0");
 		return -1;
 	}
 
-	if (WRITE(delta, buf, CLUSTER,
+	if (WRITE(delta, buf, cluster,
 		  (off_t)delta->l2[l2_slot] << 9)) {
 		ploop_err(errno, "Can't write relocate block");
 		return -1;
@@ -408,7 +414,7 @@ static int relocate_block(struct delta *delta, __u32 iblk, void *buf,
 	}
 
 	if (WRITE(delta, &delta->l2[l2_slot], sizeof(__u32),
-		  (off_t)l2_cluster * CLUSTER + l2_slot * sizeof(__u32))) {
+		  (off_t)l2_cluster * cluster + l2_slot * sizeof(__u32))) {
 		ploop_err(errno, "Can't update L2 table");
 		return -1;
 	}
@@ -424,7 +430,7 @@ static int relocate_block(struct delta *delta, __u32 iblk, void *buf,
 /*
  * odelta: output delta
  * bdsize: requested new block-device size
- * buf: a buffer of CLUSTER bytes
+ * buf: a buffer of blocksize bytes
  * gm: if not NULL, gm->ctl and gm->zblks will be allocated and filled
  */
 int grow_delta(struct delta *odelta, off_t bdsize, void *buf,
@@ -436,9 +442,12 @@ int grow_delta(struct delta *odelta, off_t bdsize, void *buf,
 	int i_l1_size, i_l2_size;
 	int i_l1_size_sync_alloc = 0;
 	int map_idx = 0;
+	__u64 cluster = S2B(odelta->blocksize);
+
+	assert(cluster);
 
 	memset(ivh, 0, sizeof(*ivh));
-	generate_pvd_header(ivh, bdsize);
+	generate_pvd_header(ivh, bdsize, odelta->blocksize);
 	ivh->m_DiskInUse = SIGNATURE_DISK_IN_USE;
 	i_l1_size = ivh->m_FirstBlockOffset / ivh->m_Sectors;
 	i_l2_size = ivh->m_SizeInSectors / ivh->m_Sectors;
@@ -456,10 +465,10 @@ int grow_delta(struct delta *odelta, off_t bdsize, void *buf,
 
 	if (odelta->alloc_head < i_l1_size) {
 		i_l1_size_sync_alloc = i_l1_size - odelta->alloc_head;
-		memset(buf, 0, CLUSTER);
+		memset(buf, 0, cluster);
 		for (i = odelta->alloc_head; i < i_l1_size; i++)
-			if (WRITE(odelta, buf, CLUSTER,
-				  (off_t)i * CLUSTER)) {
+			if (WRITE(odelta, buf, cluster,
+				  (off_t)i * cluster)) {
 				ploop_err(errno, "Can't append zero block");
 				return SYSEXIT_WRITE;
 			}
@@ -488,15 +497,15 @@ int grow_delta(struct delta *odelta, off_t bdsize, void *buf,
 			gm->zblks[map_idx] = i;
 			map_idx++;
 		} else {
-			memset(buf, 0, CLUSTER);
+			memset(buf, 0, cluster);
 
 			if (odelta->fops->fsync(odelta->fd)) {
 				ploop_err(errno, "fsync");
 				return SYSEXIT_FSYNC;
 			}
 
-			if (WRITE(odelta, buf, CLUSTER,
-				  (off_t)i * CLUSTER)) {
+			if (WRITE(odelta, buf, cluster,
+				  (off_t)i * cluster)) {
 				ploop_err(errno, "Can't nullify L2 table");
 				return SYSEXIT_WRITE;
 			}
@@ -543,11 +552,11 @@ int grow_raw_delta(const char *image, off_t append_size)
 	void *buf;
 	unsigned long i = 0;
 
-	if (posix_memalign(&buf, 4096, CLUSTER)) {
+	if (posix_memalign(&buf, 4096, DEF_CLUSTER)) {
 		ploop_err(errno, "posix_memalign");
 		return SYSEXIT_MALLOC;
 	}
-	memset(buf, 0, CLUSTER);
+	memset(buf, 0, DEF_CLUSTER);
 
 	if (open_delta_simple(&delta, image, O_WRONLY, OD_NOFLAGS))
 		return SYSEXIT_OPEN;
@@ -562,7 +571,7 @@ int grow_raw_delta(const char *image, off_t append_size)
 
 	ret = SYSEXIT_WRITE;
 	while (append_size > 0) {
-		size_t size = (append_size > CLUSTER) ? CLUSTER : append_size;
+		size_t size = (append_size > DEF_CLUSTER) ? DEF_CLUSTER : append_size;
 
 		if (PWRITE(&delta, buf, size, pos))
 			goto err;

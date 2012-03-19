@@ -4,6 +4,7 @@
 #include <linux/types.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <assert.h>
 
 #include "ploop1_image.h"
 #include "ploop_if.h"
@@ -32,6 +33,8 @@
 #define OD_NOFLAGS      0x0
 #define OD_ALLOW_DIRTY  0x1
 #define OD_OFFLINE      0x2
+
+#define S2B(sec) (sec << PLOOP1_SECTOR_LOG)
 
 /* mount flags */
 #define PLOOP_MOUNT_SNAPSHOT   0x01
@@ -65,6 +68,7 @@ struct delta
 	int    l2_dirty;
 	int    l2_cache;
 	int    dirtied;
+	__u32  blocksize;
 
 	struct delta_fops *fops;
 };
@@ -74,7 +78,6 @@ struct delta_array
 	int		delta_max;
 	struct delta	*delta_arr;
 	__u32		data_cache_cluster;
-	void		*data_cache;
 	int		raw_fd;
 	__u64		bd_size;
 };
@@ -179,12 +182,12 @@ extern int read_size_from_image(const char *img_name, int raw, off_t * res);
 extern int grow_delta(struct delta *odelta, off_t bdsize, void *buf,
 		       struct grow_maps *gm);
 extern int grow_raw_delta(const char *image, off_t append_size);
-int ploop_grow_device(const char *device, off_t new_size);
+int ploop_grow_device(const char *device, __u32 blocksize, off_t new_size);
 
 struct pfiemap *fiemap_alloc(int n);
 int fiemap_add_extent(struct pfiemap **pfiemap_pp, __u64 pos, __u64 len);
 int fiemap_get(int fd, __u64 off, __u64 start, off_t size, struct pfiemap **pfiemap_pp);
-void fiemap_adjust(struct pfiemap *pfiemap);
+void fiemap_adjust(struct pfiemap *pfiemap, __u32 blocksize);
 int fiemap_build_rmap(struct pfiemap *pfiemap, __u32 *rmap, __u32 rlen, struct delta *delta);
 
 struct freemap *freemap_alloc(int n);
@@ -217,7 +220,8 @@ int relocmap_add_extent(struct relocmap **relocmap_pp,
 struct ploop_relocblks_ctl;
 int relocmap2relocblks(struct relocmap *relocmap, int lvl, __u32 a_h, __u32 n_scanned,
 			struct ploop_relocblks_ctl **relocblks_pp);
-int ploop_fsck(char *img, int force, int hard_force, int check, int ro, int verbose);
+int ploop_fsck(char *img, int force, int hard_force, int check, int ro,
+		int verbose, __u32 *blocksize_p);
 void ploop_log(int level, const char *format, ...)
 	__attribute__ ((__format__ (__printf__, 2, 3)));
 void ploop_err(int err_no, const char *format, ...)
@@ -225,7 +229,7 @@ void ploop_err(int err_no, const char *format, ...)
 char *make_sysfs_dev_name(int minor, char *buf, int len);
 int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		struct ploop_mount_param *param, int raw);
-int create_snapshot(const char *device, const char *delta, int syncfs);
+int create_snapshot(const char *device, const char *delta, __u32 blocksize, int syncfs);
 int get_list_size(char **list);
 char **make_images_list(struct ploop_disk_images_data *di, char *guid, int reverse);
 void free_images_list(char **images);
@@ -276,7 +280,7 @@ int get_partition_device_name(const char *device, char *out, int size);
 int make_fs(const char *device, const char *fstype);
 void tune_fs(const char *target, const char *device, unsigned long long size);
 int resize_fs(const char *device);
-int create_gpt_partition(const char *dev, off_t size);
+int create_gpt_partition(const char *dev, off_t size, __u32 blocksize);
 int resize_gpt_partition(const char *devname);
 
 // misc
@@ -292,6 +296,7 @@ int ploop_get_child_by_uuid(struct ploop_disk_images_data *di, const char *guid,
 int ploop_fname_cmp(const char *p1, const char *p2);
 int is_valid_guid(const char *guid);
 int read_line(const char *path, char *nbuf, int len);
+int is_valid_blocksize(__u32 blocksize);
 
 // merge
 int get_delta_info(const char *device, int merge_top_only, struct merge_info *info);

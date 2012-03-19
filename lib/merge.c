@@ -59,8 +59,8 @@ static int sync_cache(struct delta * delta)
 
 	/* Write index table */
 	if (PWRITE(delta, (__u8 *)delta->l2 + skip,
-	      CLUSTER - skip,
-	      (off_t)delta->l2_cache * CLUSTER + skip))
+				S2B(delta->blocksize) - skip,
+				(off_t)delta->l2_cache * S2B(delta->blocksize) + skip))
 		return SYSEXIT_WRITE;
 
 	/* Sync index table. We can delay this, but this does not
@@ -76,12 +76,14 @@ static int sync_cache(struct delta * delta)
 
 static int locate_l2_entry(struct delta_array *p, int level, int i, int k, int *out)
 {
+	__u64 cluster;
 	for (level++; level < p->delta_max; level++) {
 		if (p->delta_arr[level].l2_cache == -1) {
 			if (i >= p->delta_arr[level].l1_size)
 				break; /* grow is monotonic! */
+			cluster = S2B(p->delta_arr[level].blocksize);
 			if (PREAD(&p->delta_arr[level], p->delta_arr[level].l2,
-			     CLUSTER, (off_t)i * CLUSTER))
+						cluster, (off_t)i * cluster))
 				return SYSEXIT_READ;
 			p->delta_arr[level].l2_cache = i;
 		}
@@ -108,6 +110,7 @@ static int grow_lower_delta(const char *device, int top, int start_level, int en
 	void *buf;
 	struct delta odelta = {};
 	int ret;
+	__u64 cluster;
 
 	if (top) {
 		if ((ret = ploop_get_size(device, &src_size)))
@@ -154,8 +157,8 @@ static int grow_lower_delta(const char *device, int top, int start_level, int en
 		ret = SYSEXIT_WRITE;
 		goto done;
 	}
-
-	if (posix_memalign(&buf, 4096, CLUSTER)) {
+	cluster = S2B(odelta.blocksize);
+	if (posix_memalign(&buf, 4096, cluster)) {
 		ploop_err(errno, "posix_memalign");
 		ret = SYSEXIT_MALLOC;
 		goto done;
@@ -194,17 +197,17 @@ static int grow_lower_delta(const char *device, int top, int start_level, int en
 	close(devfd);
 
 	/* nullify relocated blocks on disk */
-	memset(buf, 0, CLUSTER);
+	memset(buf, 0, cluster);
 	for (i = 0; i < grow_maps.ctl->n_maps; i++)
-		if (PWRITE(&odelta, buf, CLUSTER,
-			   (off_t)(grow_maps.zblks[i]) * CLUSTER)) {
+		if (PWRITE(&odelta, buf, cluster,
+			   (off_t)(grow_maps.zblks[i]) * cluster)) {
 			ret = SYSEXIT_WRITE;
 			goto done;
 		}
 
 	/* save new image header of destination delta on disk */
 	vh = (struct ploop_pvd_header *)buf;
-	generate_pvd_header(vh, src_size);
+	generate_pvd_header(vh, src_size, odelta.blocksize);
 	if (PREAD(&odelta, &vh->m_Flags, sizeof(vh->m_Flags),
 		  offsetof(struct ploop_pvd_header, m_Flags))) {
 		ret = SYSEXIT_READ;
@@ -294,6 +297,10 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 	struct delta odelta = {};
 	int i, k, i_end, ret = 0;
 	__u32 allocated = 0;
+	__u64 cluster;
+	void *data_cache = NULL;
+	__u32 blocksize = 0;
+	__u32 prev_blocksize;
 
 	if (start_level >= end_level || start_level < 0) {
 		ploop_err(0, "Invalid parameters: start_level %d end_level %d",
@@ -344,6 +351,7 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 		return SYSEXIT_NOMEM;
 
 	for (i = 0; i < last_delta; i++) {
+		// FIXME: add check for blocksize
 		if (extend_delta_array(&da, names[i],
 					device ? O_RDONLY|O_DIRECT : O_RDONLY,
 					device ? OD_NOFLAGS : OD_OFFLINE)) {
@@ -351,8 +359,20 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 			ret = SYSEXIT_OPEN;
 			goto merge_done2;
 		}
+		blocksize = da.delta_arr[i].blocksize;
+		if (i != 0 && blocksize != prev_blocksize) {
+			ploop_err(errno, "Wrong blocksize %s bs=%d [prev bs=%d]",
+					names[i], blocksize, prev_blocksize);
+			goto merge_done2;
+		}
+		prev_blocksize = blocksize;
 	}
+	if (blocksize == 0) {
+		ploop_err(errno, "Wrong blocksize 0");
+		goto merge_done2;
 
+	}
+	cluster = S2B(blocksize);
 	if (!raw) {
 		if (open_delta(&odelta, names[last_delta], O_RDWR,
 			       device ? OD_NOFLAGS : OD_OFFLINE)) {
@@ -372,6 +392,8 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 			goto merge_done2;
 		}
 	}
+        if (posix_memalign(&data_cache, 4096, cluster))
+                return -1;
 
 	if (!device) {
 		struct ploop_pvd_header *vh;
@@ -379,7 +401,7 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 
 		if (!raw) {
 			if ((ret = grow_delta(&odelta, vh->m_SizeInSectors,
-				   da.data_cache, NULL)))
+				   data_cache, NULL)))
 				goto merge_done;
 		} else {
 			off_t src_size = vh->m_SizeInSectors;
@@ -398,15 +420,15 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 		}
 	}
 
-	i_end = (da.delta_arr[0].l2_size + PLOOP_MAP_OFFSET + CLUSTER/4 - 1) /
-		(CLUSTER/4);
+	i_end = (da.delta_arr[0].l2_size + PLOOP_MAP_OFFSET + cluster/4 - 1) /
+		(cluster/4);
 	for (i = 0; i < i_end; i++) {
 		int k_start = 0;
-		int k_end   = CLUSTER/4;
+		int k_end   = cluster/4;
 
 		/* Load L2 table */
 		if (PREAD(&da.delta_arr[0], da.delta_arr[0].l2,
-			  CLUSTER, (off_t)i * CLUSTER)) {
+			  cluster, (off_t)i * cluster)) {
 			ret = SYSEXIT_READ;
 			goto merge_done;
 		}
@@ -425,7 +447,7 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 			k_start = PLOOP_MAP_OFFSET;
 		if (i == i_end - 1)
 			k_end   = da.delta_arr[0].l2_size + PLOOP_MAP_OFFSET -
-				  i * CLUSTER/4;
+				  i * cluster/4;
 
 		for (k = k_start; k < k_end; k++) {
 			int level2 = 0;
@@ -442,7 +464,7 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 					continue;
 			}
 
-			if (PREAD(&da.delta_arr[level2], da.data_cache, CLUSTER,
+			if (PREAD(&da.delta_arr[level2], data_cache, cluster,
 				  (off_t)da.delta_arr[level2].l2[k] << 9)) {
 				ret = SYSEXIT_READ;
 				goto merge_done;
@@ -450,9 +472,9 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 
 			if (raw) {
 				off_t opos;
-				opos = i * (CLUSTER/4) + k - PLOOP_MAP_OFFSET;
-				if (PWRITE(&odelta, da.data_cache, CLUSTER,
-					   opos*CLUSTER)) {
+				opos = i * (cluster/4) + k - PLOOP_MAP_OFFSET;
+				if (PWRITE(&odelta, data_cache, cluster,
+					   opos*cluster)) {
 					ret = SYSEXIT_WRITE;
 					goto merge_done;
 				}
@@ -465,8 +487,8 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 						goto merge_done;
 
 				odelta.l2_cache = i;
-				if (PREAD(&odelta, odelta.l2, CLUSTER,
-					  (off_t)(i * CLUSTER))) {
+				if (PREAD(&odelta, odelta.l2, cluster,
+					  (off_t)(i * cluster))) {
 					ret = SYSEXIT_READ;
 					goto merge_done;
 				}
@@ -474,7 +496,7 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 			}
 
 			if (odelta.l2[k] == 0) {
-				odelta.l2[k] = odelta.alloc_head++ * (CLUSTER >> 9);
+				odelta.l2[k] = odelta.alloc_head++ * (cluster >> 9);
 				if (odelta.l2[k] == 0) {
 					ploop_err(0, "abort: odelta.l2[k] == 0");
 					ret = -1;
@@ -483,7 +505,7 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 				odelta.l2_dirty = 1;
 				allocated++;
 			}
-			if (PWRITE(&odelta, da.data_cache, CLUSTER,
+			if (PWRITE(&odelta, data_cache, cluster,
 				   (off_t)odelta.l2[k] << 9)) {
 				ret = SYSEXIT_WRITE;
 				goto merge_done;
@@ -522,8 +544,8 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 			skip = sizeof(struct ploop_pvd_header);
 
 		if (PWRITE(&odelta, (__u8 *)odelta.l2 + skip,
-		      CLUSTER - skip,
-			   (off_t)odelta.l2_cache * CLUSTER + skip)) {
+					cluster - skip,
+					(off_t)odelta.l2_cache * cluster + skip)) {
 			ret = SYSEXIT_WRITE;
 			goto merge_done;
 		}
@@ -580,6 +602,7 @@ merge_done:
 		close(lfd);
 	}
 merge_done2:
+	free(data_cache);
 	deinit_delta_array(&da);
 	return ret;
 }

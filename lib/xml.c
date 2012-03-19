@@ -140,6 +140,14 @@ static int parse_xml(const char *basedir, xmlNode *root_node, struct ploop_disk_
 		if (parse_ul(data, &val) == 0)
 			di->sectors= (unsigned)val;
 	}
+	cur_node = seek(root_node, "/StorageData/Storage");
+	ERR(cur_node, "/StorageData/Storage");
+	node = seek(cur_node, "Blocksize");
+	if (node != NULL) {
+		data = get_element_txt(node);
+		if (parse_ul(data, &val) == 0)
+			di->blocksize = (unsigned)val;
+	}
 
 	cur_node = seek(root_node, "/StorageData/Storage/Image");
 	ERR(cur_node, "/StorageData/Storage/Image");
@@ -230,6 +238,10 @@ static int validate_disk_descriptor(struct ploop_disk_images_data *di)
 	if (di->nimages == 0) {
 		ploop_err(0, "No images found in %s",
 				di->runtime->xml_fname);
+		return -1;
+	}
+	if (!is_valid_blocksize(di->blocksize)) {
+		ploop_err(0, "Invalid block size %d", di->blocksize);
 		return -1;
 	}
 	// FIXME: compatibility issue have to be removed before BETA
@@ -425,7 +437,8 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 		ploop_err(0, "Error at xmlTextWriter End");
 		goto err;
 	}
-	rc = xmlTextWriterWriteElement(writer, BAD_CAST "Blocksize", BAD_CAST "512");
+	rc = xmlTextWriterWriteFormatElement(writer, BAD_CAST "Blocksize", "%d",
+			di->blocksize);
 	if (rc < 0) {
 		ploop_err(0, "Error at xmlTextWriter Blocksize");
 		goto err;

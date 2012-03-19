@@ -48,6 +48,7 @@ struct ploop_create_param {
 	char *image;
 	char *fstype;
 	int without_partition;
+	unsigned int blocksize;
 	char dummy[32];
 };
 
@@ -75,6 +76,7 @@ struct ploop_disk_images_data {
 	int nsnapshots;
 	struct ploop_snapshot_data **snapshots;
 	struct ploop_disk_images_runtime_data *runtime;
+	unsigned int blocksize;
 	char dummy[32];
 };
 

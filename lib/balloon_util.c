@@ -202,14 +202,17 @@ int fiemap_get(int fd, __u64 off, __u64 start, off_t size, struct pfiemap **pfie
 	return 0;
 }
 
-void fiemap_adjust(struct pfiemap *pfiemap)
+void fiemap_adjust(struct pfiemap *pfiemap, __u32 blocksize)
 {
 	int i;
+	__u64 cluster = S2B(blocksize);
+
+	assert(cluster);
 
 	for(i = 0; i < pfiemap->n_entries_used; i++) {
 		__u64 pos;
 
-		pos = (pfiemap->extents[i].pos + CLUSTER - 1) & ~(CLUSTER - 1);
+		pos = (pfiemap->extents[i].pos + cluster - 1) & ~(cluster - 1);
 		if (pos >= pfiemap->extents[i].pos + pfiemap->extents[i].len) {
 			pfiemap->extents[i].pos = pfiemap->extents[i].len = 0;
 			continue;
@@ -218,7 +221,7 @@ void fiemap_adjust(struct pfiemap *pfiemap)
 		pfiemap->extents[i].len -= (pos - pfiemap->extents[i].pos);
 		pfiemap->extents[i].pos = pos;
 
-		pfiemap->extents[i].len &= ~(CLUSTER - 1);
+		pfiemap->extents[i].len &= ~(cluster - 1);
 		if (pfiemap->extents[i].len == 0) {
 			pfiemap->extents[i].pos = 0;
 			continue;
@@ -229,15 +232,19 @@ void fiemap_adjust(struct pfiemap *pfiemap)
 static int fiemap_extent_process(__u32 clu, __u32 len, __u32 *rmap, __u32 rlen,
 				  struct delta *delta)
 {
+	__u64 cluster = S2B(delta->blocksize);
+
+	assert(cluster);
+
 	while (len > 0) {
 		int   l2_cluster;
 		__u32 l2_slot;
 		__u32 j;
 		__u32 last;
 
-		l2_cluster = (clu + PLOOP_MAP_OFFSET) / (CLUSTER / sizeof(__u32));
-		l2_slot	   = (clu + PLOOP_MAP_OFFSET) % (CLUSTER / sizeof(__u32));
-		last	   = MIN(l2_slot + len, CLUSTER / sizeof(__u32));
+		l2_cluster = (clu + PLOOP_MAP_OFFSET) / (cluster / sizeof(__u32));
+		l2_slot	   = (clu + PLOOP_MAP_OFFSET) % (cluster / sizeof(__u32));
+		last	   = MIN(l2_slot + len, cluster / sizeof(__u32));
 
 		if (l2_cluster >= delta->l1_size) {
 			ploop_err(0, "abort fiemap_extent_process: l2_cluster >= delta->l1_size");
@@ -245,8 +252,8 @@ static int fiemap_extent_process(__u32 clu, __u32 len, __u32 *rmap, __u32 rlen,
 		}
 
 		if (delta->l2_cache != l2_cluster) {
-			PREAD(delta, delta->l2, CLUSTER,
-			      (off_t)l2_cluster * CLUSTER);
+			PREAD(delta, delta->l2, cluster,
+			      (off_t)l2_cluster * cluster);
 			delta->l2_cache = l2_cluster;
 		}
 
@@ -256,23 +263,23 @@ static int fiemap_extent_process(__u32 clu, __u32 len, __u32 *rmap, __u32 rlen,
 			if (!delta->l2[j])
 				continue;
 
-			ridx = delta->l2[j] / (CLUSTER >> 9);
+			ridx = delta->l2[j] / (cluster >> 9);
 			if (ridx >= rlen) {
 				ploop_err(0,
-					"Image corrupted: L2[%u] == %u (max=%lu)",
+					"Image corrupted: L2[%u] == %u (max=%llu)",
 					clu + j - l2_slot, delta->l2[j],
-					(rlen - 1) * (CLUSTER >> 9));
+					(rlen - 1) * (cluster >> 9));
 				return(SYSEXIT_PLOOPFMT);
 			}
 			if (ridx < delta->l1_size) {
 				ploop_err(0,
-					"Image corrupted: L2[%u] == %u (min=%lu)",
+					"Image corrupted: L2[%u] == %u (min=%llu)",
 					clu + j - l2_slot, delta->l2[j],
-					delta->l1_size * (CLUSTER >> 9));
+					delta->l1_size * (cluster >> 9));
 				return(SYSEXIT_PLOOPFMT);
 			}
 
-			rmap[ridx] = l2_cluster * (CLUSTER / sizeof(__u32)) +
+			rmap[ridx] = l2_cluster * (cluster / sizeof(__u32)) +
 				     j - PLOOP_MAP_OFFSET;
 		}
 
@@ -286,16 +293,19 @@ int fiemap_build_rmap(struct pfiemap *pfiemap, __u32 *rmap, __u32 rlen,
 		       struct delta *delta)
 {
 	int i, rc;
+	__u64 cluster = S2B(delta->blocksize);
+
+	assert(cluster);
 
 	memset(rmap, 0xff, rlen * sizeof(__u32));
 	delta->l2_cache = -1;
 
 	for(i = 0; i < pfiemap->n_entries_used; i++) {
-		__u64 clu = pfiemap->extents[i].pos / CLUSTER;
-		__u64 len = pfiemap->extents[i].len / CLUSTER;
+		__u64 clu = pfiemap->extents[i].pos / cluster;
+		__u64 len = pfiemap->extents[i].len / cluster;
 
-		if (clu * CLUSTER != pfiemap->extents[i].pos ||
-		    len * CLUSTER != pfiemap->extents[i].len ||
+		if (clu * cluster != pfiemap->extents[i].pos ||
+		    len * cluster != pfiemap->extents[i].len ||
 		    clu >= (__u32)-1 || len >= (__u32)-1)
 		{
 			ploop_err(0, "abort");
@@ -480,6 +490,9 @@ int range_build_rmap(__u32 iblk_start, __u32 iblk_end,
 	__u32 clu;
 	__u32 n_found = 0;
 	__u32 n_requested = iblk_end - iblk_start;
+	__u64 cluster = S2B(delta->blocksize);
+
+	assert(cluster);
 
 	if (iblk_start >= iblk_end) {
 		ploop_err(0, "range_build_rmap: iblk_start >= iblk_end");
@@ -499,8 +512,8 @@ int range_build_rmap(__u32 iblk_start, __u32 iblk_end,
 		__u32 l2_slot;
 		__u32 ridx;
 
-		l2_cluster = (clu + PLOOP_MAP_OFFSET) / (CLUSTER / sizeof(__u32));
-		l2_slot	   = (clu + PLOOP_MAP_OFFSET) % (CLUSTER / sizeof(__u32));
+		l2_cluster = (clu + PLOOP_MAP_OFFSET) / (cluster / sizeof(__u32));
+		l2_slot	   = (clu + PLOOP_MAP_OFFSET) % (cluster / sizeof(__u32));
 
 		if (l2_cluster >= delta->l1_size) {
 			ploop_err(0, "range_build_rmap: l2_cluster >= delta->l1_size");
@@ -509,30 +522,30 @@ int range_build_rmap(__u32 iblk_start, __u32 iblk_end,
 
 
 		if (delta->l2_cache != l2_cluster) {
-			if (PREAD(delta, delta->l2, CLUSTER,
-			      (off_t)l2_cluster * CLUSTER))
+			if (PREAD(delta, delta->l2, cluster,
+			      (off_t)l2_cluster * cluster))
 				return SYSEXIT_READ;
 			delta->l2_cache = l2_cluster;
 		}
 
-		ridx = delta->l2[l2_slot] / (CLUSTER >> 9);
+		ridx = delta->l2[l2_slot] / (cluster >> 9);
 		if (ridx >= rlen) {
 			ploop_err(0,
-				"Image corrupted: L2[%u] == %u (max=%lu) (2)",
+				"Image corrupted: L2[%u] == %u (max=%llu) (2)",
 				clu, delta->l2[l2_slot],
-				(rlen - 1) * (CLUSTER >> 9));
+				(rlen - 1) * (cluster >> 9));
 			return SYSEXIT_PLOOPFMT;
 		}
 		if (ridx && ridx < delta->l1_size) {
 			ploop_err(0,
-				"Image corrupted: L2[%u] == %u (min=%lu) (2)",
+				"Image corrupted: L2[%u] == %u (min=%llu) (2)",
 				clu, delta->l2[l2_slot],
-				delta->l1_size * (CLUSTER >> 9));
+				delta->l1_size * (cluster >> 9));
 			return SYSEXIT_PLOOPFMT;
 		}
 
 		if (iblk_start <= ridx && ridx < iblk_end) {
-			rmap[ridx] = l2_cluster * (CLUSTER / sizeof(__u32)) +
+			rmap[ridx] = l2_cluster * (cluster / sizeof(__u32)) +
 				     l2_slot - PLOOP_MAP_OFFSET;
 			n_found++;
 			if (n_found >= n_requested)

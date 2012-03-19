@@ -35,6 +35,9 @@
 
 #include "ploop.h"
 
+// FIXME: handle variable blocksize
+#define CLUSTER DEF_CLUSTER
+
 int ofd = -1;
 
 char * recv_to;

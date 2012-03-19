@@ -35,6 +35,8 @@
 
 #include "ploop.h"
 
+#define CLUSTER DEF_CLUSTER
+
 static int send_buf(int ofd, void *iobuf, int len, off_t pos)
 {
 	int n;

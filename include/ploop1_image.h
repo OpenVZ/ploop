@@ -75,7 +75,7 @@ struct ploop_pvd_header
 
 #define PLOOP1_SECTOR_LOG	9
 #define PLOOP1_DEF_CLUSTER_LOG	9 /* 256K cluster-block */
-#define CLUSTER (1UL << (PLOOP1_DEF_CLUSTER_LOG + PLOOP1_SECTOR_LOG))
+#define DEF_CLUSTER (1UL << (PLOOP1_DEF_CLUSTER_LOG + PLOOP1_SECTOR_LOG))
 
 /* Helpers to generate PVD-header based on requested bdsize */
 
@@ -219,9 +219,8 @@ GetHeaderSize(__u32 m_Size)
  * should take care of them.
  */
 static inline __u32
-generate_pvd_header(struct ploop_pvd_header *vh, off_t bdsize)
+generate_pvd_header(struct ploop_pvd_header *vh, off_t bdsize, __u32 blocksize)
 {
-	__u32 blocksize = CLUSTER >> 9; /* measured in sectors */
 	struct CHSData chs;
 	__u32 SizeToFill;
 	__u32 uiAlignmentSize;

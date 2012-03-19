@@ -54,10 +54,11 @@ void usage_summary(void)
 
 static void usage_init(void)
 {
-	fprintf(stderr, "Usage: ploop init -s SIZE [-f FORMAT] [-t FSTYPE] DELTA\n"
+	fprintf(stderr, "Usage: ploop init -s SIZE [-f FORMAT] [-t FSTYPE] [-b BLOCKSIZE] DELTA\n"
 			"       SIZE := NUMBER[kmg], \n"
 			"       FORMAT := { raw | ploop1 }\n"
 			"       DELTA := path to new image file\n"
+			"       BLOCKSIZE := block size\n"
 			"       FSTYPE := make file system\n");
 }
 
@@ -78,7 +79,7 @@ static int plooptool_init(int argc, char **argv)
 	struct ploop_create_param param = {};
 
 	param.mode = PLOOP_EXPANDED_MODE;
-	while ((i = getopt(argc, argv, "s:f:t:")) != EOF) {
+	while ((i = getopt(argc, argv, "s:b:f:t:")) != EOF) {
 		switch (i) {
 		case 's':
 			if (parse_size(optarg, &size_sec)) {
@@ -86,6 +87,16 @@ static int plooptool_init(int argc, char **argv)
 				return -1;
 			}
 			break;
+		case 'b': {
+			  char * endptr;
+
+			  param.blocksize = strtoul(optarg, &endptr, 0);
+			  if (optarg == endptr) {
+				  usage_init();
+				  return -1;
+			  }
+			  break;
+		}
 		case 'f':
 			if (strcmp(optarg, "raw") == 0)
 				param.mode = PLOOP_RAW_MODE;
@@ -730,11 +741,14 @@ static int plooptool_snapshot(int argc, char **argv)
 
 		ploop_free_diskdescriptor(di);
 	} else {
+		__u32 blocksize = 0;
 		if (!device) {
 			usage_snapshot();
 			return -1;
 		}
-		ret = create_snapshot(device, argv[0], syncfs);
+		if (ploop_get_attr(device, "block_size", (int*) &blocksize))
+			return 1;
+		ret = create_snapshot(device, argv[0], blocksize, syncfs);
 	}
 
 	return ret;
