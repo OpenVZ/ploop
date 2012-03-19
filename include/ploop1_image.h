@@ -81,7 +81,7 @@ struct ploop_pvd_header
 
 #define DEFAULT_HEADS_COUNT   16
 #define DEFAULT_SECTORS_COUNT 63
-#define SECTOR_SIZE (1 << 9)
+#define SECTOR_SIZE (1 << PLOOP1_SECTOR_LOG)
 
 struct CHSData
 {
@@ -241,13 +241,13 @@ generate_pvd_header(struct ploop_pvd_header *vh, off_t bdsize, __u32 blocksize)
 
 	vh->m_Size = vh->m_SizeInSectors / blocksize;
 
-	uiAlignmentSize = blocksize << 9;
+	uiAlignmentSize = blocksize << PLOOP1_SECTOR_LOG;
 	SizeToFill = GetHeaderSize(vh->m_Size);
 	/* Align to block size */
 	if (SizeToFill % uiAlignmentSize)
 		SizeToFill += uiAlignmentSize - (SizeToFill % uiAlignmentSize);
 
-	vh->m_FirstBlockOffset = SizeToFill >> 9;
+	vh->m_FirstBlockOffset = SizeToFill >> PLOOP1_SECTOR_LOG;
 
 	return SizeToFill;
 }
