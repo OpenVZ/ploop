@@ -74,7 +74,7 @@ struct ploop_pvd_header
 
 
 #define PLOOP1_SECTOR_LOG	9
-#define PLOOP1_DEF_CLUSTER_LOG	9 /* 256K cluster-block */
+#define PLOOP1_DEF_CLUSTER_LOG	11 /* 1M cluster-block */
 #define DEF_CLUSTER (1UL << (PLOOP1_DEF_CLUSTER_LOG + PLOOP1_SECTOR_LOG))
 
 /* Helpers to generate PVD-header based on requested bdsize */
