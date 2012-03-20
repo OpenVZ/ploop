@@ -130,12 +130,13 @@ int open_delta_simple(struct delta * delta, const char * path, int rw, int od_fl
 
 int open_delta(struct delta * delta, const char * path, int rw, int od_flags)
 {
-	struct ploop_pvd_header vh;
+	struct ploop_pvd_header *vh;
 	void *p;
 	ssize_t res;
 	struct stat stat;
 	int rc;
 	__u64 cluster;
+	int err;
 
 	rc = open_delta_simple(delta, path, rw, od_flags);
 	if (rc != 0)
@@ -153,61 +154,66 @@ int open_delta(struct delta * delta, const char * path, int rw, int od_flags)
 	delta->l2_cache = -1;
 	delta->dirtied = 0;
 
-	res = delta->fops->pread(delta->fd, &vh,
-			sizeof(struct ploop_pvd_header), 0);
-	if (res != sizeof(struct ploop_pvd_header)) {
-		if (res >= 0)
-			 errno = EIO;
+	if (posix_memalign(&p, 4096, SECTOR_SIZE)) {
 		close_delta(delta);
 		return -1;
 	}
-	delta->blocksize = vh.m_Sectors;
-	cluster = S2B(vh.m_Sectors);
+	vh = p;
+
+	res = delta->fops->pread(delta->fd, vh, SECTOR_SIZE, 0);
+	if (res != SECTOR_SIZE) {
+		err = (res >= 0) ? EIO : errno;
+		ploop_err(errno, "read 1st sector of %s", path);
+		goto open_delta_failed;
+	}
+	delta->blocksize = vh->m_Sectors;
+	cluster = S2B(vh->m_Sectors);
 
 	if (posix_memalign(&p, 4096, cluster)) {
-		close_delta(delta);
-		return -1;
+		err = errno;
+		goto open_delta_failed;
 	}
 	delta->hdr0 = p;
 
 	if (posix_memalign(&p, 4096, cluster)) {
-		close_delta(delta);
-		return -1;
+		err = errno;
+		goto open_delta_failed;
 	}
 	delta->l2 = p;
 
 	res = delta->fops->pread(delta->fd, delta->hdr0, cluster, 0);
 	if (res != cluster) {
-		if (res >= 0)
-			errno = EIO;
+		err = (res >= 0) ? EIO : errno;
 		ploop_err(errno, "read %s", path);
-		close_delta(delta);
-		return -1;
+		goto open_delta_failed;
 	}
 
-	if (memcmp(vh.m_Sig, SIGNATURE_STRUCTURED_DISK, sizeof(vh.m_Sig)) ||
-	    vh.m_Type != PRL_IMAGE_COMPRESSED ||
-	    !is_valid_blocksize(vh.m_Sectors))
-	{
-
+	if (memcmp(vh->m_Sig, SIGNATURE_STRUCTURED_DISK, sizeof(vh->m_Sig)) ||
+	    vh->m_Type != PRL_IMAGE_COMPRESSED ||
+	    !is_valid_blocksize(vh->m_Sectors)) {
 		ploop_err(errno, "Invalid image header %s", path);
-		close_delta(delta);
-		errno = EINVAL;
-		return -1;
+		err = EINVAL;
+		goto open_delta_failed;
 	}
-	delta->alloc_head = stat.st_size / (vh.m_Sectors * 512);
+	delta->alloc_head = stat.st_size / (vh->m_Sectors * SECTOR_SIZE);
 
-	delta->l1_size = vh.m_FirstBlockOffset / vh.m_Sectors;
-	delta->l2_size = vh.m_SizeInSectors / vh.m_Sectors;
+	delta->l1_size = vh->m_FirstBlockOffset / vh->m_Sectors;
+	delta->l2_size = vh->m_SizeInSectors / vh->m_Sectors;
 
-	if (vh.m_DiskInUse && !(od_flags & OD_ALLOW_DIRTY)) {
+	if (vh->m_DiskInUse && !(od_flags & OD_ALLOW_DIRTY)) {
 		ploop_err(0, "Image is in use %s", path);
-		close_delta(delta);
-		errno = EBUSY;
-		return -1;
+		err = EBUSY;
+		goto open_delta_failed;
 	}
 
+	free(vh);
 	return 0;
+
+open_delta_failed:
+	close_delta(delta);
+	free(vh);
+	errno = err;
+	return -1;
 }
 
 static int change_delta_state(struct delta * delta, __u32 m_DiskInUse)
