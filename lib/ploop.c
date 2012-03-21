@@ -1435,8 +1435,8 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			goto err;
 		}
 
-		new_balloon_size = balloon_size + (fs.f_bfree * fs.f_bsize >> 9);
-		new_balloon_size -= delta >> 9;
+		new_balloon_size = balloon_size + B2S(fs.f_bfree * fs.f_bsize);
+		new_balloon_size -= B2S(delta);
 		ret = ploop_balloon_change_size(mount_param.device,
 				balloonfd, new_balloon_size);
 	} else if (param->size > dev_size) {

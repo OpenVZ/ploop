@@ -496,7 +496,7 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 			}
 
 			if (odelta.l2[k] == 0) {
-				odelta.l2[k] = odelta.alloc_head++ * (cluster >> 9);
+				odelta.l2[k] = odelta.alloc_head++ * B2S(cluster);
 				if (odelta.l2[k] == 0) {
 					ploop_err(0, "abort: odelta.l2[k] == 0");
 					ret = -1;

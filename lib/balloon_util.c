@@ -263,19 +263,19 @@ static int fiemap_extent_process(__u32 clu, __u32 len, __u32 *rmap, __u32 rlen,
 			if (!delta->l2[j])
 				continue;
 
-			ridx = delta->l2[j] / (cluster >> 9);
+			ridx = delta->l2[j] / B2S(cluster);
 			if (ridx >= rlen) {
 				ploop_err(0,
 					"Image corrupted: L2[%u] == %u (max=%llu)",
 					clu + j - l2_slot, delta->l2[j],
-					(rlen - 1) * (cluster >> 9));
+					(rlen - 1) * B2S(cluster));
 				return(SYSEXIT_PLOOPFMT);
 			}
 			if (ridx < delta->l1_size) {
 				ploop_err(0,
 					"Image corrupted: L2[%u] == %u (min=%llu)",
 					clu + j - l2_slot, delta->l2[j],
-					delta->l1_size * (cluster >> 9));
+					delta->l1_size * B2S(cluster));
 				return(SYSEXIT_PLOOPFMT);
 			}
 
@@ -528,19 +528,19 @@ int range_build_rmap(__u32 iblk_start, __u32 iblk_end,
 			delta->l2_cache = l2_cluster;
 		}
 
-		ridx = delta->l2[l2_slot] / (cluster >> 9);
+		ridx = delta->l2[l2_slot] / B2S(cluster);
 		if (ridx >= rlen) {
 			ploop_err(0,
 				"Image corrupted: L2[%u] == %u (max=%llu) (2)",
 				clu, delta->l2[l2_slot],
-				(rlen - 1) * (cluster >> 9));
+				(rlen - 1) * B2S(cluster));
 			return SYSEXIT_PLOOPFMT;
 		}
 		if (ridx && ridx < delta->l1_size) {
 			ploop_err(0,
 				"Image corrupted: L2[%u] == %u (min=%llu) (2)",
 				clu, delta->l2[l2_slot],
-				delta->l1_size * (cluster >> 9));
+				delta->l1_size * B2S(cluster));
 			return SYSEXIT_PLOOPFMT;
 		}
 

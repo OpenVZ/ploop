@@ -389,7 +389,7 @@ static int relocate_block(struct delta *delta, __u32 iblk, void *buf,
 			delta->l2_cache = l2_cluster;
 		}
 
-		if (delta->l2[l2_slot] == iblk * (cluster >> 9))
+		if (delta->l2[l2_slot] == iblk * B2S(cluster))
 			break;
 	}
 
@@ -402,7 +402,7 @@ static int relocate_block(struct delta *delta, __u32 iblk, void *buf,
 		return -1;
 	}
 
-	delta->l2[l2_slot] = delta->alloc_head++ * (cluster >> 9);
+	delta->l2[l2_slot] = delta->alloc_head++ * B2S(cluster);
 	if (delta->l2[l2_slot] == 0) {
 		ploop_err(0, "relocate_block: delta->l2[l2_slot] == 0");
 		return -1;
