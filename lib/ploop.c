@@ -1100,7 +1100,7 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 	int i;
 	int ret = 0;
 	__u32 blocksize = 0;
-	__u32 prev_blocksize;
+	__u32 prev_blocksize = 0;
 
 	if (images == NULL || images[0] == NULL) {
 		ploop_err(0, "ploop_mount: no deltas to mount");
