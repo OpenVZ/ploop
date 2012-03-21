@@ -836,7 +836,7 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 	ret = ploop_store_diskdescriptor(conf, di);
 	if (ret)
 		goto err;
-	ploop_log(0, "remove %s", delete_fname);
+	ploop_log(0, "Removing %s", delete_fname);
 	if (unlink(delete_fname)) {
 		ploop_err(errno, "unlink %s", delete_fname);
 		ret = SYSEXIT_UNLINK;

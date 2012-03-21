@@ -1993,7 +1993,7 @@ int ploop_delete_snapshot(struct ploop_disk_images_data *di, const char *guid)
 		ret = ploop_store_diskdescriptor(conf, di);
 		if (ret)
 			goto err;
-		ploop_log(0, "remove %s", fname);
+		ploop_log(0, "Removing %s", fname);
 		if (fname != NULL && unlink(fname)) {
 			ploop_err(errno, "unlink %s", fname);
 			ret = SYSEXIT_UNLINK;
