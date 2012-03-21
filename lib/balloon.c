@@ -334,7 +334,7 @@ int ploop_balloon_change_size(const char *device, int balloonfd, off_t new_size)
 	}
 
 	old_size = st.st_size;
-	new_size = ((new_size << 9) + st.st_blksize - 1) & ~(st.st_blksize - 1);
+	new_size = (S2B(new_size) + st.st_blksize - 1) & ~(st.st_blksize - 1);
 
 	ploop_log(0, "Changing balloon size old_size=%ld new_size=%ld",
 			(long)old_size, (long)new_size);
@@ -390,7 +390,7 @@ int ploop_balloon_change_size(const char *device, int balloonfd, off_t new_size)
 		goto err;
 	}
 
-	ret = fiemap_get(balloonfd, dev_start << 9, old_size, new_size, &pfiemap);
+	ret = fiemap_get(balloonfd, S2B(dev_start), old_size, new_size, &pfiemap);
 	if (ret)
 		goto err;
 	fiemap_adjust(pfiemap, delta.blocksize);
@@ -729,7 +729,7 @@ int ploop_baloon_check_and_repair(const char *device, char *mount_point, int rep
 		goto err;
 	}
 
-	ret = fiemap_get(balloonfd, dev_start << 9, 0, st.st_size, &pfiemap);
+	ret = fiemap_get(balloonfd, S2B(dev_start), 0, st.st_size, &pfiemap);
 	if (ret)
 		goto err;
 	fiemap_adjust(pfiemap, delta.blocksize);

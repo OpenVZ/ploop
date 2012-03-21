@@ -142,7 +142,7 @@ static int grow_lower_delta(const char *device, int top, int start_level, int en
 		return 0;
 
 	if (dst_is_raw) {
-		return grow_raw_delta(dst_image, (src_size - dst_size) << 9);
+		return grow_raw_delta(dst_image, S2B(src_size - dst_size));
 	}
 
 	/* Here we know for sure that destination delta is in ploop1 format */
@@ -413,7 +413,7 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 
 			if (src_size > dst_size) {
 				ret = grow_raw_delta(names[last_delta],
-					       (src_size - dst_size) << 9);
+					       S2B(src_size - dst_size));
 				if (ret)
 					goto merge_done;
 			}
@@ -465,7 +465,7 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 			}
 
 			if (PREAD(&da.delta_arr[level2], data_cache, cluster,
-				  (off_t)da.delta_arr[level2].l2[k] << 9)) {
+						S2B(da.delta_arr[level2].l2[k]))) {
 				ret = SYSEXIT_READ;
 				goto merge_done;
 			}
@@ -506,7 +506,7 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 				allocated++;
 			}
 			if (PWRITE(&odelta, data_cache, cluster,
-				   (off_t)odelta.l2[k] << 9)) {
+						S2B(odelta.l2[k]))) {
 				ret = SYSEXIT_WRITE;
 				goto merge_done;
 			}

@@ -128,8 +128,8 @@ static int blkpg_resize_partition(int fd, struct GptEntry *pe)
 
 	bzero(&part, sizeof(part));
 	part.pno = 1;
-	part.start = pe->starting_lba << 9;
-	part.length = (pe->ending_lba - pe->starting_lba + 1) << 9;
+	part.start = S2B(pe->starting_lba);
+	part.length = S2B(pe->ending_lba - pe->starting_lba + 1);
 
 	ploop_log(3, "update partition table start=%llu length=%llu",
 			part.start, part.length);

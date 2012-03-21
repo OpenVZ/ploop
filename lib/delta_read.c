@@ -352,7 +352,7 @@ int read_size_from_image(const char *img_name, int raw, off_t * res)
 /*
  * delta: output delta
  * iblk: iblock number of block to relocate
- * buf: a buffer of (blocksize << 9) bytes
+ * buf: a buffer of S2B(blocksize) bytes
  * map: if not NULL, will be filled with <req_cluster, iblk> of
  *	relocated block
  *
@@ -397,7 +397,7 @@ static int relocate_block(struct delta *delta, __u32 iblk, void *buf,
 		return 0; /* found nothing */
 
 	if (READ(delta, buf, cluster,
-		 (off_t)delta->l2[l2_slot] << 9)) {
+				S2B(delta->l2[l2_slot]))) {
 		ploop_err(errno, "Can't read block to relocate");
 		return -1;
 	}
@@ -409,7 +409,7 @@ static int relocate_block(struct delta *delta, __u32 iblk, void *buf,
 	}
 
 	if (WRITE(delta, buf, cluster,
-		  (off_t)delta->l2[l2_slot] << 9)) {
+				S2B(delta->l2[l2_slot]))) {
 		ploop_err(errno, "Can't write relocate block");
 		return -1;
 	}
