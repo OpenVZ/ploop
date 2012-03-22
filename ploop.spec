@@ -1,7 +1,7 @@
 %define _incdir /usr/include/ploop
 Summary: ploop tools
 Name: ploop
-Version: 1.0
+Version: 1.1
 Release: 1
 Group: Applications/System
 License: GNU GPL
