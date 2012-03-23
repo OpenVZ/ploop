@@ -3,6 +3,7 @@ INSTALL=install
 SBINDIR=/sbin
 USRSBINDIR=/usr/sbin
 INCDIR=/usr/include/ploop
+LIBDIR=/usr/lib
 LOCKDIR=/var/lock/ploop
 DEBUG=yes
 
