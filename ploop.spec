@@ -39,7 +39,6 @@ fi
 %attr(755,root,root) /sbin/*
 %attr(755,root,root) %{_sbindir}/ploop
 %attr(755,root,root) %{_sbindir}/ploop-*
-%attr(755,root,root) /var/lock/ploop
 
 %package lib
 Summary: ploop library
@@ -53,7 +52,7 @@ Parallels loopback (ploop) block device API library
 %defattr(-,root,root)
 %dir %{_libdir}
 %attr(755,root,root) %{_libdir}/libploop.so
-
+%dir /var/lock/ploop
 
 %package devel
 Summary: Headers for development with ploop library

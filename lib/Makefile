@@ -40,7 +40,10 @@ $(LIBPLOOP_DYN): $(LIBOBJS)
 .depend: $(SOURCES)
 -include .depend
 
-install: all
+install-lockdir:
+	$(Q) $(INSTALL) -d $(DESTDIR)/$(LOCKDIR)
+
+install: all install-lockdir
 	$(Q) $(INSTALL) -d $(DESTDIR)/$(LIBDIR)
 	$(E) "  INSTALL " $(LIBPLOOP)
 	$(Q) $(INSTALL) -m 644 $(LIBPLOOP) $(DESTDIR)/$(LIBDIR)

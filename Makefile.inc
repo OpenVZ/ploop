@@ -3,6 +3,7 @@ INSTALL=install
 SBINDIR=/sbin
 USRSBINDIR=/usr/sbin
 INCDIR=/usr/include/ploop
+LOCKDIR=/var/lock/ploop
 DEBUG=yes
 
 CFLAGS = -I. -I../include -Wall -fno-strict-aliasing -Wstrict-prototypes \
