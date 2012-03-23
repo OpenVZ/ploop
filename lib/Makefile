@@ -27,6 +27,7 @@ LDFLAGS += -L.
 LDLIBS += $(shell pkg-config libxml-2.0 --libs)
 
 all: $(LIBPLOOP) $(LIBPLOOP_DYN)
+.PHONY: all
 
 $(LIBPLOOP): $(LIBOBJS)
 	$(E) "  LINK    " $@
@@ -42,6 +43,7 @@ $(LIBPLOOP_DYN): $(LIBOBJS)
 
 install-lockdir:
 	$(Q) $(INSTALL) -d $(DESTDIR)/$(LOCKDIR)
+.PHONY: install-lockdir
 
 install: all install-lockdir
 	$(Q) $(INSTALL) -d $(DESTDIR)/$(LIBDIR)
@@ -49,7 +51,9 @@ install: all install-lockdir
 	$(Q) $(INSTALL) -m 644 $(LIBPLOOP) $(DESTDIR)/$(LIBDIR)
 	$(E) "  INSTALL " $(LIBPLOOP_DYN)
 	$(Q) $(INSTALL) -m 755 $(LIBPLOOP_DYN) $(DESTDIR)/$(LIBDIR)
+.PHONY: install
 
 clean:
 	$(E) "  CLEAN   "
 	$(Q) rm -f $(PROGS) *.o *.a *.so
+.PHONY: clean

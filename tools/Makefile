@@ -16,6 +16,7 @@ LDFLAGS	+= -L../lib
 LDLIBS	+= -lploop
 
 all: $(PROGS)
+.PHONY: all
 
 $(PROGS): $(LIBPLOOP)
 
@@ -27,6 +28,7 @@ $(PROGS): $(LIBPLOOP)
 -include .depend
 
 man: $(MANS)
+.PHONY: man
 
 %.8: %.sgml
 	$(E) "  GEN     " $@
@@ -39,7 +41,9 @@ install: $(PROGS)
 	$(Q) $(INSTALL) -d $(DESTDIR)/var/lock/ploop
 	$(E) "  INSTALL " $(PROGS)
 	$(Q) $(INSTALL) -s -m 755 $(PROGS) $(DESTDIR)$(USRSBINDIR)/
+.PHONY: install
 
 clean:
 	$(E) "  CLEAN   "
 	$(Q) rm -f $(PROGS) $(OBJS) $(MANS)
+.PHONY: clean

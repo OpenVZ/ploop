@@ -11,9 +11,12 @@ SUBDIRS=include lib tools scripts
 all install clean:
 	@set -e; \
 	for d in $(SUBDIRS); do $(MAKE) -C $$d $@; done
+.PHONY: all install clean
 
 dist: tar
 tar: $(TARBALL)
+.PHONY: dist tar
+
 $(TARBALL): clean
 	rm -f ../$(NAMEVER)
 	ln -s `pwd | awk -F / '{print $$NF}'` ../$(NAMEVER)
@@ -26,3 +29,4 @@ $(TARBALL): clean
 
 rpms: tar
 	rpmbuild -ta $(TARBALL) ${RPMB_ARGS}
+.PHONY: rpms
