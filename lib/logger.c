@@ -91,7 +91,7 @@ void ploop_log(int level, const char *format, ...)
 	va_end(ap);
 }
 
-void ploop_err(int err_no, const char *format, ...)
+void __ploop_err(int err_no, const char *format, ...)
 {
 	va_list ap;
 	int err = errno;
@@ -124,7 +124,7 @@ int ploop_set_log_file(const char *fname)
 	if (fname != NULL) {
 		fp = fopen(fname, "a");
 		if (fp == NULL) {
-			ploop_err(errno, "Can't open %s", fname);
+			__ploop_err(errno, "Can't open %s", fname);
 			return -1;
 		}
 	}

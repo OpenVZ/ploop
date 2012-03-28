@@ -223,10 +223,21 @@ int relocmap2relocblks(struct relocmap *relocmap, int lvl, __u32 a_h, __u32 n_sc
 			struct ploop_relocblks_ctl **relocblks_pp);
 int ploop_fsck(char *img, int force, int hard_force, int check, int ro,
 		int verbose, __u32 *blocksize_p);
+/* Logging */
 void ploop_log(int level, const char *format, ...)
 	__attribute__ ((__format__ (__printf__, 2, 3)));
-void ploop_err(int err_no, const char *format, ...)
+void __ploop_err(int err_no, const char *format, ...)
 	__attribute__ ((__format__ (__printf__, 2, 3)));
+
+#ifdef DEBUG
+#define ploop_err(err, format, ...)					\
+		__ploop_err(err, "Error in %s (%s:%d): " format,	\
+				__func__, __FILE__, __LINE__,		\
+				##__VA_ARGS__)
+#else
+#define ploop_err __ploop_err
+#endif
+
 char *make_sysfs_dev_name(int minor, char *buf, int len);
 int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		struct ploop_mount_param *param, int raw);
