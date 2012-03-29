@@ -1914,7 +1914,7 @@ int ploop_switch_snapshot(struct ploop_disk_images_data *di, const char *guid, i
 		goto err_cleanup3;
 	}
 	if (old_top_delta_fname != NULL) {
-		ploop_log(0, "delete %s", old_top_delta_fname);
+		ploop_log(0, "Removing %s", old_top_delta_fname);
 		if (unlink(old_top_delta_fname))
 			ploop_err(errno, "Can't unlink %s",
 					old_top_delta_fname);
