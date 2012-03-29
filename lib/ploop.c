@@ -895,7 +895,9 @@ static int reread_part(char *device)
 
 static int ploop_mount_fs(struct ploop_mount_param *param)
 {
-	unsigned long flags = param->ro ? MS_RDONLY : 0;
+	unsigned long flags =
+		(param->flags & MS_NOATIME) |
+		(param->ro ? MS_RDONLY : 0);
 	char buf[MAXPATHLEN + sizeof(BALLOON_FNAME)];
 	struct stat st;
 	char *fstype = param->fstype == NULL ? DEFAULT_FSTYPE : param->fstype;
