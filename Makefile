@@ -3,7 +3,8 @@ include Makefile.inc
 NAME=ploop
 SPEC=$(NAME).spec
 VERSION=$(shell awk '/^Version:/{print $$2}' $(SPEC))
-NAMEVER=$(NAME)-$(VERSION)
+RELEASE=$(shell awk '/^%define rel / {if ($$3 != 1) print "-"$$3}' $(SPEC))
+NAMEVER=$(NAME)-$(VERSION)$(RELEASE)
 TARBALL=$(NAMEVER).tar.bz2
 
 SUBDIRS=include lib tools scripts
