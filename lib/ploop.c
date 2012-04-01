@@ -877,6 +877,20 @@ int ploop_find_dev_by_uuid(struct ploop_disk_images_data *di,
 	return ret;
 }
 
+int ploop_get_dev(struct ploop_disk_images_data *di, char *out, int len)
+{
+	int ret;
+
+	if (ploop_lock_di(di))
+		return SYSEXIT_LOCK;
+
+	ret = ploop_find_dev(di->runtime->component_name, di->images[0]->file, out, len);
+
+	ploop_unlock_di(di);
+
+	return ret;
+}
+
 static int reread_part(char *device)
 {
 	int fd;
