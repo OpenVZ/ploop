@@ -2,10 +2,11 @@
 Summary: ploop tools
 Name: ploop
 Version: 1.1
-Release: 1
+%define rel 1
+Release: %{rel}%{?dist}
 Group: Applications/System
 License: GNU GPL
-Source: ploop-%{version}.tar.bz2
+Source: %{name}-%{version}.tar.bz2
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 Requires: parted
 BuildRequires: libxml2-devel
