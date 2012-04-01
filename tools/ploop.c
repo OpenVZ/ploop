@@ -151,7 +151,7 @@ static void usage_mount(void)
 			"       -r     - mount images read-only\n"
 			"       -P     - rescan partition table upon mount\n"
 			"       -t     - file system type\n"
-			"	-m     - target mount point\n"
+			"       -m     - target mount point\n"
 		);
 }
 
@@ -507,9 +507,9 @@ static void usage_snapshot(void)
 {
 	fprintf(stderr, "Usage: ploop snapshot [-u <uuid>] DiskDescriptor.xml\n"
 			"       ploop snapshot [-F] -d DEVICE DELTA\n"
-			"         DEVICE := ploop device, e.g. /dev/ploop0\n"
-			"         DELTA := path to new image file\n"
-			"         -F    - synchronize file system before taking snapshot\n"
+			"       DEVICE := ploop device, e.g. /dev/ploop0\n"
+			"       DELTA := path to new image file\n"
+			"       -F     - synchronize file system before taking snapshot\n"
 		);
 }
 
@@ -571,7 +571,7 @@ static int plooptool_snapshot(int argc, char **argv)
 static void usage_snapshot_switch(void)
 {
 	fprintf(stderr, "Usage: ploop snapshot-switch -u <uuid> DiskDescriptor.xml\n"
-			"  -u <uuid>	snapshot uuid\n");
+			"       -u <uuid>     snapshot uuid\n");
 }
 
 static int plooptool_snapshot_switch(int argc, char **argv)
@@ -614,7 +614,7 @@ static int plooptool_snapshot_switch(int argc, char **argv)
 static void usage_snapshot_delete(void)
 {
 	fprintf(stderr, "Usage: ploop snapshot-delete -u <uuid> DiskDescriptor.xml\n"
-			"  -u <uuid>	snapshot uuid\n");
+			"       -u <uuid>     snapshot uuid\n");
 }
 
 static int plooptool_snapshot_delete(int argc, char **argv)
@@ -657,7 +657,7 @@ static int plooptool_snapshot_delete(int argc, char **argv)
 void usage_snapshot_merge(void)
 {
 	fprintf(stderr, "Usage: ploop snapshot-merge [-u <uuid>] DiskDescriptor.xml]\n"
-			"  -u <uuid>	snapshot uuid (top delta if not specified)\n");
+			"       -u <uuid>     snapshot uuid (top delta if not specified)\n");
 }
 
 int plooptool_snapshot_merge(int argc, char ** argv)
