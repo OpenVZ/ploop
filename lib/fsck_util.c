@@ -180,8 +180,7 @@ static int check_one_slot(struct ploop_fsck_desc *d, __u32 clu, __u32 isec, __u3
 	return 0;
 }
 
-int ploop_fsck(char *img, int force, int hard_force, int check,
-		int ro, int verbose, __u32 *blocksize_p)
+int ploop_fsck(char *img, int flags, int ro, int verbose, __u32 *blocksize_p)
 {
 	struct ploop_fsck_desc d;
 	int i, j;
@@ -207,6 +206,10 @@ int ploop_fsck(char *img, int force, int hard_force, int check,
 	int fatality = 0;   /* fatal errors detected */
 	int clean = 1;	    /* image is clean */
 	__u64 cluster;
+
+	int force = (flags & FSCK_FORCE);
+	int hard_force = (flags & FSCK_HARDFORCE);
+	int check = (flags & FSCK_CHECK);
 
 	fd = open(img, ro ? O_RDONLY : O_RDWR);
 	if (fd < 0) {

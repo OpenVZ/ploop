@@ -1130,12 +1130,13 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 
 	for (i = 0; images[i] != NULL; i++) {
 		int ro;
+		int flags = FSCK_CHECK;
 
 		if (raw && i == 0)
 			continue;
 
 		ro  = (images[i+1] != NULL || param->ro) ? 1 : 0;
-		ret = ploop_fsck(images[i], 0, 0, 1, ro, 0, &blocksize);
+		ret = ploop_fsck(images[i], flags, ro, 0, &blocksize);
 		if (ret) {
 			ploop_err(0, "%s (%s): irrecoverable errors",
 					images[i], ro ? "ro" : "rw");

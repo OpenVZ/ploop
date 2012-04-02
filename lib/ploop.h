@@ -34,6 +34,11 @@
 #define OD_ALLOW_DIRTY  0x1
 #define OD_OFFLINE      0x2
 
+/* fsck mode flags */
+#define FSCK_FORCE     0x01
+#define FSCK_HARDFORCE 0x02
+#define FSCK_CHECK     0x08
+
 #define S2B(sec) ((off_t)(sec) << PLOOP1_SECTOR_LOG)
 #define B2S(sec) ((sec) >> PLOOP1_SECTOR_LOG)
 
@@ -221,8 +226,7 @@ int relocmap_add_extent(struct relocmap **relocmap_pp,
 struct ploop_relocblks_ctl;
 int relocmap2relocblks(struct relocmap *relocmap, int lvl, __u32 a_h, __u32 n_scanned,
 			struct ploop_relocblks_ctl **relocblks_pp);
-int ploop_fsck(char *img, int force, int hard_force, int check, int ro,
-		int verbose, __u32 *blocksize_p);
+int ploop_fsck(char *img, int flags, int ro, int verbose, __u32 *blocksize_p);
 /* Logging */
 void ploop_log(int level, const char *format, ...)
 	__attribute__ ((__format__ (__printf__, 2, 3)));

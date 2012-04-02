@@ -28,9 +28,6 @@
 
 #include "ploop.h"
 
-int force;	/* try to repair non-fatal conditions */
-int hard_force; /* try to repair even fatal conditions */
-int check;	/* build bitmap and check for duplicate blocks */
 int ro;		/* read-only access to image file */
 int silent;	/* print messages only if errors detected */
 
@@ -48,18 +45,21 @@ static void usage(void)
 int main(int argc, char ** argv)
 {
 	int i;
+	int flags = 0;
 
 	while ((i = getopt(argc, argv, "fFcrs")) != EOF) {
 		switch (i) {
 		case 'f':
-			force = 1;
+			/* try to repair non-fatal conditions */
+			flags |= FSCK_FORCE;
 			break;
 		case 'F':
-			force = 1;
-			hard_force = 1;
+			/* try to repair even fatal conditions */
+			flags |= (FSCK_FORCE | FSCK_HARDFORCE);
 			break;
 		case 'c':
-			check = 1;
+			/* build bitmap and check for duplicate blocks */
+			flags |= FSCK_CHECK;
 			break;
 		case 'r':
 			ro = 1;
@@ -83,5 +83,5 @@ int main(int argc, char ** argv)
 
 	ploop_set_verbose_level(3);
 
-	return ploop_fsck(argv[0], force, hard_force, check, ro, !silent, NULL);
+	return ploop_fsck(argv[0], flags, ro, !silent, NULL);
 }
