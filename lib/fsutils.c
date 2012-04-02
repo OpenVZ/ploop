@@ -63,6 +63,13 @@ int make_fs(const char *device, const char *fstype)
 	ploop_log(0, "%s", cmd);
 	if (system(cmd))
 		return SYSEXIT_MKFS;
+
+	snprintf(cmd, sizeof(cmd), "/sbin/tune2fs -o user_xattr,acl %s </dev/null >/dev/null",
+			part_device);
+	ploop_log(0, "%s", cmd);
+	if (system(cmd))
+		return SYSEXIT_MKFS;
+
 	return 0;
 }
 
