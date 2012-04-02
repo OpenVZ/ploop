@@ -39,6 +39,7 @@ static void usage(void)
 			"	-c     - check for duplicated blocks and holes\n"
 			"	-r     - do not modify DELTA (read-only access)\n"
 			"	-s     - be silent, report only errors\n"
+			"	-d     - drop image \"in use\" flag\n"
 		);
 }
 
@@ -47,7 +48,7 @@ int main(int argc, char ** argv)
 	int i;
 	int flags = 0;
 
-	while ((i = getopt(argc, argv, "fFcrs")) != EOF) {
+	while ((i = getopt(argc, argv, "fFcrsd")) != EOF) {
 		switch (i) {
 		case 'f':
 			/* try to repair non-fatal conditions */
@@ -66,6 +67,9 @@ int main(int argc, char ** argv)
 			break;
 		case 's':
 			silent = 1;
+			break;
+		case 'd':
+			flags |= FSCK_DROPINUSE;
 			break;
 		default:
 			usage();
