@@ -37,6 +37,7 @@
 /* fsck mode flags */
 #define FSCK_FORCE     0x01
 #define FSCK_HARDFORCE 0x02
+#define FSCK_DROPINUSE 0x04
 #define FSCK_CHECK     0x08
 
 #define S2B(sec) ((off_t)(sec) << PLOOP1_SECTOR_LOG)

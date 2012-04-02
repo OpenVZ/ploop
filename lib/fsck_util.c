@@ -372,8 +372,13 @@ int ploop_fsck(char *img, int flags, int ro, int verbose, __u32 *blocksize_p)
 	else
 		m_Flags = vh->m_Flags | CIF_Empty;
 
-	if (vh->m_DiskInUse != 0)
+	if (vh->m_DiskInUse != 0) {
 		ploop_err(0, "Dirty flag is set");
+		if (!(flags & FSCK_DROPINUSE)) {
+			ret = SYSEXIT_PLOOPINUSE;
+			goto done;
+		}
+	}
 	if (vh->m_Flags != m_Flags)
 		ploop_err(0, "CIF_Empty flag is incorrect");
 

@@ -1130,7 +1130,7 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 
 	for (i = 0; images[i] != NULL; i++) {
 		int ro;
-		int flags = FSCK_CHECK;
+		int flags = FSCK_CHECK | (di ? FSCK_DROPINUSE : 0);
 
 		if (raw && i == 0)
 			continue;
