@@ -1116,7 +1116,6 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 	int i;
 	int ret = 0;
 	__u32 blocksize = 0;
-	__u32 prev_blocksize = 0;
 
 	if (images == NULL || images[0] == NULL) {
 		ploop_err(0, "ploop_mount: no deltas to mount");
@@ -1128,35 +1127,41 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		return SYSEXIT_PARAM;
 	}
 
+	if (raw) {
+		if (param->blocksize)
+			blocksize = param->blocksize;
+		else if (di)
+			blocksize = di->blocksize;
+		else {
+			ploop_err(0, "Blocksize is not specified");
+			return SYSEXIT_PARAM;
+		}
+	} else if (di)
+		blocksize = di->blocksize;
+
 	for (i = 0; images[i] != NULL; i++) {
 		int ro;
 		int flags = FSCK_CHECK | (di ? FSCK_DROPINUSE : 0);
+		__u32 cur_blocksize;
 
 		if (raw && i == 0)
 			continue;
 
 		ro  = (images[i+1] != NULL || param->ro) ? 1 : 0;
-		ret = ploop_fsck(images[i], flags, ro, 0, &blocksize);
+		ret = ploop_fsck(images[i], flags, ro, 0, &cur_blocksize);
 		if (ret) {
 			ploop_err(0, "%s (%s): irrecoverable errors",
 					images[i], ro ? "ro" : "rw");
 			goto err;
 		}
-		if (raw && i == 1)
-			prev_blocksize = blocksize;
-		if (i != 0 && prev_blocksize != blocksize) {
-			ploop_err(0, "Incorrect blocksize %s bs=%d [prev bs=%d]",
-					images[i], blocksize, prev_blocksize);
+		if (blocksize == 0)
+			blocksize = cur_blocksize;
+		if (cur_blocksize != blocksize) {
+			ploop_err(0, "Incorrect blocksize %s bs=%d [current bs=%d]",
+					images[i], blocksize, cur_blocksize);
 			ret = SYSEXIT_PARAM;
 			goto err;
 		}
-		prev_blocksize = blocksize;
-	}
-	if (di != NULL && (raw && i != 1) && di->blocksize != blocksize) {
-		 ploop_err(0, "Inconsistent di blocksize=%d != image blocksize=%d",
-				 di->blocksize, blocksize);
-		 ret = SYSEXIT_PARAM;
-		 goto err;
 	}
 
 	ret = add_deltas(di, images, param, raw, blocksize, &lfd);

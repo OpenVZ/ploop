@@ -143,9 +143,11 @@ static int plooptool_init(int argc, char **argv)
 
 static void usage_mount(void)
 {
-	fprintf(stderr, "Usage: ploop mount [-rP] [-f FORMAT] [-d DEVICE] [TOP_DELTA ... ] BASE_DELTA\n"
+	fprintf(stderr, "Usage: ploop mount [-rP] [-f FORMAT] [-b BLOCKSIZE] [-d DEVICE]\n
+			              [TOP_DELTA ... ] BASE_DELTA\n"
 			"       ploop mount [-rP] [-m DIR] [-u UUID] DiskDescriptor.xml\n"
 			"       FORMAT := { raw | ploop1 }\n"
+			"       BLOCKSIZE := block size (for raw image format)\n"
 			"       DEVICE := ploop device, e.g. /dev/ploop0\n"
 			"       *DELTA := path to image file\n"
 			"       -r     - mount images read-only\n"
@@ -162,7 +164,7 @@ static int plooptool_mount(int argc, char **argv)
 	int base = 0;
 	struct ploop_mount_param mountopts = {};
 
-	while ((i = getopt(argc, argv, "rf:Pd:m:t:u:o:")) != EOF) {
+	while ((i = getopt(argc, argv, "rf:Pd:m:t:u:o:b:")) != EOF) {
 		switch (i) {
 		case 'd':
 			strncpy(mountopts.device, optarg, sizeof(mountopts.device)-1);
@@ -196,6 +198,16 @@ static int plooptool_mount(int argc, char **argv)
 		case 'o':
 			mountopts.mount_data = strdup(optarg);
 			break;
+		case 'b': {
+			  char * endptr;
+
+			  mountopts.blocksize = strtoul(optarg, &endptr, 0);
+			  if (optarg == endptr) {
+				  usage_mount();
+				  return -1;
+			  }
+			  break;
+		}
 		default:
 			usage_mount();
 			return -1;
