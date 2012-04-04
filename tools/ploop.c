@@ -35,7 +35,7 @@ static struct ploop_cancel_handle *_s_cancel_handle;
 void usage_summary(void)
 {
 	fprintf(stderr, "Usage: ploop init -s SIZE [-f FORMAT] NEW_DELTA\n"
-			"       ploop mount [-rP] [-f raw] -d DEVICE [ TOP_DELTA ... ] BASE_DELTA\n"
+			"       ploop mount [-rP] [-f raw] -d DEVICE BASE_DELTA [ ... TOP_DELTA ]\n"
 			"       ploop umount -d DEVICE\n"
 			"       ploop { delete | rm } -d DEVICE -l LEVEL\n"
 			"       ploop merge -d DEVICE [-l LEVEL[..TOP_LEVEL]]\n"
@@ -143,8 +143,8 @@ static int plooptool_init(int argc, char **argv)
 
 static void usage_mount(void)
 {
-	fprintf(stderr, "Usage: ploop mount [-rP] [-f FORMAT] [-b BLOCKSIZE] [-d DEVICE]\n
-			              [TOP_DELTA ... ] BASE_DELTA\n"
+	fprintf(stderr, "Usage: ploop mount [-rP] [-f FORMAT] [-b BLOCKSIZE] [-d DEVICE]\n"
+			"             BASE_DELTA [ ... TOP_DELTA ]\n"
 			"       ploop mount [-rP] [-m DIR] [-u UUID] DiskDescriptor.xml\n"
 			"       FORMAT := { raw | ploop1 }\n"
 			"       BLOCKSIZE := block size (for raw image format)\n"
