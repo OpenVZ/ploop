@@ -135,7 +135,7 @@ int resize_fs(const char *device)
 			return ret;
 	}
 	snprintf(buf, sizeof(buf), "%s -p %s", prog, part_device);
-	ploop_err(0, "Executing: %s", buf);
+	ploop_log(0, "Executing: %s", buf);
 	ret = system(buf);
 	if (ret) {
 		ploop_err(0, "Failed to resize fs (cmd: %s)", buf);
