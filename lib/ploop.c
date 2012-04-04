@@ -329,9 +329,16 @@ static int create_empty_preallocated_delta(const char *path, __u32 blocksize, of
 	memcpy(buf, &vh, sizeof(struct ploop_pvd_header));
 	vh.m_Flags = CIF_Empty;
 
-	if (sys_fallocate(odelta.fd, 0, 0, S2B(vh.m_FirstBlockOffset + vh.m_SizeInSectors))) {
-		ploop_err(errno, "Failed to fallocate");
-		goto out_close;
+	rc = sys_fallocate(odelta.fd, 0, 0, S2B(vh.m_FirstBlockOffset + vh.m_SizeInSectors));
+	if (rc) {
+		if (errno == ENOTSUP) {
+			ploop_log(0, "Warning: fallocate is not supported, using truncate instead");
+			rc = ftruncate(odelta.fd, S2B(vh.m_FirstBlockOffset + vh.m_SizeInSectors));
+		}
+		if (rc) {
+			ploop_err(errno, "Failed to create %s", path);
+			goto out_close;
+		}
 	}
 
 	for (clu = 0; clu < SizeToFill / cluster; clu++) {
