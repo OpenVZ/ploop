@@ -1408,6 +1408,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 	off_t dev_size = 0;
 	__u64 balloon_size = 0;
 	__u64 new_balloon_size = 0;
+	struct statfs fs;
 
 	if (di->nimages == 0) {
 		ploop_err(0, "No images in DiskDescriptor");
@@ -1443,7 +1444,6 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 	balloon_size = bytes2sec(st.st_size);
 
 	if (param->size == 0) {
-		struct statfs fs;
 		int delta = 1024 * 1024;
 
 		/* Inflate balloon up to max free space */
@@ -1477,10 +1477,26 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			goto err;
 		tune_fs(mount_param.target, mount_param.device, param->size);
 	} else {
+		off_t available_balloon_size;
 		// SHRINK
 		/* FIXME: resize file system in case fs_size != dev_size
 		 */
+		if (statfs(mount_param.target, &fs) != 0) {
+			ploop_err(errno, "statfs(%s)", mount_param.target);
+			ret = SYSEXIT_FSTAT;
+			goto err;
+		}
 		new_balloon_size = dev_size - param->size;
+		available_balloon_size = balloon_size + B2S(fs.f_bfree * fs.f_bsize);
+		if (available_balloon_size < new_balloon_size) {
+			ploop_err(0, "Unable to change image size to %llu "
+					"sectors, minimal size is %lu",
+					param->size,
+					(dev_size - available_balloon_size));
+			ret = SYSEXIT_PARAM;
+			goto err;
+		}
+
 		if (new_balloon_size != balloon_size) {
 			ret = ploop_balloon_change_size(mount_param.device,
 					balloonfd, new_balloon_size);
