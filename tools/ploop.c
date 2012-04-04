@@ -846,7 +846,7 @@ static void usage_info(void)
 
 static void print_info(struct ploop_info *info)
 {
-	printf("%11s %14s  %14s\n",
+	printf("%11s %14s %14s\n",
 			"resource", "Size", "Used");
 	printf("%11s %14llu %14llu\n",
 			"1k-blocks",
