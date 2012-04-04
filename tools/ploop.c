@@ -39,7 +39,6 @@ void usage_summary(void)
 			"       ploop umount -d DEVICE\n"
 			"       ploop { delete | rm } -d DEVICE -l LEVEL\n"
 			"       ploop merge -d DEVICE [-l LEVEL[..TOP_LEVEL]]\n"
-			"       ploop shrink [-f raw] [-d DEVICE | [ TOP_DELTA... ] BASE_DELTA ]\n"
 			"       ploop fsck [-fcr] DELTA\n"
 			"       ploop getdev\n"
 			"       ploop resize -s SIZE BASE_DELTA\n"
