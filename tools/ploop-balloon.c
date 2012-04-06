@@ -281,7 +281,7 @@ static int pb_complete(int argc, char **argv)
 	if (ret)
 		return ret;
 
-	return ploop_baloon_complete(device);
+	return ploop_balloon_complete(device);
 }
 
 static void usage_check(void)
@@ -339,7 +339,7 @@ static int pb_check_and_repair(int argc, char **argv, int repair)
 		return -1;
 	}
 
-	return ploop_baloon_check_and_repair(device, mount_point, repair);
+	return ploop_balloon_check_and_repair(device, mount_point, repair);
 
 }
 

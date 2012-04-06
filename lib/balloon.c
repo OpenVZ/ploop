@@ -521,7 +521,7 @@ err:
 	return ret;
 }
 
-static int ploop_baloon_relocation(int fd, struct ploop_balloon_ctl *b_ctl, const char *device)
+static int ploop_balloon_relocation(int fd, struct ploop_balloon_ctl *b_ctl, const char *device)
 {
 	int    ret = -1;
 	__u32  n_free_blocks = 0;
@@ -618,7 +618,7 @@ err:
 	return ret;
 }
 
-int ploop_baloon_complete(const char *device)
+int ploop_balloon_complete(const char *device)
 {
 	int fd, err;
 	struct ploop_balloon_ctl b_ctl;
@@ -658,13 +658,13 @@ int ploop_baloon_complete(const char *device)
 		goto out;
 	}
 
-	err = ploop_baloon_relocation(fd, &b_ctl, device);
+	err = ploop_balloon_relocation(fd, &b_ctl, device);
 out:
 	close(fd);
 	return err;
 }
 
-int ploop_baloon_check_and_repair(const char *device, char *mount_point, int repair)
+int ploop_balloon_check_and_repair(const char *device, char *mount_point, int repair)
 {
 	int   ret, fd = -1;
 	int   balloonfd = -1;
@@ -924,7 +924,7 @@ int ploop_discard(const char *device, const char *mount_point)
 			break;
 
 		ploop_log(0, "Start relocation");
-		ret = ploop_baloon_relocation(fd, &b_ctl, device);
+		ret = ploop_balloon_relocation(fd, &b_ctl, device);
 		if (ret)
 			break;
 	}
