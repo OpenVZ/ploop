@@ -629,7 +629,7 @@ int ploop_baloon_complete(const char *device)
 
 	err = ioctl_device(fd, PLOOP_IOC_DISCARD_FINI, NULL);
 	if (err && errno != EBUSY) {
-		ploop_err(errno, "Can't finialize a discard mode");
+		ploop_err(errno, "Can't finalize discard mode");
 		goto out;
 	}
 
@@ -877,7 +877,7 @@ int ploop_discard(const char *device, const char *mount_point)
 
 	ret = ioctl_device(fd, PLOOP_IOC_DISCARD_INIT, NULL);
 	if (ret) {
-		ploop_err(errno, "Can't initialize a discard mode");
+		ploop_err(errno, "Can't initialize discard mode");
 		close(fd);
 		return 1;
 	}
@@ -886,7 +886,7 @@ int ploop_discard(const char *device, const char *mount_point)
 	if (tpid < 0) {
 		ploop_err(errno, "Can't fork");
 		if (ioctl_device(fd, PLOOP_IOC_DISCARD_FINI, NULL))
-			ploop_err(errno, "Can't finalize a discard mode");
+			ploop_err(errno, "Can't finalize discard mode");
 
 		close(fd);
 		return -1;
@@ -898,7 +898,7 @@ int ploop_discard(const char *device, const char *mount_point)
 			exit_code = 1;
 
 		if (ioctl_device(fd, PLOOP_IOC_DISCARD_FINI, NULL))
-			ploop_err(errno, "Can't finalize a discard mode");
+			ploop_err(errno, "Can't finalize discard mode");
 
 		close(fd);
 		exit(exit_code);
@@ -910,7 +910,7 @@ int ploop_discard(const char *device, const char *mount_point)
 		ploop_log(0, "Waiting");
 		ret = ioctl_device(fd, PLOOP_IOC_DISCARD_WAIT, NULL);
 		if (ret) {
-			ploop_err(errno, "Waiting of a discard request failed");
+			ploop_err(errno, "Waiting for a discard request failed");
 			break;
 		}
 
@@ -934,7 +934,7 @@ int ploop_discard(const char *device, const char *mount_point)
 
 		ret = ioctl_device(fd, PLOOP_IOC_DISCARD_FINI, NULL);
 		if (ret < 0)
-			ploop_err(errno, "Can't finalize a discard mode");
+			ploop_err(errno, "Can't finalize discard mode");
 
 		kill(tpid, SIGKILL);
 	}
