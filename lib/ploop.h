@@ -285,6 +285,7 @@ int ploop_balloon_get_state(const char *device, __u32 *state);
 int ploop_balloon_clear_state(const char *device);
 int ploop_baloon_complete(const char *device);
 int ploop_baloon_check_and_repair(const char *device, char *mount_point, int repair);
+int ploop_discard(const char *device, const char *mount_point);
 
 /* lock */
 int ploop_lock_di(struct ploop_disk_images_data *di);

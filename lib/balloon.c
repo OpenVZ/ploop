@@ -22,10 +22,15 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <malloc.h>
+#include <stdint.h>
+#include <limits.h>
 #include <sys/stat.h>
 #include <sys/file.h>
-#include <sys/mount.h>
+#include <sys/wait.h>
+#include <sys/user.h>
+#include <sys/ioctl.h>
 #include <linux/types.h>
+#include <linux/fs.h>
 #include <string.h>
 
 #include "ploop.h"
@@ -838,4 +843,117 @@ err:
 	free(relocblks);
 
 	return ret;
+}
+
+static int ploop_trim(const char *mount_point)
+{
+	struct fstrim_range range = {0, ULLONG_MAX, PAGE_SIZE};
+	int fd, ret;
+
+	fd = open(mount_point, O_RDONLY);
+	if (fd < 0) {
+		ploop_err(errno, "Can't open mount_point");
+		return -1;
+	}
+
+	ret = ioctl(fd, FITRIM, &range);
+	if (ret < 0)
+		ploop_err(errno, "Can't trim file system");
+
+	close(fd);
+
+	return ret;
+}
+
+int ploop_discard(const char *device, const char *mount_point)
+{
+	int fd, ret, status;
+	int exit_code = 0;
+	pid_t tpid;
+
+	fd = open_device(device);
+	if (fd == -1)
+		return SYSEXIT_OPEN;
+
+	ret = ioctl_device(fd, PLOOP_IOC_DISCARD_INIT, NULL);
+	if (ret) {
+		ploop_err(errno, "Can't initialize a discard mode");
+		close(fd);
+		return 1;
+	}
+
+	tpid = fork();
+	if (tpid < 0) {
+		ploop_err(errno, "Can't fork");
+		if (ioctl_device(fd, PLOOP_IOC_DISCARD_FINI, NULL))
+			ploop_err(errno, "Can't finalize a discard mode");
+
+		close(fd);
+		return -1;
+	}
+
+	if (tpid == 0) {
+		ret = ploop_trim(mount_point);
+		if (ret < 0)
+			exit_code = 1;
+
+		if (ioctl_device(fd, PLOOP_IOC_DISCARD_FINI, NULL))
+			ploop_err(errno, "Can't finalize a discard mode");
+
+		close(fd);
+		exit(exit_code);
+	}
+
+	while (1) {
+		struct ploop_balloon_ctl b_ctl;
+
+		ploop_log(0, "Waiting");
+		ret = ioctl_device(fd, PLOOP_IOC_DISCARD_WAIT, NULL);
+		if (ret) {
+			ploop_err(errno, "Waiting of a discard request failed");
+			break;
+		}
+
+		memset(&b_ctl, 0, sizeof(b_ctl));
+		b_ctl.keep_intact = 1;
+		ret = ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
+		if (ret)
+			break;
+
+		if (b_ctl.mntn_type == PLOOP_MNTN_OFF)
+			break;
+
+		ploop_log(0, "Start relocation");
+		ret = ploop_baloon_relocation(fd, &b_ctl, device);
+		if (ret)
+			break;
+	}
+
+	if (ret) {
+		exit_code = 1;
+
+		ret = ioctl_device(fd, PLOOP_IOC_DISCARD_FINI, NULL);
+		if (ret < 0)
+			ploop_err(errno, "Can't finalize a discard mode");
+
+		kill(tpid, SIGKILL);
+	}
+
+	close(fd);
+
+	ret = waitpid(tpid, &status, 0);
+	if (ret == -1) {
+		ploop_err(errno, "wait() failed");
+		exit_code = 1;
+	} else if(!WIFEXITED(status) || WEXITSTATUS(status)) {
+		if (WIFEXITED(status))
+			ploop_err(0, "The trim process failed with code %d",
+							WEXITSTATUS(status));
+		else
+			ploop_err(0, "The trim process killed by signal %d",
+							WTERMSIG(status));
+		exit_code = 1;
+	}
+
+	return exit_code;
 }
