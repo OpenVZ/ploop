@@ -40,7 +40,7 @@ struct delta delta;
 
 void usage_summary(void)
 {
-	fprintf(stderr, "Usage: ploop-balloon { show | status | clear | change | complete | check | repair } ...\n"
+	fprintf(stderr, "Usage: ploop-balloon { show | status | clear | change | complete | check | repair | discard } ...\n"
 			"Use \"ploop-balloon cmd\" to get more info about cmd\n"
 		);
 }
@@ -343,6 +343,43 @@ static int pb_check_and_repair(int argc, char **argv, int repair)
 
 }
 
+static void usage_discard(void)
+{
+	fprintf(stderr, "Usage: ploop-balloon discard -d DEVICE -m MOUNT_POINT\n"
+			"	DEVICE	    := ploop device, f.e. /dev/ploop0\n"
+			"	MOUNT_POINT := path where fs living on ploop device mounted to\n"
+			"Action: discard unused blocks from the image.\n"
+		);
+}
+
+static int pb_discard(int argc, char **argv)
+{
+	int i;
+
+	while ((i = getopt(argc, argv, "d:m:")) != EOF) {
+		switch (i) {
+		case 'd':
+			device = optarg;
+			break;
+		case 'm':
+			mount_point = optarg;
+			break;
+		default:
+			return -1;
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc != 0 || device == NULL || mount_point == NULL) {
+		usage_discard();
+		return -1;
+	}
+
+	return ploop_discard(device, mount_point);
+}
+
 int main(int argc, char **argv)
 {
 	char *cmd;
@@ -372,6 +409,8 @@ int main(int argc, char **argv)
 		return pb_check_and_repair(argc, argv, 0); /* check only */
 	if (strcmp(cmd, "repair") == 0)
 		return pb_check_and_repair(argc, argv, 1); /* check and repair */
+	if (strcmp(cmd, "discard") == 0)
+		return pb_discard(argc, argv);
 
 	usage_summary();
 	return -1;
