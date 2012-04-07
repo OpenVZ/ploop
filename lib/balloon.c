@@ -622,6 +622,12 @@ int ploop_baloon_complete(const char *device)
 	if (fd == -1)
 		return -1;
 
+	err = ioctl_device(fd, PLOOP_IOC_DISCARD_FINI, NULL);
+	if (err && errno != EBUSY) {
+		ploop_err(errno, "Can't finialize a discard mode");
+		goto out;
+	}
+
 	memset(&b_ctl, 0, sizeof(b_ctl));
 	b_ctl.keep_intact = 1;
 	err = ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
