@@ -51,6 +51,8 @@ char *mntn2str(int mntn_type)
 		return "MERGE";
 	case PLOOP_MNTN_GROW:
 		return "GROW";
+	case PLOOP_MNTN_DISCARD:
+		return "DISCARD";
 	}
 
 	return "UNKNOWN";
@@ -87,6 +89,15 @@ static int ioctl_device(int fd, int req, void *arg)
 			break;
 		case PLOOP_IOC_FBGET:
 			msg = "PLOOP_IOC_FBGET";
+			break;
+		case PLOOP_IOC_DISCARD_INIT:
+			msg = "PLOOP_IOC_DISCARD_INIT";
+			break;
+		case PLOOP_IOC_DISCARD_WAIT:
+			msg = "PLOOP_IOC_DISCARD_WAIT";
+			break;
+		case PLOOP_IOC_DISCARD_FINI:
+			msg = "PLOOP_IOC_DISCARD_FINI";
 			break;
 		}
 		ploop_err(errno, "%s", msg);

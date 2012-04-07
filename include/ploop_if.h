@@ -196,6 +196,7 @@ enum {
 	PLOOP_MNTN_SNAPSHOT, /* bdev is freezed due to snapshot */
 
 	PLOOP_MNTN_TRACK,    /* tracking is in progress */
+	PLOOP_MNTN_DISCARD,  /* ready to handle discard requests */
 
 	PLOOP_MNTN_NOFAST = 256,
 	/* all types below requires fast-path disabled ! */
@@ -286,6 +287,13 @@ struct ploop_track_extent
 
 /* Search ploop_device global tree for first unused minor number */
 #define PLOOP_IOC_GETDEVICE    _IOW(PLOOPCTLTYPE, 22, struct ploop_getdevice_ctl)
+
+/* Start handling discard requests */
+#define PLOOP_IOC_DISCARD_INIT _IO(PLOOPCTLTYPE, 23)
+/* Stop handling discard requests */
+#define PLOOP_IOC_DISCARD_FINI _IO(PLOOPCTLTYPE, 24)
+/* Wait a discard request */
+#define PLOOP_IOC_DISCARD_WAIT _IO(PLOOPCTLTYPE, 25)
 
 /* Events exposed via /sys/block/ploopN/pstate/event */
 #define PLOOP_EVENT_ABORTED	1
