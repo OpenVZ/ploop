@@ -115,6 +115,8 @@ extern "C" {
 
 int ploop_getdevice(int *minor);
 int ploop_read_diskdescriptor(const char *dir, struct ploop_disk_images_data *di);
+int ploop_set_component_name(struct ploop_disk_images_data *di,
+		const char *component_name);
 struct ploop_disk_images_data *ploop_alloc_diskdescriptor(void);
 void ploop_free_diskdescriptor(struct ploop_disk_images_data *di);
 char *ploop_get_base_delta_uuid(struct ploop_disk_images_data *di);

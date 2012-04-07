@@ -341,3 +341,13 @@ int is_valid_blocksize(__u32 blocksize)
 		return 0;
 	return 1;
 }
+
+int ploop_set_component_name(struct ploop_disk_images_data *di,
+		const char *component_name)
+{
+	free(di->runtime->component_name);
+	di->runtime->component_name = strdup(component_name);
+	if (di->runtime->component_name == NULL)
+		return SYSEXIT_NOMEM;
+	return 0;
+}

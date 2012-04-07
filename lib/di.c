@@ -215,6 +215,7 @@ void ploop_free_diskdescriptor(struct ploop_disk_images_data *di)
 	free(di->snapshots);
 	free(di->top_guid);
 	free(di->runtime->xml_fname);
+	free(di->runtime->component_name);
 	free(di->runtime);
 	free(di);
 }
