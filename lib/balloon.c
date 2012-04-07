@@ -516,12 +516,11 @@ err:
 	return ret;
 }
 
-int ploop_baloon_complete(const char *device)
+static int ploop_baloon_relocation(int fd, struct ploop_balloon_ctl *b_ctl, const char *device)
 {
-	int    ret = -1, fd = -1;
+	int    ret = -1;
 	__u32  n_free_blocks = 0;
 	__u32  freezed_a_h;
-	struct ploop_balloon_ctl    b_ctl;
 	struct freemap		   *freemap = NULL;
 	struct freemap		   *rangemap = NULL;
 	struct relocmap		   *relocmap = NULL;
@@ -540,39 +539,18 @@ int ploop_baloon_complete(const char *device)
 		goto err;
 	}
 
-	fd = open_device(device);
-	if (fd == -1)
-		goto err;
+	top_level   = b_ctl->level;
+	freezed_a_h = b_ctl->alloc_head;
 
-	memset(&b_ctl, 0, sizeof(b_ctl));
-	b_ctl.keep_intact = 1;
-	ret = ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
-	if (ret)
-		goto err;
+	if (b_ctl->mntn_type == PLOOP_MNTN_RELOC)
+		goto reloc;
 
-	switch (b_ctl.mntn_type) {
-	case PLOOP_MNTN_BALLOON:
-	case PLOOP_MNTN_MERGE:
-	case PLOOP_MNTN_GROW:
-	case PLOOP_MNTN_TRACK:
-	case PLOOP_MNTN_OFF:
-		ploop_log(0, "Nothing to complete: kernel is in \"%s\" state",
-			mntn2str(b_ctl.mntn_type));
-		return 0;
-	case PLOOP_MNTN_FBLOADED:
-	case PLOOP_MNTN_RELOC:
-		top_level   = b_ctl.level;
-		freezed_a_h = b_ctl.alloc_head;
-		break;
-	default:
-		ploop_err(0, "Error: unknown mntn_type (%u)",
-			b_ctl.mntn_type);
+	if (b_ctl->mntn_type != PLOOP_MNTN_FBLOADED) {
+		ploop_err(0, "Error: non-suitable mntn_type (%u)",
+			b_ctl->mntn_type);
 		ret = SYSEXIT_PROTOCOL;
 		goto err;
 	}
-
-	if (b_ctl.mntn_type == PLOOP_MNTN_RELOC)
-		goto reloc;
 
 	ret = freeblks_alloc(&freeblks, 0);
 	if (ret)
@@ -625,7 +603,6 @@ reloc:
 			(unsigned long long)(relocblks->alloc_head * S2B(delta.blocksize)));
 err:
 
-	close(fd);
 	free(freemap);
 	free(rangemap);
 	free(relocmap);
@@ -634,6 +611,46 @@ err:
 	free(relocblks);
 
 	return ret;
+}
+
+int ploop_baloon_complete(const char *device)
+{
+	int fd, err;
+	struct ploop_balloon_ctl b_ctl;
+
+	fd = open_device(device);
+	if (fd == -1)
+		return -1;
+
+	memset(&b_ctl, 0, sizeof(b_ctl));
+	b_ctl.keep_intact = 1;
+	err = ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
+	if (err)
+		goto out;
+
+	switch (b_ctl.mntn_type) {
+	case PLOOP_MNTN_BALLOON:
+	case PLOOP_MNTN_MERGE:
+	case PLOOP_MNTN_GROW:
+	case PLOOP_MNTN_TRACK:
+	case PLOOP_MNTN_OFF:
+		ploop_log(0, "Nothing to complete: kernel is in \"%s\" state",
+			mntn2str(b_ctl.mntn_type));
+		goto out;
+	case PLOOP_MNTN_RELOC:
+	case PLOOP_MNTN_FBLOADED:
+		break;
+	default:
+		ploop_err(0, "Error: unknown mntn_type (%u)",
+			b_ctl.mntn_type);
+		err = SYSEXIT_PROTOCOL;
+		goto out;
+	}
+
+	err = ploop_baloon_relocation(fd, &b_ctl, device);
+out:
+	close(fd);
+	return err;
 }
 
 int ploop_baloon_check_and_repair(const char *device, char *mount_point, int repair)
