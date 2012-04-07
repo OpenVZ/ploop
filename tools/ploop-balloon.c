@@ -92,7 +92,7 @@ static void usage_status(void)
 {
 	fprintf(stderr, "Usage: ploop-balloon status -d DEVICE -m MOUNT_POINT\n"
 			"	ploop-balloon status -f -d DEVICE\n"
-			"	DEVICE	    := ploop device, f.e. /dev/ploop0\n"
+			"	DEVICE	    := ploop device, e.g. /dev/ploop0\n"
 			"	MOUNT_POINT := path where fs living on ploop device mounted to\n"
 			"	-f	    - do not flock hidden balloon\n"
 			"Action: inquire current in-kernel status of maintenance\n"
@@ -142,7 +142,7 @@ static int pb_status(int argc, char **argv)
 static void usage_clear(void)
 {
 	fprintf(stderr, "Usage: ploop-balloon clear -d DEVICE -m MOUNT_POINT\n"
-			"	DEVICE	    := ploop device, f.e. /dev/ploop0\n"
+			"	DEVICE	    := ploop device, e.g. /dev/ploop0\n"
 			"	MOUNT_POINT := path where fs living on ploop device mounted to\n"
 			"Action: clear stale in-kernel \"BALLOON\" state of maintenance\n"
 		);
@@ -190,7 +190,7 @@ static void usage_change(void)
 {
 	fprintf(stderr, "Usage: ploop-balloon change -s SIZE -d DEVICE -m MOUNT_POINT\n"
 			"	SIZE	    := NUMBER[kmg] (new size of balloon)\n"
-			"	DEVICE	    := ploop device, f.e. /dev/ploop0\n"
+			"	DEVICE	    := ploop device, e.g. /dev/ploop0\n"
 			"	MOUNT_POINT := path where fs living on ploop device mounted to\n"
 			"Action: inflate or truncate hidden balloon (dependently on new_size vs. old_size)\n"
 		);
@@ -243,7 +243,7 @@ static int pb_change(int argc, char **argv)
 static void usage_complete(void)
 {
 	fprintf(stderr, "Usage: ploop-balloon complete -d DEVICE -m MOUNT_POINT\n"
-			"	DEVICE	    := ploop device, f.e. /dev/ploop0\n"
+			"	DEVICE	    := ploop device, e.g. /dev/ploop0\n"
 			"	MOUNT_POINT := path where fs living on ploop device mounted to\n"
 			"Action: complete previously interrupted balloon operation\n"
 			"	 (sensible only if kernel is in \"FBLOAD\" or \"RELOC\"\n"
@@ -287,7 +287,7 @@ static int pb_complete(int argc, char **argv)
 static void usage_check(void)
 {
 	fprintf(stderr, "Usage: ploop-balloon check -d DEVICE -m MOUNT_POINT\n"
-			"	DEVICE	    := ploop device, f.e. /dev/ploop0\n"
+			"	DEVICE	    := ploop device, e.g. /dev/ploop0\n"
 			"	MOUNT_POINT := path where fs living on ploop device mounted to\n"
 			"Action: check whether hidden balloon has free blocks\n"
 		);
@@ -296,7 +296,7 @@ static void usage_check(void)
 static void usage_repair(void)
 {
 	fprintf(stderr, "Usage: ploop-balloon repair -d DEVICE -m MOUNT_POINT\n"
-			"	DEVICE	    := ploop device, f.e. /dev/ploop0\n"
+			"	DEVICE	    := ploop device, e.g. /dev/ploop0\n"
 			"	MOUNT_POINT := path where fs living on ploop device mounted to\n"
 			"Action: repair hidden balloon (i.e. relocate all free blocks\n"
 			"	 present in hidden balloon (w/o inflate))\n"
@@ -346,7 +346,7 @@ static int pb_check_and_repair(int argc, char **argv, int repair)
 static void usage_discard(void)
 {
 	fprintf(stderr, "Usage: ploop-balloon discard -d DEVICE -m MOUNT_POINT\n"
-			"	DEVICE	    := ploop device, f.e. /dev/ploop0\n"
+			"	DEVICE	    := ploop device, e.g. /dev/ploop0\n"
 			"	MOUNT_POINT := path where fs living on ploop device mounted to\n"
 			"Action: discard unused blocks from the image.\n"
 		);
