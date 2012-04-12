@@ -1499,7 +1499,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			ploop_err(0, "Unable to change image size to %llu "
 					"sectors, minimal size is %lu",
 					param->size,
-					(dev_size - available_balloon_size));
+					(long unsigned)(dev_size - available_balloon_size));
 			ret = SYSEXIT_PARAM;
 			goto err;
 		}
