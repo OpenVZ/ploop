@@ -607,83 +607,6 @@ merge_done2:
 	return ret;
 }
 
-static int merge_all(struct ploop_disk_images_data *di)
-{
-	char conf[MAXPATHLEN];
-	char dev[64];
-	char *device = NULL;
-	int ret;
-	char **names = NULL;
-	char **names2 = NULL; /* names to unlink */
-	int start_level = 0;
-	int end_level = 0;
-	int merge_top = 0;
-	int raw = 0;
-
-	raw = di->raw;
-	ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
-	if (ret == -1)
-		goto err;
-
-	if (ret == 0) {
-		// Online merge
-		struct merge_info info = {};
-
-		device = dev;
-		if ((ret = get_delta_info(device, 0, &info)))
-			goto err;
-		start_level = info.start_level;
-		end_level = info.end_level;
-		raw = info.raw;
-		names = info.names;
-		merge_top = info.merge_top;
-	} else {
-		// Offline merge
-		// start_level & end_level are not used in the offline merge
-		// FIXME: add check if only base delta exists
-		start_level = 0;
-		end_level = 1;
-		names = make_images_list(di, di->top_guid, 1);
-		if (names == NULL) {
-			ret = SYSEXIT_NOMEM;
-			goto err;
-		}
-	}
-	ret = merge_image(device, start_level, end_level, raw, merge_top, names);
-	if (ret == 0) {
-		int n;
-
-		get_disk_descriptor_fname(di, conf, sizeof(conf));
-		n = get_list_size(names);
-		if (n > 0) {
-			n--;
-			// skip base delta
-			free(names[n]);
-			names[n] = NULL;
-			// remove merged delta from configuration
-			ret = ploop_remove_images(di, names, &names2);
-			if (ret)
-				goto err;
-
-			ret = ploop_store_diskdescriptor(conf, di);
-			if (ret == 0) {
-				int i;
-				// remove delta from fs
-				for (i = 0; names2[i] != NULL; i++) {
-					ploop_log(0, "Removing %s", names2[i]);
-					unlink(names2[i]);
-				}
-			}
-		}
-	}
-
-err:
-	free_images_list(names);
-	free_images_list(names2);
-
-	return ret;
-}
-
 int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *guid, int merge_mode)
 {
 	char conf[MAXPATHLEN];
@@ -868,11 +791,15 @@ int ploop_merge_snapshot(struct ploop_disk_images_data *di, struct ploop_merge_p
 	else if (!param->merge_all)
 		guid = di->top_guid;
 
-	if (guid != NULL)
+	if (guid != NULL) {
 		ret = ploop_merge_snapshot_by_guid(di, guid, PLOOP_MERGE_WITH_PARENT);
-	else
-		ret = merge_all(di);
-
+	} else {
+		while (di->nsnapshots != 1) {
+			ret = ploop_merge_snapshot_by_guid(di, di->top_guid, PLOOP_MERGE_WITH_PARENT);
+			if (ret)
+				break;
+		}
+	}
 	ploop_unlock_di(di);
 
 	return ret;
