@@ -1644,9 +1644,14 @@ static int expanded2preallocated(struct ploop_disk_images_data *di)
 
 			delta.l2[l2_slot] = data_off * delta.blocksize;
 
-			if (sys_fallocate(delta.fd, 0, data_off * cluster, cluster)) {
-				ploop_err(errno, "Failed to fallocate");
-				goto err;
+			ret = sys_fallocate(delta.fd, 0, data_off * cluster, cluster);
+			if (ret) {
+				if (errno == ENOTSUP)
+					ret = ftruncate(delta.fd, (data_off + 1) * cluster);
+				if (ret) {
+					ploop_err(errno, "Failed to expand %s", di->images[0]->file);
+					goto err;
+				}
 			}
 
 			if (PWRITE(&delta, &delta.l2[l2_slot], sizeof(__u32), idx_off))
