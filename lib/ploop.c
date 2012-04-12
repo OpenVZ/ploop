@@ -1706,9 +1706,8 @@ int ploop_get_info(struct ploop_disk_images_data *di, struct ploop_info *info)
 			get_mount_dir(dev, mnt, sizeof(mnt)) == 0)
 	{
 		ploop_unlock_di(di);
-		if (get_statfs_info(mnt, info))
-			return -1;
-		return 0;
+		if (get_statfs_info(mnt, info) == 0)
+			return 0;
 	}
 
 	ploop_unlock_di(di);
