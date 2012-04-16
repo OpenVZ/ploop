@@ -71,5 +71,23 @@ Headers and a static version of ploop library
 %attr(644,root,root) %{_incdir}/ploop1_image.h
 
 %changelog
+* Thu Mar 22 2012 Kir Kolyshkin <kir@openvz.org> 1.1-1
+- support for variable block size
+- default block size changed from 256K to 1M
+- ploop_set_log_file(): make NULL a valid argument
+- logger: introduce, use and expose PLOOP_LOG_NOCONSOLE
+- ploop_getdevice(): expose
+- ploop_store_diskdescriptor(): fix for a case when image is in root dir
+- Fixed expanded to preallocated conversion
+- Remove some unused functions and non-existent function prototypes
+- Introduce and use SYSEXIT_MKNOD error code
+- Changed image -> device mapping schema
+- Use strcasecmp for guid comparison
+- Made ploop_merge_param.guid field const
+- tools/ploop: remove -b option
+- tools/ploop: remove unused and untested replace & add commands
+- Log/error message fixes, improvements, and unification
+- Makefiles: fixes, improvements
+
 * Tue Mar 13 2012 Kir Kolyshkin <kir@openvz.org> 1.0-1
 - initial version
