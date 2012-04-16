@@ -1,7 +1,7 @@
 %define _incdir /usr/include/ploop
 Summary: ploop tools
 Name: ploop
-Version: 1.1
+Version: 1.2
 %define rel 1
 Release: %{rel}%{?dist}
 Group: Applications/System
@@ -71,6 +71,24 @@ Headers and a static version of ploop library
 %attr(644,root,root) %{_incdir}/ploop1_image.h
 
 %changelog
+* Tue Apr 17 2012 Kir Kolyshkin <kir@openvz.org> 1.2-1
+- Added ploop_get_dev() function
+- Added ploop_set_component_name() function
+- Fix: do not clear in-use flag in ploop_fsck()
+- ploop-fsck: add -d flag to forcefully drop "in use" image flag
+- Fixed handling blocksize for raw images
+- Added user_xattr,acl to default mount options
+- ploop_mount(): added ability to pass MS_NOATIME flag
+- ploop-balloon: add discard command to compact ploop image
+- ploop_get_info(): return old info in case statfs() failed
+- expanded2preallocated(): if fallocate not supported, use ftruncate
+- ploop_resize_image(): Check is it possible to fallocate before inflating balloon file
+- Fixed merging all snapshots
+- Some fixes in ploop tool usage
+- Some log message fixes
+- Add function, source file and line number to error messages if DEBUG is set
+- Build system fixes/improvements
+
 * Thu Mar 22 2012 Kir Kolyshkin <kir@openvz.org> 1.1-1
 - support for variable block size
 - default block size changed from 256K to 1M
