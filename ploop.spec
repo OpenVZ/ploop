@@ -9,6 +9,7 @@ License: GNU GPL
 Source: %{name}-%{version}.tar.bz2
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 Requires: parted
+Requires: ploop-lib = %{version}
 BuildRequires: libxml2-devel
 
 %description
