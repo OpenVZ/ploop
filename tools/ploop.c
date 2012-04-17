@@ -162,8 +162,9 @@ static int plooptool_mount(int argc, char **argv)
 	int raw = 0;
 	int base = 0;
 	struct ploop_mount_param mountopts = {};
+	const char *component_name = NULL;
 
-	while ((i = getopt(argc, argv, "rf:Pd:m:t:u:o:b:")) != EOF) {
+	while ((i = getopt(argc, argv, "rf:Pd:m:t:u:o:b:c:")) != EOF) {
 		switch (i) {
 		case 'd':
 			strncpy(mountopts.device, optarg, sizeof(mountopts.device)-1);
@@ -206,6 +207,9 @@ static int plooptool_mount(int argc, char **argv)
 				  return -1;
 			  }
 			  break;
+		case 'c':
+			component_name = optarg;
+			break;
 		}
 		default:
 			usage_mount();
@@ -228,6 +232,8 @@ static int plooptool_mount(int argc, char **argv)
 		ret = ploop_read_diskdescriptor(argv[0], di);
 		if (ret)
 			goto err;
+		if (component_name != NULL)
+			ploop_set_component_name(di, component_name);
 		if (base) {
 			mountopts.guid = ploop_get_base_delta_uuid(di);
 			if (mountopts.guid == NULL) {
