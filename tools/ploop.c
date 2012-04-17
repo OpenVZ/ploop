@@ -90,7 +90,7 @@ static int plooptool_init(int argc, char **argv)
 			  char * endptr;
 
 			  param.blocksize = strtoul(optarg, &endptr, 0);
-			  if (optarg == endptr) {
+			  if (*endptr != '\0') {
 				  usage_init();
 				  return -1;
 			  }
@@ -201,7 +201,7 @@ static int plooptool_mount(int argc, char **argv)
 			  char * endptr;
 
 			  mountopts.blocksize = strtoul(optarg, &endptr, 0);
-			  if (optarg == endptr) {
+			  if (*endptr != '\0') {
 				  usage_mount();
 				  return -1;
 			  }
