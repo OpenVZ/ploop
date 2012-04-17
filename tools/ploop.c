@@ -35,7 +35,7 @@ static struct ploop_cancel_handle *_s_cancel_handle;
 void usage_summary(void)
 {
 	fprintf(stderr, "Usage: ploop init -s SIZE [-f FORMAT] NEW_DELTA\n"
-			"       ploop mount [-rP] [-f raw] -d DEVICE BASE_DELTA [ ... TOP_DELTA ]\n"
+			"       ploop mount [-rP] [-f raw] [-d DEVICE] BASE_DELTA [ ... TOP_DELTA ]\n"
 			"       ploop umount -d DEVICE\n"
 			"       ploop { delete | rm } -d DEVICE -l LEVEL\n"
 			"       ploop merge -d DEVICE [-l LEVEL[..TOP_LEVEL]]\n"
