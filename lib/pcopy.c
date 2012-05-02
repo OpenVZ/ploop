@@ -157,7 +157,7 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 
 		trackpos = pos + CLUSTER;
 		if (ioctl(devfd, PLOOP_IOC_TRACK_SETPOS, &trackpos)) {
-			ploop_err(errno, "PLOOP_IOC_TRACK_INIT");
+			ploop_err(errno, "PLOOP_IOC_TRACK_SETPOS");
 			ret = SYSEXIT_DEVIOC;
 			goto done;
 		}
@@ -210,7 +210,7 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 				if (pos + copy > trackpos) {
 					trackpos = pos + copy;
 					if (ioctl(devfd, PLOOP_IOC_TRACK_SETPOS, &trackpos)) {
-						ploop_err(errno, "PLOOP_IOC_TRACK_INIT");
+						ploop_err(errno, "PLOOP_IOC_TRACK_SETPOS");
 						ret = SYSEXIT_DEVIOC;
 						goto done;
 					}
@@ -291,7 +291,7 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 				if (pos + copy > trackpos) {
 					trackpos = pos + copy;
 					if (ioctl(devfd, PLOOP_IOC_TRACK_SETPOS, &trackpos)) {
-						ploop_err(errno, "PLOOP_IOC_TRACK_INIT");
+						ploop_err(errno, "PLOOP_IOC_TRACK_SETPOS");
 						ret = SYSEXIT_DEVIOC;
 						goto done;
 					}
