@@ -48,7 +48,8 @@ int devfd;
 
 void usage(void)
 {
-	fprintf(stderr, "Usage: ploop-copy -s DEVICE] [-d DESTINATION] [-F STOPCOMMAND]\n");
+	fprintf(stderr, "Usage: ploop-copy -s DEVICE [-F STOPCOMMAND]\n"
+			"       ploop-copy -d DESTINATION\n");
 }
 
 void atexit_cb(void)
@@ -182,7 +183,7 @@ int main(int argc, char **argv)
 	}
 
 	if (!device && !recv_to) {
-		fprintf(stderr, "At least one of -s or -d is required\n");
+		fprintf(stderr, "Either -s or -d is required\n");
 		usage();
 		return SYSEXIT_PARAM;
 	}
