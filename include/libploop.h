@@ -18,6 +18,7 @@
 
 #ifndef _LIBPLOOP_H_
 #define _LIBPLOOP_H_
+#pragma GCC visibility push(default)
 
 #define DISKDESCRIPTOR_XML      "DiskDescriptor.xml"
 
@@ -211,4 +212,5 @@ enum
 	SYSEXIT_PLOOPINUSE,
 };
 
+#pragma GCC visibility pop
 #endif

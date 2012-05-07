@@ -22,7 +22,7 @@ LIBOBJS=uuid.o \
 
 SOURCES=$(LIBOBJS:.o=.c)
 
-CFLAGS += $(shell pkg-config libxml-2.0 --cflags) -fPIC
+CFLAGS += $(shell pkg-config libxml-2.0 --cflags) -fPIC -fvisibility=hidden
 LDFLAGS += -L.
 LDLIBS += $(shell pkg-config libxml-2.0 --libs)
 
