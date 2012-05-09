@@ -246,7 +246,6 @@ char *make_sysfs_dev_name(int minor, char *buf, int len);
 int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		struct ploop_mount_param *param, int raw);
 int create_snapshot(const char *device, const char *delta, __u32 blocksize, int syncfs);
-int get_list_size(char **list);
 char **make_images_list(struct ploop_disk_images_data *di, char *guid, int reverse);
 void free_images_list(char **images);
 int PWRITE(struct delta * delta, void * buf, unsigned int size, off_t off);
