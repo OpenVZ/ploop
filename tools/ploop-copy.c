@@ -191,10 +191,20 @@ int main(int argc, char **argv)
 	if (!device)
 		return receive_process();
 
-	ofd = open(recv_to, O_WRONLY|O_CREAT|O_EXCL, 0600);
-	if (ofd < 0) {
-		perror("open destination");
-		return SYSEXIT_CREAT;
+	if (recv_to) {
+		ofd = open(recv_to, O_WRONLY|O_CREAT|O_EXCL, 0600);
+		if (ofd < 0) {
+			perror("open destination");
+			return SYSEXIT_CREAT;
+		}
+	}
+	else {
+		if (isatty(1) || errno == EBADF) {
+			fprintf(stderr, "Invalid output stream: must be "
+					"pipelined to a pipe or socket\n");
+			return SYSEXIT_PARAM;
+		}
+		ofd = 1;
 	}
 
 	return send_process(device, ofd, flush_cmd);
