@@ -41,7 +41,6 @@
 int ofd = -1;
 
 char * recv_to;
-char * device;
 char * flush_cmd;
 int tracker_on;
 int devfd;
@@ -156,6 +155,7 @@ int receive_process(void)
 int main(int argc, char **argv)
 {
 	int i, ofd;
+	const char *device;
 
 	while ((i = getopt(argc, argv, "F:s:d:")) != EOF) {
 		switch (i) {
