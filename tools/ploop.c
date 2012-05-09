@@ -446,7 +446,8 @@ static int plooptool_umount(int argc, char **argv)
 		ret = ploop_umount(umountopts.device, NULL);
 	}else if (mnt != NULL) {
 		if (ploop_get_dev_by_mnt(mnt, device, sizeof(device))) {
-			ploop_err(0, "Unable to find ploop device by %s", mnt);
+			fprintf(stderr, "Unable to find ploop device by %s",
+					mnt);
 			return -1;
 		}
 		ret = ploop_umount(device, NULL);
@@ -459,7 +460,7 @@ static int plooptool_umount(int argc, char **argv)
 		ploop_free_diskdescriptor(di);
 	} else {
 		if (ploop_find_dev_by_delta(argv[0], device, sizeof(device)) != 0) {
-			ploop_err(0, "Image %s is not mounted", argv[0]);
+			fprintf(stderr, "Image %s is not mounted", argv[0]);
 			return -1;
 		}
 		ret = ploop_umount(device, NULL);
