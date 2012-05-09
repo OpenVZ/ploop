@@ -35,8 +35,8 @@
 void usage(void)
 {
 	fprintf(stderr, "Usage: ploop merge -d DEVICE [-l LEVEL[..TOP_LEVEL]]\n"
-		        "       ploop merge [-f raw] DELTAS_TO_DELETE BASE_DELTA\n"
-		        "       ploop merge [-t] DiskDescriptor.xml\n");
+			"       ploop merge [-f raw] DELTAS_TO_MERGE BASE_DELTA\n"
+			"       ploop merge [-u <uuid> | -A] DiskDescriptor.xml\n");
 }
 
 int main(int argc, char ** argv)
