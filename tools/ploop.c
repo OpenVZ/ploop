@@ -62,16 +62,6 @@ static void usage_init(void)
 			"       FSTYPE := make file system\n");
 }
 
-static int is_xml_fname(const char *fname)
-{
-	char *p;
-
-	p = strrchr(fname, '.');
-	if (p != NULL && !strcmp(p, ".xml"))
-		return 1;
-	return 0;
-}
-
 static int plooptool_init(int argc, char **argv)
 {
 	int i, ret;

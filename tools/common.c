@@ -63,3 +63,13 @@ int parse_size(const char * opt, off_t * sz)
 		return -1;
 	return 0;
 }
+
+int is_xml_fname(const char *fname)
+{
+	char *p;
+
+	p = strrchr(fname, '.');
+	if (p != NULL && !strcmp(p, ".xml"))
+		return 1;
+	return 0;
+}

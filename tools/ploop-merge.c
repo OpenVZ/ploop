@@ -30,6 +30,7 @@
 #include <string.h>
 
 #include "ploop.h"
+#include "common.h"
 
 void usage(void)
 {
@@ -92,7 +93,7 @@ int main(int argc, char ** argv)
 
 	ploop_set_verbose_level(3);
 
-	if (argc == 1 && strstr(argv[0], DISKDESCRIPTOR_XML)) {
+	if (argc == 1 && is_xml_fname(argv[0])) {
 		struct ploop_disk_images_data *di;
 
 		di = ploop_alloc_diskdescriptor();
