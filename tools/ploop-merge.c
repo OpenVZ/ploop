@@ -107,7 +107,7 @@ int main(int argc, char ** argv)
 				usage();
 				return -1;
 			}
-			end_level = get_list_size(argv);
+			end_level = argc;
 			names = argv;
 		} else {
 			struct merge_info info = {};
