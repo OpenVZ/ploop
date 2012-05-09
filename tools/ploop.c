@@ -675,7 +675,7 @@ static int plooptool_snapshot_delete(int argc, char **argv)
 
 void usage_snapshot_merge(void)
 {
-	fprintf(stderr, "Usage: ploop snapshot-merge [-u <uuid>] DiskDescriptor.xml]\n"
+	fprintf(stderr, "Usage: ploop snapshot-merge [-u <uuid>] DiskDescriptor.xml\n"
 			"       -u <uuid>     snapshot uuid (top delta if not specified)\n");
 }
 
