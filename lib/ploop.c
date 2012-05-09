@@ -32,7 +32,6 @@
 #include <fcntl.h>
 #include <sys/vfs.h>
 #include <sys/syscall.h>
-#include <assert.h>
 #include <mntent.h>
 
 #include "ploop.h"
