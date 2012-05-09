@@ -155,7 +155,7 @@ int find_delta_names(const char * device, int start_level, int end_level,
 	return 0;
 }
 
-int ploop_get_attr(const char * device, char * attr, int * res)
+int ploop_get_attr(const char * device, const char * attr, int * res)
 {
 	FILE * fp;
 	char nbuf[4096];

@@ -169,7 +169,7 @@ extern const char *prl_uuid2str(unsigned char *in, char *out, int len);
 extern int find_delta_names(const char * device, int start_level, int end_level,
 			    char **names, char ** format);
 extern int find_topdelta_name(const char *device, char **image);
-extern int ploop_get_attr(const char * device, char * attr, int * res);
+extern int ploop_get_attr(const char * device, const char * attr, int * res);
 extern int ploop_get_delta_attr(const char * device, int level, char * attr, int * res);
 extern int ploop_get_delta_attr_str(const char * device, int level, char * attr, char *nbuf, int nbuf_len);
 extern int ploop_get_size(const char * device, off_t * res);
