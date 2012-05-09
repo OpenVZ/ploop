@@ -665,7 +665,7 @@ static int plooptool_snapshot_delete(int argc, char **argv)
 
 void usage_snapshot_merge(void)
 {
-	fprintf(stderr, "Usage: ploop snapshot-merge [-u <uuid>] DiskDescriptor.xml\n"
+	fprintf(stderr, "Usage: ploop snapshot-merge [-u <uuid> | -A] DiskDescriptor.xml\n"
 			"       -u <uuid>     snapshot uuid (top delta if not specified)\n");
 }
 
@@ -692,6 +692,7 @@ int plooptool_snapshot_merge(int argc, char ** argv)
 	argv += optind;
 
 	if (param.guid != NULL && param.merge_all != 0) {
+		fprintf(stderr, "Options -u and -A can't be used together\n");
 		usage_snapshot_merge();
 		return 1;
 	}
