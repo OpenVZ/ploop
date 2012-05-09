@@ -706,7 +706,7 @@ int plooptool_snapshot_merge(int argc, char ** argv)
 		return 1;
 	}
 
-	if (argc == 1 && strstr(argv[0], DISKDESCRIPTOR_XML)) {
+	if (argc == 1 && is_xml_fname(argv[0])) {
 		struct ploop_disk_images_data *di;
 
 
