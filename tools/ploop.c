@@ -570,7 +570,7 @@ static int plooptool_snapshot(int argc, char **argv)
 			return -1;
 		}
 		if (ploop_get_attr(device, "block_size", (int*) &blocksize))
-			return 1;
+			return -1;
 		ret = create_snapshot(device, argv[0], blocksize, syncfs);
 	}
 
@@ -694,7 +694,7 @@ int plooptool_snapshot_merge(int argc, char ** argv)
 	if (param.guid != NULL && param.merge_all != 0) {
 		fprintf(stderr, "Options -u and -A can't be used together\n");
 		usage_snapshot_merge();
-		return 1;
+		return -1;
 	}
 
 	if (argc == 1 && is_xml_fname(argv[0])) {
@@ -708,7 +708,7 @@ int plooptool_snapshot_merge(int argc, char ** argv)
 		ploop_free_diskdescriptor(di);
 	} else {
 		usage_snapshot_merge();
-		return 1;
+		return -1;
 	}
 
 	return ret;
