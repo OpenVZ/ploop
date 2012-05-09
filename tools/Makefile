@@ -9,8 +9,8 @@ PROGS =	ploop \
 	ploop-balloon
 
 MANS	= ploop.8
-OBJS	= $(addsuffix .o,$(PROGS))
-SOURCES	= $(addsuffix .c,$(PROGS))
+OBJS	= $(addsuffix .o,$(PROGS)) common.o
+SOURCES	= $(addsuffix .c,$(PROGS)) common.c
 CFLAGS	+= -I../lib
 LDFLAGS	+= -L../lib
 LDLIBS	+= -lploop
@@ -20,9 +20,9 @@ all: $(PROGS)
 
 $(PROGS): $(LIBPLOOP)
 
-%: %.o
+%: %.o common.o
 	$(E) "  LD      " $@
-	$(Q) $(CC) $(LDFLAGS) $< $(LDLIBS) -o $@
+	$(Q) $(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
 
 .depend: $(SOURCES)
 -include .depend

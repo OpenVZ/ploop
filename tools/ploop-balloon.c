@@ -30,6 +30,7 @@
 #include <string.h>
 
 #include "ploop.h"
+#include "common.h"
 
 char  *mount_point;
 int    force;	   /* do not flock hidden balloon */

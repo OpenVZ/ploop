@@ -184,7 +184,6 @@ extern int open_delta(struct delta * delta, const char * path, int rw, int od_fl
 extern int open_delta_simple(struct delta * delta, const char * path, int rw, int od_flags);
 extern int dirty_delta(struct delta * delta);
 extern int clear_delta(struct delta * delta);
-extern int parse_size(char * opt, off_t * sz);
 extern int read_size_from_image(const char *img_name, int raw, off_t * res);
 extern int grow_delta(struct delta *odelta, off_t bdsize, void *buf,
 		       struct grow_maps *gm);

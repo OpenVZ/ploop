@@ -252,49 +252,6 @@ int clear_delta(struct delta * delta)
 	return rc;
 }
 
-int parse_size(char * opt, off_t * sz)
-{
-	__u64 val;
-	char * endptr;
-
-	val = strtoul(opt, &endptr, 0);
-
-	if (opt == endptr)
-		return -1;
-
-	if (strlen(endptr) > 1)
-		return -1;
-
-	switch (*endptr) {
-	case 'G': case 'g':
-		if (val >= ~0ULL/(1024*1024*1024/512))
-			return -1;
-		val *= 1024*1024*1024/512;
-		*sz = val;
-		break;
-	case 'M': case 'm':
-		if (val >= ~0ULL/(1024*1024/512))
-			return -1;
-		val *= 1024*1024/512;
-		*sz = val;
-		break;
-	case 'K': case 'k':
-		if (val >= ~0ULL/(1024/512))
-			return -1;
-		val *= 1024/512;
-		*sz = val;
-		break;
-	case 0:
-		*sz = (off_t)val;
-		break;
-	default:
-		return -1;
-	}
-	if (val >= (0xffffffffULL << PLOOP1_SECTOR_LOG))
-		return -1;
-	return 0;
-}
-
 static int READ(struct delta * delta, void * buf, unsigned int size, off_t pos)
 {
 	ssize_t res;

@@ -29,6 +29,7 @@
 #include <signal.h>
 
 #include "ploop.h"
+#include "common.h"
 
 static struct ploop_cancel_handle *_s_cancel_handle;
 

@@ -29,6 +29,7 @@
 #include <string.h>
 
 #include "ploop.h"
+#include "common.h"
 
 int raw;
 struct delta delta;
