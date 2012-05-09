@@ -93,7 +93,7 @@ struct ploop_snapshot_param {
 };
 
 struct ploop_merge_param {
-	int merge_top_only;
+	int unused1;
 	int merge_all;
 	const char *guid;
 	char dummy[32];

@@ -315,7 +315,7 @@ int read_line(const char *path, char *nbuf, int len);
 int is_valid_blocksize(__u32 blocksize);
 
 // merge
-int get_delta_info(const char *device, int merge_top_only, struct merge_info *info);
+int get_delta_info(const char *device, struct merge_info *info);
 int merge_image(const char *device, int start_level, int end_level, int raw, int merge_top,
 		char **images);
 int merge_image_local(const char *device, int start_level, int end_level, int raw, int merge_top,

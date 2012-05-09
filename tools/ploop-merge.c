@@ -119,7 +119,7 @@ int main(int argc, char ** argv)
 
 			info.start_level = start_level;
 			info.end_level = end_level;
-			if ((ret = get_delta_info(device, param.merge_top_only, &info)))
+			if ((ret = get_delta_info(device, &info)))
 				return ret;
 			start_level = info.start_level;
 			end_level = info.end_level;

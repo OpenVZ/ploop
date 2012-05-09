@@ -228,7 +228,7 @@ done:
 	return ret;
 }
 
-int get_delta_info(const char *device, int merge_top_only, struct merge_info *info)
+int get_delta_info(const char *device, struct merge_info *info)
 {
 	char *fmt;
 
@@ -242,10 +242,7 @@ int get_delta_info(const char *device, int merge_top_only, struct merge_info *in
 		return SYSEXIT_PARAM;
 	}
 
-	if (merge_top_only) {
-		info->start_level = info->top_level - 1;
-		info->end_level = info->top_level;
-	} else if (info->end_level == 0) {
+	if (info->end_level == 0) {
 		info->end_level = info->top_level;
 	}
 
@@ -696,7 +693,7 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 		online = 1;
 
 	if (online) {
-		if ((ret = get_delta_info(dev, 0, &info)))
+		if ((ret = get_delta_info(dev, &info)))
 			goto err;
 		nelem = get_list_size(info.names);
 		for (i = 0; info.names[i] != NULL; i++) {
