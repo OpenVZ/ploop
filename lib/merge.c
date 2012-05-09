@@ -690,8 +690,7 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 	if (online) {
 		if ((ret = get_delta_info(dev, 0, &info)))
 			goto err;
-		for (nelem = 0; info.names[nelem] != NULL; nelem++)
-			;
+		nelem = get_list_size(info.names);
 		for (i = 0; info.names[i] != NULL; i++) {
 			ret = ploop_fname_cmp(info.names[i], child_fname);
 			if (ret == -1) {
