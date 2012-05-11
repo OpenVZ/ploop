@@ -157,6 +157,20 @@ err:
 	return NULL;
 }
 
+static int get_snapshot_count(struct ploop_disk_images_data *di)
+{
+	int n;
+	char **images;
+
+	images = make_images_list(di, di->top_guid, 1);
+	if (images == NULL)
+		return -1;
+	n = get_list_size(images);
+	free_images_list(images);
+
+	return n;
+}
+
 void free_images_list(char **images)
 {
 	int i;
@@ -1785,6 +1799,7 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 	char conf[MAXPATHLEN];
 	char conf_tmp[MAXPATHLEN];
 	int online = 0;
+	int n;
 
 	ret = not_supported_for_vm(di);
 	if (ret)
@@ -1818,6 +1833,20 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 			ploop_di_change_guid(di, di->top_guid, param->guid);
 		else
 			strcpy(uuid, param->guid);
+	}
+	n = get_snapshot_count(di);
+	if (n == -1) {
+		ret = SYSEXIT_PARAM;
+		goto err_cleanup1;
+	} else if (n > 128-2) {
+		/* The number of images limited by 128
+		   so the snapshot limit 128 - base_image - one_reserverd
+		 */
+		ret = SYSEXIT_PARAM;
+		ploop_err(errno, "Unable to create a snapshot."
+			" The maximum number of snapshots (%d) has been reached.",
+			n-1);
+		goto err_cleanup1;
 	}
 	snprintf(fname, sizeof(fname), "%s.%s",
 			di->images[0]->file, uuid1);
