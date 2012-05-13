@@ -29,12 +29,12 @@
 #include <malloc.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
-#include <getopt.h>
 #include <linux/types.h>
 #include <string.h>
 
 #include "ploop.h"
 
+/* FIXME: handle variable block size */
 #define CLUSTER DEF_CLUSTER
 
 static int send_buf(int ofd, void *iobuf, int len, off_t pos)
@@ -52,6 +52,104 @@ static int send_buf(int ofd, void *iobuf, int len, off_t pos)
 		return -1;
 	}
 	return 0;
+}
+
+static int nread(int fd, void * buf, int len)
+{
+	while (len) {
+		int n;
+
+		n = read(fd, buf, len);
+		if (n < 0) {
+			if (errno == EINTR)
+				continue;
+			return -1;
+		}
+		if (n == 0)
+			break;
+		len -= n;
+		buf += n;
+	}
+
+	if (len == 0)
+		return 0;
+
+	errno = EIO;
+	return -1;
+}
+
+int receive_process(const char *dst)
+{
+	int ofd, ret;
+	unsigned long iobuf[CLUSTER/sizeof(unsigned long)];
+
+	if (isatty(0) || errno == EBADF) {
+		ploop_err(errno, "Invalid input stream: must be pipelined "
+				"to a pipe or a socket");
+		return SYSEXIT_PARAM;
+	}
+
+	ofd = open(dst, O_WRONLY|O_CREAT|O_EXCL, 0600);
+	if (ofd < 0) {
+		ploop_err(errno, "Can't open %s", dst);
+		return SYSEXIT_CREAT;
+	}
+
+	for (;;) {
+		int n;
+		struct xfer_desc desc;
+
+		if (nread(0, &desc, sizeof(desc)) < 0) {
+			ploop_err(0, "Error in nread(desc)");
+			ret = SYSEXIT_READ;
+			goto out;
+		}
+		if (desc.marker != PLOOPCOPY_MARKER) {
+			ploop_err(0, "Stream corrupted");
+			ret = SYSEXIT_PROTOCOL;
+			goto out;
+		}
+		if (desc.size > CLUSTER) {
+			ploop_err(0, "Stream corrupted, too long chunk");
+			ret = SYSEXIT_PROTOCOL;
+			goto out;
+		}
+		if (desc.size == 0)
+			break;
+
+		if (nread(0, iobuf, desc.size)) {
+			ploop_err(errno, "Error in nread data");
+			ret = SYSEXIT_READ;
+			goto out;
+		}
+		n = pwrite(ofd, iobuf, desc.size, desc.pos);
+		if (n != desc.size) {
+			if (n < 0)
+				ploop_err(errno, "Error in pwrite");
+			else
+				ploop_err(0, "Error: short pwrite");
+			ret = SYSEXIT_WRITE;
+			goto out;
+		}
+	}
+
+	if (fsync(ofd)) {
+		ploop_err(errno, "Error in fsync");
+		ret = SYSEXIT_WRITE;
+		goto out;
+	}
+	ret = 0;
+
+out:
+	if (close(ofd)) {
+		ploop_err(errno, "Error in close");
+		if (!ret)
+			ret = SYSEXIT_WRITE;
+	}
+	if (ret)
+		unlink(dst);
+
+	return ret;
 }
 
 static int get_image_info(const char *device, char **send_from_p, char **format_p)
