@@ -160,34 +160,34 @@ enum {
 	PLOOP_MERGE_WITH_PARENT = 1,
 };
 
-extern int send_process(const char *device, int ofd, const char *flush_cmd);
+int send_process(const char *device, int ofd, const char *flush_cmd);
 
-extern int uuid_new(unsigned char * uuid);
+int uuid_new(unsigned char * uuid);
 int gen_uuid_pair(char *uuid1, int len1, char *uuid2, int len2);
-extern const char *prl_uuid2str(unsigned char *in, char *out, int len);
+const char *prl_uuid2str(unsigned char *in, char *out, int len);
 
-extern int find_delta_names(const char * device, int start_level, int end_level,
+int find_delta_names(const char * device, int start_level, int end_level,
 			    char **names, char ** format);
-extern int find_topdelta_name(const char *device, char **image);
-extern int ploop_get_attr(const char * device, const char * attr, int * res);
-extern int ploop_get_delta_attr(const char * device, int level, char * attr, int * res);
-extern int ploop_get_delta_attr_str(const char * device, int level, char * attr, char *nbuf, int nbuf_len);
-extern int ploop_get_size(const char * device, off_t * res);
+int find_topdelta_name(const char *device, char **image);
+int ploop_get_attr(const char * device, const char * attr, int * res);
+int ploop_get_delta_attr(const char * device, int level, char * attr, int * res);
+int ploop_get_delta_attr_str(const char * device, int level, char * attr, char *nbuf, int nbuf_len);
+int ploop_get_size(const char * device, off_t * res);
 int dev_num2dev_start(const char *device, dev_t dev_num, __u32 *dev_start);
 int ploop_get_top_level(int devfd, const char *devname, int *top);
 
-extern int init_delta_array(struct delta_array *);
+int init_delta_array(struct delta_array *);
 void deinit_delta_array(struct delta_array * p);
-extern int extend_delta_array(struct delta_array * p, char * path, int rw, int od_flags);
-extern void close_delta(struct delta *delta);
-extern int open_delta(struct delta * delta, const char * path, int rw, int od_flags);
-extern int open_delta_simple(struct delta * delta, const char * path, int rw, int od_flags);
-extern int dirty_delta(struct delta * delta);
-extern int clear_delta(struct delta * delta);
-extern int read_size_from_image(const char *img_name, int raw, off_t * res);
-extern int grow_delta(struct delta *odelta, off_t bdsize, void *buf,
+int extend_delta_array(struct delta_array * p, char * path, int rw, int od_flags);
+void close_delta(struct delta *delta);
+int open_delta(struct delta * delta, const char * path, int rw, int od_flags);
+int open_delta_simple(struct delta * delta, const char * path, int rw, int od_flags);
+int dirty_delta(struct delta * delta);
+int clear_delta(struct delta * delta);
+int read_size_from_image(const char *img_name, int raw, off_t * res);
+int grow_delta(struct delta *odelta, off_t bdsize, void *buf,
 		       struct grow_maps *gm);
-extern int grow_raw_delta(const char *image, off_t append_size);
+int grow_raw_delta(const char *image, off_t append_size);
 int ploop_grow_device(const char *device, __u32 blocksize, off_t new_size);
 
 struct pfiemap *fiemap_alloc(int n);
