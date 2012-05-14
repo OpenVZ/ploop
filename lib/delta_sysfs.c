@@ -37,30 +37,6 @@ char *make_sysfs_dev_name(int minor, char *buf, int len)
 	return buf;
 }
 
-int find_topdelta_name(const char *device, char **image)
-{
-	int top_level = 0;
-	char *fmt;
-
-	if (ploop_get_attr(device, "top", &top_level)) {
-		ploop_err(0, "Can't find top delta");
-		return SYSEXIT_SYSFS;
-	}
-
-	if (top_level == 0) {
-		ploop_err(0, "Single delta, nothing to merge");
-		return SYSEXIT_PARAM;
-	}
-
-	if (find_delta_names(device, top_level, top_level,
-			     image, &fmt)) {
-		ploop_err(errno, "find_delta_names");
-		return(SYSEXIT_SYSFS);
-	}
-
-	return 0;
-}
-
 int ploop_find_top_delta_name_and_format(
 		const char *device,
 		char *image,

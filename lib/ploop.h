@@ -169,7 +169,6 @@ int gen_uuid_pair(char *uuid1, int len1, char *uuid2, int len2);
 
 int find_delta_names(const char * device, int start_level, int end_level,
 			    char **names, char ** format);
-int find_topdelta_name(const char *device, char **image);
 PL_EXT int ploop_get_attr(const char * device, const char * attr, int * res);
 int ploop_get_delta_attr(const char * device, int level, char * attr, int * res);
 int ploop_get_delta_attr_str(const char * device, int level, char * attr, char *nbuf, int nbuf_len);
