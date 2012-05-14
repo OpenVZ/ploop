@@ -278,7 +278,6 @@ void unregister_ploop_dev(const char *module, const char *image);
 char *mntn2str(int mntn_type);
 int get_balloon(const char *mount_point, struct stat *st, int *outfd);
 int ploop_balloon_change_size(const char *device, int balloonfd, off_t new_size);
-int ploop_balloon_change_size_local(const char *device, int balloonfd, off_t new_size);
 int ploop_balloon_get_state(const char *device, __u32 *state);
 int ploop_balloon_clear_state(const char *device);
 int ploop_balloon_complete(const char *device);
@@ -317,8 +316,6 @@ int is_valid_blocksize(__u32 blocksize);
 // merge
 int get_delta_info(const char *device, struct merge_info *info);
 int merge_image(const char *device, int start_level, int end_level, int raw, int merge_top,
-		char **images);
-int merge_image_local(const char *device, int start_level, int end_level, int raw, int merge_top,
 		char **images);
 int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *guid, int merge_mode);
 
