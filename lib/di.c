@@ -220,27 +220,6 @@ void ploop_free_diskdescriptor(struct ploop_disk_images_data *di)
 	free(di);
 }
 
-static int find_image_by_name(struct ploop_disk_images_data *di, char *name)
-{
-	int i;
-	char *n1, *n2;
-
-	if ((n1 = strrchr(name, '/')) != NULL)
-		n1++;
-	else
-		n1 = name;
-
-	for (i = 0; i < di->nimages; i++) {
-		if ((n2 = strrchr(di->images[i]->file, '/')) != NULL)
-			n2++;
-		else
-			n2 = di->images[i]->file;
-		if (strcmp(n1, n2) == 0)
-			return i;
-	}
-	return -1;
-}
-
 static int find_image_idx_by_guid(struct ploop_disk_images_data *di, const char *guid)
 {
 	int i;
@@ -319,43 +298,6 @@ int ploop_get_child_count_by_uuid(struct ploop_disk_images_data *di, const char 
 		if (guidcmp(di->snapshots[i]->parent_guid, guid) == 0)
 			n++;
 	return n;
-}
-
-int ploop_remove_images(struct ploop_disk_images_data *di, char **images, char ***images_out)
-{
-	int i, id;
-	struct ploop_image_data *image;
-	char **images2;
-
-	images2 = calloc(di->nimages + 1, sizeof(char *));
-	if (images2 == NULL)
-		return SYSEXIT_MALLOC;
-	*images_out = images2;
-
-	for (i = 0; images[i] != NULL; i++) {
-		id = find_image_by_name(di, images[i]);
-		if (id == -1)
-			continue;
-
-		image = di->images[id];
-		*images2++ = strdup(di->images[id]->file);
-
-		remove_data_from_array((void**)di->images, di->nimages, id);
-		di->nimages--;
-		// update Snapshots
-		id = find_snapshot_by_guid(di, image->guid);
-		if (id != -1) {
-			free_snapshot_data(di->snapshots[id]);
-			remove_data_from_array((void**)di->snapshots, di->nsnapshots, id);
-			di->nsnapshots--;
-		}
-
-		free_image_data(image);
-	}
-	free(di->top_guid);
-	di->top_guid = NULL;
-
-	return 0;
 }
 
 int ploop_di_remove_image(struct ploop_disk_images_data *di, const char *guid, char **fname)
