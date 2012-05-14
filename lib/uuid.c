@@ -70,33 +70,6 @@ int uuid_new(unsigned char * uuid)
 	return 0;
 }
 
-int ploop_uuid_generate(char *uuid, int len)
-{
-	int ret;
-	unsigned char uu[16];
-
-	ret = uuid_new(uu);
-	if (ret) {
-		ploop_err(errno, "Can't generate uuid");
-		return ret;
-	}
-	prl_uuid2str(uu, uuid, len);
-	return 0;
-}
-
-int gen_uuid_pair(char *uuid1, int len1, char *uuid2, int len2)
-{
-	int ret;
-
-	ret = ploop_uuid_generate(uuid1, len1);
-	if (ret)
-		return ret;
-	ret = ploop_uuid_generate(uuid2, len2);
-	if (ret)
-		return ret;
-	return 0;
-}
-
 static void uuid_unpack(unsigned char *in, struct helper_uuid_t  *uu)
 {
 	unsigned char *ptr = in;
@@ -136,7 +109,7 @@ static const char *uuid2str(unsigned char *in, char *out, int len)
 	return out;
 }
 
-const char *prl_uuid2str(unsigned char *in, char *out, int len)
+static const char *prl_uuid2str(unsigned char *in, char *out, int len)
 {
 	assert(!(len < 39));
 
@@ -145,4 +118,31 @@ const char *prl_uuid2str(unsigned char *in, char *out, int len)
 	out[37] = '}';
 	out[38] = '\0';
 	return out;
+}
+
+int ploop_uuid_generate(char *uuid, int len)
+{
+	int ret;
+	unsigned char uu[16];
+
+	ret = uuid_new(uu);
+	if (ret) {
+		ploop_err(errno, "Can't generate uuid");
+		return ret;
+	}
+	prl_uuid2str(uu, uuid, len);
+	return 0;
+}
+
+int gen_uuid_pair(char *uuid1, int len1, char *uuid2, int len2)
+{
+	int ret;
+
+	ret = ploop_uuid_generate(uuid1, len1);
+	if (ret)
+		return ret;
+	ret = ploop_uuid_generate(uuid2, len2);
+	if (ret)
+		return ret;
+	return 0;
 }

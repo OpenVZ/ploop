@@ -162,9 +162,7 @@ enum {
 
 int send_process(const char *device, int ofd, const char *flush_cmd);
 
-int uuid_new(unsigned char * uuid);
 int gen_uuid_pair(char *uuid1, int len1, char *uuid2, int len2);
-const char *prl_uuid2str(unsigned char *in, char *out, int len);
 
 int find_delta_names(const char * device, int start_level, int end_level,
 			    char **names, char ** format);
