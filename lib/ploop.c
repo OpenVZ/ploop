@@ -91,7 +91,7 @@ int sys_fallocate(int fd, int mode, off_t offset, off_t len)
 	return syscall(__NR_fallocate, fd, mode, offset, len);
 }
 
-char **make_images_list(struct ploop_disk_images_data *di, char *guid, int reverse)
+static char **make_images_list(struct ploop_disk_images_data *di, char *guid, int reverse)
 {
 	int n;
 	char **images;
@@ -655,7 +655,7 @@ int ploop_getdevice(int *minor)
 }
 
 /* Workaround for bug #PCLIN-30116 */
-int do_ioctl(int fd, int req)
+static int do_ioctl(int fd, int req)
 {
 	int i, ret;
 
@@ -682,7 +682,7 @@ int do_umount(const char *mnt)
 	return ret;
 }
 
-int delete_deltas(int devfd, const char *devname)
+static int delete_deltas(int devfd, const char *devname)
 {
 	int top;
 

@@ -35,6 +35,12 @@
 
 #define MIN(a, b) (a < b ? a : b)
 
+static void range_fix_gaps(struct freemap *freemap, __u32 iblk_start, __u32 iblk_end,
+		    __u32 n_to_fix, __u32 *rmap);
+static int range_split(struct freemap *rangemap, struct freemap *freemap,
+		 struct relocmap **relocmap_pp);
+
+
 struct pfiemap *fiemap_alloc(int n)
 {
 	int len = offsetof(struct pfiemap, extents[n]);
@@ -484,7 +490,7 @@ int freeblks2freemap(struct ploop_freeblks_ctl *freeblks,
 	return 0;
 }
 
-int range_build_rmap(__u32 iblk_start, __u32 iblk_end,
+static int range_build_rmap(__u32 iblk_start, __u32 iblk_end,
 		       __u32 *rmap, __u32 rlen, struct delta *delta, __u32 *out)
 {
 	__u32 clu;
@@ -586,8 +592,7 @@ int range_build(__u32 a_h, __u32 n_free_blocks,
 	return 0;
 }
 
-
-void range_fix_gaps(struct freemap *freemap, __u32 iblk_start, __u32 iblk_end,
+static void range_fix_gaps(struct freemap *freemap, __u32 iblk_start, __u32 iblk_end,
 		    __u32 n_to_fix, __u32 *rmap)
 {
 	__u32 ridx;
@@ -660,7 +665,7 @@ int relocmap_add_extent(struct relocmap **relocmap_pp,
 	return 0;
 }
 
-int range_split(struct freemap *rangemap, struct freemap *freemap,
+static int range_split(struct freemap *rangemap, struct freemap *freemap,
 		 struct relocmap **relocmap_pp)
 {
 	int i, ret;

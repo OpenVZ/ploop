@@ -171,7 +171,6 @@ int find_delta_names(const char * device, int start_level, int end_level,
 			    char **names, char ** format);
 PL_EXT int ploop_get_attr(const char * device, const char * attr, int * res);
 int ploop_get_delta_attr(const char * device, int level, char * attr, int * res);
-int ploop_get_delta_attr_str(const char * device, int level, char * attr, char *nbuf, int nbuf_len);
 int ploop_get_size(const char * device, off_t * res);
 int dev_num2dev_start(const char *device, dev_t dev_num, __u32 *dev_start);
 int ploop_get_top_level(int devfd, const char *devname, int *top);
@@ -206,8 +205,6 @@ int freemap2freeblks(struct freemap *freemap,
 int freeblks2freemap(struct ploop_freeblks_ctl *freeblks,
 		       struct freemap **freemap_pp, __u32 *total);
 
-int range_build_rmap(__u32 iblk_start, __u32 iblk_end,
-		       __u32 *rmap, __u32 rlen, struct delta *delta, __u32 *out);
 int range_build(__u32 a_h, __u32 n_free_blocks,
 		__u32 *rmap, __u32 rlen,
 		struct delta     *delta,
@@ -215,14 +212,7 @@ int range_build(__u32 a_h, __u32 n_free_blocks,
 		struct freemap  **rangemap_pp,
 		struct relocmap **relocmap_pp);
 
-void range_fix_gaps(struct freemap *freemap, __u32 iblk_start, __u32 iblk_end,
-		    __u32 n_to_fix, __u32 *rmap);
-int range_split(struct freemap *rangemap, struct freemap *freemap,
-		 struct relocmap **relocmap_pp);
-
 struct relocmap *relocmap_alloc(int n);
-int relocmap_add_extent(struct relocmap **relocmap_pp,
-			 __u32 clu, __u32 iblk, __u32 len, __u32 free);
 struct ploop_relocblks_ctl;
 int relocmap2relocblks(struct relocmap *relocmap, int lvl, __u32 a_h, __u32 n_scanned,
 			struct ploop_relocblks_ctl **relocblks_pp);
@@ -246,7 +236,6 @@ char *make_sysfs_dev_name(int minor, char *buf, int len);
 PL_EXT int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		struct ploop_mount_param *param, int raw);
 PL_EXT int create_snapshot(const char *device, const char *delta, __u32 blocksize, int syncfs);
-char **make_images_list(struct ploop_disk_images_data *di, char *guid, int reverse);
 void free_images_list(char **images);
 int PWRITE(struct delta * delta, void * buf, unsigned int size, off_t off);
 int PREAD(struct delta * delta, void *buf, unsigned int size, off_t off);
@@ -254,8 +243,6 @@ void get_disk_descriptor_fname(struct ploop_disk_images_data *di, char *buf, int
 void get_disk_descriptor_lock_fname(struct ploop_disk_images_data *di, char *out, int size);
 int ploop_find_dev_by_uuid(struct ploop_disk_images_data *di, int check_state, char *out, int len);
 int sys_fallocate(int fd, int mode, off_t offset, off_t len);
-
-int delete_deltas(int devfd, const char *devname);
 
 // manage struct ploop_disk_images_data
 int ploop_di_add_image(struct ploop_disk_images_data *di, const char *fname,
@@ -297,7 +284,6 @@ int create_gpt_partition(const char *dev, off_t size, __u32 blocksize);
 int resize_gpt_partition(const char *devname);
 
 // misc
-int do_ioctl(int fd, int req);
 void get_basedir(const char *fname, char *out, int len);
 __u32 crc32(const unsigned char *buf, unsigned long len);
 int ploop_is_on_nfs(const char *path);
