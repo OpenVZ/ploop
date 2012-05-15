@@ -39,7 +39,7 @@ char  *device;	   /* ploop device name (e.g. /dev/ploop0) */
 
 struct delta delta;
 
-void usage_summary(void)
+static void usage_summary(void)
 {
 	fprintf(stderr, "Usage: ploop-balloon { show | status | clear | change | complete | check | repair | discard } ...\n"
 			"Use \"ploop-balloon cmd\" to get more info about cmd\n"

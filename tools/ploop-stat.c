@@ -31,7 +31,7 @@
 int clear;
 int load;
 
-void usage(void)
+static void usage(void)
 {
 	fprintf(stderr, "Usage: ploop stat [-c | [-l] DEVICE]\n");
 }

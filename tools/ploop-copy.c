@@ -28,7 +28,7 @@
 #include <sys/stat.h>
 #include "libploop.h"
 
-void usage(void)
+static void usage(void)
 {
 	fprintf(stderr, "Usage: ploop-copy -s DEVICE [-F STOPCOMMAND]\n"
 			"       ploop-copy -d DESTINATION\n");

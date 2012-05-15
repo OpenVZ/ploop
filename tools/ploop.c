@@ -33,7 +33,7 @@
 
 static struct ploop_cancel_handle *_s_cancel_handle;
 
-void usage_summary(void)
+static void usage_summary(void)
 {
 	fprintf(stderr, "Usage: ploop init -s SIZE [-f FORMAT] NEW_DELTA\n"
 			"       ploop mount [-rP] [-f raw] [-d DEVICE] BASE_DELTA [ ... TOP_DELTA ]\n"
@@ -663,13 +663,13 @@ static int plooptool_snapshot_delete(int argc, char **argv)
 	return ret;
 }
 
-void usage_snapshot_merge(void)
+static void usage_snapshot_merge(void)
 {
 	fprintf(stderr, "Usage: ploop snapshot-merge [-u <uuid> | -A] DiskDescriptor.xml\n"
 			"       -u <uuid>     snapshot uuid (top delta if not specified)\n");
 }
 
-int plooptool_snapshot_merge(int argc, char ** argv)
+static int plooptool_snapshot_merge(int argc, char ** argv)
 {
 	int i, ret;
 	struct ploop_merge_param param = {};

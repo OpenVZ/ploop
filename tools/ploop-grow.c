@@ -36,7 +36,7 @@ struct delta delta;
 struct ploop_pvd_header new_vh;
 char *device;
 
-void usage(char *pname)
+static void usage(char *pname)
 {
 	fprintf(stderr, "Usage: %s [-s NEW_SIZE] -d DEVICE\n"
 		        "       %s [-s NEW_SIZE] [-f raw] DELTA\n",

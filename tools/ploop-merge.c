@@ -32,7 +32,7 @@
 #include "ploop.h"
 #include "common.h"
 
-void usage(void)
+static void usage(void)
 {
 	fprintf(stderr, "Usage: ploop merge -d DEVICE [-l LEVEL[..TOP_LEVEL]]\n"
 			"       ploop merge [-f raw] DELTAS_TO_MERGE BASE_DELTA\n"
