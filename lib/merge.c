@@ -285,14 +285,6 @@ int get_delta_info(const char *device, struct merge_info *info)
 	return 0;
 }
 
-static int get_list_size(char **list)
-{
-	int i;
-	for (i = 0; list[i] != NULL; i++);
-
-	return i;
-}
-
 int merge_image(const char *device, int start_level, int end_level, int raw, int merge_top,
 		      char **images)
 {

@@ -91,6 +91,14 @@ int sys_fallocate(int fd, int mode, off_t offset, off_t len)
 	return syscall(__NR_fallocate, fd, mode, offset, len);
 }
 
+int get_list_size(char **list)
+{
+	int i;
+	for (i = 0; list[i] != NULL; i++);
+
+	return i;
+}
+
 static char **make_images_list(struct ploop_disk_images_data *di, char *guid, int reverse)
 {
 	int n;
