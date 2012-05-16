@@ -56,7 +56,7 @@ struct pfiemap *fiemap_alloc(int n)
 	return pfiemap;
 }
 
-int fiemap_add_extent(struct pfiemap **pfiemap_pp, __u64 pos, __u64 len)
+static int fiemap_add_extent(struct pfiemap **pfiemap_pp, __u64 pos, __u64 len)
 {
 	int i;
 	struct pfiemap *pfiemap = *pfiemap_pp;
@@ -632,7 +632,7 @@ struct relocmap *relocmap_alloc(int n)
 	return relocmap;
 }
 
-int relocmap_add_extent(struct relocmap **relocmap_pp,
+static int relocmap_add_extent(struct relocmap **relocmap_pp,
 			 __u32 clu, __u32 iblk, __u32 len, __u32 free)
 {
 	int i;

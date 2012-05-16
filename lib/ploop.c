@@ -57,7 +57,7 @@ static int not_supported_for_vm(struct ploop_disk_images_data *di)
 /* set cancel flag
  * Note: this function also clear the flag
  */
-int is_operation_cancelled(void)
+static int is_operation_cancelled(void)
 {
 	struct ploop_cancel_handle *cancel_data;
 
@@ -567,7 +567,7 @@ err:
 	return ret;
 }
 
-int ploop_drop_image(struct ploop_disk_images_data *di)
+static int ploop_drop_image(struct ploop_disk_images_data *di)
 {
 	int i;
 	char fname[MAXPATHLEN];
@@ -668,7 +668,7 @@ static int do_ioctl(int fd, int req)
 	return ret;
 }
 
-int do_umount(const char *mnt)
+static int do_umount(const char *mnt)
 {
 	int i, ret;
 

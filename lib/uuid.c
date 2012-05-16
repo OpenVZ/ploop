@@ -40,7 +40,7 @@ struct helper_uuid_t {
 	__u8  node[6];
 };
 
-int uuid_new(unsigned char * uuid)
+static int uuid_new(unsigned char * uuid)
 {
 	int res;
 	int fd;
