@@ -190,7 +190,6 @@ PL_EXT int grow_raw_delta(const char *image, off_t append_size);
 PL_EXT int ploop_grow_device(const char *device, __u32 blocksize, off_t new_size);
 
 struct pfiemap *fiemap_alloc(int n);
-int fiemap_add_extent(struct pfiemap **pfiemap_pp, __u64 pos, __u64 len);
 int fiemap_get(int fd, __u64 off, __u64 start, off_t size, struct pfiemap **pfiemap_pp);
 void fiemap_adjust(struct pfiemap *pfiemap, __u32 blocksize);
 int fiemap_build_rmap(struct pfiemap *pfiemap, __u32 *rmap, __u32 rlen, struct delta *delta);
