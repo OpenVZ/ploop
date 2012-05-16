@@ -1482,6 +1482,9 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		ret = ploop_balloon_change_size(mount_param.device,
 				balloonfd, new_balloon_size);
 	} else if (param->size > dev_size) {
+		char conf[MAXPATHLEN];
+		char conf_tmp[MAXPATHLEN];
+
 		// GROW
 		if (balloon_size != 0) {
 			ret = ploop_balloon_change_size(mount_param.device,
@@ -1489,9 +1492,27 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			if (ret)
 				goto err;
 		}
-		ret = ploop_grow_device(mount_param.device, di->blocksize, param->size);
+		// Update size in the DiskDescriptor.xml
+		di->size = param->size;
+		get_disk_descriptor_fname(di, conf, sizeof(conf));
+		snprintf(conf_tmp, sizeof(conf_tmp), "%s.tmp", conf);
+		ret = ploop_store_diskdescriptor(conf_tmp, di);
 		if (ret)
 			goto err;
+
+		ret = ploop_grow_device(mount_param.device, di->blocksize, param->size);
+		if (ret) {
+			unlink(conf_tmp);
+			goto err;
+		}
+
+		if (rename(conf_tmp, conf)) {
+			ploop_err(errno, "Can't rename %s to %s",
+					conf_tmp, conf);
+			ret = SYSEXIT_RENAME;
+			goto err;
+		}
+
 		ret = resize_fs(mount_param.device);
 		if (ret)
 			goto err;
