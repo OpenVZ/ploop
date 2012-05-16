@@ -50,7 +50,7 @@ static int not_supported_for_vm(struct ploop_disk_images_data *di)
 	if (!di->runtime->vm_compat)
 		return 0;
 
-	ploop_err(0, "Operation is not supported for Vm");
+	ploop_err(0, "Operation is not supported for VM");
 	return SYSEXIT_PARAM;
 }
 
