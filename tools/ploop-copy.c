@@ -25,6 +25,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <signal.h>
 #include <sys/stat.h>
 #include "libploop.h"
 
@@ -73,6 +74,8 @@ int main(int argc, char **argv)
 		usage();
 		return SYSEXIT_PARAM;
 	}
+
+	signal(SIGPIPE, SIG_IGN);
 
 	if (!device)
 		return receive_process(recv_to);
