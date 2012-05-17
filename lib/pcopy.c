@@ -303,6 +303,8 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 		goto done;
 	}
 
+	ploop_log(0, "Sending %s", send_from);
+
 	send_header(ofd, vh->m_Sectors);
 
 	trackend = e.end;
