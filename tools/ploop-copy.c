@@ -41,6 +41,8 @@ int main(int argc, char **argv)
 	const char *recv_to = NULL;
 	const char *flush_cmd = NULL;
 
+	ploop_set_verbose_level(3);
+
 	while ((i = getopt(argc, argv, "F:s:d:")) != EOF) {
 		switch (i) {
 		case 'd':
