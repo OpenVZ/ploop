@@ -39,18 +39,32 @@
 
 static int send_buf(int ofd, void *iobuf, int len, off_t pos)
 {
+	struct xfer_desc desc = { .marker = PLOOPCOPY_MARKER };
 	int n;
 
 	if (len == 0)
 		return 0;
 
-	n = pwrite(ofd, iobuf, len, pos);
+	/* Header */
+	desc.size = len;
+	desc.pos = pos;
+	n = write(ofd, &desc, sizeof(desc));
+	if (n < 0)
+		return -1;
+	if (n != sizeof(desc)) {
+		errno = EIO;
+		return -1;
+	}
+
+	/* Data */
+	n = write(ofd, iobuf, len);
 	if (n < 0)
 		return n;
 	if (n != len) {
 		errno = EIO;
 		return -1;
 	}
+
 	return 0;
 }
 
