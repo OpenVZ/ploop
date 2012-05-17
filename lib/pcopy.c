@@ -527,8 +527,6 @@ done:
 		close(devfd);
 	if (send_from)
 		free(send_from);
-	if (format)
-		free(format);
 	if (idelta.fd >= 0)
 		close_delta(&idelta);
 	if (vh)
