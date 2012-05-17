@@ -67,9 +67,6 @@ static int send_buf(int ofd, void *iobuf, int len, off_t pos)
 	struct xfer_desc desc = { .marker = PLOOPCOPY_MARKER };
 	int n;
 
-	if (len == 0)
-		return 0;
-
 	/* Header */
 	desc.size = len;
 	desc.pos = pos;
