@@ -34,8 +34,33 @@
 
 #include "ploop.h"
 
-/* FIXME: handle variable block size */
-#define CLUSTER DEF_CLUSTER
+struct xfer_header {
+	__u64 magic;
+#define XFER_HDR_MAGIC 0x726678706f6f6c70ULL
+	__u32 version;
+	__u32 blocksize;
+	__u32 padding[32-4];
+};
+
+static int send_header(int ofd, __u32 blocksize) {
+	int n;
+	struct xfer_header hdr = {
+		.magic		= XFER_HDR_MAGIC,
+		.version	= 1,
+	};
+
+	hdr.blocksize = blocksize;
+
+	n = write(ofd, &hdr, sizeof(hdr));
+	if (n < 0)
+		return -1;
+	if (n != sizeof(hdr)) {
+		errno = EIO;
+		return -1;
+	}
+
+	return 0;
+}
 
 static int send_buf(int ofd, void *iobuf, int len, off_t pos)
 {
@@ -97,7 +122,9 @@ static int nread(int fd, void * buf, int len)
 int receive_process(const char *dst)
 {
 	int ofd, ret;
-	unsigned long iobuf[CLUSTER/sizeof(unsigned long)];
+	struct xfer_header hdr;
+	__u64 cluster;
+	void *iobuf;
 
 	if (isatty(0) || errno == EBADF) {
 		ploop_err(errno, "Invalid input stream: must be pipelined "
@@ -111,6 +138,32 @@ int receive_process(const char *dst)
 		return SYSEXIT_CREAT;
 	}
 
+	/* Read header */
+	if (nread(0, &hdr, sizeof(hdr)) < 0) {
+		ploop_err(0, "Error in nread(hdr)");
+		ret = SYSEXIT_READ;
+		goto out;
+	}
+	if (hdr.magic != XFER_HDR_MAGIC) {
+		ploop_err(0, "Stream corrupted, bad xfer header magic");
+		ret = SYSEXIT_PROTOCOL;
+		goto out;
+	}
+	if (hdr.version != 1) {
+		ploop_err(0, "Unknown/unsupported stream version (%d)",
+				hdr.version);
+		ret = SYSEXIT_PROTOCOL;
+		goto out;
+	}
+	cluster = S2B(hdr.blocksize);
+
+	if (posix_memalign(&iobuf, 4096, cluster)) {
+		ploop_err(errno, "posix_memalign");
+		ret = SYSEXIT_MALLOC;
+		goto out;
+	}
+
+	/* Read data */
 	for (;;) {
 		int n;
 		struct xfer_desc desc;
@@ -125,7 +178,7 @@ int receive_process(const char *dst)
 			ret = SYSEXIT_PROTOCOL;
 			goto out;
 		}
-		if (desc.size > CLUSTER) {
+		if (desc.size > cluster) {
 			ploop_err(0, "Stream corrupted, too long chunk");
 			ret = SYSEXIT_PROTOCOL;
 			goto out;
@@ -282,8 +335,9 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 		goto done;
 	}
 
-	trackend = e.end;
+	send_header(ofd, vh->m_Sectors);
 
+	trackend = e.end;
 	for (pos = 0; pos < trackend; ) {
 		int n;
 
