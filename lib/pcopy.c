@@ -55,6 +55,8 @@ static int send_buf(int ofd, void *iobuf, int len, off_t pos)
 		errno = EIO;
 		return -1;
 	}
+	if (len == 0)
+		return 0;
 
 	/* Data */
 	n = write(ofd, iobuf, len);
