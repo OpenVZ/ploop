@@ -37,9 +37,9 @@ static void usage(void)
 int main(int argc, char **argv)
 {
 	int i, ofd;
-	const char *device;
-	const char *recv_to;
-	const char *flush_cmd;
+	const char *device = NULL;
+	const char *recv_to = NULL;
+	const char *flush_cmd = NULL;
 
 	while ((i = getopt(argc, argv, "F:s:d:")) != EOF) {
 		switch (i) {
