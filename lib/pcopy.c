@@ -510,12 +510,6 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 		goto done;
 	}
 
-	if (fsync(ofd)) {
-		ploop_err(errno, "fsync");
-		ret = SYSEXIT_WRITE;
-		goto done;
-	}
-
 done:
 	if (tracker_on) {
 		if (ioctl(devfd, PLOOP_IOC_TRACK_ABORT, 0))
