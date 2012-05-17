@@ -259,6 +259,9 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 	int iter;
 	struct ploop_track_extent e;
 
+	// Do not print anything on stdout, since we use it to send delta
+	ploop_set_verbose_level(-1);
+
 	devfd = open(device, O_RDONLY);
 	if (devfd < 0) {
 		ploop_err(errno, "open device");
@@ -303,7 +306,7 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 		goto done;
 	}
 
-	ploop_log(0, "Sending %s", send_from);
+	ploop_log(-1, "Sending %s", send_from);
 
 	send_header(ofd, vh->m_Sectors);
 
