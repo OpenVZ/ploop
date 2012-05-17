@@ -226,6 +226,9 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 	char *send_from = NULL;
 	char *format = NULL;
 	void *iobuf = NULL;
+	int res;
+	struct ploop_pvd_header *vh = NULL;
+	__u64 cluster;
 	__u64 pos;
 	__u64 iterpos;
 	__u64 trackpos;
@@ -233,12 +236,6 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 	__u64 xferred;
 	int iter;
 	struct ploop_track_extent e;
-
-	if (posix_memalign(&iobuf, 4096, CLUSTER)) {
-		ploop_err(errno, "posix_memalign");
-		ret = SYSEXIT_MALLOC;
-		goto done;
-	}
 
 	devfd = open(device, O_RDONLY);
 	if (devfd < 0) {
@@ -264,19 +261,40 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 		goto done;
 	}
 
+	/* Get blocksize */
+	if (posix_memalign((void **)&vh, 4096, SECTOR_SIZE)) {
+		ploop_err(errno, "posix_memalign");
+		ret = SYSEXIT_MALLOC;
+		goto done;
+	}
+
+	res = idelta.fops->pread(idelta.fd, vh, SECTOR_SIZE, 0);
+	if (res != SECTOR_SIZE) {
+		ret = (res >= 0) ? EIO : errno;
+		ploop_err(errno, "read 1st sector of %s", send_from);
+		goto done;
+	}
+	cluster = S2B(vh->m_Sectors);
+
+	if (posix_memalign(&iobuf, 4096, cluster)) {
+		ploop_err(errno, "posix_memalign");
+		ret = SYSEXIT_MALLOC;
+		goto done;
+	}
+
 	trackend = e.end;
 
 	for (pos = 0; pos < trackend; ) {
 		int n;
 
-		trackpos = pos + CLUSTER;
+		trackpos = pos + cluster;
 		if (ioctl(devfd, PLOOP_IOC_TRACK_SETPOS, &trackpos)) {
 			ploop_err(errno, "PLOOP_IOC_TRACK_SETPOS");
 			ret = SYSEXIT_DEVIOC;
 			goto done;
 		}
 
-		n = idelta.fops->pread(idelta.fd, iobuf, CLUSTER, pos);
+		n = idelta.fops->pread(idelta.fd, iobuf, cluster, pos);
 		if (n < 0) {
 			ploop_err(errno, "pread");
 			ret = SYSEXIT_READ;
@@ -319,8 +337,8 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 				int n;
 				int copy = e.end - pos;
 
-				if (copy > CLUSTER)
-					copy = CLUSTER;
+				if (copy > cluster)
+					copy = cluster;
 				if (pos + copy > trackpos) {
 					trackpos = pos + copy;
 					if (ioctl(devfd, PLOOP_IOC_TRACK_SETPOS, &trackpos)) {
@@ -400,8 +418,8 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 				int n;
 				int copy = e.end - pos;
 
-				if (copy > CLUSTER)
-					copy = CLUSTER;
+				if (copy > cluster)
+					copy = cluster;
 				if (pos + copy > trackpos) {
 					trackpos = pos + copy;
 					if (ioctl(devfd, PLOOP_IOC_TRACK_SETPOS, &trackpos)) {
@@ -446,22 +464,9 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 
 	/* Must clear dirty flag on ploop1 image. */
 	if (strcmp(format, "ploop1") == 0) {
-		int n;
-		struct ploop_pvd_header *vh = (void*)iobuf;
-
-		n = idelta.fops->pread(idelta.fd, iobuf, CLUSTER, 0);
-		if (n != CLUSTER) {
-			if (n < 0)
-				ploop_err(errno, "read header");
-			else
-				ploop_err(0, "short read header");
-			ret = SYSEXIT_READ;
-			goto done;
-		}
-
 		vh->m_DiskInUse = 0;
 
-		if (send_buf(ofd, iobuf, CLUSTER, 0)) {
+		if (send_buf(ofd, vh, SECTOR_SIZE, 0)) {
 			ploop_err(errno, "write3");
 			ret = SYSEXIT_WRITE;
 			goto done;
@@ -502,6 +507,8 @@ done:
 		free(format);
 	if (idelta.fd >= 0)
 		close_delta(&idelta);
+	if (vh)
+		free(vh);
 
 	return ret;
 }
