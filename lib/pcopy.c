@@ -223,50 +223,19 @@ out:
 
 static int get_image_info(const char *device, char **send_from_p, char **format_p)
 {
-	FILE *fp;
-	int len;
-	char nbuf[4096];
+	int top_level;
 
-	if (memcmp(device, "/dev/", 5) == 0)
-		device += 5;
+	if (ploop_get_attr(device, "top", &top_level)) {
+		ploop_err(0, "Can't find top delta");
+		return SYSEXIT_SYSFS;
+	}
 
-	snprintf(nbuf, sizeof(nbuf)-1, "/sys/block/%s/pdelta/0/image", device);
-	fp = fopen(nbuf, "r");
-	if (fp == NULL) {
-		ploop_err(errno, "fopen sysfs image");
-		return -1;
+	if (find_delta_names(device, top_level, top_level,
+				send_from_p, format_p)) {
+		ploop_err(errno, "find_delta_names");
+		return SYSEXIT_SYSFS;
 	}
-	if (fgets(nbuf, sizeof(nbuf), fp) == NULL) {
-		ploop_err(errno, "read sysfs image");
-		fclose(fp);
-		return -1;
-	}
-	len = strlen(nbuf);
-	if (len > 0 && nbuf[len-1] == '\n') {
-		len--;
-		nbuf[len] = 0;
-	}
-	*send_from_p = strdup(nbuf);
-	fclose(fp);
 
-	snprintf(nbuf, sizeof(nbuf)-1, "/sys/block/%s/pdelta/0/format", device);
-	fp = fopen(nbuf, "r");
-	if (fp == NULL) {
-		ploop_err(errno, "fopen sysfs format");
-		return -1;
-	}
-	if (fgets(nbuf, sizeof(nbuf), fp) == NULL) {
-		ploop_err(errno, "read sysfs format");
-		fclose(fp);
-		return -1;
-	}
-	len = strlen(nbuf);
-	if (len > 0 && nbuf[len-1] == '\n') {
-		len--;
-		nbuf[len] = 0;
-	}
-	*format_p = strdup(nbuf);
-	fclose(fp);
 	return 0;
 }
 
@@ -304,10 +273,9 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 	}
 	tracker_on = 1;
 
-	if (get_image_info(device, &send_from, &format)) {
-		ret = SYSEXIT_OPEN;
+	ret = get_image_info(device, &send_from, &format);
+	if (ret)
 		goto done;
-	}
 
 	if (open_delta_simple(&idelta, send_from, O_RDONLY|O_DIRECT, OD_NOFLAGS)) {
 		ret = SYSEXIT_OPEN;
