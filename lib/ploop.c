@@ -1817,6 +1817,51 @@ err:
 	return ret;
 }
 
+static int get_image_size(struct ploop_disk_images_data *di, const char *guid, off_t *size)
+{
+	int ret;
+	struct delta delta;
+	const char *image;
+	int raw = 0;
+
+	image = find_image_by_guid(di, guid);
+	if (image == NULL) {
+		ploop_err(0, "Can't find image by top guid %s",
+				guid);
+		return SYSEXIT_PARAM;
+	}
+	if (di->raw) {
+		int i;
+
+		i = find_snapshot_by_guid(di, guid);
+		if (i == -1) {
+			ploop_err(0, "Can't find snapshot by guid %s",
+					guid);
+			return SYSEXIT_PARAM;
+		}
+		if (strcmp(di->snapshots[i]->parent_guid, NONE_UUID) == 0)
+			raw = 1;
+	}
+	if (raw) {
+		struct stat st;
+
+		if (stat(image, &st)) {
+			ploop_err(errno, "Failed to stat %s",
+					image);
+			return SYSEXIT_FSTAT;
+		}
+		*size = st.st_size / SECTOR_SIZE;
+	} else {
+		ret = open_delta(&delta, image, O_RDONLY, OD_OFFLINE);
+		if (ret)
+			return ret;
+		*size = delta.l2_size * delta.blocksize;
+		close_delta(&delta);
+	}
+
+	return 0;
+}
+
 int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapshot_param *param)
 {
 	int ret;
@@ -1829,6 +1874,8 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 	char conf_tmp[MAXPATHLEN];
 	int online = 0;
 	int n;
+	off_t size;
+	char *top_guid = NULL;
 
 	ret = not_supported_for_vm(di);
 	if (ret)
@@ -1846,6 +1893,7 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 	if (ploop_lock_di(di))
 		return SYSEXIT_LOCK;
 
+	top_guid = strdup(di->top_guid);
 	ret = gen_uuid_pair(uuid, sizeof(uuid), uuid1, sizeof(uuid1));
 	if (ret) {
 		ploop_err(errno, "Can't generate uuid");
@@ -1877,6 +1925,7 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 			n-1);
 		goto err_cleanup1;
 	}
+
 	snprintf(fname, sizeof(fname), "%s.%s",
 			di->images[0]->file, uuid1);
 	ret = ploop_di_add_image(di, fname, uuid, get_top_delta_guid(di));
@@ -1895,20 +1944,23 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 
 	if (ret != 0) {
 		// offline snapshot
-		fd = create_empty_delta(fname, di->blocksize, di->size);
-		if (fd != -1) {
-			ret = 0;
-			close(fd);
-		} else {
+		ret = get_image_size(di, top_guid, &size);
+		if (ret)
+			goto err_cleanup2;
+		fd = create_empty_delta(fname, di->blocksize, size);
+		if (fd < 0) {
 			ret = SYSEXIT_CREAT;
+			goto err_cleanup2;
 		}
+		close(fd);
 	} else {
 		// Always sync fs
 		online = 1;
 		ret = create_snapshot(dev, fname, di->blocksize, 1);
+		if (ret)
+			goto err_cleanup2;
+
 	}
-	if (ret)
-		goto err_cleanup2;
 
 	if (rename(conf_tmp, conf)) {
 		ploop_err(errno, "Can't rename %s %s",
@@ -1928,6 +1980,7 @@ err_cleanup2:
 				conf_tmp);
 err_cleanup1:
 	ploop_unlock_di(di);
+	free(top_guid);
 
 	return ret;
 }
@@ -1943,6 +1996,7 @@ int ploop_switch_snapshot(struct ploop_disk_images_data *di, const char *guid, i
 	char *old_top_delta_fname = NULL;
 	char conf[MAXPATHLEN];
 	char conf_tmp[MAXPATHLEN];
+	off_t size;
 
 	ret = not_supported_for_vm(di);
 	if (ret)
@@ -1963,6 +2017,11 @@ int ploop_switch_snapshot(struct ploop_disk_images_data *di, const char *guid, i
 				guid);
 		goto err_cleanup1;
 	}
+	// Read image size from image header
+	ret = get_image_size(di, guid, &size);
+	if (ret)
+		goto err_cleanup1;
+
 	ret = gen_uuid_pair(uuid, sizeof(uuid), uuid1, sizeof(uuid1));
 	if (ret) {
 		ploop_err(errno, "Can't generate uuid");
@@ -1998,7 +2057,7 @@ int ploop_switch_snapshot(struct ploop_disk_images_data *di, const char *guid, i
 		goto err_cleanup1;
 
 	// offline snapshot
-	fd = create_empty_delta(new_top_delta_fnanme, di->blocksize, di->size);
+	fd = create_empty_delta(new_top_delta_fnanme, di->blocksize, size);
 	if (fd == -1) {
 		ret = SYSEXIT_CREAT;
 		goto err_cleanup2;
