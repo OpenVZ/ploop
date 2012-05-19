@@ -311,7 +311,11 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 
 	ploop_log(-1, "Sending %s", send_from);
 
-	send_header(ofd, vh->m_Sectors);
+	ret = send_header(ofd, vh->m_Sectors);
+	if (ret) {
+		ploop_err(errno, "Error sending pcopy header");
+		goto done;
+	}
 
 	trackend = e.end;
 	for (pos = 0; pos < trackend; ) {
