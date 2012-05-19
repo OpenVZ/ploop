@@ -337,9 +337,9 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 		if (n == 0)
 			break;
 
-		if (send_buf(ofd, iobuf, n, pos)) {
+		ret = send_buf(ofd, iobuf, n, pos);
+		if (ret) {
 			ploop_err(errno, "write");
-			ret = SYSEXIT_WRITE;
 			goto done;
 		}
 
@@ -392,9 +392,9 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 					ret = SYSEXIT_READ;
 					goto done;
 				}
-				if (send_buf(ofd, iobuf, n, pos)) {
+				ret = send_buf(ofd, iobuf, n, pos);
+				if (ret) {
 					ploop_err(errno, "write2");
-					ret = SYSEXIT_WRITE;
 					goto done;
 				}
 				pos += n;
@@ -473,9 +473,9 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 					ret = SYSEXIT_READ;
 					goto done;
 				}
-				if (send_buf(ofd, iobuf, n, pos)) {
+				ret = send_buf(ofd, iobuf, n, pos);
+				if (ret) {
 					ploop_err(errno, "write3");
-					ret = SYSEXIT_WRITE;
 					goto done;
 				}
 				pos += n;
@@ -500,9 +500,9 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 	if (strcmp(format, "ploop1") == 0) {
 		vh->m_DiskInUse = 0;
 
-		if (send_buf(ofd, vh, SECTOR_SIZE, 0)) {
+		ret = send_buf(ofd, vh, SECTOR_SIZE, 0);
+		if (ret) {
 			ploop_err(errno, "write3");
-			ret = SYSEXIT_WRITE;
 			goto done;
 		}
 	}
@@ -514,9 +514,9 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 	}
 	tracker_on = 0;
 
-	if (send_buf(ofd, iobuf, 0, 0)) {
+	ret = send_buf(ofd, iobuf, 0, 0);
+	if (ret) {
 		ploop_err(errno, "write4");
-		ret = SYSEXIT_WRITE;
 		goto done;
 	}
 
