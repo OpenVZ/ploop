@@ -42,8 +42,32 @@ struct xfer_header {
 	__u32 padding[32-4];
 };
 
+static int nwrite(int fd, const void *buf, int len)
+{
+	while (len) {
+		int n;
+
+		n = write(fd, buf, len);
+		if (n < 0) {
+			if (errno == EINTR)
+				continue;
+			return -1;
+		}
+		if (n == 0)
+			break;
+		len -= n;
+		buf += n;
+	}
+
+	if (len == 0)
+		return 0;
+
+	errno = EIO;
+	return -1;
+}
+
+
 static int send_header(int ofd, __u32 blocksize) {
-	int n;
 	struct xfer_header hdr = {
 		.magic		= XFER_HDR_MAGIC,
 		.version	= 1,
@@ -51,13 +75,8 @@ static int send_header(int ofd, __u32 blocksize) {
 
 	hdr.blocksize = blocksize;
 
-	n = write(ofd, &hdr, sizeof(hdr));
-	if (n < 0)
-		return -1;
-	if (n != sizeof(hdr)) {
-		errno = EIO;
-		return -1;
-	}
+	if (nwrite(ofd, &hdr, sizeof(hdr)))
+		return SYSEXIT_WRITE;
 
 	return 0;
 }
@@ -65,29 +84,16 @@ static int send_header(int ofd, __u32 blocksize) {
 static int send_buf(int ofd, void *iobuf, int len, off_t pos)
 {
 	struct xfer_desc desc = { .marker = PLOOPCOPY_MARKER };
-	int n;
 
 	/* Header */
 	desc.size = len;
 	desc.pos = pos;
-	n = write(ofd, &desc, sizeof(desc));
-	if (n < 0)
-		return -1;
-	if (n != sizeof(desc)) {
-		errno = EIO;
-		return -1;
-	}
-	if (len == 0)
-		return 0;
+	if (nwrite(ofd, &desc, sizeof(desc)))
+		return SYSEXIT_WRITE;
 
 	/* Data */
-	n = write(ofd, iobuf, len);
-	if (n < 0)
-		return n;
-	if (n != len) {
-		errno = EIO;
-		return -1;
-	}
+	if (len && nwrite(ofd, iobuf, len))
+		return SYSEXIT_WRITE;
 
 	return 0;
 }
