@@ -52,7 +52,6 @@ Parallels loopback (ploop) block device API library
 
 %files lib
 %defattr(-,root,root)
-%dir %{_libdir}
 %attr(755,root,root) %{_libdir}/libploop.so
 %dir /var/lock/ploop
 
@@ -64,7 +63,6 @@ Headers and a static version of ploop library
 
 %files devel
 %defattr(-,root,root)
-%dir %{_libdir}
 %dir %{_incdir}
 %attr(644,root,root) %{_libdir}/libploop.a
 %attr(644,root,root) %{_incdir}/libploop.h
