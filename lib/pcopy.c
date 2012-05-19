@@ -291,8 +291,8 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 
 	res = idelta.fops->pread(idelta.fd, vh, SECTOR_SIZE, 0);
 	if (res != SECTOR_SIZE) {
-		ret = (res >= 0) ? EIO : errno;
-		ploop_err(errno, "read 1st sector of %s", send_from);
+		ploop_err(errno, "Error reading 1st sector of %s", send_from);
+		ret = SYSEXIT_READ;
 		goto done;
 	}
 	cluster = S2B(vh->m_Sectors);
