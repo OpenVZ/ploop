@@ -33,7 +33,8 @@ static int silent;	/* print messages only if errors detected */
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: ploop fsck [-f|-F] [-c] [-r] [-s] DELTA\n"
+	fprintf(stderr, "Usage: ploop fsck [-f|-F] [-c] [-r] [-s] [-d] DELTA\n"
+			"       DELTA := path to image file\n"
 			"	-f     - force fsck even if dirty flag is clear\n"
 			"	-F     - -f and try to fix even fatal errors (dangerous)\n"
 			"	-c     - check for duplicated blocks and holes\n"
