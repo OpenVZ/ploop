@@ -37,8 +37,6 @@ int    force;	   /* do not flock hidden balloon */
 
 char  *device;	   /* ploop device name (e.g. /dev/ploop0) */
 
-struct delta delta;
-
 static void usage_summary(void)
 {
 	fprintf(stderr, "Usage: ploop-balloon { show | status | clear | change | complete | check | repair | discard } ...\n"
