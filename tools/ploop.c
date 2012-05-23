@@ -398,7 +398,12 @@ static int plooptool_clear(int argc, char **argv)
 static void usage_umount(void)
 {
 	fprintf(stderr, "Usage: ploop umount -d DEVICE\n"
-			"       DEVICE := ploop device, e.g. /dev/ploop0\n");
+			"       ploop umount -m DIR\n"
+			"       ploop umount DiskDescriptor.xml\n"
+			"       ploop umount DELTA\n"
+			"       DEVICE := ploop device, e.g. /dev/ploop0\n"
+			"       DIR := mount point\n"
+			"       DELTA := path to (mounted) image file\n");
 }
 
 static int plooptool_umount(int argc, char **argv)
