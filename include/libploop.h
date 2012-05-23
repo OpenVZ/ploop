@@ -172,7 +172,6 @@ int receive_process(const char *dst);
 
 enum
 {
-	SYSEXIT_PARAM = -1,
 	SYSEXIT_CREAT = 1,
 	SYSEXIT_DEVICE,
 	SYSEXIT_DEVIOC,
@@ -210,6 +209,7 @@ enum
 	SYSEXIT_UNLINK,
 	SYSEXIT_MKNOD,
 	SYSEXIT_PLOOPINUSE,
+	SYSEXIT_PARAM,
 };
 
 #pragma GCC visibility pop
