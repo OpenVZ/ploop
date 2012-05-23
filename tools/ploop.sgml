@@ -176,7 +176,7 @@ Compose ploop device from one or more delta images and start it.
 <command>ploop</command>
 <arg choice="req">mount</arg>
 <arg choice="req">-d <replaceable/DEVICE/</arg>
-<arg choice="opt"><option>-rP</option></arg>
+<arg choice="opt"><option>-r</option></arg>
 <arg choice="opt">-b <replaceable/IO_MODULE/</arg>
 <arg choice="opt">-f <replaceable/FORMAT/</arg>
 <arg choice="opt" rep="repeat"><replaceable/TOP_DELTA/</arg>
@@ -197,15 +197,6 @@ Compose ploop device from one or more delta images and start it.
   <term><option>-r</option></term>
   <listitem><para>
    Compose read-only device. All the image files will be open read-only.
-  </para></listitem>
- </varlistentry>
-
- <varlistentry>
-  <term><option>-P</option></term>
-  <listitem><para>
-   After the device is composed and started partition table is rescanned.
-   This option should be used for partitioned devices and should not be used
-   for devices, which do not contain any partition table.
   </para></listitem>
  </varlistentry>
 

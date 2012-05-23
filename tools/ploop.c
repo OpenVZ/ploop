@@ -133,7 +133,7 @@ static int plooptool_init(int argc, char **argv)
 
 static void usage_mount(void)
 {
-	fprintf(stderr, "Usage: ploop mount [-rP] [-f FORMAT] [-b BLOCKSIZE] [-d DEVICE]\n"
+	fprintf(stderr, "Usage: ploop mount [-r] [-f FORMAT] [-b BLOCKSIZE] [-d DEVICE]\n"
 			"             BASE_DELTA [ ... TOP_DELTA ]\n"
 			"       ploop mount [-rP] [-m DIR] [-u UUID] DiskDescriptor.xml\n"
 			"       FORMAT := { raw | ploop1 }\n"
@@ -141,7 +141,6 @@ static void usage_mount(void)
 			"       DEVICE := ploop device, e.g. /dev/ploop0\n"
 			"       *DELTA := path to image file\n"
 			"       -r     - mount images read-only\n"
-			"       -P     - rescan partition table upon mount\n"
 			"       -t     - file system type\n"
 			"       -m     - target mount point\n"
 		);
@@ -155,7 +154,7 @@ static int plooptool_mount(int argc, char **argv)
 	struct ploop_mount_param mountopts = {};
 	const char *component_name = NULL;
 
-	while ((i = getopt(argc, argv, "rf:Pd:m:t:u:o:b:c:")) != EOF) {
+	while ((i = getopt(argc, argv, "rf:d:m:t:u:o:b:c:")) != EOF) {
 		switch (i) {
 		case 'd':
 			strncpy(mountopts.device, optarg, sizeof(mountopts.device)-1);
@@ -170,9 +169,6 @@ static int plooptool_mount(int argc, char **argv)
 				usage_mount();
 				return -1;
 			}
-			break;
-		case 'P':
-			mountopts.partitioned = 1;
 			break;
 		case 'm':
 			mountopts.target = strdup(optarg);
@@ -246,9 +242,9 @@ err:
 
 static void usage_start(void)
 {
-	fprintf(stderr, "Usage: ploop start [-P] -d DEVICE\n"
+	fprintf(stderr, "Usage: ploop start -d DEVICE\n"
 			"       DEVICE := ploop device, e.g. /dev/ploop0\n"
-			"       -P     - rescan partition table\n");
+			);
 }
 
 static int plooptool_start(int argc, char **argv)
@@ -256,7 +252,6 @@ static int plooptool_start(int argc, char **argv)
 	int i;
 	int lfd;
 	struct {
-		int partitioned;
 		char * device;
 	} startopts = { };
 
@@ -264,9 +259,6 @@ static int plooptool_start(int argc, char **argv)
 		switch (i) {
 		case 'd':
 			startopts.device = optarg;
-			break;
-		case 'P':
-			startopts.partitioned = 1;
 			break;
 		default:
 			usage_start();
@@ -293,9 +285,8 @@ static int plooptool_start(int argc, char **argv)
 		return SYSEXIT_DEVIOC;
 	}
 
-	if (startopts.partitioned && ioctl(lfd, BLKRRPART, 0) < 0) {
+	if (ioctl(lfd, BLKRRPART, 0) < 0) {
 		perror("BLKRRPART");
-		return SYSEXIT_BLKDEV;
 	}
 
 	return 0;

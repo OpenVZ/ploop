@@ -34,7 +34,7 @@ struct ploop_mount_param {
 	char device[64];
 	int ro;
 	int flags;
-	int partitioned;
+	int unused1;
 	char *fstype;
 	char *target;
 	char *guid;
