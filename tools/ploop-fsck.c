@@ -28,8 +28,8 @@
 
 #include "ploop.h"
 
-int ro;		/* read-only access to image file */
-int silent;	/* print messages only if errors detected */
+static int ro;		/* read-only access to image file */
+static int silent;	/* print messages only if errors detected */
 
 static void usage(void)
 {

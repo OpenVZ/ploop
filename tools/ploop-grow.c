@@ -31,10 +31,10 @@
 #include "ploop.h"
 #include "common.h"
 
-int raw;
-struct delta delta;
-struct ploop_pvd_header new_vh;
-char *device;
+static int raw;
+static struct delta delta;
+static struct ploop_pvd_header new_vh;
+static char *device;
 
 static void usage(char *pname)
 {

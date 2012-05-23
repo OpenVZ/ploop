@@ -32,10 +32,10 @@
 #include "ploop.h"
 #include "common.h"
 
-char  *mount_point;
-int    force;	   /* do not flock hidden balloon */
+static char  *mount_point;
+static int    force;	   /* do not flock hidden balloon */
 
-char  *device;	   /* ploop device name (e.g. /dev/ploop0) */
+static char  *device;	   /* ploop device name (e.g. /dev/ploop0) */
 
 static void usage_summary(void)
 {

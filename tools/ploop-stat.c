@@ -28,8 +28,8 @@
 
 #define FMT "/sys/block/%s/pstat"
 
-int clear;
-int load;
+static int clear;
+static int load;
 
 static void usage(void)
 {
