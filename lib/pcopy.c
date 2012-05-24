@@ -207,6 +207,29 @@ static int get_image_info(const char *device, char **send_from_p,
 	return 0;
 }
 
+static int run_cmd(const char *cmd)
+{
+	int st;
+
+	if (!cmd)
+		return 0;
+
+	st = system(cmd);
+	if (!st)
+		return 0;
+
+	if (st == -1)
+		ploop_err(errno, "Can't execute %s", cmd);
+	else if (WIFEXITED(st))
+		ploop_err(0, "Command %s failed with code %d", cmd, WEXITSTATUS(st));
+	else if (WIFSIGNALED(st))
+		ploop_err(0, "Command %s killed by signal %d", cmd, WTERMSIG(st));
+	else
+		ploop_err(0, "Command %s died abnormally", cmd);
+
+	return SYSEXIT_SYS;
+}
+
 int send_process(const char *device, int ofd, const char *flush_cmd)
 {
 	struct delta idelta = { .fd = -1 };
@@ -372,8 +395,9 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 	 * and suspend VE with subsequent fsyncing FS.
 	 */
 
-	if (flush_cmd)
-		system(flush_cmd);
+	ret = run_cmd(flush_cmd);
+	if (ret)
+		goto done;
 
 	if (ioctl(devfd, PLOOP_IOC_SYNC, 0)) {
 		ploop_err(errno, "PLOOP_IOC_SYNC");
