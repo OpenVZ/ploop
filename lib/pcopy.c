@@ -34,14 +34,6 @@
 
 #include "ploop.h"
 
-struct xfer_header {
-	__u64 magic;
-#define XFER_HDR_MAGIC 0x726678706f6f6c70ULL
-	__u32 version;
-	__u32 blocksize;
-	__u32 padding[32-4];
-};
-
 static int nwrite(int fd, const void *buf, int len)
 {
 	while (len) {
@@ -64,21 +56,6 @@ static int nwrite(int fd, const void *buf, int len)
 
 	errno = EIO;
 	return -1;
-}
-
-
-static int send_header(int ofd, __u32 blocksize) {
-	struct xfer_header hdr = {
-		.magic		= XFER_HDR_MAGIC,
-		.version	= 1,
-	};
-
-	hdr.blocksize = blocksize;
-
-	if (nwrite(ofd, &hdr, sizeof(hdr)))
-		return SYSEXIT_WRITE;
-
-	return 0;
 }
 
 static int send_buf(int ofd, void *iobuf, int len, off_t pos)
@@ -125,9 +102,8 @@ static int nread(int fd, void * buf, int len)
 int receive_process(const char *dst)
 {
 	int ofd, ret;
-	struct xfer_header hdr;
 	__u64 cluster;
-	void *iobuf;
+	void *iobuf = NULL;
 
 	if (isatty(0) || errno == EBADF) {
 		ploop_err(errno, "Invalid input stream: must be pipelined "
@@ -139,31 +115,6 @@ int receive_process(const char *dst)
 	if (ofd < 0) {
 		ploop_err(errno, "Can't open %s", dst);
 		return SYSEXIT_CREAT;
-	}
-
-	/* Read header */
-	if (nread(0, &hdr, sizeof(hdr)) < 0) {
-		ploop_err(0, "Error in nread(hdr)");
-		ret = SYSEXIT_READ;
-		goto out;
-	}
-	if (hdr.magic != XFER_HDR_MAGIC) {
-		ploop_err(0, "Stream corrupted, bad xfer header magic");
-		ret = SYSEXIT_PROTOCOL;
-		goto out;
-	}
-	if (hdr.version != 1) {
-		ploop_err(0, "Unknown/unsupported stream version (%d)",
-				hdr.version);
-		ret = SYSEXIT_PROTOCOL;
-		goto out;
-	}
-	cluster = S2B(hdr.blocksize);
-
-	if (posix_memalign(&iobuf, 4096, cluster)) {
-		ploop_err(errno, "posix_memalign");
-		ret = SYSEXIT_MALLOC;
-		goto out;
 	}
 
 	/* Read data */
@@ -180,6 +131,14 @@ int receive_process(const char *dst)
 			ploop_err(0, "Stream corrupted");
 			ret = SYSEXIT_PROTOCOL;
 			goto out;
+		}
+		if (iobuf == NULL) {
+			cluster = desc.size;
+			if (posix_memalign(&iobuf, 4096, cluster)) {
+				ploop_err(errno, "posix_memalign");
+				ret = SYSEXIT_MALLOC;
+				goto out;
+			}
 		}
 		if (desc.size > cluster) {
 			ploop_err(0, "Stream corrupted, too long chunk");
@@ -309,12 +268,6 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 	}
 
 	ploop_log(-1, "Sending %s", send_from);
-
-	ret = send_header(ofd, blocksize);
-	if (ret) {
-		ploop_err(errno, "Error sending pcopy header");
-		goto done;
-	}
 
 	trackend = e.end;
 	for (pos = 0; pos < trackend; ) {
