@@ -224,7 +224,8 @@ out:
 	return ret;
 }
 
-static int get_image_info(const char *device, char **send_from_p, char **format_p)
+static int get_image_info(const char *device, char **send_from_p,
+		char **format_p, int *blocksize)
 {
 	int top_level;
 
@@ -236,6 +237,11 @@ static int get_image_info(const char *device, char **send_from_p, char **format_
 	if (find_delta_names(device, top_level, top_level,
 				send_from_p, format_p)) {
 		ploop_err(errno, "find_delta_names");
+		return SYSEXIT_SYSFS;
+	}
+
+	if (ploop_get_attr(device, "block_size", blocksize)) {
+		ploop_err(0, "Can't find block size");
 		return SYSEXIT_SYSFS;
 	}
 
@@ -251,8 +257,7 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 	char *send_from = NULL;
 	char *format = NULL;
 	void *iobuf = NULL;
-	int res;
-	struct ploop_pvd_header *vh = NULL;
+	int blocksize;
 	__u64 cluster;
 	__u64 pos;
 	__u64 iterpos;
@@ -272,6 +277,17 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 		goto done;
 	}
 
+	ret = get_image_info(device, &send_from, &format, &blocksize);
+	if (ret)
+		goto done;
+	cluster = S2B(blocksize);
+
+	if (posix_memalign(&iobuf, 4096, cluster)) {
+		ploop_err(errno, "posix_memalign");
+		ret = SYSEXIT_MALLOC;
+		goto done;
+	}
+
 	iter = 0;
 	while (ioctl(devfd, PLOOP_IOC_TRACK_INIT, &e)) {
 		if (errno == EBUSY && iter++ == 0) {
@@ -287,39 +303,14 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 	}
 	tracker_on = 1;
 
-	ret = get_image_info(device, &send_from, &format);
-	if (ret)
-		goto done;
-
 	if (open_delta_simple(&idelta, send_from, O_RDONLY|O_DIRECT, OD_NOFLAGS)) {
 		ret = SYSEXIT_OPEN;
 		goto done;
 	}
 
-	/* Get blocksize */
-	if (posix_memalign((void **)&vh, 4096, SECTOR_SIZE)) {
-		ploop_err(errno, "posix_memalign");
-		ret = SYSEXIT_MALLOC;
-		goto done;
-	}
-
-	res = idelta.fops->pread(idelta.fd, vh, SECTOR_SIZE, 0);
-	if (res != SECTOR_SIZE) {
-		ploop_err(errno, "Error reading 1st sector of %s", send_from);
-		ret = SYSEXIT_READ;
-		goto done;
-	}
-	cluster = S2B(vh->m_Sectors);
-
-	if (posix_memalign(&iobuf, 4096, cluster)) {
-		ploop_err(errno, "posix_memalign");
-		ret = SYSEXIT_MALLOC;
-		goto done;
-	}
-
 	ploop_log(-1, "Sending %s", send_from);
 
-	ret = send_header(ofd, vh->m_Sectors);
+	ret = send_header(ofd, blocksize);
 	if (ret) {
 		ploop_err(errno, "Error sending pcopy header");
 		goto done;
@@ -506,6 +497,16 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 
 	/* Must clear dirty flag on ploop1 image. */
 	if (strcmp(format, "ploop1") == 0) {
+		int n;
+		struct ploop_pvd_header *vh = (void*)iobuf;
+
+		n = idelta.fops->pread(idelta.fd, iobuf, SECTOR_SIZE, 0);
+		if (n != SECTOR_SIZE) {
+			ploop_err(errno, "Error reading 1st sector of %s", send_from);
+			ret = SYSEXIT_READ;
+			goto done;
+		}
+
 		vh->m_DiskInUse = 0;
 
 		ret = send_buf(ofd, vh, SECTOR_SIZE, 0);
@@ -541,8 +542,6 @@ done:
 		free(send_from);
 	if (idelta.fd >= 0)
 		close_delta(&idelta);
-	if (vh)
-		free(vh);
 
 	return ret;
 }
