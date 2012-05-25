@@ -74,42 +74,16 @@ static int open_device(const char *device)
 	return fd;
 }
 
-static int ioctl_device(int fd, int req, void *arg)
-{
-	if (fd < 0)
-		return -1;
 
-	if (ioctl(fd, req, arg)) {
-		char *msg = "UNKNOWN";
-
-		switch (req) {
-		case PLOOP_IOC_BALLOON:
-			msg = "PLOOP_IOC_BALLOON";
-			break;
-		case PLOOP_IOC_FREEBLKS:
-			msg = "PLOOP_IOC_FREEBLKS";
-			break;
-		case PLOOP_IOC_RELOCBLKS:
-			msg = "PLOOP_IOC_RELOCBLKS";
-			break;
-		case PLOOP_IOC_FBGET:
-			msg = "PLOOP_IOC_FBGET";
-			break;
-		case PLOOP_IOC_DISCARD_INIT:
-			msg = "PLOOP_IOC_DISCARD_INIT";
-			break;
-		case PLOOP_IOC_DISCARD_WAIT:
-			msg = "PLOOP_IOC_DISCARD_WAIT";
-			break;
-		case PLOOP_IOC_DISCARD_FINI:
-			msg = "PLOOP_IOC_DISCARD_FINI";
-			break;
-		}
-		ploop_err(errno, "%s", msg);
-		return(SYSEXIT_DEVIOC);
-	}
-	return 0;
-}
+#define ioctl_device(fd, req, arg)					\
+	({								\
+		int __ret = 0;						\
+		if (ioctl(fd, req, arg)) {				\
+			ploop_err(errno, "Error in ioctl(" #req ")");	\
+			__ret = SYSEXIT_DEVIOC;				\
+		}							\
+		__ret;							\
+	 })
 
 static int fsync_balloon(int fd)
 {
