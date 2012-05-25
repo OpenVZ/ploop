@@ -33,7 +33,7 @@ static int load;
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: ploop stat [-c | [-l] DEVICE]\n");
+	fprintf(stderr, "Usage: ploop stat [-c | -l] [-d DEVICE]\n");
 }
 
 static int open_sysfs_file(char * devid, char *name, int flags)
