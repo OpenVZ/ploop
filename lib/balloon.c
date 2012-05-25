@@ -856,6 +856,8 @@ static int ploop_trim(const char *mount_point)
 		return -1;
 	}
 
+	sys_syncfs(fd);
+
 	ret = ioctl(fd, FITRIM, &range);
 	if (ret < 0)
 		ploop_err(errno, "Can't trim file system");

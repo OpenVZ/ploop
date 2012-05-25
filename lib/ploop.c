@@ -91,6 +91,11 @@ int sys_fallocate(int fd, int mode, off_t offset, off_t len)
 	return syscall(__NR_fallocate, fd, mode, offset, len);
 }
 
+int sys_syncfs(int fd)
+{
+	return syscall(__NR_syncfs, fd);
+}
+
 int get_list_size(char **list)
 {
 	int i;

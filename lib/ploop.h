@@ -22,6 +22,16 @@
 #endif
 #endif /* ! __NR_fallocate */
 
+#ifndef __NR_syncfs
+#if defined __i386__
+#define __NR_syncfs	344
+#elif defined __x86_64__
+#define __NR_syncfs	306
+#else
+#error "No syncfs syscall known for this arch"
+#endif
+#endif /* ! __NR_syncfs */
+
 #define DISKDESCRIPTOR_XML      "DiskDescriptor.xml"
 /* Compatibility: Parallels use this UUID to mark top delta */
 #define BASE_UUID		"{5fbaabe3-6958-40ff-92a7-860e329aab41}"
@@ -243,6 +253,7 @@ void get_disk_descriptor_fname(struct ploop_disk_images_data *di, char *buf, int
 void get_disk_descriptor_lock_fname(struct ploop_disk_images_data *di, char *out, int size);
 int ploop_find_dev_by_uuid(struct ploop_disk_images_data *di, int check_state, char *out, int len);
 int sys_fallocate(int fd, int mode, off_t offset, off_t len);
+int sys_syncfs(int fd);
 
 // manage struct ploop_disk_images_data
 int ploop_di_add_image(struct ploop_disk_images_data *di, const char *fname,
