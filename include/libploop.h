@@ -125,6 +125,7 @@ int ploop_get_top_delta_fname(struct ploop_disk_images_data *di, char *out, int 
 int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data *di);
 int ploop_find_dev_by_delta(char *delta, char *buf, int size);
 int ploop_get_dev_by_mnt(const char *path, char *buf, int size);
+int ploop_get_mnt_by_dev(const char *dev, char *buf, int size);
 int ploop_get_dev(struct ploop_disk_images_data *di, char *out, int len);
 int ploop_get_partition_by_mnt(const char *path, char *buf, int size);
 int ploop_create_image(struct ploop_create_param *param);

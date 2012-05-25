@@ -778,6 +778,11 @@ static int get_mount_dir(const char *dev, char *buf, int size)
 	return ret;
 }
 
+int ploop_get_mnt_by_dev(const char *dev, char *buf, int size)
+{
+	return get_mount_dir(dev, buf, size);
+}
+
 int ploop_fname_cmp(const char *p1, const char *p2)
 {
 	struct stat st1, st2;
