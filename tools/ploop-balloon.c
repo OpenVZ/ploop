@@ -82,7 +82,7 @@ static int pb_show(int argc, char **argv)
 	ret = get_balloon(mount_point, &st, NULL);
 	if (ret)
 		return ret;
-	fprintf(stdout, "Current size of hidden balloon is %llu bytes",
+	fprintf(stdout, "Current size of hidden balloon is %llu bytes\n",
 		(unsigned long long) st.st_size);
 	return 0;
 }
@@ -133,7 +133,7 @@ static int pb_status(int argc, char **argv)
 	if (ret)
 		return ret;
 
-	fprintf(stdout, "Current state of in-kernel maintenance: %s",
+	fprintf(stdout, "Current state of in-kernel maintenance: %s\n",
 	       mntn2str(state));
 	return 0;
 }
@@ -181,7 +181,7 @@ static int pb_clear(int argc, char **argv)
 	ret = ploop_balloon_clear_state(device);
 	if (ret)
 		return ret;
-	fprintf(stdout, "Current state of in-kernel maintenance is OFF now");
+	fprintf(stdout, "Current state of in-kernel maintenance is OFF now\n");
 	return 0;
 }
 
