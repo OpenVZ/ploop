@@ -522,7 +522,7 @@ static int plooptool_snapshot(int argc, char **argv)
 	int syncfs = 0;
 	struct ploop_snapshot_param param = {};
 
-	while ((i = getopt(argc, argv, "b:Fd:u:")) != EOF) {
+	while ((i = getopt(argc, argv, "Fd:u:")) != EOF) {
 		switch (i) {
 		case 'd':
 			device = optarg;
