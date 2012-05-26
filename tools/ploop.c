@@ -255,7 +255,7 @@ static int plooptool_start(int argc, char **argv)
 		char * device;
 	} startopts = { };
 
-	while ((i = getopt(argc, argv, "d:P")) != EOF) {
+	while ((i = getopt(argc, argv, "d:")) != EOF) {
 		switch (i) {
 		case 'd':
 			startopts.device = optarg;
