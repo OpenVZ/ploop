@@ -134,15 +134,17 @@ static int plooptool_init(int argc, char **argv)
 static void usage_mount(void)
 {
 	fprintf(stderr, "Usage: ploop mount [-r] [-f FORMAT] [-b BLOCKSIZE] [-d DEVICE]\n"
+			"             [-m MOUNT_POINT] [-t FSTYPE] [-o MOUNT_OPTS]\n"
 			"             BASE_DELTA [ ... TOP_DELTA ]\n"
-			"       ploop mount [-rP] [-m DIR] [-u UUID] DiskDescriptor.xml\n"
+			"       ploop mount [-r] [-m DIR] [-u UUID] DiskDescriptor.xml\n"
 			"       FORMAT := { raw | ploop1 }\n"
 			"       BLOCKSIZE := block size (for raw image format)\n"
 			"       DEVICE := ploop device, e.g. /dev/ploop0\n"
+			"	MOUNT_POINT := directory to mount in-image filesystem to\n"
+			"       FSTYPE := in-image filesystem type (ext4 by default)\n"
+			"	MOUNT_OPTS := additional mount options, comma-separated\n"
 			"       *DELTA := path to image file\n"
 			"       -r     - mount images read-only\n"
-			"       -t     - file system type\n"
-			"       -m     - target mount point\n"
 		);
 }
 
