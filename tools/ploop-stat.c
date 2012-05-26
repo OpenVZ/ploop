@@ -33,7 +33,7 @@ static int load;
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: ploop stat [-c | -l] [-d DEVICE]\n");
+	fprintf(stderr, "Usage: ploop stat [-c | -l] -d DEVICE\n");
 }
 
 static int open_sysfs_file(char * devid, char *name, int flags)
@@ -80,15 +80,15 @@ int main(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if (argc) {
+	if (argc || !device) {
 		usage();
 		return -1;
 	}
 
-	if (device && memcmp(device, "/dev/", 5) == 0)
+	if (memcmp(device, "/dev/", 5) == 0)
 		device += 5;
 
-	dp = open_sysfs_dir(device ? : "ploop0");
+	dp = open_sysfs_dir(device);
 	if (dp == NULL) {
 		perror("sysfs opendir");
 		return SYSEXIT_SYSFS;
@@ -108,7 +108,7 @@ int main(int argc, char **argv)
 				continue;
 
 
-			fd = open_sysfs_file(device ? : "ploop0", name, O_WRONLY);
+			fd = open_sysfs_file(device, name, O_WRONLY);
 			if (fd < 0) {
 				fprintf(stderr, "Variable \"%s\" is missing\n", name);
 				continue;
@@ -129,7 +129,7 @@ int main(int argc, char **argv)
 		if (de->d_name[0] == '.')
 			continue;
 
-		fd = open_sysfs_file(device ? : "ploop0", de->d_name, clear ? O_WRONLY : O_RDONLY);
+		fd = open_sysfs_file(device, de->d_name, clear ? O_WRONLY : O_RDONLY);
 		if (fd < 0) {
 			perror("openat");
 			return SYSEXIT_SYSFS;
