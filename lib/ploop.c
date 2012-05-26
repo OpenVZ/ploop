@@ -645,9 +645,9 @@ int ploop_create_image(struct ploop_create_param *param)
 		ret = ploop_init_image(di, param);
 		if (ret)
 			ploop_drop_image(di);
-
-		ploop_free_diskdescriptor(di);
 	}
+	ploop_free_diskdescriptor(di);
+
 	return ret;
 }
 
