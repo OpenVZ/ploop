@@ -2006,7 +2006,7 @@ int ploop_switch_snapshot(struct ploop_disk_images_data *di, const char *guid, i
 	char dev[64];
 	char uuid[61];
 	char uuid1[61];
-	char new_top_delta_fnanme[MAXPATHLEN];
+	char new_top_delta_fname[MAXPATHLEN];
 	char *old_top_delta_fname = NULL;
 	char conf[MAXPATHLEN];
 	char conf_tmp[MAXPATHLEN];
@@ -2058,9 +2058,9 @@ int ploop_switch_snapshot(struct ploop_disk_images_data *di, const char *guid, i
 		if (ret)
 			goto err_cleanup1;
 	}
-	snprintf(new_top_delta_fnanme, sizeof(new_top_delta_fnanme), "%s.%s",
+	snprintf(new_top_delta_fname, sizeof(new_top_delta_fname), "%s.%s",
 			di->images[0]->file, uuid1);
-	ret = ploop_di_add_image(di, new_top_delta_fnanme, uuid, guid);
+	ret = ploop_di_add_image(di, new_top_delta_fname, uuid, guid);
 	if (ret)
 		goto err_cleanup1;
 
@@ -2071,7 +2071,7 @@ int ploop_switch_snapshot(struct ploop_disk_images_data *di, const char *guid, i
 		goto err_cleanup1;
 
 	// offline snapshot
-	fd = create_empty_delta(new_top_delta_fnanme, di->blocksize, size);
+	fd = create_empty_delta(new_top_delta_fname, di->blocksize, size);
 	if (fd == -1) {
 		ret = SYSEXIT_CREAT;
 		goto err_cleanup2;
@@ -2093,7 +2093,7 @@ int ploop_switch_snapshot(struct ploop_disk_images_data *di, const char *guid, i
 
 	ploop_log(0, "ploop snapshot has been successfully switched");
 err_cleanup3:
-	if (ret && unlink(new_top_delta_fnanme))
+	if (ret && unlink(new_top_delta_fname))
 		ploop_err(errno, "Can't unlink %s",
 				conf_tmp);
 err_cleanup2:
