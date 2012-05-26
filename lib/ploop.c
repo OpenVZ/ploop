@@ -539,18 +539,22 @@ static int create_balloon_file(struct ploop_disk_images_data *di,
 	mount_param.target = mnt;
 	ret = ploop_mount_fs(&mount_param);
 	if (ret)
-		return ret;
+		goto out;
 	snprintf(fname, sizeof(fname), "%s/"BALLOON_FNAME, mnt);
 
 	fd = open(fname, O_CREAT|O_RDONLY|O_TRUNC, 0600);
 	if (fd == -1) {
 		ploop_err(errno, "Can't open %s", fname);
-		umount(mnt);
-		return SYSEXIT_OPEN;
+		ret = SYSEXIT_OPEN;
+		goto out;
 	}
 	close(fd);
+	ret = 0;
+out:
+	umount(mnt);
+	rmdir(mnt);
 
-	return 0;
+	return ret;
 }
 
 static int ploop_init_image(struct ploop_disk_images_data *di, struct ploop_create_param *param)
