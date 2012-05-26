@@ -47,18 +47,18 @@ int main(int argc, char ** argv)
 	int merge_top = 0;
 	char *device = NULL;
 	char **names = NULL;
-	int i, ret;
+	int i, f, ret;
 	struct ploop_merge_param param = {};
 
 	while ((i = getopt(argc, argv, "f:d:l:u:A")) != EOF) {
 		switch (i) {
 		case 'f':
-			if (strcmp(optarg, "raw") == 0)
-				raw = 1;
-			else if (strcmp(optarg, "direct") != 0) {
+			f = parse_format_opt(optarg);
+			if (f < 0) {
 				usage();
 				return -1;
 			}
+			raw = (f == PLOOP_RAW_MODE);
 			break;
 		case 'd':
 			device = optarg;

@@ -19,7 +19,9 @@
 #include <linux/types.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include "ploop1_image.h"
+#include "libploop.h"
 
 int parse_size(const char * opt, off_t * sz)
 {
@@ -62,6 +64,20 @@ int parse_size(const char * opt, off_t * sz)
 	if (val >= (0xffffffffULL << PLOOP1_SECTOR_LOG))
 		return -1;
 	return 0;
+}
+
+int parse_format_opt(const char *opt)
+{
+	if (strcmp(opt, "raw") == 0)
+		return PLOOP_RAW_MODE;
+	else if ((strcmp(opt, "ploop1") == 0) ||
+		 (strcmp(opt, "expanded") == 0))
+		return PLOOP_EXPANDED_MODE;
+	else if (strcmp(opt, "preallocated") == 0)
+		return PLOOP_EXPANDED_PREALLOCATED_MODE;
+
+	fprintf(stderr, "Bad -f argument: %s\n", opt);
+	return -1;
 }
 
 int is_xml_fname(const char *fname)

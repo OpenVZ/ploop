@@ -130,18 +130,18 @@ int
 main(int argc, char ** argv)
 {
 	char *pname = argv[0];
-	int i;
+	int i, f;
 	off_t new_size = 0; /* in sectors */
 
 	while ((i = getopt(argc, argv, "f:d:s:")) != EOF) {
 		switch (i) {
 		case 'f':
-			if (strcmp(optarg, "raw") == 0)
-				raw = 1;
-			else if (strcmp(optarg, "direct") != 0) {
+			f = parse_format_opt(optarg);
+			if (f < 0) {
 				usage(pname);
 				return -1;
 			}
+			raw = (f == PLOOP_RAW_MODE);
 			break;
 		case 'd':
 			device = optarg;

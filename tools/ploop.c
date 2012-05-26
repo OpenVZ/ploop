@@ -64,7 +64,7 @@ static void usage_init(void)
 
 static int plooptool_init(int argc, char **argv)
 {
-	int i, ret;
+	int i, f, ret;
 	off_t size_sec = 0;
 	struct ploop_create_param param = {};
 
@@ -88,17 +88,12 @@ static int plooptool_init(int argc, char **argv)
 			  break;
 		}
 		case 'f':
-			if (strcmp(optarg, "raw") == 0)
-				param.mode = PLOOP_RAW_MODE;
-			else if ((strcmp(optarg, "ploop1") == 0) ||
-				 (strcmp(optarg, "expanded") == 0))
-				param.mode = PLOOP_EXPANDED_MODE;
-			else if (strcmp(optarg, "preallocated") == 0)
-				param.mode = PLOOP_EXPANDED_PREALLOCATED_MODE;
-			else {
+			f = parse_format_opt(optarg);
+			if (f < 0) {
 				usage_init();
 				return -1;
 			}
+			param.mode = f;
 			break;
 		case 't':
 			if (!strcmp(optarg, "ext4") || !strcmp(optarg, "ext3")) {
@@ -150,7 +145,7 @@ static void usage_mount(void)
 
 static int plooptool_mount(int argc, char **argv)
 {
-	int i, ret;
+	int i, f, ret;
 	int raw = 0;
 	int base = 0;
 	struct ploop_mount_param mountopts = {};
@@ -165,12 +160,12 @@ static int plooptool_mount(int argc, char **argv)
 			mountopts.ro = 1;
 			break;
 		case 'f':
-			if (strcmp(optarg, "raw") == 0)
-				raw = 1;
-			else if (strcmp(optarg, "ploop1") != 0) {
+			f = parse_format_opt(optarg);
+			if (f < 0) {
 				usage_mount();
 				return -1;
 			}
+			raw = (f == PLOOP_RAW_MODE);
 			break;
 		case 'm':
 			mountopts.target = strdup(optarg);
@@ -803,14 +798,7 @@ static int plooptool_convert(int argc, char **argv)
 	while ((i = getopt(argc, argv, "f:")) != EOF) {
 		switch (i) {
 		case 'f':
-			if (!strcmp(optarg, "raw"))
-				mode = PLOOP_RAW_MODE;
-			else if (!strcmp(optarg, "preallocated"))
-				mode = PLOOP_EXPANDED_PREALLOCATED_MODE;
-			else {
-				usage_convert();
-				return -1;
-			}
+			mode = parse_format_opt(optarg);
 			break;
 		default:
 			usage_convert();
