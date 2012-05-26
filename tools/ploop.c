@@ -789,7 +789,9 @@ static int plooptool_resize(int argc, char **argv)
 
 static void usage_convert(void)
 {
-	fprintf(stderr, "Usage: ploop convert -t <raw|preallocated>\n");
+	fprintf(stderr, "Usage: ploop convert -f FORMAT\n"
+			"       FORMAT := { raw | preallocated }\n"
+			);
 }
 
 static int plooptool_convert(int argc, char **argv)
@@ -798,9 +800,9 @@ static int plooptool_convert(int argc, char **argv)
 	struct ploop_disk_images_data *di;
 	int mode = -1;
 
-	while ((i = getopt(argc, argv, "t:")) != EOF) {
+	while ((i = getopt(argc, argv, "f:")) != EOF) {
 		switch (i) {
-		case 't':
+		case 'f':
 			if (!strcmp(optarg, "raw"))
 				mode = PLOOP_RAW_MODE;
 			else if (!strcmp(optarg, "preallocated"))
