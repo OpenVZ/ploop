@@ -544,8 +544,8 @@ static int create_balloon_file(struct ploop_disk_images_data *di,
 
 	fd = open(fname, O_CREAT|O_RDONLY|O_TRUNC, 0600);
 	if (fd == -1) {
-		ploop_err(errno, "Can't open %s", fname);
-		ret = SYSEXIT_OPEN;
+		ploop_err(errno, "Can't create balloon file %s", fname);
+		ret = SYSEXIT_CREAT;
 		goto out;
 	}
 	close(fd);
