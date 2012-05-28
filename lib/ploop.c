@@ -1343,6 +1343,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 {
 	int ret;
 	char mnt[MAXPATHLEN] = "";
+	int lckfd;
 
 	if (!device) {
 		ploop_err(0, "ploop_umount: device is not specified");
@@ -1359,10 +1360,16 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 		}
 	}
 
+	lckfd = ploop_global_lock();
+	if (lckfd == -1)
+		return SYSEXIT_LOCK;
+
 	ret = ploop_stop_device(device);
 
 	if (ret == 0 && di != NULL)
 		unregister_ploop_dev(di->runtime->component_name, di->images[0]->file);
+
+	ploop_unlock(&lckfd);
 
 	return ret;
 }
