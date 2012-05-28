@@ -1322,10 +1322,27 @@ int ploop_mount_snapshot(struct ploop_disk_images_data *di, struct ploop_mount_p
 	return mount_image(di, param, PLOOP_MOUNT_SNAPSHOT);
 }
 
+static int ploop_stop_device(const char *device)
+{
+	int lfd, ret;
+
+	ploop_log(0, "Unmounting device %s", device);
+	lfd = open(device, O_RDONLY);
+	if (lfd < 0) {
+		ploop_err(errno, "Can't open dev %s", device);
+		return SYSEXIT_DEVICE;
+	}
+
+	ret = ploop_stop(lfd, device);
+	close(lfd);
+
+	return ret;
+}
+
 int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 {
+	int ret;
 	char mnt[MAXPATHLEN] = "";
-	int lfd, ret;
 
 	if (!device) {
 		ploop_err(0, "ploop_umount: device is not specified");
@@ -1342,15 +1359,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 		}
 	}
 
-	ploop_log(0, "Unmounting device %s", device);
-	lfd = open(device, O_RDONLY);
-	if (lfd < 0) {
-		ploop_err(errno, "Can't open dev %s", device);
-		return SYSEXIT_DEVICE;
-	}
-
-	ret = ploop_stop(lfd, device);
-	close(lfd);
+	ret = ploop_stop_device(device);
 
 	if (ret == 0 && di != NULL)
 		unregister_ploop_dev(di->runtime->component_name, di->images[0]->file);
