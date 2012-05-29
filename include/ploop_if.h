@@ -295,6 +295,12 @@ struct ploop_track_extent
 /* Wait a discard request */
 #define PLOOP_IOC_DISCARD_WAIT _IO(PLOOPCTLTYPE, 25)
 
+/* Drop current state of free block extents */
+#define PLOOP_IOC_FBDROP       _IO(PLOOPCTLTYPE, 26)
+
+/* Filter extents with sizes less than arg */
+#define PLOOP_IOC_FBFILTER     _IOR(PLOOPCTLTYPE, 27, unsigned long)
+
 /* Events exposed via /sys/block/ploopN/pstate/event */
 #define PLOOP_EVENT_ABORTED	1
 #define PLOOP_EVENT_STOPPED	2
