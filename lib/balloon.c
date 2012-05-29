@@ -819,10 +819,26 @@ err:
 	return ret;
 }
 
+static int trim_stop = 0;
+static void stop_trim_handler(int sig)
+{
+	trim_stop = 1;
+}
+
 static int ploop_trim(const char *mount_point, __u64 minlen_b)
 {
 	struct fstrim_range range = {0, ULLONG_MAX, minlen_b};
 	int fd, ret;
+
+	struct sigaction sa = {
+		.sa_handler     = stop_trim_handler,
+	};
+	sigemptyset(&sa.sa_mask);
+
+        if (sigaction(SIGUSR1, &sa, NULL)) {
+                ploop_err(errno, "Can't set signal handler");
+                exit(1);
+        }
 
 	fd = open(mount_point, O_RDONLY);
 	if (fd < 0) {
@@ -833,8 +849,12 @@ static int ploop_trim(const char *mount_point, __u64 minlen_b)
 	sys_syncfs(fd);
 
 	ret = ioctl(fd, FITRIM, &range);
-	if (ret < 0)
-		ploop_err(errno, "Can't trim file system");
+	if (ret < 0) {
+		if (trim_stop)
+			ret = 0;
+		else
+			ploop_err(errno, "Can't trim file system");
+	}
 
 	close(fd);
 
@@ -907,7 +927,7 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 {
 	pid_t tpid;
 	int exit_code = 0, ret, status;
-	__u32 distrib[DISCARD_TABLE_SIZE];
+	__u32 distrib[DISCARD_TABLE_SIZE], size = 0;
 
 	memset(distrib, 0, sizeof(distrib));
 
@@ -963,7 +983,8 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 			if (ret)
 				break;
 			continue;
-		}
+		} else
+			size += ret;
 
 		switch (state) {
 		case PLOOP_DISCARD_COMPACT:
@@ -977,6 +998,14 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 				ploop_log(0, "Unexpected maintenance type 0x%x", b_ctl.mntn_type);
 				ret = -1;
 				break;
+			}
+
+			if (size >= to_free) {
+				ploop_log(3, "Kill trim process %d", tpid);
+				kill(tpid, SIGUSR1);
+				ret = ioctl_device(fd, PLOOP_IOC_DISCARD_FINI, NULL);
+				if (ret < 0 && errno != EBUSY)
+					ploop_err(errno, "Can't finalize a discard mode");
 			}
 
 			ploop_log(0, "Start relocation");
