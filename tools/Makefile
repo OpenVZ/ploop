@@ -39,7 +39,6 @@ install-man: $(MANS)
 
 install-progs: $(PROGS)
 	$(Q) $(INSTALL) -d $(DESTDIR)$(USRSBINDIR)
-	$(Q) $(INSTALL) -d $(DESTDIR)/var/lock/ploop
 	$(E) "  INSTALL " $(PROGS)
 	$(Q) $(INSTALL) -s -m 755 $(PROGS) $(DESTDIR)$(USRSBINDIR)/
 
