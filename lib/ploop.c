@@ -1923,7 +1923,6 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 	if (ploop_lock_di(di))
 		return SYSEXIT_LOCK;
 
-	top_guid = strdup(di->top_guid);
 	ret = gen_uuid_pair(uuid, sizeof(uuid), uuid1, sizeof(uuid1));
 	if (ret) {
 		ploop_err(errno, "Can't generate uuid");
@@ -1956,6 +1955,7 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 		goto err_cleanup1;
 	}
 
+	top_guid = strdup(di->top_guid);
 	snprintf(fname, sizeof(fname), "%s.%s",
 			di->images[0]->file, uuid1);
 	ret = ploop_di_add_image(di, fname, uuid, get_top_delta_guid(di));
