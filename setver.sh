@@ -1,5 +1,24 @@
 #!/bin/sh
 
+while test -n "$1"; do
+	case $1 in
+	   -b|--build)
+		build=yes
+		;;
+	   -i|--install)
+		build=yes
+		install=yes
+		;;
+	   -v|--verbose)
+		verbose=yes
+		;;
+	   *)
+		echo "Invalid argument: $1" 1>&2
+		exit 1
+	esac
+	shift
+done
+
 RPM_SPEC=ploop.spec
 
 # Try to figure out version from git
@@ -19,7 +38,7 @@ read_spec
 
 # Set version/release in spec from git
 if test "$GIT_VR" != "$SPEC_VR"; then
-#	echo "Changing $RPM_SPEC:"
+	test -z "$verbose" || echo "Changing $RPM_SPEC:"
 	# Version: 3.0.28
 	# Release: 1%{?dist}
 	sed -i -e "s/^\(Version:[[:space:]]*\).*\$/\1$GIT_V/" \
@@ -32,10 +51,13 @@ if test "$GIT_VR" != "$SPEC_VR"; then
 			$RPM_SPEC
 	fi
 fi
-#grep -E -H '^Version:|^%define rel|^Source:|^%setup' $RPM_SPEC
+test -z "$verbose" || \
+	grep -E -H '^Version:|^%define rel|^Source:|^%setup' $RPM_SPEC
 
 # Set version in configure.ac from spec
 read_spec
 SPEC_VR=$(echo $SPEC_VR | sed 's/-1$//')
 
-exit 0
+test "$build" = "yes" && make rpms
+test "$install" = "yes" &&
+	sudo rpm -Uhv $(rpm --eval %{_rpmdir}/%{_arch})/ploop-*${GIT_VR}*.rpm
