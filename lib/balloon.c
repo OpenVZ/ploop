@@ -884,11 +884,12 @@ int ploop_discard(const char *device, const char *mount_point)
 		struct ploop_balloon_ctl b_ctl;
 
 		ploop_log(0, "Waiting");
-		ret = ioctl_device(fd, PLOOP_IOC_DISCARD_WAIT, NULL);
-		if (ret) {
+		ret = ioctl(fd, PLOOP_IOC_DISCARD_WAIT, NULL);
+		if (ret < 0) {
 			ploop_err(errno, "Waiting for a discard request failed");
 			break;
-		}
+		} else if (ret == 0)
+			break;
 
 		memset(&b_ctl, 0, sizeof(b_ctl));
 		b_ctl.keep_intact = 1;
