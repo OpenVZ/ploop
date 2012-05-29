@@ -973,7 +973,7 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 		} else if (ret == 0)
 			break;
 
-		ret = ioctl_device(fd, PLOOP_IOC_FBFILTER, (void *)(unsigned long)*minlen_c);
+		ret = ioctl(fd, PLOOP_IOC_FBFILTER, (void *)(unsigned long)*minlen_c);
 		if (ret < 0) {
 			ploop_err(errno, "Can't filter free blocks");
 			break;
