@@ -349,14 +349,10 @@ static int create_empty_preallocated_delta(const char *path, __u32 blocksize, of
 
 	rc = sys_fallocate(odelta.fd, 0, 0, S2B(vh.m_FirstBlockOffset + vh.m_SizeInSectors));
 	if (rc) {
-		if (errno == ENOTSUP) {
-			ploop_log(0, "Warning: fallocate is not supported, using truncate instead");
-			rc = ftruncate(odelta.fd, S2B(vh.m_FirstBlockOffset + vh.m_SizeInSectors));
-		}
-		if (rc) {
-			ploop_err(errno, "Failed to create %s", path);
-			goto out_close;
-		}
+		if (errno == ENOTSUP)
+			ploop_err(errno, "fallocate");
+		ploop_err(errno, "Failed to create %s", path);
+		goto out_close;
 	}
 
 	for (clu = 0; clu < SizeToFill / cluster; clu++) {
@@ -1711,11 +1707,9 @@ static int expanded2preallocated(struct ploop_disk_images_data *di)
 			ret = sys_fallocate(delta.fd, 0, data_off * cluster, cluster);
 			if (ret) {
 				if (errno == ENOTSUP)
-					ret = ftruncate(delta.fd, (data_off + 1) * cluster);
-				if (ret) {
-					ploop_err(errno, "Failed to expand %s", di->images[0]->file);
-					goto err;
-				}
+					ploop_err(errno, "fallocate");
+				ploop_err(errno, "Failed to expand %s", di->images[0]->file);
+				goto err;
 			}
 
 			if (PWRITE(&delta, &delta.l2[l2_slot], sizeof(__u32), idx_off))
