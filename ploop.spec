@@ -41,6 +41,7 @@ fi
 %attr(755,root,root) /sbin/*
 %attr(755,root,root) %{_sbindir}/ploop
 %attr(755,root,root) %{_sbindir}/ploop-*
+%attr(644,root,root) %{_mandir}/man8/ploop.8.*
 
 %package lib
 Summary: ploop library

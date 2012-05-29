@@ -8,14 +8,15 @@ PROGS =	ploop \
 	ploop-grow \
 	ploop-balloon
 
-MANS	= ploop.8
+MAN8	= ploop.8
+MANS	= $(MAN8)
 OBJS	= $(addsuffix .o,$(PROGS)) common.o
 SOURCES	= $(addsuffix .c,$(PROGS)) common.c
 CFLAGS	+= -I../lib
 LDFLAGS	+= -L../lib
 LDLIBS	+= -lploop
 
-all: $(PROGS)
+all: $(PROGS) $(MANS)
 .PHONY: all
 
 $(PROGS): $(LIBPLOOP)
@@ -27,21 +28,23 @@ $(PROGS): $(LIBPLOOP)
 .depend: $(SOURCES)
 -include .depend
 
-man: $(MANS)
-.PHONY: man
-
-%.8: %.sgml
+%.8: %.8.in macros.tmac
 	$(E) "  GEN     " $@
-	$(Q) -mkdir .tmpman
-	$(Q) set -e; cd .tmpman; LC_ALL=C docbook2man ../$< ; mv $@ ..
-	$(Q) -rm -rf .tmpman
+	$(Q) cat macros.tmac $< > $@
 
-install: $(PROGS)
+install-man: $(MANS)
+	$(E) "  INSTALL " $(MAN8)
+	$(Q) $(INSTALL) -d $(DESTDIR)$(MAN8DIR)
+	$(Q) $(INSTALL) -m 644 $(MAN8) $(DESTDIR)$(MAN8DIR)/
+
+install-progs: $(PROGS)
 	$(Q) $(INSTALL) -d $(DESTDIR)$(USRSBINDIR)
 	$(Q) $(INSTALL) -d $(DESTDIR)/var/lock/ploop
 	$(E) "  INSTALL " $(PROGS)
 	$(Q) $(INSTALL) -s -m 755 $(PROGS) $(DESTDIR)$(USRSBINDIR)/
-.PHONY: install
+
+install: install-progs install-man
+.PHONY: install install-progs install-man
 
 clean:
 	$(E) "  CLEAN   "

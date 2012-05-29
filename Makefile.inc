@@ -8,6 +8,8 @@ ifeq "$(shell uname -m)" "x86_64"
 LIBDIR=/usr/lib64
 endif
 LOCKDIR=/var/lock/ploop
+MANDIR=/usr/share/man
+MAN8DIR=$(MANDIR)/man8
 DEBUG=yes
 
 CFLAGS = -I. -I../include -Wall -fno-strict-aliasing -Wstrict-prototypes \
