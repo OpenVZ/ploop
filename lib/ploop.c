@@ -1353,7 +1353,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	if (get_mount_dir(device, mnt, sizeof(mnt)) == 0) {
 		if (di != NULL)
 			store_statfs_info(mnt, di->images[0]->file);
-		ploop_log(0, "Umounting fs at %s", mnt);
+		ploop_log(0, "Unmounting file system at %s", mnt);
 		if (do_umount(mnt)) {
 			ploop_err(errno, "umount %s failed", mnt);
 			return SYSEXIT_UMOUNT;
