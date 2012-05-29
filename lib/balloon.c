@@ -841,15 +841,17 @@ static int ploop_trim(const char *mount_point)
 	return ret;
 }
 
-int ploop_discard(const char *device, const char *mount_point)
-{
-	int fd, ret, status;
-	int exit_code = 0;
-	pid_t tpid;
+enum {
+	PLOOP_DISCARD_COMPACT,
 
-	fd = open_device(device);
-	if (fd == -1)
-		return SYSEXIT_OPEN;
+	PLOOP_DISCARD_MAX
+};
+
+static int __ploop_discard(int fd, const char *device, const char *mount_point, int state)
+{
+	pid_t tpid;
+	int exit_code = 0, ret, status;
+
 
 	ret = ioctl_device(fd, PLOOP_IOC_DISCARD_INIT, NULL);
 	if (ret) {
@@ -891,17 +893,28 @@ int ploop_discard(const char *device, const char *mount_point)
 		} else if (ret == 0)
 			break;
 
-		memset(&b_ctl, 0, sizeof(b_ctl));
-		b_ctl.keep_intact = 1;
-		ret = ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
-		if (ret)
-			break;
+		switch (state) {
+		case PLOOP_DISCARD_COMPACT:
+			memset(&b_ctl, 0, sizeof(b_ctl));
+			b_ctl.keep_intact = 1;
+			ret = ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
+			if (ret)
+				break;
 
-		if (b_ctl.mntn_type == PLOOP_MNTN_OFF)
-			break;
+			if (b_ctl.mntn_type == PLOOP_MNTN_OFF) {
+				ploop_log(0, "Unexpected maintenance type 0x%x", b_ctl.mntn_type);
+				ret = -1;
+				break;
+			}
 
-		ploop_log(0, "Start relocation");
-		ret = ploop_balloon_relocation(fd, &b_ctl, device);
+			ploop_log(0, "Start relocation");
+			ret = ploop_balloon_relocation(fd, &b_ctl, device);
+			break;
+		default:
+			ret = -EINVAL;
+			break;
+		}
+
 		if (ret)
 			break;
 	}
@@ -915,8 +928,6 @@ int ploop_discard(const char *device, const char *mount_point)
 
 		kill(tpid, SIGKILL);
 	}
-
-	close(fd);
 
 	ret = waitpid(tpid, &status, 0);
 	if (ret == -1) {
@@ -933,4 +944,23 @@ int ploop_discard(const char *device, const char *mount_point)
 	}
 
 	return exit_code;
+}
+
+int ploop_discard(const char *device, const char *mount_point)
+{
+	int fd, ret, state;
+
+	fd = open_device(device);
+	if (fd == -1)
+		return SYSEXIT_OPEN;
+
+	for (state = 0; state < PLOOP_DISCARD_MAX; state++) {
+		ret = __ploop_discard(fd, device, mount_point, state);
+		if (ret)
+			break;
+	}
+
+	close(fd);
+
+	return ret;
 }
