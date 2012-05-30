@@ -250,7 +250,8 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 	struct ploop_track_extent e;
 
 	// Do not print anything on stdout, since we use it to send delta
-	ploop_set_verbose_level(-1);
+	if (ofd == STDOUT_FILENO)
+		ploop_set_verbose_level(PLOOP_LOG_NOSTDOUT);
 
 	devfd = open(device, O_RDONLY);
 	if (devfd < 0) {
