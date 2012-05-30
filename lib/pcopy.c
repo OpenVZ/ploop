@@ -193,14 +193,14 @@ static int get_image_info(const char *device, char **send_from_p,
 		return SYSEXIT_SYSFS;
 	}
 
-	if (find_delta_names(device, top_level, top_level,
-				send_from_p, format_p)) {
-		ploop_err(errno, "find_delta_names");
+	if (ploop_get_attr(device, "block_size", blocksize)) {
+		ploop_err(0, "Can't find block size");
 		return SYSEXIT_SYSFS;
 	}
 
-	if (ploop_get_attr(device, "block_size", blocksize)) {
-		ploop_err(0, "Can't find block size");
+	if (find_delta_names(device, top_level, top_level,
+				send_from_p, format_p)) {
+		ploop_err(errno, "find_delta_names");
 		return SYSEXIT_SYSFS;
 	}
 
