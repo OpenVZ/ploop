@@ -102,7 +102,7 @@ static int nread(int fd, void * buf, int len)
 int receive_process(const char *dst)
 {
 	int ofd, ret;
-	__u64 cluster;
+	__u64 cluster = 0;
 	void *iobuf = NULL;
 
 	if (isatty(0) || errno == EBADF) {
@@ -132,18 +132,15 @@ int receive_process(const char *dst)
 			ret = SYSEXIT_PROTOCOL;
 			goto out;
 		}
-		if (iobuf == NULL) {
+		if (desc.size > cluster) {
+			free(iobuf);
+			iobuf = NULL;
 			cluster = desc.size;
 			if (posix_memalign(&iobuf, 4096, cluster)) {
 				ploop_err(errno, "posix_memalign");
 				ret = SYSEXIT_MALLOC;
 				goto out;
 			}
-		}
-		if (desc.size > cluster) {
-			ploop_err(0, "Stream corrupted, too long chunk");
-			ret = SYSEXIT_PROTOCOL;
-			goto out;
 		}
 		if (desc.size == 0)
 			break;
@@ -179,6 +176,7 @@ out:
 	}
 	if (ret)
 		unlink(dst);
+	free(iobuf);
 
 	return ret;
 }
