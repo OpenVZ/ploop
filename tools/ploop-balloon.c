@@ -373,8 +373,11 @@ static int pb_check_and_repair(int argc, char **argv, int repair)
 static void usage_discard(void)
 {
 	fprintf(stderr, "Usage: ploop-balloon discard {-d DEVICE | -m MOUNT_POINT}\n"
+			"	--to-free SIZE[kmg] --min-block MIN_SIZE\n"
 			"	DEVICE	    := ploop device, e.g. /dev/ploop0\n"
 			"	MOUNT_POINT := path where fs living on ploop device mounted to\n"
+			"       SIZE        := maximum space to free\n"
+			"       MIN_SIZE    := minimum size of a linear slice to be freed\n"
 			"Action: discard unused blocks from the image.\n"
 		);
 }
@@ -382,8 +385,15 @@ static void usage_discard(void)
 static int pb_discard(int argc, char **argv)
 {
 	int i;
+	off_t val;
+	__u64 to_free = ~0ULL, minblock_b = 0;
+	static struct option long_opts[] = {
+		{ "to-free", required_argument, 0, 666 },
+		{ "min-block", required_argument, 0, 667 },
+		{},
+	};
 
-	while ((i = getopt(argc, argv, "d:m:")) != EOF) {
+	while ((i = getopt_long(argc, argv, "d:m:", long_opts, NULL)) != EOF) {
 		switch (i) {
 		case 'd':
 			device = optarg;
@@ -391,7 +401,19 @@ static int pb_discard(int argc, char **argv)
 		case 'm':
 			mount_point = optarg;
 			break;
+		case 666:
+			if (!parse_size(optarg, &val)) {
+				fprintf(stderr, "Invalid value for --to-free: %s\n", optarg);
+				usage_discard();
+				return SYSEXIT_PARAM;
+			}
+			to_free = S2B(val);
+			break;
+		case 667:
+			minblock_b = atoll(optarg);
+			break;
 		default:
+			usage_discard();
 			return -1;
 		}
 	}
@@ -404,7 +426,7 @@ static int pb_discard(int argc, char **argv)
 		return -1;
 	}
 
-	return ploop_discard(device, mount_point);
+	return ploop_discard(device, mount_point, minblock_b, to_free);
 }
 
 int main(int argc, char **argv)

@@ -819,9 +819,9 @@ err:
 	return ret;
 }
 
-static int ploop_trim(const char *mount_point)
+static int ploop_trim(const char *mount_point, __u64 minlen_b)
 {
-	struct fstrim_range range = {0, ULLONG_MAX, PAGE_SIZE};
+	struct fstrim_range range = {0, ULLONG_MAX, minlen_b};
 	int fd, ret;
 
 	fd = open(mount_point, O_RDONLY);
@@ -841,17 +841,77 @@ static int ploop_trim(const char *mount_point)
 	return ret;
 }
 
+#define ilog2(n) (			\
+	(n) >= (1 << 9) ? 9 :		\
+	(n) & 1 << 8	 ? 8 :		\
+	(n) & 1 << 7	 ? 7 :		\
+	(n) & 1 << 6	 ? 6 :		\
+	(n) & 1 << 5	 ? 5 :		\
+	(n) & 1 << 4	 ? 4 :		\
+	(n) & 1 << 3	 ? 3 :		\
+	(n) & 1 << 2	 ? 2 :		\
+	(n) & 1 << 1	 ? 1 :	0	\
+)
+
+#define DISCARD_TABLE_SIZE 10
+
+static int discard_collect_stat(int fd, __u32 *distrib)
+{
+	struct ploop_freeblks_ctl  *freeblks = NULL;
+	int ret, i;
+
+	ret = freeblks_alloc(&freeblks, 0);
+	if (ret)
+		return ret;
+
+	ret = ioctl_device(fd, PLOOP_IOC_FBGET, freeblks);
+	if (ret)
+		goto free;
+
+	if (freeblks->n_extents == 0) {
+		// This should never happen, and we don't want
+		// to return an error here.
+		ploop_err(EINVAL, "The number of extents is zero");
+		goto free;
+	}
+
+	ret = freeblks_alloc(&freeblks, freeblks->n_extents);
+	if (ret)
+		goto free;
+
+	ret = ioctl_device(fd, PLOOP_IOC_FBGET, freeblks);
+	if (ret)
+		goto free;
+
+	for (i = 0; i < freeblks->n_extents; i++) {
+		__u32 len = freeblks->extents[i].len;
+		distrib[ilog2(len)] += len;
+	}
+	ret = ioctl_device(fd, PLOOP_IOC_FBDROP, 0);
+	if (ret)
+		goto free;
+free:
+	free(freeblks);
+	return ret;
+}
+
 enum {
+	PLOOP_DISCARD_STAT,
 	PLOOP_DISCARD_COMPACT,
 
 	PLOOP_DISCARD_MAX
 };
 
-static int __ploop_discard(int fd, const char *device, const char *mount_point, int state)
+static int __ploop_discard(int fd, const char *device, const char *mount_point,
+			int state, __u32 *minlen_c, __u32 cluster, __u32 to_free)
 {
 	pid_t tpid;
 	int exit_code = 0, ret, status;
+	__u32 distrib[DISCARD_TABLE_SIZE];
 
+	memset(distrib, 0, sizeof(distrib));
+
+	ploop_log(3, "Try to find free extents bigger than %u clusters", *minlen_c);
 
 	ret = ioctl_device(fd, PLOOP_IOC_DISCARD_INIT, NULL);
 	if (ret) {
@@ -871,7 +931,7 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point, 
 	}
 
 	if (tpid == 0) {
-		ret = ploop_trim(mount_point);
+		ret = ploop_trim(mount_point, (__u64) *minlen_c * cluster);
 		if (ret < 0)
 			exit_code = 1;
 
@@ -893,6 +953,18 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point, 
 		} else if (ret == 0)
 			break;
 
+		ret = ioctl_device(fd, PLOOP_IOC_FBFILTER, (void *)(unsigned long)*minlen_c);
+		if (ret < 0) {
+			ploop_err(errno, "Can't filter free blocks");
+			break;
+		} else if (ret == 0) {
+			/* Nothing to do */
+			ret = ioctl_device(fd, PLOOP_IOC_FBDROP, 0);
+			if (ret)
+				break;
+			continue;
+		}
+
 		switch (state) {
 		case PLOOP_DISCARD_COMPACT:
 			memset(&b_ctl, 0, sizeof(b_ctl));
@@ -909,6 +981,10 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point, 
 
 			ploop_log(0, "Start relocation");
 			ret = ploop_balloon_relocation(fd, &b_ctl, device);
+			break;
+		case PLOOP_DISCARD_STAT:
+			ploop_log(0, "Get extents");
+			ret = discard_collect_stat(fd, distrib);
 			break;
 		default:
 			ret = -EINVAL;
@@ -943,19 +1019,57 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point, 
 		exit_code = 1;
 	}
 
+	if (exit_code == 0 && state == PLOOP_DISCARD_STAT) {
+		int j;
+
+		for (j = DISCARD_TABLE_SIZE - 1; j >= 0; j--)
+			ploop_log(3, "%10d\t%u", j, distrib[j]);
+
+		for (j = DISCARD_TABLE_SIZE - 1; j >= 0; j--) {
+			if (to_free <= distrib[j]) {
+				*minlen_c = (1 << j);
+				break;
+			}
+
+			to_free -= distrib[j];
+		}
+	}
+
 	return exit_code;
 }
 
-int ploop_discard(const char *device, const char *mount_point)
+int ploop_discard(const char *device, const char *mount_point,
+				__u64 minlen_b, __u64 to_free)
 {
 	int fd, ret, state;
+	int blocksize;
+	__u32  cluster, minlen_c;
+
+	if (ploop_get_attr(device, "block_size", &blocksize)) {
+		ploop_err(0, "Can't find block size");
+		return SYSEXIT_SYSFS;
+	}
+	cluster = S2B(blocksize);
+
+	if (minlen_b || to_free == ~0ULL)
+		state = PLOOP_DISCARD_COMPACT;
+	else
+		state = PLOOP_DISCARD_STAT;
+
+	minlen_c = (minlen_b + cluster - 1) / cluster;
+	to_free = to_free  / cluster;
+	if (!to_free) {
+		ploop_err(0, "Can't shrink by less than %d bytes", cluster);
+		return 0;
+	}
 
 	fd = open_device(device);
 	if (fd == -1)
 		return SYSEXIT_OPEN;
 
-	for (state = 0; state < PLOOP_DISCARD_MAX; state++) {
-		ret = __ploop_discard(fd, device, mount_point, state);
+	for (; state < PLOOP_DISCARD_MAX; state++) {
+		ret = __ploop_discard(fd, device, mount_point, state,
+					&minlen_c, cluster, to_free);
 		if (ret)
 			break;
 	}
