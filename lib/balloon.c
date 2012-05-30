@@ -931,7 +931,7 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 
 	memset(distrib, 0, sizeof(distrib));
 
-	ploop_log(3, "Try to find free extents bigger than %u clusters", *minlen_c);
+	ploop_log(3, "Trying to find free extents bigger than %u clusters", *minlen_c);
 
 	ret = ioctl_device(fd, PLOOP_IOC_DISCARD_INIT, NULL);
 	if (ret) {
@@ -1001,18 +1001,18 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 			}
 
 			if (size >= to_free) {
-				ploop_log(3, "Kill trim process %d", tpid);
+				ploop_log(3, "Killing the trim process %d", tpid);
 				kill(tpid, SIGUSR1);
 				ret = ioctl_device(fd, PLOOP_IOC_DISCARD_FINI, NULL);
 				if (ret < 0 && errno != EBUSY)
 					ploop_err(errno, "Can't finalize a discard mode");
 			}
 
-			ploop_log(0, "Start relocation");
+			ploop_log(0, "Starting relocation");
 			ret = ploop_balloon_relocation(fd, &b_ctl, device);
 			break;
 		case PLOOP_DISCARD_STAT:
-			ploop_log(0, "Get extents");
+			ploop_log(0, "Getting extents");
 			ret = discard_collect_stat(fd, distrib);
 			break;
 		default:
