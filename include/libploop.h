@@ -154,9 +154,11 @@ const char *ploop_get_last_error(void);
 int ploop_set_log_file(const char *fname);
 /* set log file logging level */
 void ploop_set_log_level(int level);
-#define PLOOP_LOG_NOCONSOLE -2
-/* set console logging level (PLOOP_LOG_NOCONSOLE to disable) */
+/* set console logging level */
 void ploop_set_verbose_level(int level);
+/* Constants to be used for ploop_set_verbose_level(): */
+#define PLOOP_LOG_NOCONSOLE	-2	/* disable all console logging */
+#define PLOOP_LOG_NOSTDOUT	-1	/* disable all but errors to stderr */
 
 /* Cancelation API */
 struct ploop_cancel_handle *ploop_get_cancel_handle(void);
