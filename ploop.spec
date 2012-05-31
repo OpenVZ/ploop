@@ -1,7 +1,7 @@
 %define _incdir /usr/include/ploop
 Summary: ploop tools
 Name: ploop
-Version: 1.2
+Version: 1.3
 %define rel 1
 Release: %{rel}%{?dist}
 Group: Applications/System
@@ -71,6 +71,46 @@ Headers and a static version of ploop library
 %attr(644,root,root) %{_incdir}/ploop1_image.h
 
 %changelog
+* Thu May 31 2012 Kir Kolyshkin <kir@openvz.org> 1.3-1
+- New functionality
+  - ploop copy is working now
+  - added pcopy's send_process() and receive_process() to lib
+  - ploop mount: added -c <component_name> option
+  - ploop(8): added (still incomplete)
+  - ploop balloon discard: add --to-free and --min-block
+  - add Preallocated item to DiskDescriptor.xml
+  - add add ploop_get_mnt_by_dev() to lib
+- Bug fixes
+  - fixed offline snapshot creation
+  - fixed race between register/unregister_ploop_dev()
+  - create image: if fallocate is not supported, fail
+  - ploop init, ploop mount: fix -b option value validation
+  - ploop mount: fix usage, -d is optional
+  - ploop info: fix usage, DiskDescriptor.xml is required
+  - ploop.spec: make main package require -lib of the same version
+  - fixed a few ioctl-related error messages
+  - ploop_create_snapshot(): check for number of snapshots limit (127)
+  - ploop.spec: do not own _libdir
+  - fix SYSEXIT_PARAM value
+  - tools/ploop.c: do not use ploop_err()
+  - tools: fixed/improved usage for many commands
+  - tools: do not forget to print newlines
+  - make install: use /usr/lib64 LIBDIR for x86_64
+  - ploop_create_image(): free disk descriptor if fstype is NULL
+  - create_balloon_file(): fix file name in error message
+  - create_balloon_file(): umount and remove temp mnt point
+  - create_balloon_file(): fix error message and return code
+  - parse_xml(): add Blocksize validation
+- Improvements and cleanups
+  - ploop lib: add visibility=hidden for internal functions
+  - tools: use parse_size() and is_xml_name() where possible
+  - remove merge_top_only param of get_delta_info()
+  - ploop balloon: make it accept either -m or -d or both
+  - ploop convert: change -t to -f
+  - tools: unify parsing -f option
+  - various code and headers cleanups
+  - setver.sh: add -v, -b, -i
+
 * Tue Apr 17 2012 Kir Kolyshkin <kir@openvz.org> 1.2-1
 - Added ploop_get_dev() function
 - Added ploop_set_component_name() function
