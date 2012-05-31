@@ -110,6 +110,8 @@ static int parse_xml(const char *basedir, xmlNode *root_node, struct ploop_disk_
 	const char *guid = NULL;
 	const char *parent_guid = NULL;
 	__u64 val;
+	int is_preallocated = 0;
+	int mode = PLOOP_EXPANDED_MODE;
 
 	cur_node = seek(root_node, "/Disk_Parameters");
 	ERR(cur_node, "/Disk_Parameters");
@@ -148,7 +150,16 @@ static int parse_xml(const char *basedir, xmlNode *root_node, struct ploop_disk_
 		if (parse_ul(data, &val) == 0)
 			di->blocksize = (unsigned)val;
 	}
-
+	node = seek(cur_node, "Preallocated");
+	if (node != NULL) {
+		data = get_element_txt(node);
+		if (parse_ul(data, &val) != 0 || val > 1) {
+			ploop_err(0, "Invalid disk descriptor file format:"
+				" Invalid Preallocated tag");
+			return -1;
+		}
+		is_preallocated = val;
+	}
 	cur_node = seek(root_node, "/StorageData/Storage/Image");
 	ERR(cur_node, "/StorageData/Storage/Image");
 
@@ -167,7 +178,7 @@ static int parse_xml(const char *basedir, xmlNode *root_node, struct ploop_disk_
 		if (node != NULL) {
 			data = get_element_txt(node);
 			if (data != NULL && !strcmp(data, "Plain"))
-				di->raw = 1;
+				mode = PLOOP_RAW_MODE;
 		}
 		file = NULL;
 		node = seek(cur_node, "File");
@@ -185,6 +196,18 @@ static int parse_xml(const char *basedir, xmlNode *root_node, struct ploop_disk_
 		if (ploop_add_image_entry(di, image, guid))
 			return -1;
 	}
+
+	if (is_preallocated) {
+		if (mode == PLOOP_RAW_MODE) {
+			ploop_err(0, "Invalid disk descriptor file format:"
+				" Preallocated is not compatible with Plain image");
+			return -1;
+		}
+		di->mode = PLOOP_EXPANDED_PREALLOCATED_MODE;
+	} else {
+		di->mode = mode;
+	}
+
 	cur_node = seek(root_node, "/Snapshots");
 	ERR(cur_node, "/Snapshots");
 
@@ -443,6 +466,14 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 		ploop_err(0, "Error at xmlTextWriter Blocksize");
 		goto err;
 	}
+	if (di->mode == PLOOP_EXPANDED_PREALLOCATED_MODE) {
+		rc = xmlTextWriterWriteElement(writer, BAD_CAST "Preallocated",
+				BAD_CAST "1");
+		if (rc < 0) {
+			ploop_err(0, "Error at xmlTextWriter Blocksize");
+			goto err;
+		}
+	}
 	/****************************************
 	 *	Images
 	 ****************************************/
@@ -460,7 +491,7 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 			goto err;
 		}
 		rc = xmlTextWriterWriteElement(writer, BAD_CAST "Type",
-			BAD_CAST (di->raw ? "Plain" : "Compressed"));
+			BAD_CAST (di->mode == PLOOP_RAW_MODE ? "Plain" : "Compressed"));
 		if (rc < 0) {
 			ploop_err(0, "Error at xmlTextWriter Type");
 			goto err;

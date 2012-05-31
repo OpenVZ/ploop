@@ -620,7 +620,7 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 	int start_level = -1;
 	int end_level = -1;
 	int merge_top = 0;
-	int raw = di->raw;
+	int raw = (di->mode == PLOOP_RAW_MODE);
 	int online = 0;
 	int snap_idx;
 	struct merge_info info = {};

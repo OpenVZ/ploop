@@ -480,7 +480,7 @@ static int create_image(struct ploop_disk_images_data *di,
 
 	ret = SYSEXIT_NOMEM;
 	di->size = size_sec;
-	di->raw = mode == PLOOP_RAW_MODE;
+	di->mode = mode;
 
 	ret = SYSEXIT_CREAT;
 	if (mode == PLOOP_RAW_MODE)
@@ -1240,7 +1240,7 @@ static int mount_image(struct ploop_disk_images_data *di, struct ploop_mount_par
 	images = make_images_list(di, guid, 0);
 	if (images == NULL)
 		return SYSEXIT_NOMEM;
-	ret = ploop_mount(di, images, param, di->raw);
+	ret = ploop_mount(di, images, param, (di->mode == PLOOP_RAW_MODE));
 	free_images_list(images);
 
 	return ret;
@@ -1644,7 +1644,6 @@ static int expanded2raw(struct ploop_disk_images_data *di)
 
 	if (fsync(odelta.fd))
 		ploop_err(errno, "fsync");
-	di->raw = 1;
 
 	get_disk_descriptor_fname(di, fname, sizeof(fname));
 	if (ploop_store_diskdescriptor(fname, di))
@@ -1730,10 +1729,12 @@ err:
 
 int ploop_convert_image(struct ploop_disk_images_data *di, int mode, int flags)
 {
+	char conf_tmp[MAXPATHLEN];
+	char conf[MAXPATHLEN];
 	int ret = -1;
 
-	if (di->raw) {
-		ploop_err(0, "Only expanded image type is supported");
+	if (di->mode == PLOOP_RAW_MODE) {
+		ploop_err(0, "Converting raw image is not supported");
 		return SYSEXIT_PARAM;
 	}
 	if (di->nimages == 0) {
@@ -1743,11 +1744,32 @@ int ploop_convert_image(struct ploop_disk_images_data *di, int mode, int flags)
 	if (ploop_lock_di(di))
 		return SYSEXIT_LOCK;
 
+	di->mode = mode;
+	get_disk_descriptor_fname(di, conf, sizeof(conf));
+	snprintf(conf_tmp, sizeof(conf_tmp), "%s.tmp", conf);
+	ret = ploop_store_diskdescriptor(conf_tmp, di);
+	if (ret)
+		goto err;
+
 	if (mode == PLOOP_EXPANDED_PREALLOCATED_MODE)
 		ret = expanded2preallocated(di);
 	else if (mode == PLOOP_RAW_MODE)
 		ret = expanded2raw(di);
+	/* else if (mode == PLOOP_EXPANDED)
+	 * do nothing because di->mode = mode and store DiskDescriptot.xml (see above) is enough;
+	 */
+	if (ret) {
+		unlink(conf_tmp);
+		goto err;
+	}
 
+	if (rename(conf_tmp, conf)) {
+		ploop_err(errno, "Can't rename %s %s",
+				conf_tmp, conf);
+		ret = SYSEXIT_RENAME;
+	}
+
+err:
 	ploop_unlock_di(di);
 
 	return ret;
@@ -1854,7 +1876,7 @@ static int get_image_size(struct ploop_disk_images_data *di, const char *guid, o
 				guid);
 		return SYSEXIT_PARAM;
 	}
-	if (di->raw) {
+	if (di->mode == PLOOP_RAW_MODE) {
 		int i;
 
 		i = find_snapshot_by_guid(di, guid);

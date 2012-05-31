@@ -71,7 +71,7 @@ struct ploop_disk_images_data {
 	unsigned int heads;
 	unsigned int cylinders;
 	unsigned int sectors;
-	int raw;
+	int mode;
 	int nimages;
 	struct ploop_image_data **images;
 	char *top_guid;
