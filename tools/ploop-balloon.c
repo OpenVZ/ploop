@@ -402,7 +402,7 @@ static int pb_discard(int argc, char **argv)
 			mount_point = optarg;
 			break;
 		case 666:
-			if (!parse_size(optarg, &val)) {
+			if (parse_size(optarg, &val)) {
 				fprintf(stderr, "Invalid value for --to-free: %s\n", optarg);
 				usage_discard();
 				return SYSEXIT_PARAM;
