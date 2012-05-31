@@ -147,8 +147,12 @@ static int parse_xml(const char *basedir, xmlNode *root_node, struct ploop_disk_
 	node = seek(cur_node, "Blocksize");
 	if (node != NULL) {
 		data = get_element_txt(node);
-		if (parse_ul(data, &val) == 0)
-			di->blocksize = (unsigned)val;
+		if (parse_ul(data, &val)) {
+			ploop_err(0, "Invalid disk descriptor file format:"
+					" Invalid Blocksize %s", data);
+			return -1;
+		}
+		di->blocksize = (unsigned)val;
 	}
 	node = seek(cur_node, "Preallocated");
 	if (node != NULL) {
