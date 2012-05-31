@@ -373,11 +373,11 @@ static int pb_check_and_repair(int argc, char **argv, int repair)
 static void usage_discard(void)
 {
 	fprintf(stderr, "Usage: ploop-balloon discard {-d DEVICE | -m MOUNT_POINT}\n"
-			"       --to-free SIZE[kmg] --min-block MIN_SIZE\n"
+			"                     --to-free SIZE --min-block MIN_SIZE\n"
 			"       DEVICE      := ploop device, e.g. /dev/ploop0\n"
 			"       MOUNT_POINT := path where fs living on ploop device mounted to\n"
-			"       SIZE        := maximum space to free\n"
-			"       MIN_SIZE    := minimum size of a linear slice to be freed\n"
+			"       SIZE        := NUMBER[kmg] (maximum space to free)\n"
+			"       MIN_SIZE    := NUMBER[kmg] (minimum size of a linear slice to be freed)\n"
 			"Action: discard unused blocks from the image.\n"
 		);
 }
