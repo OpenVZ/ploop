@@ -2,11 +2,11 @@
 Summary: ploop tools
 Name: ploop
 Version: 1.2
-%define rel 107.git.2d7547f
+%define rel 1
 Release: %{rel}%{?dist}
 Group: Applications/System
 License: GNU GPL
-Source: %{name}-%{version}-%{rel}.tar.bz2
+Source: %{name}-%{version}.tar.bz2
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 Requires: parted
 Requires: ploop-lib = %{version}
@@ -16,7 +16,7 @@ BuildRequires: libxml2-devel
 This package contains tools to work with ploop devices and images.
 
 %prep
-%setup -n %{name}-%{version}-%{rel}
+%setup -q
 
 %build
 make LIBDIR=%{_libdir} all
