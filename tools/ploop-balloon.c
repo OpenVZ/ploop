@@ -410,7 +410,12 @@ static int pb_discard(int argc, char **argv)
 			to_free = S2B(val);
 			break;
 		case 667:
-			minblock_b = atoll(optarg);
+			if (parse_size(optarg, &val)) {
+				fprintf(stderr, "Invalid value for --min-block: %s\n", optarg);
+				usage_discard();
+				return SYSEXIT_PARAM;
+			}
+			minblock_b = S2B(val);
 			break;
 		default:
 			usage_discard();
