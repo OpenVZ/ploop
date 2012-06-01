@@ -33,6 +33,20 @@
 
 static struct ploop_cancel_handle *_s_cancel_handle;
 
+static int read_dd(struct ploop_disk_images_data **di, const char *file)
+{
+	*di = ploop_alloc_diskdescriptor();
+	if (*di == NULL)
+		return SYSEXIT_NOMEM;
+
+	if (ploop_read_diskdescriptor(file, *di)) {
+		ploop_free_diskdescriptor(*di);
+		return SYSEXIT_DISKDESCR;
+	}
+
+	return 0;
+}
+
 static void usage_summary(void)
 {
 	fprintf(stderr, "Usage: ploop init -s SIZE [-f FORMAT] NEW_DELTA\n"
@@ -211,30 +225,28 @@ static int plooptool_mount(int argc, char **argv)
 
 	if (argc == 1 && is_xml_fname(argv[0]))
 	{
-		struct ploop_disk_images_data *di = ploop_alloc_diskdescriptor();
-
-		ret = ploop_read_diskdescriptor(argv[0], di);
+		struct ploop_disk_images_data *di;
+		ret = read_dd(&di, argv[0]);
 		if (ret)
-			goto err;
+			return ret;
+
 		if (component_name != NULL)
 			ploop_set_component_name(di, component_name);
 		if (base) {
 			mountopts.guid = ploop_get_base_delta_uuid(di);
 			if (mountopts.guid == NULL) {
-				ret = 1;
+				ret = SYSEXIT_DISKDESCR;
 				fprintf(stderr, "Unable to find base delta uuid\n");
 				goto err;
 			}
 		}
 		ret = ploop_mount_image(di, &mountopts);
-err:
 		ploop_free_diskdescriptor(di);
 	}
 	else
 		ret = ploop_mount(NULL, argv, &mountopts, raw);
 
 	return ret;
-
 }
 
 static void usage_start(void)
@@ -435,11 +447,13 @@ static int plooptool_umount(int argc, char **argv)
 		}
 		ret = ploop_umount(device, NULL);
 	} else if (is_xml_fname(argv[0])) {
-		struct ploop_disk_images_data *di = ploop_alloc_diskdescriptor();
+		struct ploop_disk_images_data *di;
+		ret = read_dd(&di, argv[0]);
+		if (ret)
+			return ret;
 
-		ret = ploop_read_diskdescriptor(argv[0], di);
-		if (ret == 0)
-			ret = ploop_umount_image(di);
+		ret = ploop_umount_image(di);
+
 		ploop_free_diskdescriptor(di);
 	} else {
 		if (ploop_find_dev_by_delta(argv[0], device, sizeof(device)) != 0) {
@@ -448,6 +462,7 @@ static int plooptool_umount(int argc, char **argv)
 		}
 		ret = ploop_umount(device, NULL);
 	}
+
 	return ret;
 }
 
@@ -548,10 +563,10 @@ static int plooptool_snapshot(int argc, char **argv)
 	}
 
 	if (is_xml_fname(argv[0])) {
-		struct ploop_disk_images_data *di = ploop_alloc_diskdescriptor();
-
-		if (ploop_read_diskdescriptor(argv[0], di))
-			return -1;
+		struct ploop_disk_images_data *di;
+		ret = read_dd(&di, argv[0]);
+		if (ret)
+			return ret;
 
 		ret = ploop_create_snapshot(di, &param);
 
@@ -601,10 +616,9 @@ static int plooptool_snapshot_switch(int argc, char **argv)
 		return -1;
 	}
 
-	di = ploop_alloc_diskdescriptor();
-
-	if (ploop_read_diskdescriptor(argv[0], di))
-		return -1;
+	ret = read_dd(&di, argv[0]);
+	if (ret)
+		return ret;
 
 	ret = ploop_switch_snapshot(di, uuid, 0);
 
@@ -644,10 +658,9 @@ static int plooptool_snapshot_delete(int argc, char **argv)
 		return -1;
 	}
 
-	di = ploop_alloc_diskdescriptor();
-
-	if (ploop_read_diskdescriptor(argv[0], di))
-		return -1;
+	ret = read_dd(&di, argv[0]);
+	if (ret)
+		return ret;
 
 	ret = ploop_delete_snapshot(di, uuid);
 
@@ -692,12 +705,12 @@ static int plooptool_snapshot_merge(int argc, char ** argv)
 
 	if (argc == 1 && is_xml_fname(argv[0])) {
 		struct ploop_disk_images_data *di;
+		ret = read_dd(&di, argv[0]);
+		if (ret)
+			return ret;
 
+		ret = ploop_merge_snapshot(di, &param);
 
-		di = ploop_alloc_diskdescriptor();
-		ret = ploop_read_diskdescriptor(argv[0], di);
-		if (ret == 0)
-			ret = ploop_merge_snapshot(di, &param);
 		ploop_free_diskdescriptor(di);
 	} else {
 		usage_snapshot_merge();
@@ -771,12 +784,13 @@ static int plooptool_resize(int argc, char **argv)
 		usage_resize();
 		return -1;
 	}
-	di = ploop_alloc_diskdescriptor();
 
-	if (ploop_read_diskdescriptor(argv[0], di))
-		return -1;
+	ret = read_dd(&di, argv[0]);
+	if (ret)
+		return ret;
 
 	ret = ploop_resize_image(di, &param);
+
 	ploop_free_diskdescriptor(di);
 
 	return ret;
@@ -814,10 +828,9 @@ static int plooptool_convert(int argc, char **argv)
 		return -1;
 	}
 
-	di = ploop_alloc_diskdescriptor();
-
-	if (ploop_read_diskdescriptor(argv[0], di))
-		return -1;
+	ret = read_dd(&di, argv[0]);
+	if (ret)
+		return ret;
 
 	ret = ploop_convert_image(di, mode, 0);
 
@@ -859,10 +872,9 @@ static int plooptool_info(int argc, char **argv)
 		return -1;
 	}
 
-	di = ploop_alloc_diskdescriptor();
-
-	if (ploop_read_diskdescriptor(argv[0], di))
-		return -1;
+	ret = read_dd(&di, argv[0]);
+	if (ret)
+		return ret;
 
 	ret = ploop_get_info(di, &info);
 	if (ret == 0)

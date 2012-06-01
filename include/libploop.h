@@ -213,6 +213,7 @@ enum
 	SYSEXIT_MKNOD,
 	SYSEXIT_PLOOPINUSE,
 	SYSEXIT_PARAM,
+	SYSEXIT_DISKDESCR,
 };
 
 #pragma GCC visibility pop
