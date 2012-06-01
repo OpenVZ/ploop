@@ -88,7 +88,7 @@ static int plooptool_init(int argc, char **argv)
 		case 's':
 			if (parse_size(optarg, &size_sec)) {
 				usage_init();
-				return -1;
+				return SYSEXIT_PARAM;
 			}
 			break;
 		case 'b': {
@@ -97,7 +97,7 @@ static int plooptool_init(int argc, char **argv)
 			  param.blocksize = strtoul(optarg, &endptr, 0);
 			  if (*endptr != '\0') {
 				  usage_init();
-				  return -1;
+				  return SYSEXIT_PARAM;
 			  }
 			  break;
 		}
@@ -105,7 +105,7 @@ static int plooptool_init(int argc, char **argv)
 			f = parse_format_opt(optarg);
 			if (f < 0) {
 				usage_init();
-				return -1;
+				return SYSEXIT_PARAM;
 			}
 			param.mode = f;
 			break;
@@ -115,12 +115,12 @@ static int plooptool_init(int argc, char **argv)
 			} else {
 				fprintf(stderr, "Incorrect file system type specified: %s\n",
 						optarg);
-				return -1;
+				return SYSEXIT_PARAM;
 			}
 			break;
 		default:
 			usage_init();
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 	}
 
@@ -129,7 +129,7 @@ static int plooptool_init(int argc, char **argv)
 
 	if (argc != 1 || size_sec == 0) {
 		usage_init();
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 	param.size = (__u64) size_sec;
 	param.image = argv[0];
@@ -159,7 +159,7 @@ static void usage_mount(void)
 
 static int plooptool_mount(int argc, char **argv)
 {
-	int i, f, ret;
+	int i, f, ret = 0;
 	int raw = 0;
 	int base = 0;
 	struct ploop_mount_param mountopts = {};
@@ -177,7 +177,7 @@ static int plooptool_mount(int argc, char **argv)
 			f = parse_format_opt(optarg);
 			if (f < 0) {
 				usage_mount();
-				return -1;
+				return SYSEXIT_PARAM;
 			}
 			raw = (f == PLOOP_RAW_MODE);
 			break;
@@ -202,7 +202,7 @@ static int plooptool_mount(int argc, char **argv)
 			  mountopts.blocksize = strtoul(optarg, &endptr, 0);
 			  if (*endptr != '\0') {
 				  usage_mount();
-				  return -1;
+				  return SYSEXIT_PARAM;
 			  }
 			  break;
 		case 'c':
@@ -211,7 +211,7 @@ static int plooptool_mount(int argc, char **argv)
 		}
 		default:
 			usage_mount();
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 	}
 
@@ -220,7 +220,7 @@ static int plooptool_mount(int argc, char **argv)
 
 	if (argc < 1) {
 		usage_mount();
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	if (argc == 1 && is_xml_fname(argv[0]))
@@ -271,7 +271,7 @@ static int plooptool_start(int argc, char **argv)
 			break;
 		default:
 			usage_start();
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 	}
 
@@ -280,7 +280,7 @@ static int plooptool_start(int argc, char **argv)
 
 	if (argc) {
 		usage_start();
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	lfd = open(startopts.device, O_RDONLY);
@@ -322,7 +322,7 @@ static int plooptool_stop(int argc, char **argv)
 			break;
 		default:
 			usage_stop();
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 	}
 
@@ -331,7 +331,7 @@ static int plooptool_stop(int argc, char **argv)
 
 	if (argc) {
 		usage_stop();
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	lfd = open(stopopts.device, O_RDONLY);
@@ -369,7 +369,7 @@ static int plooptool_clear(int argc, char **argv)
 			break;
 		default:
 			usage_clear();
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 	}
 
@@ -378,7 +378,7 @@ static int plooptool_clear(int argc, char **argv)
 
 	if (argc) {
 		usage_clear();
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	lfd = open(stopopts.device, O_RDONLY);
@@ -425,7 +425,7 @@ static int plooptool_umount(int argc, char **argv)
 			break;
 		default:
 			usage_umount();
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 	}
 
@@ -434,7 +434,7 @@ static int plooptool_umount(int argc, char **argv)
 
 	if (argc != 1 && !umountopts.device && !mnt) {
 		usage_umount();
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	if (umountopts.device != NULL) {
@@ -443,7 +443,7 @@ static int plooptool_umount(int argc, char **argv)
 		if (ploop_get_dev_by_mnt(mnt, device, sizeof(device))) {
 			fprintf(stderr, "Unable to find ploop device by %s\n",
 					mnt);
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 		ret = ploop_umount(device, NULL);
 	} else if (is_xml_fname(argv[0])) {
@@ -458,7 +458,7 @@ static int plooptool_umount(int argc, char **argv)
 	} else {
 		if (ploop_find_dev_by_delta(argv[0], device, sizeof(device)) != 0) {
 			fprintf(stderr, "Image %s is not mounted\n", argv[0]);
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 		ret = ploop_umount(device, NULL);
 	}
@@ -494,7 +494,7 @@ static int plooptool_rm(int argc, char **argv)
 			break;
 		default:
 			usage_rm();
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 	}
 
@@ -503,7 +503,7 @@ static int plooptool_rm(int argc, char **argv)
 
 	if (argc || !rmopts.device || rmopts.level < 0 || rmopts.level > 127) {
 		usage_rm();
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	lfd = open(rmopts.device, O_RDONLY);
@@ -550,7 +550,7 @@ static int plooptool_snapshot(int argc, char **argv)
 			break;
 		default:
 			usage_snapshot();
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 	}
 
@@ -559,7 +559,7 @@ static int plooptool_snapshot(int argc, char **argv)
 
 	if (argc != 1) {
 		usage_snapshot();
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	if (is_xml_fname(argv[0])) {
@@ -575,10 +575,10 @@ static int plooptool_snapshot(int argc, char **argv)
 		__u32 blocksize = 0;
 		if (!device) {
 			usage_snapshot();
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 		if (ploop_get_attr(device, "block_size", (int*) &blocksize))
-			return -1;
+			return SYSEXIT_SYSFS;
 		ret = create_snapshot(device, argv[0], blocksize, syncfs);
 	}
 
@@ -604,7 +604,7 @@ static int plooptool_snapshot_switch(int argc, char **argv)
 			break;
 		default:
 			usage_snapshot_switch();
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 	}
 
@@ -613,7 +613,7 @@ static int plooptool_snapshot_switch(int argc, char **argv)
 
 	if ((argc != 1 && !is_xml_fname(argv[0])) || uuid == NULL) {
 		usage_snapshot_switch();
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	ret = read_dd(&di, argv[0]);
@@ -646,7 +646,7 @@ static int plooptool_snapshot_delete(int argc, char **argv)
 			break;
 		default:
 			usage_snapshot_delete();
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 	}
 
@@ -655,7 +655,7 @@ static int plooptool_snapshot_delete(int argc, char **argv)
 
 	if (argc != 1 || !is_xml_fname(argv[0]) || uuid == NULL) {
 		usage_snapshot_delete();
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	ret = read_dd(&di, argv[0]);
@@ -690,7 +690,7 @@ static int plooptool_snapshot_merge(int argc, char ** argv)
 			break;
 		default:
 			usage_snapshot_merge();
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 	}
 
@@ -700,7 +700,7 @@ static int plooptool_snapshot_merge(int argc, char ** argv)
 	if (param.guid != NULL && param.merge_all != 0) {
 		fprintf(stderr, "Options -u and -A can't be used together\n");
 		usage_snapshot_merge();
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	if (argc == 1 && is_xml_fname(argv[0])) {
@@ -714,7 +714,7 @@ static int plooptool_snapshot_merge(int argc, char ** argv)
 		ploop_free_diskdescriptor(di);
 	} else {
 		usage_snapshot_merge();
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	return ret;
@@ -734,7 +734,7 @@ static int plooptool_getdevice(int argc, char **argv)
 
 	if (argc != 1) {
 		usage_getdevice();
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 	ret = ploop_getdevice(&minor);
 	if (ret == 0)
@@ -761,7 +761,7 @@ static int plooptool_resize(int argc, char **argv)
 		case 's':
 			if (parse_size(optarg, &new_size)) {
 				usage_resize();
-				return -1;
+				return SYSEXIT_PARAM;
 			}
 			param.size = new_size;
 			break;
@@ -770,7 +770,7 @@ static int plooptool_resize(int argc, char **argv)
 			break;
 		default:
 			usage_resize();
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 	}
 
@@ -782,7 +782,7 @@ static int plooptool_resize(int argc, char **argv)
 			!is_xml_fname(argv[0]))
 	{
 		usage_resize();
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	ret = read_dd(&di, argv[0]);
@@ -816,7 +816,7 @@ static int plooptool_convert(int argc, char **argv)
 			break;
 		default:
 			usage_convert();
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 	}
 
@@ -825,7 +825,7 @@ static int plooptool_convert(int argc, char **argv)
 
 	if (argc == 0 || mode == -1) {
 		usage_convert();
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	ret = read_dd(&di, argv[0]);
@@ -869,7 +869,7 @@ static int plooptool_info(int argc, char **argv)
 
 	if (argc == 0) {
 		usage_info();
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	ret = read_dd(&di, argv[0]);
@@ -907,7 +907,7 @@ int main(int argc, char **argv)
 
 	if (argc < 2) {
 		usage_summary();
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	cmd = argv[1];
@@ -961,5 +961,5 @@ int main(int argc, char **argv)
 	}
 
 	usage_summary();
-	return -1;
+	return SYSEXIT_PARAM;
 }
