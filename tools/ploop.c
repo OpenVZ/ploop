@@ -241,6 +241,7 @@ static int plooptool_mount(int argc, char **argv)
 			}
 		}
 		ret = ploop_mount_image(di, &mountopts);
+err:
 		ploop_free_diskdescriptor(di);
 	}
 	else
