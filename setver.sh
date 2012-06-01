@@ -58,6 +58,8 @@ test -z "$verbose" || \
 read_spec
 SPEC_VR=$(echo $SPEC_VR | sed 's/-1$//')
 
-test "$build" = "yes" && make rpms
-test "$install" = "yes" &&
-	sudo rpm -Uhv $(rpm --eval %{_rpmdir}/%{_arch})/ploop-*${GIT_VR}*.rpm
+test "$build" = "yes" || exit 0
+make rpms
+
+test "$install" = "yes" || exit 0
+sudo rpm -Uhv $(rpm --eval %{_rpmdir}/%{_arch})/ploop-*${GIT_VR}*.rpm
