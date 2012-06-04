@@ -173,8 +173,6 @@ enum {
 /* Mark lib functions used by ploop tools */
 #define PL_EXT __attribute__ ((visibility("default")))
 
-PL_EXT int send_process(const char *device, int ofd, const char *flush_cmd);
-
 int gen_uuid_pair(char *uuid1, int len1, char *uuid2, int len2);
 
 int find_delta_names(const char * device, int start_level, int end_level,
