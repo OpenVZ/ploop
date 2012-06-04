@@ -96,5 +96,5 @@ int main(int argc, char **argv)
 		ofd = 1;
 	}
 
-	return send_process(device, ofd, flush_cmd);
+	return send_process(device, ofd, flush_cmd, (recv_to == NULL));
 }

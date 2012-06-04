@@ -58,7 +58,7 @@ static int nwrite(int fd, const void *buf, int len)
 	return -1;
 }
 
-static int send_buf(int ofd, void *iobuf, int len, off_t pos)
+static int remote_write(int ofd, const void *iobuf, int len, off_t pos)
 {
 	struct xfer_desc desc = { .marker = PLOOPCOPY_MARKER };
 
@@ -73,6 +73,38 @@ static int send_buf(int ofd, void *iobuf, int len, off_t pos)
 		return SYSEXIT_WRITE;
 
 	return 0;
+}
+
+static int local_write(int ofd, const void *iobuf, int len, off_t pos)
+{
+	int n;
+
+	if (len == 0) { /* End of transfer */
+		if (fsync(ofd)) {
+			ploop_err(errno, "Error in fsync");
+			return SYSEXIT_WRITE;
+		}
+		return 0;
+	}
+
+	n = pwrite(ofd, iobuf, len, pos);
+	if (n < 0)
+		return SYSEXIT_WRITE;
+	if (n != len) {
+		errno = EIO;
+		return SYSEXIT_WRITE;
+	}
+
+	return 0;
+}
+
+static int send_buf(int ofd, const void *iobuf, int len, off_t pos,
+		int is_pipe)
+{
+	if (is_pipe)
+		return remote_write(ofd, iobuf, len, pos);
+	else
+		return local_write(ofd, iobuf, len, pos);
 }
 
 static int nread(int fd, void * buf, int len)
@@ -228,7 +260,8 @@ static int run_cmd(const char *cmd)
 	return SYSEXIT_SYS;
 }
 
-int send_process(const char *device, int ofd, const char *flush_cmd)
+int send_process(const char *device, int ofd, const char *flush_cmd,
+		int is_pipe)
 {
 	struct delta idelta = { .fd = -1 };
 	int tracker_on = 0;
@@ -248,7 +281,7 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 	struct ploop_track_extent e;
 
 	// Do not print anything on stdout, since we use it to send delta
-	if (ofd == STDOUT_FILENO)
+	if (is_pipe && ofd == STDOUT_FILENO)
 		ploop_set_verbose_level(PLOOP_LOG_NOSTDOUT);
 
 	devfd = open(device, O_RDONLY);
@@ -311,7 +344,7 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 		if (n == 0)
 			break;
 
-		ret = send_buf(ofd, iobuf, n, pos);
+		ret = send_buf(ofd, iobuf, n, pos, is_pipe);
 		if (ret) {
 			ploop_err(errno, "write");
 			goto done;
@@ -366,7 +399,7 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 					ret = SYSEXIT_READ;
 					goto done;
 				}
-				ret = send_buf(ofd, iobuf, n, pos);
+				ret = send_buf(ofd, iobuf, n, pos, is_pipe);
 				if (ret) {
 					ploop_err(errno, "write2");
 					goto done;
@@ -448,7 +481,7 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 					ret = SYSEXIT_READ;
 					goto done;
 				}
-				ret = send_buf(ofd, iobuf, n, pos);
+				ret = send_buf(ofd, iobuf, n, pos, is_pipe);
 				if (ret) {
 					ploop_err(errno, "write3");
 					goto done;
@@ -485,7 +518,7 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 
 		vh->m_DiskInUse = 0;
 
-		ret = send_buf(ofd, vh, SECTOR_SIZE, 0);
+		ret = send_buf(ofd, vh, SECTOR_SIZE, 0, is_pipe);
 		if (ret) {
 			ploop_err(errno, "write3");
 			goto done;
@@ -499,7 +532,7 @@ int send_process(const char *device, int ofd, const char *flush_cmd)
 	}
 	tracker_on = 0;
 
-	ret = send_buf(ofd, iobuf, 0, 0);
+	ret = send_buf(ofd, iobuf, 0, 0, is_pipe);
 	if (ret) {
 		ploop_err(errno, "write4");
 		goto done;

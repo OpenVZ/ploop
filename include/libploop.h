@@ -165,7 +165,8 @@ struct ploop_cancel_handle *ploop_get_cancel_handle(void);
 void ploop_cancel_operation(struct ploop_cancel_handle *handle);
 
 /* pcopy routines */
-int send_process(const char *device, int ofd, const char *flush_cmd);
+int send_process(const char *device, int ofd, const char *flush_cmd,
+		int is_pipe);
 int receive_process(const char *dst);
 
 #ifdef __cplusplus
