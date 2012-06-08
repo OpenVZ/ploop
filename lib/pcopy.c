@@ -286,7 +286,7 @@ int send_process(const char *device, int ofd, const char *flush_cmd,
 
 	devfd = open(device, O_RDONLY);
 	if (devfd < 0) {
-		ploop_err(errno, "open device");
+		ploop_err(errno, "Can't open device %s", device);
 		ret = SYSEXIT_DEVICE;
 		goto done;
 	}
