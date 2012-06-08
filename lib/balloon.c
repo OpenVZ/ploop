@@ -835,10 +835,10 @@ static int ploop_trim(const char *mount_point, __u64 minlen_b)
 	};
 	sigemptyset(&sa.sa_mask);
 
-        if (sigaction(SIGUSR1, &sa, NULL)) {
-                ploop_err(errno, "Can't set signal handler");
-                exit(1);
-        }
+	if (sigaction(SIGUSR1, &sa, NULL)) {
+		ploop_err(errno, "Can't set signal handler");
+		exit(1);
+	}
 
 	fd = open(mount_point, O_RDONLY);
 	if (fd < 0) {
