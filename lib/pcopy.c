@@ -27,9 +27,11 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <malloc.h>
+#include <limits.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <linux/types.h>
+#include <linux/fs.h>
 #include <string.h>
 
 #include "ploop.h"
@@ -260,12 +262,35 @@ static int run_cmd(const char *cmd)
 	return SYSEXIT_SYS;
 }
 
+static int open_mount_point(const char *device)
+{
+	int ret;
+	int fd;
+	char mnt[PATH_MAX];
+
+	ret = ploop_get_mnt_by_dev(device, mnt, sizeof(mnt));
+	if (ret == -1) {
+		ploop_err(0, "Can't find mount point for %s", device);
+		return -1;
+	}
+
+	fd = open(mnt, O_RDONLY);
+	if (fd < 0) {
+		ploop_err(errno, "Can't open %s", mnt);
+		return -1;
+	}
+
+	return fd;
+}
+
 int send_process(const char *device, int ofd, const char *flush_cmd,
 		int is_pipe)
 {
 	struct delta idelta = { .fd = -1 };
 	int tracker_on = 0;
+	int fs_frozen = 0;
 	int devfd = -1;
+	int mntfd;
 	int ret = 0;
 	char *send_from = NULL;
 	char *format = NULL;
@@ -288,6 +313,13 @@ int send_process(const char *device, int ofd, const char *flush_cmd,
 	if (devfd < 0) {
 		ploop_err(errno, "Can't open device %s", device);
 		ret = SYSEXIT_DEVICE;
+		goto done;
+	}
+
+	mntfd = open_mount_point(device);
+	if (devfd < 0) {
+		/* Error is printed by open_mount_point() */
+		ret = SYSEXIT_OPEN;
 		goto done;
 	}
 
@@ -431,6 +463,21 @@ int send_process(const char *device, int ofd, const char *flush_cmd,
 	if (ret)
 		goto done;
 
+	/* Sync fs */
+	if (sys_syncfs(mntfd)) {
+		ploop_err(errno, "syncfs() failed");
+		ret = SYSEXIT_FSYNC;
+		goto done;
+	}
+
+	/* Flush journal and freeze fs (this also clears the fs dirty bit) */
+	if (ioctl(mntfd, FIFREEZE, 0)) {
+		ploop_err(errno, "ioctl(FIFREEZE) failed");
+		ret = SYSEXIT_FSYNC;
+		goto done;
+	}
+	fs_frozen = 1;
+
 	if (ioctl(devfd, PLOOP_IOC_SYNC, 0)) {
 		ploop_err(errno, "PLOOP_IOC_SYNC");
 		ret = SYSEXIT_DEVIOC;
@@ -539,6 +586,10 @@ int send_process(const char *device, int ofd, const char *flush_cmd,
 	}
 
 done:
+	if (fs_frozen) {
+		if (ioctl(mntfd, FITHAW, 0))
+			ploop_err(errno, "ioctl(FITHAW) failed");
+	}
 	if (tracker_on) {
 		if (ioctl(devfd, PLOOP_IOC_TRACK_ABORT, 0))
 			ploop_err(errno, "PLOOP_IOC_TRACK_ABORT");
