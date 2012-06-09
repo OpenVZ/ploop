@@ -10,7 +10,7 @@
 .
 .TH ploop 8 "25 May 2012" "OpenVZ" "Containers"
 .SH NAME
-ploop \- control ploop device
+ploop \- ploop device management utility
 .SH SYNOPSYS
 .SY ploop\ init
 .B -s
@@ -80,18 +80,18 @@ ploop is a kernel block device, similar to the traditional loop device
 (which is controlled by \fBlosetup\fR(8))
 but with more features added, such as dynamic disk space allocation,
 stackable images, online resize, snapshotting, and live migration helper
-(write tracker). This man page describes ploop user space tool
+(write tracker). This manual page describes the ploop user space tool
 which is used to perform various operations related to ploop devices
 and images.
 
-Note that ploop tool is not aware of container entities. Commands that
+Note that this ploop tool is not aware of container entities. Commands that
 have \fBDiskDescriptor.xml\fR as an argument work with an XML file
-that contains some meta-information about a particular ploop device
-configuration, such as device characteristics (block size etc.),
+that contains meta-information about a particular ploop device
+configuration: device characteristics (block size etc.),
 storage information (names and formats of images used for the device),
-snapshots information etc. If a particular command can be used both
-with and without DiskDescriptor.xml argument, it is strongly advised
-to use a form with DiskDescriptor.xml.
+snapshot information, etc. If a particular command can be used both
+with and without the DiskDescriptor.xml argument, it is strongly advised
+to use the form with DiskDescriptor.xml.
 
 .SS BASIC COMMANDS
 .P
@@ -111,14 +111,14 @@ file.
 .YS
 
 .IP "\fB-s\fR \fIsize\fR"
-Image size. If no suffix is specified, \fIsize\fR is in sector units
+Image size. If no suffix is specified, the \fIsize\fR is in sector units
 (one sector is 512 bytes). One can specify optional \fBK\fR, \fBM\fR, or
 \fBG\fR suffix to set the size in kilo-, mega-, or gigabytes.
 .IP "\fB-f\fR \fIformat\fR"
 Image format. See \fBIMAGE FORMATS\fR below.
 .IP "\fB-t\fR \fIfstype\fR"
 File system type. If this parameter is specified, a partition,
-a filesystem and a balloon file will be created inside the image.
+a filesystem, and a balloon file will be created inside the image.
 Currently supported types are \fBext3\fR and \fBext4\fR.
 Using \fBext3\fR is not recommended.
 .IP "\fB-b\fR \fIblocksize\fR"
@@ -129,11 +129,11 @@ Path to a non-existent image file to be created.
 .P
 .SS3 mount
 .P
-Compose a ploop device from one or more delta images, start it,
-and optionally mount the filesystem residing on the device.
+Assemble a ploop device from one or more delta images, start it,
+and optionally mount the file system residing on the device.
 
 Two forms of this command are provided. The first one accepts
-the list of delta images to be used for assembling the ploop device,
+a list of delta images to be used for assembling the ploop device,
 while the second one is using information from a DiskDescriptor.xml
 file. Please note that not all mount options are applicable to both
 forms.
@@ -163,7 +163,7 @@ forms.
 .YS
 
 .IP \fB-r\fR
-Mount read-only.
+Mount as read-only.
 .IP "\fB-f\fR \fIformat\fR"
 Image format.
 Ignored if DiskDescriptor.xml is specified. Otherwise,
@@ -173,8 +173,8 @@ Device block size, in 512 byte sectors.
 Ignored if DiskDescriptor.xml is specified. Otherwise,
 required for raw images.
 .IP "\fB-d\fR \fIdevice\fR"
-Ploop device to use, e.g. \fB/dev/ploop0\fR. If not specified,
-first unused ploop device is used.
+Ploop device to use, e.g.i, \fB/dev/ploop0\fR. If not specified,
+the first unused ploop device will be used.
 .IP "\fB-m \fImount_point\fR
 If this option is specified, ploop goes on to mount the file system to
 directory denoted by \fImount_point\fR.
@@ -182,10 +182,10 @@ directory denoted by \fImount_point\fR.
 Any additional mount options, comma-separated. Used if \fB-m\fR is set.
 .IP "\fB-t\fR \fIfstype\fR"
 File system type used for mounting. Used if \fB-m\fR is set.
-Default is \fBext4\fR.
+The default is \fBext4\fR.
 .IP "\fB-u\fR \fIuuid\fR | \fBbase\fR"
 GUID of the image from the DiskDescriptor.xml to be mounted. By
-default, top GUID is used. A special value of \fBbase\fR can be used
+default, top GUID is used. The special '\fBbase\fR' value can be used
 to mount the base (lower-level) image.
 .\" FIXME describe component name
 .IP "\fIbase_delta\fR [.\|.\|. \fItop_delta\fR]"
@@ -193,14 +193,14 @@ List of image files to mount, with the first one being the base
 delta and the last one being the top delta (i.e. the one that
 will be writable unless \fB-r\fR is specified).
 .IP "\fIDiskDescriptor.xml\fR"
-Path to DiskDescriptor.xml file with information about images.
+Path to the DiskDescriptor.xml file with information about images.
 .P
 .SS3 umount
 .P
-Umounts a ploop device. Since a mounted ploop device consists of
-an image (or a few), a device, and a filesystem mounted to some
-directory, one can refer to any one of the above entities to
-specify what to unmount. Recommended way is to use DiskDescriptor.xml.
+Unmount a ploop device. Since a mounted ploop device consists of
+an image (or multiple images), a device, and a file system mounted to a
+directory, one can refer to any of the above entities to
+specify what to unmount. The recommended way is to use DiskDescriptor.xml.
 
 .SY ploop\ umount
 {
@@ -216,12 +216,12 @@ specify what to unmount. Recommended way is to use DiskDescriptor.xml.
 }
 .YS
 .IP "\fB-d\fR \fIdevice\fR"
-Ploop device, e.g. \fB/dev/ploop0\fR. If not specified,
-first unused ploop device is used.
+Ploop device, e.g., \fB/dev/ploop0\fR. If not specified,
+the first unused ploop device will be used.
 .IP "\fB-m \fImount_point\fR
 Mount point of a ploop device to unmount.
 .IP \fIDiskDescriptor.xml\fR
-Path to DiskDescriptor.xml file with information about images.
+Path to the DiskDescriptor.xml file with information about images.
 .IP \fIimage_file\fR
 Path to a mounted image file.
 .P
@@ -241,7 +241,7 @@ Image size. If no suffix is specified, \fIsize\fR is in sector units
 (one sector is 512 bytes). One can specify optional \fBK\fR, \fBM\fR, or
 \fBG\fR suffix to set the size in kilo-, mega-, or gigabytes.
 .IP \fIDiskDescriptor.xml\fR
-Path to DiskDescriptor.xml file with information about images.
+Path to the DiskDescriptor.xml file with information about images.
 .P
 .SS3 snapshot
 .P
@@ -254,8 +254,8 @@ Create a ploop snapshot.
 
 .IP "\fB-u\fR \fIuuid\fR"
 Specify a \fIuuid\fR for a new snapshot. If option is not given,
-uuid is auto-generated. To generate uuid manually, one can use
-\fBuuidgen\fR(1) utility. Note that UUID must be surrounded by
+uuid is generated automatically. To generate uuid manually, one can use
+the \fBuuidgen\fR(1) utility. Note that UUID must be enclosed in
 curly brackets.
 .P
 .SS3 snapshot-merge
@@ -268,16 +268,17 @@ Merge a snapshot with its parent.
 .YS
 
 .IP "\fB-u\fR \fIuuid\fR"
-Specify a snapshot \fIuuid\fR to be merged.
-If this option is not specified, top delta is used.
+Specify a snapshot \fIuuid\fR to merge.
+If this option is not specified, the top delta will be used.
 .IP \fB-A\fR
 Merge all snapshots down to base delta. If some snapshots have more than
 a single child, they will be impossible to merge.
 .P
 .SS3 snapshot-switch
 .P
-Switch to a specified snapshot. This operation can only be performed while
-ploop is not running (i.e. unmounted). Current top delta image is removed.
+Switch to the specified snapshot. This operation can only be performed while
+ploop is not running (i.e. is unmounted). The current top delta image will be
+removed.
 
 .SY ploop\ snapshot-switch
 .B -u
@@ -290,10 +291,10 @@ Specify a snapshot \fIuuid\fR to switch to.
 .P
 .SS3 snapshot-delete
 .P
-Delete a specifed snapshot. This operation can only be performed if a
+Delete the specifed snapshot. This operation can only be performed if the
 specified snapshot is not active. In case snapshot doesn't have any
-children, it is simply removed. In case snapshot have a single child,
-it is merged to that child. Deleting a snapshot that have many children
+children, it will simply be removed. In case snapshot has a single child,
+it will be merged to that child. Deleting a snapshot that has multiple children
 is currently not supported (but can be performed manually in an iterative
 fashion).
 
@@ -317,30 +318,30 @@ Specify a snapshot \fIuuid\fR to be deleted.
 .YS
 
 .IP \fB-F\fR
-Freeze filesystem before doing snapshot. If the option is not given,
-file system is not frozen and snapshot will contain an inconsistent file
-system. If you need a quick snapshot, do not use this option, replaying
-journal will be made when you mount the snapshot.
+Freeze filesystem before making a snapshot. If the option is not given,
+the file system will not be frozen and snapshot will have an inconsistent file
+system. If you need a quick snapshot, do not use this option. Journal will be
+replayed when you mount the snapshot.
 .IP "\fB-d\fR \fIdevice\fR"
-Ploop device, e.g. \fB/dev/ploop0\fR.
+Ploop device, e.g., \fB/dev/ploop0\fR.
 .IP \fIimage_file\fR
 Path to a file to write a new snapshot to. If this file already exists,
-\fBploop snapshot\fR exits with an error.
+\fBploop snapshot\fR will exit with an error.
 
 .SH IMAGE FORMATS
 The following image formats are currently supported.
 .TP
 .B raw
-Raw format, implying 1:1 mapping between the image file and the ploop device.
+Raw format, with 1:1 mapping between the image file and the ploop device.
 .TP
 .BR ploop1 ,\  expanded
-Expanded format, the image is growing as the underlying filesystem needs
-more space. This format is the default one. Names \fBploop1\fR and
-\fBexpanded\fR are aliases.
+Expanded format. The image will grow according to the needs of the underlying
+file system. This format is the default.
+Names '\fBploop1\fR' and '\fBexpanded\fR' are aliases.
 .TP
 .B preallocated
-This is the same as \fBploop1\fR or \fBexpanded\fR, the only difference is
-all the file blocks are allocated during creation time.
+This is the same as '\fBploop1\fR' or '\fBexpanded\fR', the only difference is
+all the file blocks are allocated during creation.
 
 .SH SEE ALSO
 .BR vzctl (8).
