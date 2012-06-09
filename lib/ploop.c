@@ -1108,15 +1108,12 @@ static int add_deltas(struct ploop_disk_images_data *di,
 		ploop_log(0, "Adding delta dev=%s img=%s (%s)",
 				device, image, ro ? "ro" : "rw");
 		ret = add_delta(*lfd_p, image, &req);
-		if (ret) {
-			i--; /* image is not added */
+		if (ret)
 			goto err1;
-		}
 	}
 	if (ioctl(*lfd_p, PLOOP_IOC_START, 0) < 0) {
 		ploop_err(errno, "PLOOP_IOC_START");
 		ret = SYSEXIT_DEVIOC;
-		i--; /* trick */
 		goto err;
 	}
 
@@ -1124,7 +1121,7 @@ err1:
 	if (ret && *lfd_p != -1) {
 		int err = 0;
 
-		for (; i >= 0; i--) {
+		for (i = i - 1; i >= 0; i--) {
 			err = ioctl(*lfd_p, PLOOP_IOC_DEL_DELTA, &i);
 			if (err < 0) {
 				ploop_err(errno, "PLOOP_IOC_DEL_DELTA level=%d", i);
