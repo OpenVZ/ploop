@@ -1,7 +1,7 @@
 %define _incdir /usr/include/ploop
 Summary: ploop tools
 Name: ploop
-Version: 1.3
+Version: 1.4
 %define rel 1
 Release: %{rel}%{?dist}
 Group: Applications/System
@@ -71,6 +71,15 @@ Headers and a static version of ploop library
 %attr(644,root,root) %{_incdir}/ploop1_image.h
 
 %changelog
+* Sat Jun  9 2012 Kir Kolyshkin <kir@openvz.org> 1.4-1
+- ploop copy: fix data loss during migration (#2287)
+- ploop(8): fixed according to doc team review
+- ploop mount: tell about unsupported underlying fs
+- ploop-copy: improve usage
+- ploop-copy -s: added mode to copy to local file
+- tools/ploop.c: do not return -1 from main()
+- tools/ploop.c: fix/unify working with diskdescriptor
+
 * Thu May 31 2012 Kir Kolyshkin <kir@openvz.org> 1.3-1
 - New functionality
   - ploop copy is working now
