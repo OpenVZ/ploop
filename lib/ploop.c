@@ -1002,7 +1002,10 @@ static int add_delta(int lfd, char *image, struct ploop_ctl_delta *req)
 	req->f.pctl_fd = fd;
 
 	if (ioctl(lfd, PLOOP_IOC_ADD_DELTA, req) < 0) {
-		ploop_err(errno, "PLOOP_IOC_ADD_DELTA %s", image);
+		ploop_err(0, "Can't add image %s: %s", image,
+				(errno == ENOTSUP) ?
+					"unsupported underlying filesystem"
+					: strerror(errno));
 		close(fd);
 		return SYSEXIT_DEVIOC;
 	}
