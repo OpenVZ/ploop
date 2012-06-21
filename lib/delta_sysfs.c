@@ -214,8 +214,7 @@ int ploop_get_size(const char * device, off_t * res)
 		ploop_err(errno, "Can't open %s", device);
 		return SYSEXIT_OPEN;
 	}
-	if (ioctl(fd, BLKGETSIZE64, res) < 0) {
-		ploop_err(errno, "ioctl(BLKGETSIZE)");
+	if (ioctl_device(fd, BLKGETSIZE64, res)) {
 		close(fd);
 		return SYSEXIT_BLKDEV;
 	}

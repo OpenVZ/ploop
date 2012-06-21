@@ -188,13 +188,10 @@ static int grow_lower_delta(const char *device, int top, int start_level, int en
 
 	/* update in-core map_node mappings for relocated blocks */
 	grow_maps.ctl->level = start_level;
-	if (ioctl(devfd, PLOOP_IOC_UPDATE_INDEX, grow_maps.ctl) < 0) {
-		ploop_err(errno, "PLOOP_IOC_UPDATE_INDEX");
-		ret = SYSEXIT_DEVIOC;
-		close(devfd);
-		goto done;
-	}
+	ret = ioctl_device(devfd, PLOOP_IOC_UPDATE_INDEX, grow_maps.ctl);
 	close(devfd);
+	if (ret)
+		goto done;
 
 	/* nullify relocated blocks on disk */
 	memset(buf, 0, cluster);
@@ -333,14 +330,10 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 				return SYSEXIT_DEVICE;
 			}
 
-			if (ioctl(lfd, PLOOP_IOC_MERGE, 0) < 0) {
-				ploop_err(errno, "PLOOP_IOC_MERGE");
-				close(lfd);
-				return SYSEXIT_DEVIOC;
-			}
-
+			ret = ioctl_device(lfd, PLOOP_IOC_MERGE, 0);
 			close(lfd);
-			return 0;
+
+			return ret;
 		}
 		last_delta = end_level - start_level;
 	} else {
@@ -584,9 +577,8 @@ merge_done:
 		level = start_level + 1;
 
 		for (i = start_level + 1; i <= end_level; i++) {
-			if (ioctl(lfd, PLOOP_IOC_DEL_DELTA, &level) < 0) {
-				ploop_err(errno, "PLOOP_IOC_DEL_DELTA");
-				ret = SYSEXIT_DEVIOC;
+			ret = ioctl_device(lfd, PLOOP_IOC_DEL_DELTA, &level);
+			if (ret) {
 				close(lfd);
 				goto merge_done2;
 			}
@@ -594,10 +586,7 @@ merge_done:
 
 		if (merge_top) {
 			ploop_log(0, "Merging top delta");
-			if (ioctl(lfd, PLOOP_IOC_MERGE, 0) < 0) {
-				ploop_err(errno, "PLOOP_IOC_MERGE");
-				ret = SYSEXIT_DEVIOC;
-			}
+			ret = ioctl_device(lfd, PLOOP_IOC_MERGE, 0);
 		}
 
 		close(lfd);

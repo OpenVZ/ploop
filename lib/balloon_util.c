@@ -142,11 +142,9 @@ int fiemap_get(int fd, __u64 off, __u64 start, off_t size, struct pfiemap **pfie
 		fiemap->fm_flags	= FIEMAP_FLAG_SYNC;
 		fiemap->fm_extent_count = count;
 
-		rc = ioctl(fd, FS_IOC_FIEMAP, (unsigned long) fiemap);
-		if (rc < 0) {
-			ploop_err(errno, "Can't get fiemap FS_IOC_FIEMAP");
-			return(SYSEXIT_DEVIOC);
-		}
+		rc = ioctl_device(fd, FS_IOC_FIEMAP, (unsigned long) fiemap);
+		if (rc)
+			return rc;
 
 		if (fiemap->fm_mapped_extents == 0)
 			break;

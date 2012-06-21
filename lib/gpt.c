@@ -122,7 +122,6 @@ int get_partition_device_name(const char *device, char *out, int size)
 
 static int blkpg_resize_partition(int fd, struct GptEntry *pe)
 {
-	int ret;
 	struct blkpg_ioctl_arg ioctl_arg;
 	struct blkpg_partition part;
 
@@ -138,11 +137,7 @@ static int blkpg_resize_partition(int fd, struct GptEntry *pe)
 	ioctl_arg.datalen = sizeof(struct blkpg_partition);
 	ioctl_arg.data = &part;
 
-	ret = ioctl(fd, BLKPG, &ioctl_arg);
-	if (ret)
-		ploop_err(errno, "BLKPG_RESIZE_PARTITION");
-
-	return ret;
+	return ioctl_device(fd, BLKPG, &ioctl_arg);
 }
 
 #define GPT_HEADER_SIZE		1
