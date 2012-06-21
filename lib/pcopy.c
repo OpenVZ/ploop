@@ -338,11 +338,9 @@ int send_process(const char *device, int ofd, const char *flush_cmd,
 	if (ret)
 		goto done;
 
-	if (ioctl(devfd, PLOOP_IOC_TRACK_INIT, &e)) {
-		ploop_err(errno, "PLOOP_IOC_TRACK_INIT");
-		ret = SYSEXIT_DEVIOC;
+	ret = ioctl_device(devfd, PLOOP_IOC_TRACK_INIT, &e);
+	if (ret)
 		goto done;
-	}
 	tracker_on = 1;
 
 	if (open_delta_simple(&idelta, send_from, O_RDONLY|O_DIRECT, OD_NOFLAGS)) {
@@ -357,11 +355,9 @@ int send_process(const char *device, int ofd, const char *flush_cmd,
 		int n;
 
 		trackpos = pos + cluster;
-		if (ioctl(devfd, PLOOP_IOC_TRACK_SETPOS, &trackpos)) {
-			ploop_err(errno, "PLOOP_IOC_TRACK_SETPOS");
-			ret = SYSEXIT_DEVIOC;
+		ret = ioctl_device(devfd, PLOOP_IOC_TRACK_SETPOS, &trackpos);
+		if (ret)
 			goto done;
-		}
 
 		n = idelta.fops->pread(idelta.fd, iobuf, cluster, pos);
 		if (n < 0) {
@@ -467,18 +463,14 @@ int send_process(const char *device, int ofd, const char *flush_cmd,
 	}
 
 	/* Flush journal and freeze fs (this also clears the fs dirty bit) */
-	if (ioctl(mntfd, FIFREEZE, 0)) {
-		ploop_err(errno, "ioctl(FIFREEZE) failed");
-		ret = SYSEXIT_FSYNC;
+	ret = ioctl_device(mntfd, FIFREEZE, 0);
+	if (ret)
 		goto done;
-	}
 	fs_frozen = 1;
 
-	if (ioctl(devfd, PLOOP_IOC_SYNC, 0)) {
-		ploop_err(errno, "PLOOP_IOC_SYNC");
-		ret = SYSEXIT_DEVIOC;
+	ret = ioctl(devfd, PLOOP_IOC_SYNC, 0);
+	if (ret)
 		goto done;
-	}
 
 	iter = 1;
 	iterpos = 0;
@@ -507,11 +499,9 @@ int send_process(const char *device, int ofd, const char *flush_cmd,
 					copy = cluster;
 				if (pos + copy > trackpos) {
 					trackpos = pos + copy;
-					if (ioctl(devfd, PLOOP_IOC_TRACK_SETPOS, &trackpos)) {
-						ploop_err(errno, "PLOOP_IOC_TRACK_SETPOS");
-						ret = SYSEXIT_DEVIOC;
+					ret = ioctl(devfd, PLOOP_IOC_TRACK_SETPOS, &trackpos);
+					if (ret)
 						goto done;
-					}
 				}
 				n = idelta.fops->pread(idelta.fd, iobuf, copy, pos);
 				if (n < 0) {
@@ -568,11 +558,9 @@ int send_process(const char *device, int ofd, const char *flush_cmd,
 		}
 	}
 
-	if (ioctl(devfd, PLOOP_IOC_TRACK_STOP, 0)) {
-		ploop_err(errno, "PLOOP_IOC_TRACK_STOP");
-		ret = SYSEXIT_DEVIOC;
+	ret = ioctl(devfd, PLOOP_IOC_TRACK_STOP, 0);
+	if (ret)
 		goto done;
-	}
 	tracker_on = 0;
 
 	ret = send_buf(ofd, iobuf, 0, 0, is_pipe);
@@ -582,14 +570,10 @@ int send_process(const char *device, int ofd, const char *flush_cmd,
 	}
 
 done:
-	if (fs_frozen) {
-		if (ioctl(mntfd, FITHAW, 0))
-			ploop_err(errno, "ioctl(FITHAW) failed");
-	}
-	if (tracker_on) {
-		if (ioctl(devfd, PLOOP_IOC_TRACK_ABORT, 0))
-			ploop_err(errno, "PLOOP_IOC_TRACK_ABORT");
-	}
+	if (fs_frozen)
+		ioctl_device(mntfd, FITHAW, 0);
+	if (tracker_on)
+		ioctl_device(devfd, PLOOP_IOC_TRACK_ABORT, 0);
 	if (iobuf)
 		free(iobuf);
 	if (devfd >=0)
