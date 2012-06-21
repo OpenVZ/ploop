@@ -334,15 +334,11 @@ int send_process(const char *device, int ofd, const char *flush_cmd,
 		goto done;
 	}
 
-	iter = 0;
-	while (ioctl(devfd, PLOOP_IOC_TRACK_INIT, &e)) {
-		if (errno == EBUSY && iter++ == 0) {
-			/* Previous instance was killed?
-			 * Abort tracking and retry
-			 */
-			ioctl(devfd, PLOOP_IOC_TRACK_ABORT, 0);
-			continue;
-		}
+	ret = ploop_complete_running_operation(device);
+	if (ret)
+		goto done;
+
+	if (ioctl(devfd, PLOOP_IOC_TRACK_INIT, &e)) {
 		ploop_err(errno, "PLOOP_IOC_TRACK_INIT");
 		ret = SYSEXIT_DEVIOC;
 		goto done;
