@@ -317,7 +317,7 @@ int send_process(const char *device, int ofd, const char *flush_cmd,
 	}
 
 	mntfd = open_mount_point(device);
-	if (devfd < 0) {
+	if (mntfd < 0) {
 		/* Error is printed by open_mount_point() */
 		ret = SYSEXIT_OPEN;
 		goto done;
