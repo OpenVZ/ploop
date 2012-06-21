@@ -730,6 +730,12 @@ static int delete_deltas(int devfd, const char *devname)
 
 static int ploop_stop(int fd, const char *devname)
 {
+	int ret;
+
+	ret = ploop_complete_running_operation(devname);
+	if (ret)
+		return ret;
+
 	if (do_ioctl(fd, PLOOP_IOC_STOP) < 0) {
 		if (errno != EINVAL) {
 			ploop_err(errno, "PLOOP_IOC_STOP");
@@ -1083,6 +1089,10 @@ static int add_deltas(struct ploop_disk_images_data *di,
 		ret = SYSEXIT_DEVICE;
 		goto err1;
 	}
+
+	ret = ploop_complete_running_operation(device);
+	if (ret)
+		goto err1;
 
 	for (i = 0; images[i] != NULL; i++) {
 		struct ploop_ctl_delta req;
@@ -1471,6 +1481,10 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		if (ret)
 			goto err;
 	} else {
+		ret = ploop_complete_running_operation(buf);
+		if (ret)
+			goto err;
+
 		strncpy(mount_param.device, buf, sizeof(mount_param.device));
 		if (get_mount_dir(mount_param.device, buf, sizeof(buf))) {
 			ploop_err(0, "Can't find mount point for %s", buf);
@@ -1813,6 +1827,10 @@ int create_snapshot(const char *device, const char *delta, __u32 blocksize, int 
 	int fd = -1;
 	__u64 bdsize;
 	struct ploop_ctl_delta req;
+
+	ret = ploop_complete_running_operation(device);
+	if (ret)
+		return ret;
 
 	lfd = open(device, O_RDONLY);
 	if (lfd < 0) {

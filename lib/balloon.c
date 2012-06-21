@@ -1107,3 +1107,65 @@ int ploop_discard(const char *device, const char *mount_point,
 
 	return ret;
 }
+
+int ploop_complete_running_operation(const char *device)
+{
+	struct ploop_balloon_ctl b_ctl;
+	int fd, ret;
+
+	fd = open_device(device);
+	if (fd == -1)
+		return SYSEXIT_OPEN;
+
+	bzero(&b_ctl, sizeof(b_ctl));
+	b_ctl.keep_intact = 1;
+	ret = ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
+	if (ret)
+		goto err;
+	if (b_ctl.mntn_type == PLOOP_MNTN_OFF)
+		goto err;
+
+	ploop_log(0, "Completing an on-going operation %s for device %s",
+			mntn2str(b_ctl.mntn_type), device);
+
+	switch (b_ctl.mntn_type) {
+		case PLOOP_MNTN_MERGE:
+			ret = ioctl(fd, PLOOP_IOC_MERGE, 0);
+			if (ret < 0) {
+				ploop_err(errno, "PLOOP_IOC_MERGE");
+				ret = SYSEXIT_DEVIOC;
+			}
+			break;
+		case PLOOP_MNTN_GROW:
+			ret = ioctl(fd, PLOOP_IOC_GROW, 0);
+			if (ret < 0) {
+				ploop_err(errno, "PLOOP_IOC_GROW");
+				ret = SYSEXIT_DEVIOC;
+			}
+			break;
+		case PLOOP_MNTN_RELOC:
+		case PLOOP_MNTN_FBLOADED:
+			ret = ploop_balloon_complete(device);
+			break;
+		case PLOOP_MNTN_TRACK:
+			ret = ioctl(fd, PLOOP_IOC_TRACK_ABORT, 0);
+			if (ret < 0) {
+				ploop_err(errno, "PLOOP_IOC_TRACK_ABORT");
+				ret = SYSEXIT_DEVIOC;
+			}
+			break;
+		case PLOOP_MNTN_DISCARD:
+			/* FIXME: */
+			ret = 0;
+			break;
+		case PLOOP_MNTN_BALLOON:
+			/*  FIXME : ploop_balloon_check_and_repair(device, mount_point, 1; */
+			ret = 0;
+			break;
+	}
+
+err:
+	close(fd);
+	return ret;
+
+}

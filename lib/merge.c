@@ -306,6 +306,10 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 	}
 
 	if (device) {
+		ret = ploop_complete_running_operation(device);
+		if (ret)
+			return ret;
+
 		if (merge_top) {
 			/* top delta is in running state merged
 			by means of PLOOP_IOC_MERGE */
