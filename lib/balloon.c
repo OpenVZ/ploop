@@ -75,16 +75,6 @@ static int open_device(const char *device)
 }
 
 
-#define ioctl_device(fd, req, arg)					\
-	({								\
-		int __ret = 0;						\
-		if (ioctl(fd, req, arg)) {				\
-			ploop_err(errno, "Error in ioctl(" #req ")");	\
-			__ret = SYSEXIT_DEVIOC;				\
-		}							\
-		__ret;							\
-	 })
-
 static int fsync_balloon(int fd)
 {
 	if (fsync(fd)) {

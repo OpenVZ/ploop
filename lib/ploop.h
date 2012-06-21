@@ -239,6 +239,16 @@ void __ploop_err(int err_no, const char *format, ...)
 #define ploop_err __ploop_err
 #endif
 
+#define ioctl_device(fd, req, arg)					\
+	({								\
+		int __ret = 0;						\
+		if (ioctl(fd, req, arg)) {				\
+			ploop_err(errno, "Error in ioctl(" #req ")");	\
+			__ret = SYSEXIT_DEVIOC;				\
+		}							\
+		__ret;							\
+	 })
+
 char *make_sysfs_dev_name(int minor, char *buf, int len);
 PL_EXT int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		struct ploop_mount_param *param, int raw);
