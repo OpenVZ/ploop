@@ -421,7 +421,7 @@ out:
 err:
 	if (drop_state) {
 		memset(&b_ctl, 0, sizeof(b_ctl));
-		ioctl(fd, PLOOP_IOC_BALLOON, &b_ctl);
+		ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
 	}
 	close(fd);
 	free(pfiemap);
@@ -793,7 +793,7 @@ int ploop_balloon_check_and_repair(const char *device, char *mount_point, int re
 err:
 	if (drop_state) {
 		memset(&b_ctl, 0, sizeof(b_ctl));
-		ioctl(fd, PLOOP_IOC_BALLOON, &b_ctl);
+		ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
 	}
 
 	// FIXME: close_delta()
@@ -838,7 +838,7 @@ static int ploop_trim(const char *mount_point, __u64 minlen_b)
 
 	sys_syncfs(fd);
 
-	ret = ioctl(fd, FITRIM, &range);
+	ret = ioctl_device(fd, FITRIM, &range);
 	if (ret < 0) {
 		if (trim_stop)
 			ret = 0;
@@ -956,14 +956,14 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 		struct ploop_balloon_ctl b_ctl;
 
 		ploop_log(0, "Waiting");
-		ret = ioctl(fd, PLOOP_IOC_DISCARD_WAIT, NULL);
+		ret = ioctl_device(fd, PLOOP_IOC_DISCARD_WAIT, NULL);
 		if (ret < 0) {
 			ploop_err(errno, "Waiting for a discard request failed");
 			break;
 		} else if (ret == 0)
 			break;
 
-		ret = ioctl(fd, PLOOP_IOC_FBFILTER, *minlen_c);
+		ret = ioctl_device(fd, PLOOP_IOC_FBFILTER, *minlen_c);
 		if (ret < 0) {
 			ploop_err(errno, "Can't filter free blocks");
 			break;
@@ -1120,29 +1120,17 @@ int ploop_complete_running_operation(const char *device)
 
 	switch (b_ctl.mntn_type) {
 		case PLOOP_MNTN_MERGE:
-			ret = ioctl(fd, PLOOP_IOC_MERGE, 0);
-			if (ret < 0) {
-				ploop_err(errno, "PLOOP_IOC_MERGE");
-				ret = SYSEXIT_DEVIOC;
-			}
+			ret = ioctl_device(fd, PLOOP_IOC_MERGE, 0);
 			break;
 		case PLOOP_MNTN_GROW:
-			ret = ioctl(fd, PLOOP_IOC_GROW, 0);
-			if (ret < 0) {
-				ploop_err(errno, "PLOOP_IOC_GROW");
-				ret = SYSEXIT_DEVIOC;
-			}
+			ret = ioctl_device(fd, PLOOP_IOC_GROW, 0);
 			break;
 		case PLOOP_MNTN_RELOC:
 		case PLOOP_MNTN_FBLOADED:
 			ret = ploop_balloon_complete(device);
 			break;
 		case PLOOP_MNTN_TRACK:
-			ret = ioctl(fd, PLOOP_IOC_TRACK_ABORT, 0);
-			if (ret < 0) {
-				ploop_err(errno, "PLOOP_IOC_TRACK_ABORT");
-				ret = SYSEXIT_DEVIOC;
-			}
+			ret = ioctl_device(fd, PLOOP_IOC_TRACK_ABORT, 0);
 			break;
 		case PLOOP_MNTN_DISCARD:
 			/* FIXME: */
