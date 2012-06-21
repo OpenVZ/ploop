@@ -578,6 +578,8 @@ done:
 		free(iobuf);
 	if (devfd >=0)
 		close(devfd);
+	if (mntfd >=0)
+		close(mntfd);
 	if (send_from)
 		free(send_from);
 	if (idelta.fd >= 0)
