@@ -24,8 +24,8 @@
 #include <malloc.h>
 #include <string.h>
 #include <dirent.h>
+#include <limits.h>
 #include <sys/stat.h>
-#include <sys/param.h>
 #include <linux/fs.h>
 #include <sys/ioctl.h>
 
@@ -360,8 +360,8 @@ close_dir:
 
 int ploop_find_dev_by_delta(char *delta, char *buf, int size)
 {
-	char fname[MAXPATHLEN];
-	char image[MAXPATHLEN];
+	char fname[PATH_MAX];
+	char image[PATH_MAX];
 	DIR *dp;
 	struct dirent *de;
 	struct stat st, st1;
@@ -422,7 +422,7 @@ int ploop_find_dev_by_delta(char *delta, char *buf, int size)
 
 int ploop_get_top_level(int devfd, const char *devname, int *top)
 {
-	char path[MAXPATHLEN];
+	char path[PATH_MAX];
 	char name[64];
 	struct stat st;
 	FILE * fp;

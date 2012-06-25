@@ -24,7 +24,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <errno.h>
-#include <sys/param.h>
+#include <limits.h>
 #include <sys/ioctl.h>
 #include <sys/mount.h>
 #include <linux/blkpg.h>

@@ -20,7 +20,6 @@
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/param.h>
 #include <libxml/parser.h>
 #include <libxml/tree.h>
 #include <libxml/xmlwriter.h>

@@ -25,7 +25,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <sys/param.h>
+#include <limits.h>
 #include <sys/types.h>
 #include <dirent.h>
 
@@ -73,7 +73,7 @@ int get_statfs_info(const char *mnt, struct ploop_info *info)
 int store_statfs_info(const char *mnt, char *image)
 {
 	int fd, ret, err = 0;
-	char fname[MAXPATHLEN];
+	char fname[PATH_MAX];
 	struct ploop_info info;
 
 	get_basedir(image, fname, sizeof(fname)-sizeof(PLOOP_STATFS_FNAME));
@@ -101,7 +101,7 @@ int store_statfs_info(const char *mnt, char *image)
 int read_statfs_info(const char *image, struct ploop_info *info)
 {
 	int fd, ret, err = 0;
-	char fname[MAXPATHLEN];
+	char fname[PATH_MAX];
 
 	get_basedir(image, fname, sizeof(fname)-sizeof(PLOOP_STATFS_FNAME));
 	strcat(fname, "/"PLOOP_STATFS_FNAME);
@@ -165,7 +165,7 @@ static void get_image_hash_name(const char *module, const char *image,
 static int is_registration_valid(const char *image, char *dev)
 {
 	char buf[64];
-	char sysfname[MAXPATHLEN];
+	char sysfname[PATH_MAX];
 	struct stat st;
 	int ret;
 
@@ -190,7 +190,7 @@ static int is_registration_valid(const char *image, char *dev)
 int ploop_find_dev(const char *component_name, const char *image,
 		char *out, int size)
 {
-	char fname[MAXPATHLEN];
+	char fname[PATH_MAX];
 	char dev[64];
 	struct stat st;
 	int ret, n;
@@ -224,7 +224,7 @@ int ploop_find_dev(const char *component_name, const char *image,
 
 static int remove_stale_device(const char *dev)
 {
-	char fname[MAXPATHLEN];
+	char fname[PATH_MAX];
 	char buf[64];
 	DIR * dp;
 	struct dirent *de;
@@ -284,7 +284,7 @@ static int remove_stale_device(const char *dev)
 int register_ploop_dev(const char *component_name, const char *image,
 		const char *dev)
 {
-	char fname[MAXPATHLEN];
+	char fname[PATH_MAX];
 	char buf[64];
 	const char *device;
 	int ret;
@@ -321,7 +321,7 @@ int register_ploop_dev(const char *component_name, const char *image,
 
 void unregister_ploop_dev(const char *component_name, const char *image)
 {
-	char fname[MAXPATHLEN];
+	char fname[PATH_MAX];
 
 	get_image_hash_name(component_name, image, fname, sizeof(fname));
 

@@ -24,7 +24,7 @@
 #include <linux/types.h>
 #include <linux/fs.h>
 #include <sys/ioctl.h>
-#include <sys/param.h>
+#include <limits.h>
 #include <string.h>
 #include <signal.h>
 
@@ -411,7 +411,7 @@ static int plooptool_umount(int argc, char **argv)
 {
 	int i, ret;
 	char *mnt = NULL;
-	char device[MAXPATHLEN];
+	char device[PATH_MAX];
 	struct {
 		char * device;
 	} umountopts = { };

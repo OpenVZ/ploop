@@ -20,7 +20,6 @@
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/param.h>
 #include <libxml/parser.h>
 #include <libxml/tree.h>
 #include <libxml/xmlwriter.h>
@@ -104,7 +103,7 @@ static int parse_ul(const char *str, __u64 *val)
 static int parse_xml(const char *basedir, xmlNode *root_node, struct ploop_disk_images_data *di)
 {
 	xmlNode *cur_node, *node;
-	char image[MAXPATHLEN];
+	char image[PATH_MAX];
 	const char *data = NULL;
 	const char *file = NULL;
 	const char *guid = NULL;
@@ -305,8 +304,8 @@ static int validate_disk_descriptor(struct ploop_disk_images_data *di)
 int ploop_read_diskdescriptor(const char *fname, struct ploop_disk_images_data *di)
 {
 	int ret;
-	char path[MAXPATHLEN];
-	char basedir[MAXPATHLEN];
+	char path[PATH_MAX];
+	char basedir[PATH_MAX];
 	xmlDoc *doc = NULL;
 	xmlNode *root_element = NULL;
 
@@ -360,8 +359,8 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 	int i, rc = -1;
 	xmlTextWriterPtr writer = NULL;
 	xmlDocPtr doc = NULL;
-	char tmp[MAXPATHLEN];
-	char basedir[MAXPATHLEN] = "";
+	char tmp[PATH_MAX];
+	char basedir[PATH_MAX] = "";
 
 	ploop_log(0, "Storing %s", fname);
 

@@ -24,7 +24,7 @@
 #include <malloc.h>
 #include <sys/stat.h>
 #include <sys/mount.h>
-#include <sys/param.h>
+#include <limits.h>
 #include <getopt.h>
 #include <linux/types.h>
 #include <string.h>

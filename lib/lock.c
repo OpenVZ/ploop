@@ -24,7 +24,7 @@
 #include <sys/stat.h>
 #include <sys/file.h>
 #include <fcntl.h>
-#include <sys/param.h>
+#include <limits.h>
 
 #include "ploop.h"
 
@@ -97,7 +97,7 @@ void get_disk_descriptor_lock_fname(struct ploop_disk_images_data *di,
 int ploop_lock_di(struct ploop_disk_images_data *di)
 {
 	struct stat st;
-	char fname[MAXPATHLEN];
+	char fname[PATH_MAX];
 
 	get_disk_descriptor_lock_fname(di, fname, sizeof(fname));
 	if (stat(fname, &st)) {

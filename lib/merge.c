@@ -24,7 +24,7 @@
 #include <malloc.h>
 #include <sys/stat.h>
 #include <sys/mount.h>
-#include <sys/param.h>
+#include <limits.h>
 #include <getopt.h>
 #include <linux/types.h>
 #include <string.h>
@@ -599,7 +599,7 @@ merge_done2:
 
 int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *guid, int merge_mode)
 {
-	char conf[MAXPATHLEN];
+	char conf[PATH_MAX];
 	char dev[64];
 	char *device = NULL;
 	char *fname = NULL;

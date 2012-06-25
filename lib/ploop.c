@@ -27,7 +27,7 @@
 #include <sys/stat.h>
 #include <sys/mount.h>
 #include <sys/sysmacros.h>
-#include <sys/param.h>
+#include <limits.h>
 #include <sys/file.h>
 #include <fcntl.h>
 #include <sys/vfs.h>
@@ -468,7 +468,7 @@ static int create_image(struct ploop_disk_images_data *di,
 	int fd = -1;
 	int ret;
 	struct ploop_pvd_header vh = {};
-	char fname[MAXPATHLEN];
+	char fname[PATH_MAX];
 	struct stat st;
 
 	if (size_sec == 0 || file == NULL)
@@ -521,8 +521,8 @@ static int create_balloon_file(struct ploop_disk_images_data *di,
 		char *device, char *fstype)
 {
 	int fd, ret;
-	char mnt[MAXPATHLEN];
-	char fname[MAXPATHLEN + sizeof(BALLOON_FNAME)];
+	char mnt[PATH_MAX];
+	char fname[PATH_MAX + sizeof(BALLOON_FNAME)];
 	struct ploop_mount_param mount_param = {};
 
 	if (device == NULL)
@@ -597,7 +597,7 @@ err:
 static int ploop_drop_image(struct ploop_disk_images_data *di)
 {
 	int i;
-	char fname[MAXPATHLEN];
+	char fname[PATH_MAX];
 
 	if (di->nimages == 0)
 		return SYSEXIT_PARAM;
@@ -948,7 +948,7 @@ static int ploop_mount_fs(struct ploop_mount_param *param)
 	unsigned long flags =
 		(param->flags & MS_NOATIME) |
 		(param->ro ? MS_RDONLY : 0);
-	char buf[MAXPATHLEN + sizeof(BALLOON_FNAME)];
+	char buf[PATH_MAX + sizeof(BALLOON_FNAME)];
 	struct stat st;
 	char *fstype = param->fstype == NULL ? DEFAULT_FSTYPE : param->fstype;
 	char data[1024];
@@ -1258,7 +1258,7 @@ static int mount_image(struct ploop_disk_images_data *di, struct ploop_mount_par
 
 static int auto_mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *param, int *mounted)
 {
-	char mnt[MAXPATHLEN];
+	char mnt[PATH_MAX];
 	int ret = 0;
 	int dev_mounted = 0;
 	int fs_mounted = 0;
@@ -1348,7 +1348,7 @@ static int ploop_stop_device(const char *device)
 int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 {
 	int ret;
-	char mnt[MAXPATHLEN] = "";
+	char mnt[PATH_MAX] = "";
 	int lckfd;
 
 	if (!device) {
@@ -1383,7 +1383,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 int ploop_umount_image(struct ploop_disk_images_data *di)
 {
 	int ret;
-	char dev[MAXPATHLEN];
+	char dev[PATH_MAX];
 
 	if (di->nimages == 0) {
 		ploop_err(0, "No images specified");
@@ -1457,7 +1457,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 {
 	int ret;
 	struct ploop_mount_param mount_param = {};
-	char buf[MAXPATHLEN];
+	char buf[PATH_MAX];
 	int were_mounted = 0;
 	int balloonfd = -1;
 	struct stat st;
@@ -1522,8 +1522,8 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		ret = ploop_balloon_change_size(mount_param.device,
 				balloonfd, new_balloon_size);
 	} else if (param->size > dev_size) {
-		char conf[MAXPATHLEN];
-		char conf_tmp[MAXPATHLEN];
+		char conf[PATH_MAX];
+		char conf_tmp[PATH_MAX];
 
 		// GROW
 		if (balloon_size != 0) {
@@ -1603,8 +1603,8 @@ static int expanded2raw(struct ploop_disk_images_data *di)
 	struct delta odelta = {};
 	__u32 clu;
 	void *buf = NULL;
-	char tmp[MAXPATHLEN];
-	char fname[MAXPATHLEN];
+	char tmp[PATH_MAX];
+	char fname[PATH_MAX];
 	int ret = -1;
 	__u64 cluster;
 
@@ -1743,8 +1743,8 @@ err:
 
 int ploop_convert_image(struct ploop_disk_images_data *di, int mode, int flags)
 {
-	char conf_tmp[MAXPATHLEN];
-	char conf[MAXPATHLEN];
+	char conf_tmp[PATH_MAX];
+	char conf[PATH_MAX];
 	int ret = -1;
 
 	if (di->mode == PLOOP_RAW_MODE) {
@@ -1791,7 +1791,7 @@ err:
 
 int ploop_get_info(struct ploop_disk_images_data *di, struct ploop_info *info)
 {
-	char mnt[MAXPATHLEN];
+	char mnt[PATH_MAX];
 	char dev[64];
 
 	if (ploop_lock_di(di))
@@ -1933,9 +1933,9 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 	char dev[64];
 	char uuid[61];
 	char uuid1[61];
-	char fname[MAXPATHLEN];
-	char conf[MAXPATHLEN];
-	char conf_tmp[MAXPATHLEN];
+	char fname[PATH_MAX];
+	char conf[PATH_MAX];
+	char conf_tmp[PATH_MAX];
 	int online = 0;
 	int n;
 	off_t size;
@@ -2056,10 +2056,10 @@ int ploop_switch_snapshot(struct ploop_disk_images_data *di, const char *guid, i
 	char dev[64];
 	char uuid[61];
 	char uuid1[61];
-	char new_top_delta_fname[MAXPATHLEN];
+	char new_top_delta_fname[PATH_MAX];
 	char *old_top_delta_fname = NULL;
-	char conf[MAXPATHLEN];
-	char conf_tmp[MAXPATHLEN];
+	char conf[PATH_MAX];
+	char conf_tmp[PATH_MAX];
 	off_t size;
 
 	ret = not_supported_for_vm(di);
@@ -2169,7 +2169,7 @@ int ploop_delete_top_delta(struct ploop_disk_images_data *di)
 int ploop_delete_snapshot(struct ploop_disk_images_data *di, const char *guid)
 {
 	int ret;
-	char conf[MAXPATHLEN];
+	char conf[PATH_MAX];
 	char *fname = NULL;
 	int nelem = 0;
 	char dev[64];

@@ -22,7 +22,7 @@
 #include <getopt.h>
 #include <dirent.h>
 #include <unistd.h>
-#include <sys/param.h>
+#include <limits.h>
 
 #include "ploop.h"
 
@@ -38,7 +38,7 @@ static void usage(void)
 
 static int open_sysfs_file(char * devid, char *name, int flags)
 {
-	char buf[MAXPATHLEN];
+	char buf[PATH_MAX];
 
 	snprintf(buf, sizeof(buf)-1, FMT "/%s", devid, name);
 
