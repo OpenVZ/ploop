@@ -799,7 +799,7 @@ static int plooptool_resize(int argc, char **argv)
 
 static void usage_convert(void)
 {
-	fprintf(stderr, "Usage: ploop convert -f FORMAT\n"
+	fprintf(stderr, "Usage: ploop convert -f FORMAT DiskDescriptor.xml\n"
 			"       FORMAT := { raw | preallocated }\n"
 			);
 }
