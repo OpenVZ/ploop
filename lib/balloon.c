@@ -1110,8 +1110,12 @@ int ploop_complete_running_operation(const char *device)
 	bzero(&b_ctl, sizeof(b_ctl));
 	b_ctl.keep_intact = 1;
 	ret = ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
-	if (ret)
+	if (ret) {
+		/* Workaround until new ioctl is implemented */
+		if (errno == ENOENT)
+			ret = 0;
 		goto err;
+	}
 	if (b_ctl.mntn_type == PLOOP_MNTN_OFF)
 		goto err;
 
