@@ -1797,6 +1797,9 @@ int ploop_get_info(struct ploop_disk_images_data *di, struct ploop_info *info)
 	char mnt[PATH_MAX];
 	char dev[64];
 
+	if (read_statfs_info(di->images[0]->file, info) == 0)
+		return 0;
+
 	if (ploop_lock_di(di))
 		return SYSEXIT_LOCK;
 	if (ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev)) == 0 &&
@@ -1808,7 +1811,7 @@ int ploop_get_info(struct ploop_disk_images_data *di, struct ploop_info *info)
 	}
 
 	ploop_unlock_di(di);
-	return read_statfs_info(di->images[0]->file, info);
+	return -1;
 }
 
 static int do_snapshot(int lfd, int fd, struct ploop_ctl_delta *req)
