@@ -123,6 +123,16 @@ int read_statfs_info(const char *image, struct ploop_info *info)
 	return err;
 }
 
+int drop_statfs_info(const char *image)
+{
+	char fname[PATH_MAX];
+
+	get_basedir(image, fname, sizeof(fname)-sizeof(PLOOP_STATFS_FNAME));
+	strcat(fname, "/"PLOOP_STATFS_FNAME);
+
+	return unlink(fname);
+}
+
 int is_valid_guid(const char *guid)
 {
 	int i;

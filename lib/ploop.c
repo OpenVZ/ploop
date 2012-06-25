@@ -1219,6 +1219,9 @@ err:
 	if (lfd >= 0)
 		close(lfd);
 
+	if (!ret)
+		drop_statfs_info(di->images[0]->file);
+
 	return ret;
 }
 
