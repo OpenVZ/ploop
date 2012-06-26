@@ -276,7 +276,7 @@ static int create_empty_delta(const char *path, __u32 blocksize, off_t bdsize)
 
 	ploop_log(0, "Creating delta %s bs=%d size=%ld sectors",
 			path, blocksize, (long)bdsize);
-	fd = open(path, O_RDWR|O_CREAT|O_EXCL, 0600);
+	fd = open(path, O_RDWR|O_CREAT|O_DIRECT|O_EXCL, 0600);
 	if (fd < 0) {
 		ploop_err(errno, "Can't open %s", path);
 		free(buf);
@@ -998,7 +998,7 @@ static int add_delta(int lfd, char *image, struct ploop_ctl_delta *req)
 	int fd;
 	int ro = (req->c.pctl_flags == PLOOP_FMT_RDONLY);
 
-	fd = open(image, ro ? O_RDONLY : O_RDWR);
+	fd = open(image, O_DIRECT | (ro ? O_RDONLY : O_RDWR));
 	if (fd < 0) {
 		ploop_err(errno, "Can't open file %s", image);
 		close(fd);
