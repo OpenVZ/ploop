@@ -862,7 +862,6 @@ static void print_info(struct ploop_info *info)
 static int plooptool_info(int argc, char **argv)
 {
 	int ret;
-	struct ploop_disk_images_data *di;
 	struct ploop_info info = {};
 
 	argc -= optind;
@@ -873,15 +872,9 @@ static int plooptool_info(int argc, char **argv)
 		return SYSEXIT_PARAM;
 	}
 
-	ret = read_dd(&di, argv[0]);
-	if (ret)
-		return ret;
-
-	ret = ploop_get_info(di, &info);
+	ret = ploop_get_info_by_descr(argv[0], &info);
 	if (ret == 0)
 		print_info(&info);
-
-	ploop_free_diskdescriptor(di);
 
 	return ret;
 }
