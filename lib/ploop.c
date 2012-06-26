@@ -1810,6 +1810,31 @@ int ploop_get_info(struct ploop_disk_images_data *di, struct ploop_info *info)
 	return -1;
 }
 
+int ploop_get_info_by_descr(const char *descr, struct ploop_info *info)
+{
+	struct ploop_disk_images_data *di;
+	int ret;
+
+	/* Try the fast path first, for stopped ploop */
+	if (read_statfs_info(descr, info) == 0)
+		return 0;
+
+	di = ploop_alloc_diskdescriptor();
+	if (di == NULL)
+		return SYSEXIT_MALLOC;
+
+	if (ploop_read_diskdescriptor(descr, di)) {
+		ploop_free_diskdescriptor(di);
+		return SYSEXIT_DISKDESCR;
+	}
+
+	ret = ploop_get_info(di, info);
+
+	ploop_free_diskdescriptor(di);
+
+	return ret;
+}
+
 static int do_snapshot(int lfd, int fd, struct ploop_ctl_delta *req)
 {
 	req->f.pctl_fd = fd;
