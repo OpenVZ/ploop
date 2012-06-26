@@ -1090,10 +1090,6 @@ static int add_deltas(struct ploop_disk_images_data *di,
 		goto err1;
 	}
 
-	ret = ploop_complete_running_operation(device);
-	if (ret)
-		goto err1;
-
 	for (i = 0; images[i] != NULL; i++) {
 		struct ploop_ctl_delta req;
 		int ro = (images[i+1] != NULL || param->ro) ? 1: 0;
