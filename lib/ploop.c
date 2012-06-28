@@ -1080,9 +1080,7 @@ static int add_deltas(struct ploop_disk_images_data *di,
 		req.c.pctl_chunks = 1;
 
 		req.f.pctl_fd = -1;
-		req.f.pctl_type = PLOOP_IO_DIRECT;
-		if (ploop_is_on_nfs(image))
-			req.f.pctl_type = PLOOP_IO_NFS;
+		req.f.pctl_type = PLOOP_IO_AUTO;
 
 		ploop_log(0, "Adding delta dev=%s img=%s (%s)",
 				device, image, ro ? "ro" : "rw");
@@ -1883,9 +1881,7 @@ int create_snapshot(const char *device, const char *delta, __u32 blocksize, int 
 	req.c.pctl_size = 0;
 	req.c.pctl_chunks = 1;
 
-	req.f.pctl_type = PLOOP_IO_DIRECT;
-	if (ploop_is_on_nfs(delta))
-		req.f.pctl_type = PLOOP_IO_NFS;
+	req.f.pctl_type = PLOOP_IO_AUTO;
 
 	ploop_log(0, "Creating snapshot dev=%s img=%s", device, delta);
 	ret = do_snapshot(lfd, fd, &req);
