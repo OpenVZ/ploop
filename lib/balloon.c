@@ -383,7 +383,7 @@ int ploop_balloon_change_size(const char *device, int balloonfd, off_t new_size)
 		goto err;
 	if (entries_used == 0) {
 		drop_state = 1;
-		ploop_log(0, "no unused cluster blocks found");
+		ploop_log(0, "No unused cluster blocks found");
 		goto out;
 	}
 
