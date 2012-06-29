@@ -83,7 +83,7 @@ static void free_mount_param(struct ploop_mount_param *param)
 
 static off_t bytes2sec(__u64 bytes)
 {
-	return (bytes >> 9) + ((bytes % 512) ? 1 : 0);
+	return (bytes >> PLOOP1_SECTOR_LOG) + ((bytes % SECTOR_SIZE) ? 1 : 0);
 }
 
 int sys_fallocate(int fd, int mode, off_t offset, off_t len)
