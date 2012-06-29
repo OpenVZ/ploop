@@ -33,20 +33,6 @@
 
 static struct ploop_cancel_handle *_s_cancel_handle;
 
-static int read_dd(struct ploop_disk_images_data **di, const char *file)
-{
-	*di = ploop_alloc_diskdescriptor();
-	if (*di == NULL)
-		return SYSEXIT_NOMEM;
-
-	if (ploop_read_diskdescriptor(file, *di)) {
-		ploop_free_diskdescriptor(*di);
-		return SYSEXIT_DISKDESCR;
-	}
-
-	return 0;
-}
-
 static void usage_summary(void)
 {
 	fprintf(stderr, "Usage: ploop init -s SIZE [-f FORMAT] NEW_DELTA\n"

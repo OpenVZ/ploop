@@ -87,3 +87,17 @@ int is_xml_fname(const char *fname)
 	p = strrchr(fname, '.');
 	return (p != NULL && !strcmp(p, ".xml"));
 }
+
+int read_dd(struct ploop_disk_images_data **di, const char *file)
+{
+	*di = ploop_alloc_diskdescriptor();
+	if (*di == NULL)
+		return SYSEXIT_NOMEM;
+
+	if (ploop_read_diskdescriptor(file, *di)) {
+		ploop_free_diskdescriptor(*di);
+		return SYSEXIT_DISKDESCR;
+	}
+
+	return 0;
+}

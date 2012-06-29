@@ -101,10 +101,10 @@ int main(int argc, char ** argv)
 			return -1;
 		}
 
-		di = ploop_alloc_diskdescriptor();
-		ret = ploop_read_diskdescriptor(argv[0], di);
-		if (ret == 0)
-			ret = ploop_merge_snapshot(di, &param);
+		ret = read_dd(&di, argv[0]);
+		if (ret)
+			return ret;
+		ret = ploop_merge_snapshot(di, &param);
 		ploop_free_diskdescriptor(di);
 	} else {
 		if (device == NULL) {
