@@ -361,7 +361,7 @@ static int create_empty_preallocated_delta(const char *path, __u32 blocksize, of
 
 		if (clu > 0)
 			memset(buf, 0, cluster);
-		for (i = (clu == 0 ? 16 : 0); i < (cluster / sizeof(__u32)) &&
+		for (i = (clu == 0 ? PLOOP_MAP_OFFSET : 0); i < (cluster / sizeof(__u32)) &&
 				l2_slot < vh.m_Size;
 				i++, l2_slot++)
 		{
