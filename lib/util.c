@@ -130,7 +130,12 @@ int drop_statfs_info(const char *image)
 	get_basedir(image, fname, sizeof(fname)-sizeof(PLOOP_STATFS_FNAME));
 	strcat(fname, "/"PLOOP_STATFS_FNAME);
 
-	return unlink(fname);
+	if (unlink(fname) < 0 && errno != ENOENT) {
+		ploop_err(errno, "Can't delete file %s", fname);
+		return -1;
+	}
+
+	return 0;
 }
 
 int is_valid_guid(const char *guid)
