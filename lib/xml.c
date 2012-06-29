@@ -473,7 +473,7 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 		rc = xmlTextWriterWriteElement(writer, BAD_CAST "Preallocated",
 				BAD_CAST "1");
 		if (rc < 0) {
-			ploop_err(0, "Error at xmlTextWriter Blocksize");
+			ploop_err(0, "Error at xmlTextWriter Preallocated");
 			goto err;
 		}
 	}
