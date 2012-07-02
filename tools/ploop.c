@@ -732,7 +732,8 @@ static int plooptool_getdevice(int argc, char **argv)
 
 static void usage_resize(void)
 {
-	fprintf(stderr, "Usage: ploop resize -s NEW_SIZE DiskDescriptor.xml\n");
+	fprintf(stderr, "Usage: ploop resize -s NEW_SIZE DiskDescriptor.xml\n"
+			"       NEW_SIZE := NUMBER[kmg]\n");
 }
 
 static int plooptool_resize(int argc, char **argv)
