@@ -55,10 +55,10 @@ static void usage_summary(void)
 static void usage_init(void)
 {
 	fprintf(stderr, "Usage: ploop init -s SIZE [-f FORMAT] [-t FSTYPE] [-b BLOCKSIZE] DELTA\n"
-			"       SIZE := NUMBER[kmg], \n"
+			"       SIZE := NUMBER[kmg]\n"
 			"       FORMAT := { raw | ploop1 }\n"
 			"       DELTA := path to new image file\n"
-			"       BLOCKSIZE := block size\n"
+			"       BLOCKSIZE := block size in sectors\n"
 			"       FSTYPE := make file system\n");
 }
 
