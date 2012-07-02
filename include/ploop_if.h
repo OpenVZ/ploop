@@ -41,9 +41,11 @@
 
 /* IO types. */
 
+#define PLOOP_IO_AUTO		0
 #define PLOOP_IO_DIRECT		1
 #define PLOOP_IO_NFS		2
 #define PLOOP_IO_PCS		3
+#define PLOOP_IO_KAIO		4
 
 /*
  * # slots to skip in the very first page of L2 table
