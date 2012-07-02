@@ -373,7 +373,7 @@ static int create_empty_preallocated_delta(const char *path, __u32 blocksize, of
 	}
 
 	if (fsync(odelta.fd)) {
-		ploop_err(errno, "fsync");
+		ploop_err(errno, "fsync %s", path);
 		goto out_close;
 	}
 	free(buf);
