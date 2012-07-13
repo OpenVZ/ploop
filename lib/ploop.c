@@ -1591,7 +1591,6 @@ static int expanded2raw(struct ploop_disk_images_data *di)
 	__u32 clu;
 	void *buf = NULL;
 	char tmp[PATH_MAX];
-	char fname[PATH_MAX];
 	int ret = -1;
 	__u64 cluster;
 
@@ -1645,10 +1644,6 @@ static int expanded2raw(struct ploop_disk_images_data *di)
 
 	if (fsync(odelta.fd))
 		ploop_err(errno, "fsync");
-
-	get_disk_descriptor_fname(di, fname, sizeof(fname));
-	if (ploop_store_diskdescriptor(fname, di))
-		goto err;
 
 	if (rename(tmp, di->images[0]->file)) {
 		ploop_err(errno, "rename %s %s",
