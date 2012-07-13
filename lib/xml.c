@@ -306,6 +306,7 @@ int ploop_read_diskdescriptor(const char *fname, struct ploop_disk_images_data *
 	int ret;
 	char path[PATH_MAX];
 	char basedir[PATH_MAX];
+	struct stat st;
 	xmlDoc *doc = NULL;
 	xmlNode *root_element = NULL;
 
@@ -313,6 +314,12 @@ int ploop_read_diskdescriptor(const char *fname, struct ploop_disk_images_data *
 
 	if (di == NULL)
 		return -1;
+
+	/* workaround libxml2 SIGSEGV on empty document */
+	if (stat(fname, &st) || st.st_size == 0) {
+		ploop_err(0, "Can't parse %s", fname);
+		return -1;
+	}
 
 	if (realpath(fname, path) == NULL) {
 		ploop_err(errno, "Can't resolve %s", fname);
