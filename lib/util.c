@@ -180,12 +180,44 @@ static void get_image_hash_name(const char *module, const char *image,
 	*p = '\0';
 }
 
+static int get_device_locked_state(const char *dev)
+{
+	char buf[64];
+	char data[64];
+	struct stat st;
+	int ret;
+
+	snprintf(buf, sizeof(buf), "/sys/block/%s/pstate/locked", dev);
+	ret = stat(buf, &st);
+	if (ret) {
+		ploop_err(errno, "Can't stat %s", buf);
+		return -1;
+	}
+	ret = read_line(buf, data, sizeof(data));
+	if (ret)
+		return -1;
+	if (data[0] == '1')
+		return 1;
+	else if (data[0] == '0')
+		return 0;
+
+	ploop_err(0, "Unrecognized locked state '%s' for dev %s",
+			data, dev);
+	return -1;
+}
+
 static int is_registration_valid(const char *image, char *dev)
 {
 	char buf[64];
 	char sysfname[PATH_MAX];
 	struct stat st;
 	int ret;
+
+	ret = get_device_locked_state(dev);
+	if (ret == -1)
+		return -1;
+	else if (ret == 1)
+		return 1; /* registration in progress */
 
 	snprintf(buf, sizeof(buf), "/sys/block/%s/pdelta/0/image", dev);
 	ret = stat(buf, &st);
@@ -205,8 +237,8 @@ static int is_registration_valid(const char *image, char *dev)
 	return 0;
 }
 
-int ploop_find_dev(const char *component_name, const char *image,
-		char *out, int size)
+static int ploop_find_dev_locked(const char *component_name, const char *image,
+		char *out, int size, const char *new_dev)
 {
 	char fname[PATH_MAX];
 	char dev[64];
@@ -226,6 +258,11 @@ int ploop_find_dev(const char *component_name, const char *image,
 		if (ret == -1)
 			return -1;
 		else if (ret) {
+			/* Special registration case
+			 * new_dev is ours currently created dev
+			 */
+			if (new_dev && !strcmp(new_dev, dev))
+				return 1;
 			snprintf(out, size, "/dev/%s", dev);
 			return 0;
 		}
@@ -238,6 +275,21 @@ int ploop_find_dev(const char *component_name, const char *image,
 		return -1;
 	}
 	return 1;
+}
+
+int ploop_find_dev(const char *component_name, const char *image,
+		char *out, int size)
+{
+	int ret, lckfd;
+
+	lckfd = ploop_global_lock();
+	if (lckfd == -1)
+		return -1;
+
+	ret = ploop_find_dev_locked(component_name, image, out, size, NULL);
+
+	ploop_unlock(&lckfd);
+	return ret;
 }
 
 static int remove_stale_device(const char *dev)
@@ -273,7 +325,7 @@ static int remove_stale_device(const char *dev)
 			continue;
 		snprintf(fname, sizeof(fname),
 				"/sys/block/%s/pdelta/0/image", dev);
-		ret = stat(buf, &st);
+		ret = stat(fname, &st);
 		if (ret == -1 && errno == ENOENT) {
 			snprintf(fname, sizeof(fname), PLOOP_REG_DIR"%s",
 					de->d_name);
@@ -305,19 +357,23 @@ int register_ploop_dev(const char *component_name, const char *image,
 	char fname[PATH_MAX];
 	char buf[64];
 	const char *device;
-	int ret;
+	int lckfd, ret;
 
 	if (mkdir(PLOOP_REG_DIR, 0700) && errno != EEXIST) {
-		 ploop_err(0, "Can't create directory " PLOOP_REG_DIR);
+		ploop_err(0, "Can't create directory " PLOOP_REG_DIR);
 		return -1;
 	}
-	ret = ploop_find_dev(component_name, image, buf, sizeof(buf));
-	if (ret == -1)
+	lckfd = ploop_global_lock();
+	if (lckfd == -1)
 		return -1;
+
+	ret = ploop_find_dev_locked(component_name, image, buf, sizeof(buf), dev);
+	if (ret == -1)
+		goto err;
 	else if (ret == 0) {
 		ploop_err(0, "Image %s already used by device %s",
 				image, buf);
-		return -1;
+		goto err;
 	}
 
 	if (strncmp(dev, "/dev/", 5) == 0)
@@ -326,27 +382,58 @@ int register_ploop_dev(const char *component_name, const char *image,
 		device = dev;
 
 	if (remove_stale_device(device))
-		return -1;
+		goto err;
 	get_image_hash_name(component_name, image, fname, sizeof(fname));
 	if (symlink(device, fname)) {
 		ploop_err(errno, "Can't create symlink %s -> %s",
 				fname, device);
-		return -1;
+		goto err;
 	}
+	ploop_unlock(&lckfd);
 	ploop_log(4, "register %s %s", fname, dev);
 	return 0;
+
+err:
+	ploop_unlock(&lckfd);
+	return -1;
 }
 
 void unregister_ploop_dev(const char *component_name, const char *image)
 {
+	int lckfd;
+	char dev[64];
+	char buf[512];
 	char fname[PATH_MAX];
+	struct stat st;
+	int ret, n;
+
+	lckfd = ploop_global_lock();
+	if (lckfd == -1)
+		return;
 
 	get_image_hash_name(component_name, image, fname, sizeof(fname));
+	n = readlink(fname, dev, sizeof(dev) -1);
+	if (n == -1)
+		goto out;
+	dev[n] = 0;
+
+	ret = get_device_locked_state(dev);
+	/* error, or another registration in progress
+	 * leave registration
+	 */
+	if (ret != 0)
+		goto out;
+
+	/* device were reused, leave registration */
+	snprintf(buf, sizeof(buf), "/sys/block/%s/pdelta/0/image", dev);
+	if (stat(buf, &st) == 0)
+		goto out;
 
 	ploop_log(4, "unregister %s", fname);
 	if (unlink(fname))
 		ploop_err(errno, "Can't unlink %s", fname);
-
+out:
+	ploop_unlock(&lckfd);
 }
 
 int is_valid_blocksize(__u32 blocksize)

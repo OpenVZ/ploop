@@ -639,34 +639,31 @@ int ploop_create_image(struct ploop_create_param *param)
 	return ret;
 }
 
+#define PROC_PLOOP_MINOR	"/proc/vz/ploop_minor"
+
 int ploop_getdevice(int *minor)
 {
-	int lfd;
-	struct stat st;
-	struct ploop_getdevice_ctl req;
-	int ret = 0;
-	const char *dev = "/dev/ploop0";
+	int fd, ret;
+	char buf[64];
 
-	if (stat(dev, &st))
-		if (mknod(dev, S_IFBLK, gnu_dev_makedev(PLOOP_DEV_MAJOR, 0))) {
-			ploop_err(errno, "mknod %s", dev);
-			return SYSEXIT_MKNOD;
-		}
-
-	lfd = open(dev, O_RDONLY);
-	if (lfd < 0) {
-		ploop_err(errno, "Can't open device %s", dev);
-		return SYSEXIT_DEVICE;
+	fd = open(PROC_PLOOP_MINOR, O_RDONLY);
+	if (fd < 0) {
+		ploop_err(errno, "Can't open device " PROC_PLOOP_MINOR);
+		return -1;
+	}
+	ret = read(fd, buf, sizeof(buf));
+	if (ret == -1) {
+		ploop_err(errno, "Can't read from " PROC_PLOOP_MINOR);
+		close(fd);
+		return -1;
+	}
+	if (sscanf(buf, "%d", minor) != 1) {
+		ploop_err(0, "Can't get ploop minor '%s'", buf);
+		close(fd);
+		return -1;
 	}
 
-	if (ioctl(lfd, PLOOP_IOC_GETDEVICE, &req) < 0) {
-		ploop_err(errno, "PLOOP_IOC_GETDDEVICE");
-		ret = SYSEXIT_DEVIOC;
-	}
-	*minor = req.minor;
-
-	close(lfd);
-	return ret;
+	return fd;
 }
 
 /* Workaround for bug #PCLIN-30116 */
@@ -1044,40 +1041,33 @@ static int add_deltas(struct ploop_disk_images_data *di,
 	char *device = param->device;
 	int i;
 	int ret = 0;
-	int registered = 0;
 
 	if (device[0] == '\0') {
 		char buf[64];
 		int minor;
 
-		lckfd = ploop_global_lock();
+		lckfd = ploop_getdevice(&minor);
 		if (lckfd == -1)
-			return SYSEXIT_LOCK;
+			return SYSEXIT_DEVICE;
 
-		ret = ploop_getdevice(&minor);
-		if (ret)
-			goto err;
 		snprintf(device, sizeof(param->device), "/dev/%s",
 				make_sysfs_dev_name(minor, buf, sizeof(buf)));
 		ret = create_ploop_dev(minor);
 		if (ret)
 			goto err;
-		if (di != NULL) {
-			ret = register_ploop_dev(di->runtime->component_name,
-					images[0], device);
-			if (ret)
-				goto err;
-			registered = 1;
-		}
-
 	}
 
 	*lfd_p = open(device, O_RDONLY);
 	if (*lfd_p < 0) {
 		ploop_err(errno, "Can't open device %s", device);
 		ret = SYSEXIT_DEVICE;
-		goto err1;
+		goto err;
 	}
+
+	ret = register_ploop_dev(di ? di->runtime->component_name : NULL,
+			images[0], device);
+	if (ret)
+		goto err;
 
 	for (i = 0; images[i] != NULL; i++) {
 		struct ploop_ctl_delta req;
@@ -1113,7 +1103,7 @@ static int add_deltas(struct ploop_disk_images_data *di,
 	}
 
 err1:
-	if (ret && *lfd_p != -1) {
+	if (ret) {
 		int err = 0;
 
 		for (i = i - 1; i >= 0; i--) {
@@ -1125,11 +1115,12 @@ err1:
 		}
 		if (err == 0 && ioctl(*lfd_p, PLOOP_IOC_CLEAR, 0) < 0)
 			ploop_err(errno, "PLOOP_IOC_CLEAR");
+
+		unregister_ploop_dev(di ? di->runtime->component_name : NULL, images[0]);
 	}
-	if (ret && registered)
-		unregister_ploop_dev(di->runtime->component_name, images[0]);
 err:
-	ploop_unlock(&lckfd);
+	if (lckfd != -1)
+		close(lckfd);
 	return ret;
 }
 
@@ -1343,7 +1334,6 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 {
 	int ret;
 	char mnt[PATH_MAX] = "";
-	int lckfd;
 
 	if (!device) {
 		ploop_err(0, "ploop_umount: device is not specified");
@@ -1363,16 +1353,10 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 		}
 	}
 
-	lckfd = ploop_global_lock();
-	if (lckfd == -1)
-		return SYSEXIT_LOCK;
-
 	ret = ploop_stop_device(device);
 
 	if (ret == 0 && di != NULL)
 		unregister_ploop_dev(di->runtime->component_name, di->images[0]->file);
-
-	ploop_unlock(&lckfd);
 
 	return ret;
 }

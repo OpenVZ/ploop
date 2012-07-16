@@ -715,17 +715,19 @@ static void usage_getdevice(void)
 
 static int plooptool_getdevice(int argc, char **argv)
 {
-	int minor, ret;
+	int minor, fd;
 
 	if (argc != 1) {
 		usage_getdevice();
 		return SYSEXIT_PARAM;
 	}
-	ret = ploop_getdevice(&minor);
-	if (ret == 0)
-		printf("Next unused minor: %d\n", minor);
+	fd = ploop_getdevice(&minor);
+	if (fd < 0)
+		return 1;
+	close(fd);
+	printf("Next unused minor: %d\n", minor);
 
-	return ret;
+	return 0;
 }
 
 static void usage_resize(void)
