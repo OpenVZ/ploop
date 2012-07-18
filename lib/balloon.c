@@ -931,16 +931,27 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 			continue;
 		} else
 			size += ret;
+		/* serialize ploop operations vs ploop_complete_running_operation()
+		 * NB: PLOOP_IOC_BALLOON may change mntn from PLOOP_MNTN_DISCARD:
+		 * to PLOOP_MNTN_FBLOADED
+		 */
+		if (ploop_lock_di(di)) {
+			ret = SYSEXIT_LOCK;
+			break;
+		}
 
 		memset(&b_ctl, 0, sizeof(b_ctl));
 		b_ctl.keep_intact = 1;
 		ret = ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
-		if (ret)
+		if (ret) {
+			ploop_unlock_di(di);
 			break;
+		}
 
 		if (b_ctl.mntn_type == PLOOP_MNTN_OFF) {
 			ploop_log(0, "Unexpected maintenance type 0x%x", b_ctl.mntn_type);
 			ret = -1;
+			ploop_unlock_di(di);
 			break;
 		}
 
@@ -952,10 +963,6 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 				ploop_err(errno, "Can't finalize a discard mode");
 		}
 
-		if (ploop_lock_di(di)) {
-			ret = SYSEXIT_LOCK;
-			break;
-		}
 		ploop_log(0, "Starting relocation");
 		ret = ploop_balloon_relocation(fd, &b_ctl, device);
 		ploop_unlock_di(di);

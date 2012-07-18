@@ -715,12 +715,6 @@ static int delete_deltas(int devfd, const char *devname)
 
 static int ploop_stop(int fd, const char *devname)
 {
-	int ret;
-
-	ret = ploop_complete_running_operation(devname);
-	if (ret)
-		return ret;
-
 	if (do_ioctl(fd, PLOOP_IOC_STOP) < 0) {
 		if (errno != EINVAL) {
 			ploop_err(errno, "PLOOP_IOC_STOP");
@@ -1383,6 +1377,12 @@ int ploop_umount_image(struct ploop_disk_images_data *di)
 		ploop_unlock_di(di);
 		ploop_err(0, "Image %s is not mounted", di->images[0]->file);
 		return -1;
+	}
+
+	ret = ploop_complete_running_operation(dev);
+	if (ret) {
+		ploop_unlock_di(di);
+		return ret;
 	}
 
 	ret = ploop_umount(dev, di);
