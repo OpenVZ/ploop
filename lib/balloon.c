@@ -29,6 +29,7 @@
 #include <sys/file.h>
 #include <sys/wait.h>
 #include <sys/user.h>
+#include <sys/param.h>
 #include <sys/ioctl.h>
 #include <linux/types.h>
 #include <linux/fs.h>
@@ -816,9 +817,12 @@ static void stop_trim_handler(int sig)
 	trim_stop = 1;
 }
 
-static int ploop_trim(const char *mount_point, __u64 minlen_b)
+/* The fragmentation of such blocks doesn't affect the speed of w/r */
+#define MAX_DISCARD_CLU 32
+
+static int ploop_trim(const char *mount_point, __u64 minlen_b, __u64 cluster)
 {
-	struct fstrim_range range = {0, ULLONG_MAX, minlen_b};
+	struct fstrim_range range = {0, ULLONG_MAX, 0};
 	int fd, ret;
 
 	struct sigaction sa = {
@@ -839,12 +843,26 @@ static int ploop_trim(const char *mount_point, __u64 minlen_b)
 
 	sys_syncfs(fd);
 
-	ret = ioctl_device(fd, FITRIM, &range);
-	if (ret < 0) {
-		if (trim_stop)
-			ret = 0;
-		else
-			ploop_err(errno, "Can't trim file system");
+	if (minlen_b < cluster)
+		minlen_b = cluster;
+	else
+		minlen_b = (minlen_b + cluster - 1) / cluster * cluster;
+	range.minlen = MAX(MAX_DISCARD_CLU * cluster, minlen_b);
+
+	for (; range.minlen >= minlen_b; range.minlen /= 2) {
+		ploop_log(1, "Call FITRIM, for minlen=%lld", range.minlen);
+		ret = ioctl(fd, FITRIM, &range);
+		if (ret < 0) {
+			if (trim_stop)
+				ret = 0;
+			else
+				ploop_err(errno, "Can't trim file system");
+			break;
+		}
+
+		/* last iteration should go with range.minlen == minlen_b */
+		if (range.minlen != minlen_b && range.minlen / 2 < minlen_b)
+			range.minlen = minlen_b * 2;
 	}
 
 	close(fd);
@@ -852,78 +870,16 @@ static int ploop_trim(const char *mount_point, __u64 minlen_b)
 	return ret;
 }
 
-#define ilog2(n) (			\
-	(n) >= (1 << 9) ? 9 :		\
-	(n) & 1 << 8	 ? 8 :		\
-	(n) & 1 << 7	 ? 7 :		\
-	(n) & 1 << 6	 ? 6 :		\
-	(n) & 1 << 5	 ? 5 :		\
-	(n) & 1 << 4	 ? 4 :		\
-	(n) & 1 << 3	 ? 3 :		\
-	(n) & 1 << 2	 ? 2 :		\
-	(n) & 1 << 1	 ? 1 :	0	\
-)
-
-#define DISCARD_TABLE_SIZE 10
-
-static int discard_collect_stat(int fd, __u32 *distrib)
-{
-	struct ploop_freeblks_ctl  *freeblks = NULL;
-	int ret, i;
-
-	ret = freeblks_alloc(&freeblks, 0);
-	if (ret)
-		return ret;
-
-	ret = ioctl_device(fd, PLOOP_IOC_FBGET, freeblks);
-	if (ret)
-		goto free;
-
-	if (freeblks->n_extents == 0) {
-		// This should never happen, and we don't want
-		// to return an error here.
-		ploop_err(EINVAL, "The number of extents is zero");
-		goto free;
-	}
-
-	ret = freeblks_alloc(&freeblks, freeblks->n_extents);
-	if (ret)
-		goto free;
-
-	ret = ioctl_device(fd, PLOOP_IOC_FBGET, freeblks);
-	if (ret)
-		goto free;
-
-	for (i = 0; i < freeblks->n_extents; i++) {
-		__u32 len = freeblks->extents[i].len;
-		distrib[ilog2(len)] += len;
-	}
-	ret = ioctl_device(fd, PLOOP_IOC_FBDROP, 0);
-	if (ret)
-		goto free;
-free:
-	free(freeblks);
-	return ret;
-}
-
-enum {
-	PLOOP_DISCARD_STAT,
-	PLOOP_DISCARD_COMPACT,
-
-	PLOOP_DISCARD_MAX
-};
-
 static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 			const char *device, const char *mount_point,
-			int state, __u32 *minlen_c,
-			__u32 cluster, __u32 to_free, const int *stop)
+			__u64 minlen_b, __u32 cluster, __u32 to_free,
+			const int *stop)
 {
 	pid_t tpid;
 	int err = 0, ret, status;
-	__u32 distrib[DISCARD_TABLE_SIZE], size = 0;
+	__u32 size = 0;
 
-	memset(distrib, 0, sizeof(distrib));
-	ploop_log(3, "Trying to find free extents bigger than %u clusters", *minlen_c);
+	ploop_log(3, "Trying to find free extents bigger than %llu bytes", minlen_b);
 
 	if (ploop_lock_di(di))
 		return SYSEXIT_LOCK;
@@ -944,7 +900,7 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 	}
 
 	if (tpid == 0) {
-		ret = ploop_trim(mount_point, (__u64) *minlen_c * cluster);
+		ret = ploop_trim(mount_point, minlen_b, cluster);
 		if (ioctl_device(fd, PLOOP_IOC_DISCARD_FINI, NULL))
 			ploop_err(errno, "Can't finalize discard mode");
 
@@ -962,7 +918,8 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 		} else if (ret == 0)
 			break;
 
-		ret = ioctl_device(fd, PLOOP_IOC_FBFILTER, *minlen_c);
+		/* FIXME PLOOP_IOC_DISCARD_WAIT should return size */
+		ret = ioctl(fd, PLOOP_IOC_FBFILTER, 0);
 		if (ret < 0) {
 			ploop_err(errno, "Can't filter free blocks");
 			break;
@@ -975,47 +932,37 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 		} else
 			size += ret;
 
-		switch (state) {
-		case PLOOP_DISCARD_COMPACT:
-			memset(&b_ctl, 0, sizeof(b_ctl));
-			b_ctl.keep_intact = 1;
-			ret = ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
-			if (ret)
-				break;
-
-			if (b_ctl.mntn_type == PLOOP_MNTN_OFF) {
-				ploop_log(0, "Unexpected maintenance type 0x%x", b_ctl.mntn_type);
-				ret = -1;
-				break;
-			}
-
-			if (size >= to_free || (stop && *stop)) {
-				ploop_log(3, "Killing the trim process %d", tpid);
-				kill(tpid, SIGUSR1);
-				ret = ioctl(fd, PLOOP_IOC_DISCARD_FINI, NULL);
-				if (ret < 0 && errno != EBUSY)
-					ploop_err(errno, "Can't finalize a discard mode");
-			}
-			if (ploop_lock_di(di)) {
-				ret = SYSEXIT_LOCK;
-				break;
-			}
-			ploop_log(0, "Starting relocation");
-			ret = ploop_balloon_relocation(fd, &b_ctl, device);
-			ploop_unlock_di(di);
+		memset(&b_ctl, 0, sizeof(b_ctl));
+		b_ctl.keep_intact = 1;
+		ret = ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
+		if (ret)
 			break;
-		case PLOOP_DISCARD_STAT:
-			ploop_log(3, "Getting extents");
-			ret = discard_collect_stat(fd, distrib);
-			break;
-		default:
-			ret = -EINVAL;
+
+		if (b_ctl.mntn_type == PLOOP_MNTN_OFF) {
+			ploop_log(0, "Unexpected maintenance type 0x%x", b_ctl.mntn_type);
+			ret = -1;
 			break;
 		}
 
+		if (size >= to_free || (stop && *stop)) {
+			ploop_log(3, "Killing the trim process %d", tpid);
+			kill(tpid, SIGUSR1);
+			ret = ioctl(fd, PLOOP_IOC_DISCARD_FINI);
+			if (ret < 0 && errno != EBUSY)
+				ploop_err(errno, "Can't finalize a discard mode");
+		}
+
+		if (ploop_lock_di(di)) {
+			ret = SYSEXIT_LOCK;
+			break;
+		}
+		ploop_log(0, "Starting relocation");
+		ret = ploop_balloon_relocation(fd, &b_ctl, device);
+		ploop_unlock_di(di);
 		if (ret)
 			break;
 	}
+
 
 	if (ret) {
 		err = -1;
@@ -1031,14 +978,7 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 
 		kill(tpid, SIGKILL);
 	} else {
-		switch (state) {
-			case PLOOP_DISCARD_COMPACT:
-				ploop_log(0, "%d clusters have been relocated", size);
-				break;
-			case PLOOP_DISCARD_STAT:
-				ploop_log(0, "%d free clusters have been found", size);
-				break;
-		}
+		ploop_log(0, "%d clusters have been relocated", size);
 	}
 
 	ret = waitpid(tpid, &status, 0);
@@ -1059,22 +999,6 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 		err = -1;
 	}
 
-	if (err == 0 && state == PLOOP_DISCARD_STAT) {
-		int j;
-
-		for (j = DISCARD_TABLE_SIZE - 1; j >= 0; j--)
-			ploop_log(3, "%10d\t%u", j, distrib[j]);
-
-		for (j = DISCARD_TABLE_SIZE - 1; j >= 0; j--) {
-			if (to_free <= distrib[j]) {
-				*minlen_c = (1 << j);
-				break;
-			}
-
-			to_free -= distrib[j];
-		}
-	}
-
 	return err;
 }
 
@@ -1082,9 +1006,9 @@ static int do_ploop_discard(struct ploop_disk_images_data *di,
 		const char *device, const char *mount_point,
 		__u64 minlen_b, __u64 to_free, const int *stop)
 {
-	int fd, ret, state;
+	int fd, ret;
 	int blocksize;
-	__u32  cluster, minlen_c;
+	__u32  cluster;
 
 	if (ploop_get_attr(device, "block_size", &blocksize)) {
 		ploop_err(0, "Can't find block size");
@@ -1092,12 +1016,6 @@ static int do_ploop_discard(struct ploop_disk_images_data *di,
 	}
 	cluster = S2B(blocksize);
 
-	if (minlen_b || to_free == ~0ULL)
-		state = PLOOP_DISCARD_COMPACT;
-	else
-		state = PLOOP_DISCARD_STAT;
-
-	minlen_c = (minlen_b + cluster - 1) / cluster;
 	to_free = to_free  / cluster;
 	if (!to_free) {
 		ploop_err(0, "Can't shrink by less than %d bytes", cluster);
@@ -1108,12 +1026,8 @@ static int do_ploop_discard(struct ploop_disk_images_data *di,
 	if (fd == -1)
 		return SYSEXIT_OPEN;
 
-	for (; state < PLOOP_DISCARD_MAX; state++) {
-		ret = __ploop_discard(di, fd, device, mount_point, state,
-				&minlen_c, cluster, to_free, stop);
-		if (ret)
-			break;
-	}
+	ret = __ploop_discard(di, fd, device, mount_point,
+					minlen_b, cluster, to_free, stop);
 
 	close(fd);
 
