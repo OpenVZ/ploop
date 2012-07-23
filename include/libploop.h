@@ -20,6 +20,8 @@
 #define _LIBPLOOP_H_
 #pragma GCC visibility push(default)
 
+#include <linux/types.h>
+
 #define DISKDESCRIPTOR_XML      "DiskDescriptor.xml"
 
 #define PLOOP_LEAVE_TOP_DELTA	0x01
@@ -169,6 +171,16 @@ void ploop_cancel_operation(struct ploop_cancel_handle *handle);
 int send_process(const char *device, int ofd, const char *flush_cmd,
 		int is_pipe);
 int receive_process(const char *dst);
+
+struct ploop_discard_stat {
+	off_t data_size;
+	off_t ploop_size;
+	off_t image_size;
+	off_t balloon_size;
+};
+
+int ploop_discard_get_stat(const char *device, const char *mount_point,
+		struct ploop_discard_stat *pd_stat);
 
 #ifdef __cplusplus
 }

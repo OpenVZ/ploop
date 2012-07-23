@@ -25,6 +25,7 @@
 #include <stdint.h>
 #include <limits.h>
 #include <sys/stat.h>
+#include <sys/vfs.h>
 #include <sys/file.h>
 #include <sys/wait.h>
 #include <sys/user.h>
@@ -1158,4 +1159,45 @@ err:
 	close(fd);
 	return ret;
 
+}
+
+int ploop_discard_get_stat(const char *device, const char *mount_point,
+		struct ploop_discard_stat *pd_stat)
+{
+	int		err;
+	struct statfs	stfs;
+	struct stat	st, balloon_stat;
+	off_t		ploop_size;
+	char		image[PATH_MAX];
+
+	err = get_balloon(mount_point, &balloon_stat, NULL);
+	if (err)
+		return err;
+
+	err = statfs(mount_point, &stfs);
+	if (err == -1) {
+		ploop_err(errno, "statfs(%s) failed", mount_point);
+		return 1;
+	}
+
+	err = ploop_get_size(device, &ploop_size);
+	if (err)
+		return 1;
+
+	err = ploop_find_top_delta_name_and_format(device, image, sizeof(image), NULL, 0);
+	if (err)
+		return 1;
+
+	err = stat(image, &st);
+	if (err == -1) {
+		ploop_err(errno, "stat(%s) failed", image);
+		return 1;
+	}
+
+	pd_stat->ploop_size = S2B(ploop_size) -  balloon_stat.st_size;
+	pd_stat->image_size = st.st_size;
+	pd_stat->data_size = pd_stat->ploop_size - stfs.f_bfree * stfs.f_bsize;
+	pd_stat->balloon_size = balloon_stat.st_size;
+
+	return 0;
 }

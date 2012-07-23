@@ -373,7 +373,7 @@ static int pb_check_and_repair(int argc, char **argv, int repair)
 static void usage_discard(void)
 {
 	fprintf(stderr, "Usage: ploop-balloon discard {-d DEVICE | -m MOUNT_POINT}\n"
-			"                     --to-free SIZE --min-block MIN_SIZE\n"
+			"                     --to-free SIZE --min-block MIN_SIZE --stat\n"
 			"       DEVICE      := ploop device, e.g. /dev/ploop0\n"
 			"       MOUNT_POINT := path where fs living on ploop device mounted to\n"
 			"       SIZE        := NUMBER[kmg] (maximum space to free)\n"
@@ -382,14 +382,33 @@ static void usage_discard(void)
 		);
 }
 
+static int pb_discard_stat(const char *device, const char *mount_point)
+{
+	struct ploop_discard_stat stat;
+	int ret;
+
+	ret = ploop_discard_get_stat(device, mount_point, &stat);
+	if (ret)
+		return -1;
+
+	fprintf(stdout, "Balloon size: %8ldMB\n", stat.balloon_size >> 20);
+	fprintf(stdout, "Data size:    %8ldMB\n", stat.data_size >> 20);
+	fprintf(stdout, "Ploop size:   %8ldMB\n", stat.ploop_size >> 20);
+	fprintf(stdout, "Image size:   %8ldMB\n", stat.image_size >> 20);
+
+	return 0;
+}
+
 static int pb_discard(int argc, char **argv)
 {
 	int i;
 	off_t val;
 	__u64 to_free = ~0ULL, minblock_b = 0;
+	int stat = 0;
 	static struct option long_opts[] = {
 		{ "to-free", required_argument, 0, 666 },
 		{ "min-block", required_argument, 0, 667 },
+		{ "stat", no_argument, 0, 668 },
 		{},
 	};
 
@@ -417,6 +436,9 @@ static int pb_discard(int argc, char **argv)
 			}
 			minblock_b = S2B(val);
 			break;
+		case 668:
+			stat = 1;
+			break;
 		default:
 			usage_discard();
 			return -1;
@@ -430,6 +452,9 @@ static int pb_discard(int argc, char **argv)
 		usage_discard();
 		return -1;
 	}
+
+	if (stat)
+		return pb_discard_stat(device, mount_point);
 
 	return ploop_discard(device, mount_point, minblock_b, to_free);
 }
