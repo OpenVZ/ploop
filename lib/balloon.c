@@ -591,7 +591,7 @@ int ploop_balloon_complete(const char *device)
 	if (fd == -1)
 		return -1;
 
-	err = ioctl_device(fd, PLOOP_IOC_DISCARD_FINI, NULL);
+	err = ioctl(fd, PLOOP_IOC_DISCARD_FINI, NULL);
 	if (err && errno != EBUSY) {
 		ploop_err(errno, "Can't finalize discard mode");
 		goto out;
@@ -993,7 +993,7 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 			if (size >= to_free) {
 				ploop_log(3, "Killing the trim process %d", tpid);
 				kill(tpid, SIGUSR1);
-				ret = ioctl_device(fd, PLOOP_IOC_DISCARD_FINI, NULL);
+				ret = ioctl(fd, PLOOP_IOC_DISCARD_FINI, NULL);
 				if (ret < 0 && errno != EBUSY)
 					ploop_err(errno, "Can't finalize a discard mode");
 			}
