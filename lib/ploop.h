@@ -285,7 +285,7 @@ PL_EXT int ploop_balloon_change_size(const char *device, int balloonfd, off_t ne
 PL_EXT int ploop_balloon_get_state(const char *device, __u32 *state);
 PL_EXT int ploop_balloon_clear_state(const char *device);
 PL_EXT int ploop_balloon_complete(const char *device);
-PL_EXT int ploop_balloon_check_and_repair(const char *device, char *mount_point, int repair);
+PL_EXT int ploop_balloon_check_and_repair(const char *device, const char *mount_point, int repair);
 PL_EXT int ploop_discard(const char *device, const char *mount_point,
 		__u64 minblock, __u64 to_free);
 

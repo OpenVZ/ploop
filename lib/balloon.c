@@ -629,7 +629,7 @@ out:
 	return err;
 }
 
-int ploop_balloon_check_and_repair(const char *device, char *mount_point, int repair)
+int ploop_balloon_check_and_repair(const char *device, const char *mount_point, int repair)
 {
 	int   ret, fd = -1;
 	int   balloonfd = -1;
