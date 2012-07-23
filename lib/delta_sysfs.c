@@ -162,7 +162,8 @@ int ploop_get_attr(const char * device, const char * attr, int * res)
 	return 0;
 }
 
-static int ploop_get_delta_attr_str(const char *device, int level, char * attr, char *nbuf, int nbuf_len)
+static int ploop_get_delta_attr_str(const char *device, int level, const char *attr,
+		char *nbuf, int nbuf_len)
 {
 	FILE * fp;
 
