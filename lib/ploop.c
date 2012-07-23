@@ -1685,6 +1685,7 @@ static int expanded2preallocated(struct ploop_disk_images_data *di)
 	off_t data_off;
 	int ret = -1;
 	__u64 cluster;
+	void *buf = NULL;
 
 	ploop_log(0, "Converting image to preallocated...");
 	// FIXME: deny on snapshots
@@ -1718,10 +1719,22 @@ static int expanded2preallocated(struct ploop_disk_images_data *di)
 
 			ret = sys_fallocate(delta.fd, 0, data_off * cluster, cluster);
 			if (ret) {
-				if (errno == ENOTSUP)
-					ploop_err(errno, "fallocate");
-				ploop_err(errno, "Failed to expand %s", di->images[0]->file);
-				goto err;
+				if (errno == ENOTSUP) {
+					if (buf == NULL) {
+						ploop_log(0, "Warning: fallocate is not supported,"
+								" using write instead");
+						buf = calloc(1, cluster);
+						if (buf == NULL) {
+							ploop_err(errno, "malloc");
+							goto err;
+						}
+					}
+					ret = PWRITE(&delta, buf, cluster, data_off * cluster);
+				}
+				if (ret) {
+					ploop_err(errno, "Failed to expand %s", di->images[0]->file);
+					goto err;
+				}
 			}
 
 			if (PWRITE(&delta, &delta.l2[l2_slot], sizeof(__u32), idx_off))
@@ -1737,6 +1750,7 @@ static int expanded2preallocated(struct ploop_disk_images_data *di)
 	ret = 0;
 err:
 	close_delta(&delta);
+	free(buf);
 	return ret;
 }
 
