@@ -1022,6 +1022,15 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 			ploop_err(errno, "Can't finalize discard mode");
 
 		kill(tpid, SIGKILL);
+	} else {
+		switch (state) {
+			case PLOOP_DISCARD_COMPACT:
+				ploop_log(0, "%d clusters have been relocated", size);
+				break;
+			case PLOOP_DISCARD_STAT:
+				ploop_log(0, "%d free clusters have been found", size);
+				break;
+		}
 	}
 
 	ret = waitpid(tpid, &status, 0);
