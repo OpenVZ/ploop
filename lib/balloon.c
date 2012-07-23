@@ -955,7 +955,7 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 	while (1) {
 		struct ploop_balloon_ctl b_ctl;
 
-		ploop_log(0, "Waiting");
+		ploop_log(3, "Waiting");
 		ret = ioctl_device(fd, PLOOP_IOC_DISCARD_WAIT, NULL);
 		if (ret < 0) {
 			ploop_err(errno, "Waiting for a discard request failed");
@@ -1002,7 +1002,7 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 			ret = ploop_balloon_relocation(fd, &b_ctl, device);
 			break;
 		case PLOOP_DISCARD_STAT:
-			ploop_log(0, "Getting extents");
+			ploop_log(3, "Getting extents");
 			ret = discard_collect_stat(fd, distrib);
 			break;
 		default:
