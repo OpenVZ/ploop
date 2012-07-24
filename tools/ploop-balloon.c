@@ -35,7 +35,16 @@
 
 static char  *device;	   /* ploop device name (e.g. /dev/ploop0) */
 static char  *mount_point;
+static char  *disk_descriptor;
 static int    force;	   /* do not flock hidden balloon */
+
+#define GET_DD(argc, argv)					\
+	do {							\
+		if (argc == 1 && is_xml_fname(argv[0])) {	\
+			disk_descriptor = argv[0];		\
+			argc--;	argv++;				\
+		}						\
+	} while (0)
 
 static int fill_opts(void)
 {
@@ -44,6 +53,27 @@ static int fill_opts(void)
 
 	if (device && mount_point)
 		return 0;
+
+	if (disk_descriptor) {
+		int ret;
+		struct ploop_disk_images_data *di;
+
+		ret = read_dd(&di, disk_descriptor);
+		if (ret)
+			return ret;
+
+		ret = ploop_get_dev(di, _device, sizeof(_device));
+		ploop_free_diskdescriptor(di);
+		if (ret < 0)
+			return SYSEXIT_PARAM;
+
+		if (ret == 1) {
+			fprintf(stderr, "The image is not mounted\n");
+			return SYSEXIT_PARAM;
+		}
+
+		device = _device;
+	}
 
 	if (!device && mount_point) {
 		if (ploop_get_dev_by_mnt(mount_point, _device, sizeof(_device))) {
@@ -63,7 +93,7 @@ static int fill_opts(void)
 		return 0;
 	}
 
-	fprintf(stderr, "At least one of -d or -m is required\n");
+	fprintf(stderr, "Error: one of -d, -m or DiskDescriptor.xml argument is required\n");
 	return 1;
 }
 
@@ -76,7 +106,7 @@ static void usage_summary(void)
 
 static void usage_show(void)
 {
-	fprintf(stderr, "Usage: ploop-balloon show [-f] {-d DEVICE | -m MOUNT_POINT}\n"
+	fprintf(stderr, "Usage: ploop-balloon show [-f] {-d DEVICE | -m MOUNT_POINT | DiskDescriptor.xml}\n"
 			"	DEVICE	    := ploop device, e.g. /dev/ploop0\n"
 			"	MOUNT_POINT := path where fs living on ploop device mounted to\n"
 			"	-f	    - do not flock hidden balloon\n"
@@ -108,6 +138,7 @@ static int pb_show(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
+	GET_DD(argc, argv);
 	if (argc != 0 || fill_opts()) {
 		usage_show();
 		return -1;
@@ -123,7 +154,7 @@ static int pb_show(int argc, char **argv)
 
 static void usage_status(void)
 {
-	fprintf(stderr, "Usage: ploop-balloon status [-f] {-d DEVICE | -m MOUNT_POINT}\n"
+	fprintf(stderr, "Usage: ploop-balloon status [-f] {-d DEVICE | -m MOUNT_POINT | DiskDescriptor.xml}\n"
 			"	DEVICE	    := ploop device, e.g. /dev/ploop0\n"
 			"	MOUNT_POINT := path where fs living on ploop device mounted to\n"
 			"	-f	    - do not flock hidden balloon\n"
@@ -155,6 +186,7 @@ static int pb_status(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
+	GET_DD(argc, argv);
 	if (argc != 0 || fill_opts()) {
 		usage_status();
 		return -1;
@@ -171,7 +203,7 @@ static int pb_status(int argc, char **argv)
 
 static void usage_clear(void)
 {
-	fprintf(stderr, "Usage: ploop-balloon clear {-d DEVICE | -m MOUNT_POINT}\n"
+	fprintf(stderr, "Usage: ploop-balloon clear {-d DEVICE | -m MOUNT_POINT | DiskDescriptor.xml}\n"
 			"	DEVICE	    := ploop device, e.g. /dev/ploop0\n"
 			"	MOUNT_POINT := path where fs living on ploop device mounted to\n"
 			"Action: clear stale in-kernel \"BALLOON\" state of maintenance\n"
@@ -200,6 +232,7 @@ static int pb_clear(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
+	GET_DD(argc, argv);
 	if (argc != 0 || fill_opts()) {
 		usage_clear();
 		return -1;
@@ -218,7 +251,7 @@ static int pb_clear(int argc, char **argv)
 
 static void usage_change(void)
 {
-	fprintf(stderr, "Usage: ploop-balloon change -s SIZE {-d DEVICE | -m MOUNT_POINT}\n"
+	fprintf(stderr, "Usage: ploop-balloon change -s SIZE {-d DEVICE | -m MOUNT_POINT | DiskDescriptor.xml}\n"
 			"	SIZE	    := NUMBER[kmg] (new size of balloon)\n"
 			"	DEVICE	    := ploop device, e.g. /dev/ploop0\n"
 			"	MOUNT_POINT := path where fs living on ploop device mounted to\n"
@@ -258,6 +291,7 @@ static int pb_change(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
+	GET_DD(argc, argv);
 	if (argc != 0 || !new_size_set || fill_opts()) {
 		usage_change();
 		return -1;
@@ -271,7 +305,7 @@ static int pb_change(int argc, char **argv)
 
 static void usage_complete(void)
 {
-	fprintf(stderr, "Usage: ploop-balloon complete {-d DEVICE | -m MOUNT_POINT}\n"
+	fprintf(stderr, "Usage: ploop-balloon complete {-d DEVICE | -m MOUNT_POINT | DiskDescriptor.xml}\n"
 			"	DEVICE	    := ploop device, e.g. /dev/ploop0\n"
 			"	MOUNT_POINT := path where fs living on ploop device mounted to\n"
 			"Action: complete previously interrupted balloon operation\n"
@@ -301,6 +335,7 @@ static int pb_complete(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
+	GET_DD(argc, argv);
 	if (argc != 0 || fill_opts()) {
 		usage_complete();
 		return -1;
@@ -315,7 +350,7 @@ static int pb_complete(int argc, char **argv)
 
 static void usage_check(void)
 {
-	fprintf(stderr, "Usage: ploop-balloon check {-d DEVICE | -m MOUNT_POINT}\n"
+	fprintf(stderr, "Usage: ploop-balloon check {-d DEVICE | -m MOUNT_POINT | DiskDescriptor.xml}\n"
 			"	DEVICE	    := ploop device, e.g. /dev/ploop0\n"
 			"	MOUNT_POINT := path where fs living on ploop device mounted to\n"
 			"Action: check whether hidden balloon has free blocks\n"
@@ -324,7 +359,7 @@ static void usage_check(void)
 
 static void usage_repair(void)
 {
-	fprintf(stderr, "Usage: ploop-balloon repair {-d DEVICE | -m MOUNT_POINT}\n"
+	fprintf(stderr, "Usage: ploop-balloon repair {-d DEVICE | -m MOUNT_POINT | DiskDescriptor.xml}\n"
 			"	DEVICE	    := ploop device, e.g. /dev/ploop0\n"
 			"	MOUNT_POINT := path where fs living on ploop device mounted to\n"
 			"Action: repair hidden balloon (i.e. relocate all free blocks\n"
@@ -358,6 +393,7 @@ static int pb_check_and_repair(int argc, char **argv, int repair)
 	argc -= optind;
 	argv += optind;
 
+	GET_DD(argc, argv);
 	if (argc != 0 || fill_opts()) {
 		if (repair)
 			usage_repair();
@@ -372,7 +408,7 @@ static int pb_check_and_repair(int argc, char **argv, int repair)
 
 static void usage_discard(void)
 {
-	fprintf(stderr, "Usage: ploop-balloon discard {-d DEVICE | -m MOUNT_POINT}\n"
+	fprintf(stderr, "Usage: ploop-balloon discard {-d DEVICE | -m MOUNT_POINT | DiskDescriptor.xml}\n"
 			"                     --to-free SIZE --min-block MIN_SIZE --stat\n"
 			"       DEVICE      := ploop device, e.g. /dev/ploop0\n"
 			"       MOUNT_POINT := path where fs living on ploop device mounted to\n"
@@ -448,6 +484,7 @@ static int pb_discard(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
+	GET_DD(argc, argv);
 	if (argc != 0 || fill_opts()) {
 		usage_discard();
 		return -1;
