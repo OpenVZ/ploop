@@ -927,7 +927,6 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 	ret = ioctl_device(fd, PLOOP_IOC_DISCARD_INIT, NULL);
 	if (ret) {
 		ploop_err(errno, "Can't initialize discard mode");
-		close(fd);
 		return 1;
 	}
 
@@ -937,7 +936,6 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 		if (ioctl_device(fd, PLOOP_IOC_DISCARD_FINI, NULL))
 			ploop_err(errno, "Can't finalize discard mode");
 
-		close(fd);
 		return -1;
 	}
 
@@ -949,7 +947,6 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 		if (ioctl_device(fd, PLOOP_IOC_DISCARD_FINI, NULL))
 			ploop_err(errno, "Can't finalize discard mode");
 
-		close(fd);
 		exit(exit_code);
 	}
 
