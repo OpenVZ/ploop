@@ -99,6 +99,8 @@ int ploop_lock_di(struct ploop_disk_images_data *di)
 	struct stat st;
 	char fname[PATH_MAX];
 
+	if (di == NULL)
+		return 0;
 	get_disk_descriptor_lock_fname(di, fname, sizeof(fname));
 	if (stat(fname, &st)) {
 		if (create_file(fname))
@@ -112,7 +114,8 @@ int ploop_lock_di(struct ploop_disk_images_data *di)
 
 void ploop_unlock_di(struct ploop_disk_images_data *di)
 {
-	ploop_unlock(&di->runtime->lckfd);
+	if (di != NULL)
+		ploop_unlock(&di->runtime->lckfd);
 }
 
 int ploop_global_lock(void)

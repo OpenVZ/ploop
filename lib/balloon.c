@@ -913,7 +913,8 @@ enum {
 	PLOOP_DISCARD_MAX
 };
 
-static int __ploop_discard(int fd, const char *device, const char *mount_point,
+static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
+			const char *device, const char *mount_point,
 			int state, __u32 *minlen_c,
 			__u32 cluster, __u32 to_free, const int *stop)
 {
@@ -922,13 +923,15 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 	__u32 distrib[DISCARD_TABLE_SIZE], size = 0;
 
 	memset(distrib, 0, sizeof(distrib));
-
 	ploop_log(3, "Trying to find free extents bigger than %u clusters", *minlen_c);
 
+	if (ploop_lock_di(di))
+		return SYSEXIT_LOCK;
 	ret = ioctl_device(fd, PLOOP_IOC_DISCARD_INIT, NULL);
+	ploop_unlock_di(di);
 	if (ret) {
 		ploop_err(errno, "Can't initialize discard mode");
-		return -1;
+		return ret;
 	}
 
 	tpid = fork();
@@ -993,9 +996,13 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 				if (ret < 0 && errno != EBUSY)
 					ploop_err(errno, "Can't finalize a discard mode");
 			}
-
+			if (ploop_lock_di(di)) {
+				ret = SYSEXIT_LOCK;
+				break;
+			}
 			ploop_log(0, "Starting relocation");
 			ret = ploop_balloon_relocation(fd, &b_ctl, device);
+			ploop_unlock_di(di);
 			break;
 		case PLOOP_DISCARD_STAT:
 			ploop_log(3, "Getting extents");
@@ -1071,8 +1078,9 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 	return err;
 }
 
-int ploop_discard(const char *device, const char *mount_point,
-				__u64 minlen_b, __u64 to_free, const int *stop)
+static int do_ploop_discard(struct ploop_disk_images_data *di,
+		const char *device, const char *mount_point,
+		__u64 minlen_b, __u64 to_free, const int *stop)
 {
 	int fd, ret, state;
 	int blocksize;
@@ -1101,8 +1109,8 @@ int ploop_discard(const char *device, const char *mount_point,
 		return SYSEXIT_OPEN;
 
 	for (; state < PLOOP_DISCARD_MAX; state++) {
-		ret = __ploop_discard(fd, device, mount_point, state,
-					&minlen_c, cluster, to_free, stop);
+		ret = __ploop_discard(di, fd, device, mount_point, state,
+				&minlen_c, cluster, to_free, stop);
 		if (ret)
 			break;
 	}
@@ -1110,6 +1118,49 @@ int ploop_discard(const char *device, const char *mount_point,
 	close(fd);
 
 	return ret;
+}
+
+static int ploop_get_dev_and_mnt(struct ploop_disk_images_data *di,
+		char *dev, int dev_len, char *mnt, int mnt_len)
+{
+	if (ploop_lock_di(di))
+		return SYSEXIT_LOCK;
+
+	if (ploop_find_dev(di->runtime->component_name,
+			di->images[0]->file, dev, dev_len))
+	{
+		ploop_unlock_di(di);
+		return SYSEXIT_PARAM;
+	}
+
+	if (ploop_get_mnt_by_dev(dev, mnt, mnt_len)) {
+		ploop_err(0, "Unable to find mount point for %s", dev);
+		ploop_unlock_di(di);
+		return SYSEXIT_PARAM;
+	}
+	ploop_unlock_di(di);
+
+	return 0;
+}
+
+int ploop_discard_by_dev(const char *device, const char *mount_point,
+		__u64 minlen_b, __u64 to_free, const int *stop)
+{
+	return do_ploop_discard(NULL, device, mount_point, minlen_b, to_free, stop);
+}
+
+int ploop_discard(struct ploop_disk_images_data *di,
+		__u64 minlen_b, __u64 to_free, const int *stop)
+{
+	int ret;
+	char dev[PATH_MAX];
+	char mnt[PATH_MAX];
+
+	ret = ploop_get_dev_and_mnt(di, dev, sizeof(dev), mnt, sizeof(mnt));
+	if (ret)
+		return ret;
+
+	return do_ploop_discard(di, dev, mnt, minlen_b, to_free, stop);
 }
 
 int ploop_complete_running_operation(const char *device)
@@ -1150,8 +1201,7 @@ int ploop_complete_running_operation(const char *device)
 			ret = ioctl_device(fd, PLOOP_IOC_TRACK_ABORT, 0);
 			break;
 		case PLOOP_MNTN_DISCARD:
-			/* FIXME: */
-			ret = 0;
+			ret = ploop_balloon_complete(device);
 			break;
 		case PLOOP_MNTN_BALLOON:
 			/*  FIXME : ploop_balloon_check_and_repair(device, mount_point, 1; */
@@ -1162,10 +1212,9 @@ int ploop_complete_running_operation(const char *device)
 err:
 	close(fd);
 	return ret;
-
 }
 
-int ploop_discard_get_stat(const char *device, const char *mount_point,
+int ploop_discard_get_stat_by_dev(const char *device, const char *mount_point,
 		struct ploop_discard_stat *pd_stat)
 {
 	int		err;
@@ -1204,4 +1253,18 @@ int ploop_discard_get_stat(const char *device, const char *mount_point,
 	pd_stat->balloon_size = balloon_stat.st_size;
 
 	return 0;
+}
+
+int ploop_discard_get_stat(struct ploop_disk_images_data *di,
+		struct ploop_discard_stat *pd_stat)
+{
+	int ret;
+	char dev[PATH_MAX];
+	char mnt[PATH_MAX];
+
+	ret = ploop_get_dev_and_mnt(di, dev, sizeof(dev), mnt, sizeof(mnt));
+	if (ret)
+		return ret;
+
+	return ploop_discard_get_stat_by_dev(dev, mnt, pd_stat);
 }

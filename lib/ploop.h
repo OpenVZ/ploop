@@ -281,8 +281,10 @@ PL_EXT int ploop_balloon_get_state(const char *device, __u32 *state);
 PL_EXT int ploop_balloon_clear_state(const char *device);
 PL_EXT int ploop_balloon_complete(const char *device);
 PL_EXT int ploop_balloon_check_and_repair(const char *device, const char *mount_point, int repair);
-PL_EXT int ploop_discard(const char *device, const char *mount_point,
-		__u64 minblock, __u64 to_free, const int *stop);
+PL_EXT int ploop_discard_get_stat_by_dev(const char *device, const char *mount_point,
+		struct ploop_discard_stat *pd_stat);
+PL_EXT int ploop_discard_by_dev(const char *device, const char *mount_point,
+		__u64 minlen_b, __u64 to_free, const int *stop);
 
 /* lock */
 int ploop_lock_di(struct ploop_disk_images_data *di);

@@ -418,26 +418,17 @@ static void usage_discard(void)
 		);
 }
 
-static int pb_discard_stat(const char *device, const char *mount_point)
+static void print_discard_stat(struct ploop_discard_stat *stat)
 {
-	struct ploop_discard_stat stat;
-	int ret;
-
-	ret = ploop_discard_get_stat(device, mount_point, &stat);
-	if (ret)
-		return -1;
-
-	fprintf(stdout, "Balloon size: %8ldMB\n", stat.balloon_size >> 20);
-	fprintf(stdout, "Data size:    %8ldMB\n", stat.data_size >> 20);
-	fprintf(stdout, "Ploop size:   %8ldMB\n", stat.ploop_size >> 20);
-	fprintf(stdout, "Image size:   %8ldMB\n", stat.image_size >> 20);
-
-	return 0;
+	fprintf(stdout, "Balloon size: %8ldMB\n", stat->balloon_size >> 20);
+	fprintf(stdout, "Data size:    %8ldMB\n", stat->data_size >> 20);
+	fprintf(stdout, "Ploop size:   %8ldMB\n", stat->ploop_size >> 20);
+	fprintf(stdout, "Image size:   %8ldMB\n", stat->image_size >> 20);
 }
 
 static int pb_discard(int argc, char **argv)
 {
-	int i;
+	int ret, i;
 	off_t val;
 	__u64 to_free = ~0ULL, minblock_b = 0;
 	int stat = 0;
@@ -447,6 +438,7 @@ static int pb_discard(int argc, char **argv)
 		{ "stat", no_argument, 0, 668 },
 		{},
 	};
+	struct ploop_disk_images_data *di = NULL;
 
 	while ((i = getopt_long(argc, argv, "d:m:", long_opts, NULL)) != EOF) {
 		switch (i) {
@@ -484,16 +476,39 @@ static int pb_discard(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	GET_DD(argc, argv);
-	if (argc != 0 || fill_opts()) {
-		usage_discard();
-		return -1;
+	if (argc == 1 && is_xml_fname(argv[0])) {
+		ret = read_dd(&di, argv[0]);
+		if (ret)
+			return ret;
+
+		argc--;
+		argv++;
 	}
 
-	if (stat)
-		return pb_discard_stat(device, mount_point);
+	if (argc != 0 || (di != NULL && (device || mount_point)) ||
+			(di == NULL && fill_opts())) {
+		usage_discard();
+		return 1;
+	}
 
-	return ploop_discard(device, mount_point, minblock_b, to_free, NULL);
+	if (stat) {
+		struct ploop_discard_stat d_stat;
+
+		if (di)
+			ret = ploop_discard_get_stat(di, &d_stat);
+		else
+			ret = ploop_discard_get_stat_by_dev(device, mount_point, &d_stat);
+
+		if (ret == 0)
+			print_discard_stat(&d_stat);
+	} else {
+		if (di)
+			ret = ploop_discard(di, minblock_b, to_free, NULL);
+		else
+			ret = ploop_discard_by_dev(device, mount_point, minblock_b, to_free, NULL);
+	}
+
+	return ret;
 }
 
 int main(int argc, char **argv)

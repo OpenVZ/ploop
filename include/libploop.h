@@ -176,8 +176,10 @@ struct ploop_discard_stat {
 	off_t balloon_size;
 };
 
-int ploop_discard_get_stat(const char *device, const char *mount_point,
+int ploop_discard_get_stat(struct ploop_disk_images_data *di,
 		struct ploop_discard_stat *pd_stat);
+int ploop_discard(struct ploop_disk_images_data *di,
+		__u64 minlen_b, __u64 to_free, const int *stop);
 
 #ifdef __cplusplus
 }
