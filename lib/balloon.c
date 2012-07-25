@@ -1013,9 +1013,14 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 	if (ret) {
 		err = -1;
 
-		ret = ioctl_device(fd, PLOOP_IOC_DISCARD_FINI, NULL);
-		if (ret < 0)
-			ploop_err(errno, "Can't finalize discard mode");
+		ret = ioctl(fd, PLOOP_IOC_DISCARD_FINI);
+		if (ret < 0) {
+			if (errno == EBUSY)
+				ploop_log(-1, "Discard finalized, but "
+					"relocation is still not completed");
+			else
+				ploop_err(errno, "Can't finalize discard mode");
+		}
 
 		kill(tpid, SIGKILL);
 	} else {
