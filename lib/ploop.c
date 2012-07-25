@@ -1203,7 +1203,7 @@ err:
 	if (lfd >= 0)
 		close(lfd);
 
-	if (!ret)
+	if (ret == 0 && di)
 		drop_statfs_info(di->images[0]->file);
 
 	return ret;
