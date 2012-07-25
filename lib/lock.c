@@ -75,8 +75,7 @@ static int set_timer(timer_t *tid, unsigned int timeout)
 	return 0;
 }
 
-static int do_lock(const char *fname, int flags,
-		unsigned int timeout)
+static int do_lock(const char *fname, unsigned int timeout)
 {
 	int fd, r, _errno;
 	timer_t tid;
@@ -90,17 +89,18 @@ static int do_lock(const char *fname, int flags,
 		return -1;
 	}
 	if (timeout) {
+		/* all other signals should be set with SA_RESTART */
 		sigaction(SIGRTMIN, &sa, &osa);
 		if (set_timer(&tid, timeout))
 			return -1;
 	}
-	while ((r = flock(fd, LOCK_EX | flags)) == -1) {
+	while ((r = flock(fd, LOCK_EX)) == -1) {
 		_errno = errno;
 		if (_errno != EINTR)
 			break;
 		if (timeout == 0)
 			continue;
-		_errno = ETIMEDOUT;
+		_errno = EAGAIN;
 		break;
 	}
 	if (timeout) {
@@ -151,7 +151,7 @@ int ploop_lock_di(struct ploop_disk_images_data *di)
 		if (create_file(fname))
 			return -1;
 	}
-	di->runtime->lckfd = do_lock(fname, 0, LOCK_TIMEOUT);
+	di->runtime->lckfd = do_lock(fname, LOCK_TIMEOUT);
 	if (di->runtime->lckfd == -1)
 		return -1;
 	return 0;
@@ -171,5 +171,5 @@ int ploop_global_lock(void)
 		if (create_file(PLOOP_GLOBAL_LOCK_FILE))
 			return -1;
 	}
-	return do_lock(PLOOP_GLOBAL_LOCK_FILE, 0, 0);
+	return do_lock(PLOOP_GLOBAL_LOCK_FILE, 0);
 }
