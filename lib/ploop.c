@@ -687,7 +687,7 @@ static int do_umount(const char *mnt)
 {
 	int i, ret;
 
-	for (i = 0; i < 60; i++) {
+	for (i = 0; i < 6; i++) {
 		ret = umount(mnt);
 		if (ret == 0 || (ret == -1 && errno != EBUSY))
 			return ret;
