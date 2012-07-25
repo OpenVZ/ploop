@@ -35,15 +35,9 @@
 #include <mntent.h>
 
 #include "ploop.h"
-
-static __thread struct ploop_cancel_handle __cancel_data;
+#include "cleanup.h"
 
 static int ploop_mount_fs(struct ploop_mount_param *param);
-
-struct ploop_cancel_handle *ploop_get_cancel_handle(void)
-{
-	return &__cancel_data;
-}
 
 static int not_supported_for_vm(struct ploop_disk_images_data *di)
 {
@@ -67,12 +61,6 @@ static int is_operation_cancelled(void)
 		return 1;
 	}
 	return 0;
-}
-
-void ploop_cancel_operation(struct ploop_cancel_handle *handle)
-{
-	ploop_log(0, "cancel operation");
-	handle->flags = 1;
 }
 
 static void free_mount_param(struct ploop_mount_param *param)

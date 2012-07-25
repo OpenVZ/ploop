@@ -110,8 +110,6 @@ struct ploop_info {
 	unsigned long long fs_ifree;
 };
 
-struct ploop_cancel_handle;
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -164,8 +162,7 @@ void ploop_set_verbose_level(int level);
 #define PLOOP_LOG_NOSTDOUT	-1	/* disable all but errors to stderr */
 
 /* Cancelation API */
-struct ploop_cancel_handle *ploop_get_cancel_handle(void);
-void ploop_cancel_operation(struct ploop_cancel_handle *handle);
+void ploop_cancel_operation(void);
 
 /* pcopy routines */
 int send_process(const char *device, int ofd, const char *flush_cmd,

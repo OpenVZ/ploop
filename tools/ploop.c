@@ -31,8 +31,6 @@
 #include "ploop.h"
 #include "common.h"
 
-static struct ploop_cancel_handle *_s_cancel_handle;
-
 static void usage_summary(void)
 {
 	fprintf(stderr, "Usage: ploop init -s SIZE [-f FORMAT] NEW_DELTA\n"
@@ -868,18 +866,18 @@ static int plooptool_info(int argc, char **argv)
 
 static void cancel_callback(int sig)
 {
-	ploop_cancel_operation(_s_cancel_handle);
+	ploop_cancel_operation();
 }
 
 static void init_signals(void)
 {
 	struct sigaction act = {};
 
-	_s_cancel_handle = ploop_get_cancel_handle();
 	sigemptyset(&act.sa_mask);
 	act.sa_handler = cancel_callback;
 	sigaction(SIGTERM, &act, NULL);
 	sigaction(SIGINT, &act, NULL);
+	sigaction(SIGHUP, &act, NULL);
 }
 
 int main(int argc, char **argv)

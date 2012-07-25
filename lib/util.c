@@ -32,6 +32,7 @@
 #include <sys/wait.h>
 
 #include "ploop.h"
+#include "cleanup.h"
 
 #define PLOOP_STATFS_FNAME	".statfs"
 #define NFS_SUPER_MAGIC		0x6969
@@ -387,6 +388,7 @@ int run_prg(char *const argv[])
 {
 	int pid, ret, status;
 	char cmd[512];
+	struct ploop_cleanup_hook *h;
 
 	arg2str(argv, cmd, sizeof(cmd));
 	ploop_log(1, "Running: %s", cmd);
@@ -401,9 +403,11 @@ int run_prg(char *const argv[])
 		ploop_err(errno, "Can't fork");
 		return -1;
 	}
+	h = register_cleanup_hook(cleanup_kill_process, &pid);
 	while ((ret = waitpid(pid, &status, 0)) == -1)
 		if (errno != EINTR)
 			break;
+	unregister_cleanup_hook(h);
 	if (ret == -1) {
 		ploop_err(errno, "Can't waitpid %s", cmd);
 		return -1;

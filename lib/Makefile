@@ -18,7 +18,8 @@ LIBOBJS=uuid.o \
 	merge.o \
 	util.o \
 	pcopy.o \
-	di.o
+	di.o \
+	cleanup.o
 
 SOURCES=$(LIBOBJS:.o=.c)
 
