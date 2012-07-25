@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # Usage:
 # /sbin/umount.ploop [-h] mount_point

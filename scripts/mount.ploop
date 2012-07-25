@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # Usage:
 # /sbin/mount.ploop spec dir [-h] [-o options]
@@ -16,14 +16,14 @@ READLINK="/bin/readlink"
 MTAB="/etc/mtab"
 LOGFILE="/var/log/ploop_mount.log"
 
-function log(){
+log() {
 	if [ "x$USER" = "x" ]; then
 		echo $* >> $LOGFILE
 	fi
 	echo $*
 }
 
-function parse_opt() {
+parse_opt() {
 	local opts="$1"
 	local nparam="$2"
 	local string=""
@@ -47,11 +47,11 @@ function parse_opt() {
 	return 1
 }
 
-function canonicalize() {
+canonicalize() {
 	echo `$READLINK -f "$1" 2>/dev/null`
 }
 
-function check_bin() {
+check_bin() {
 	if [ ! -x $1 ]; then
 		log "$1 utility is not found"
 		exit 2
