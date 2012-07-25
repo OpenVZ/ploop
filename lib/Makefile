@@ -25,7 +25,7 @@ SOURCES=$(LIBOBJS:.o=.c)
 
 CFLAGS += $(shell pkg-config libxml-2.0 --cflags) -fPIC -fvisibility=hidden
 LDFLAGS += -L.
-LDLIBS += $(shell pkg-config libxml-2.0 --libs)
+LDLIBS += $(shell pkg-config libxml-2.0 --libs) -lrt
 
 all: $(LIBPLOOP) $(LIBPLOOP_DYN)
 .PHONY: all
