@@ -1032,13 +1032,17 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 	if (ret == -1) {
 		ploop_err(errno, "wait() failed");
 		err = -1;
-	} else if(!WIFEXITED(status) || WEXITSTATUS(status)) {
-		if (WIFEXITED(status))
-			ploop_err(0, "The trim process failed with code %d",
-							WEXITSTATUS(status));
-		else
-			ploop_err(0, "The trim process killed by signal %d",
-							WTERMSIG(status));
+	} else if (WIFEXITED(status)) {
+		ret = WEXITSTATUS(status);
+		if (ret) {
+			ploop_err(0, "The trim process failed with code %d", ret);
+			err = -1;
+		}
+	} else if (WIFSIGNALED(status)) {
+		ploop_err(0, "The trim process killed by signal %d", WTERMSIG(status));
+		err = -1;
+	} else {
+		ploop_err(0, "The trim process died abnormally");
 		err = -1;
 	}
 
