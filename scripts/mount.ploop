@@ -58,6 +58,14 @@ check_bin() {
 	fi
 }
 
+load_modules() {
+	local m
+
+	for m in $MODULES; do
+		/sbin/modprobe $m
+	done
+}
+
 # Place the timestamp into log
 if [ "x$USER" = "x" ]; then
 	date >> $LOGFILE
@@ -120,6 +128,8 @@ for mpoint in `awk '{print $2}' /proc/mounts`; do
 		exit 32
 	fi
 done
+
+load_modules
 
 # Call the ploop utility
 if [ "x$USER" = "x" ]; then
