@@ -917,7 +917,7 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 			int state, __u32 *minlen_c, __u32 cluster, __u32 to_free)
 {
 	pid_t tpid;
-	int exit_code = 0, ret, status;
+	int err = 0, ret, status;
 	__u32 distrib[DISCARD_TABLE_SIZE], size = 0;
 
 	memset(distrib, 0, sizeof(distrib));
@@ -941,13 +941,10 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 
 	if (tpid == 0) {
 		ret = ploop_trim(mount_point, (__u64) *minlen_c * cluster);
-		if (ret < 0)
-			exit_code = 1;
-
 		if (ioctl_device(fd, PLOOP_IOC_DISCARD_FINI, NULL))
 			ploop_err(errno, "Can't finalize discard mode");
 
-		exit(exit_code);
+		exit(ret < 0);
 	}
 
 	while (1) {
@@ -1013,7 +1010,7 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 	}
 
 	if (ret) {
-		exit_code = 1;
+		err = 1;
 
 		ret = ioctl_device(fd, PLOOP_IOC_DISCARD_FINI, NULL);
 		if (ret < 0)
@@ -1034,7 +1031,7 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 	ret = waitpid(tpid, &status, 0);
 	if (ret == -1) {
 		ploop_err(errno, "wait() failed");
-		exit_code = 1;
+		err = 1;
 	} else if(!WIFEXITED(status) || WEXITSTATUS(status)) {
 		if (WIFEXITED(status))
 			ploop_err(0, "The trim process failed with code %d",
@@ -1042,10 +1039,10 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 		else
 			ploop_err(0, "The trim process killed by signal %d",
 							WTERMSIG(status));
-		exit_code = 1;
+		err = 1;
 	}
 
-	if (exit_code == 0 && state == PLOOP_DISCARD_STAT) {
+	if (err == 0 && state == PLOOP_DISCARD_STAT) {
 		int j;
 
 		for (j = DISCARD_TABLE_SIZE - 1; j >= 0; j--)
@@ -1061,7 +1058,7 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 		}
 	}
 
-	return exit_code;
+	return err;
 }
 
 int ploop_discard(const char *device, const char *mount_point,
