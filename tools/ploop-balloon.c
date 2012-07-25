@@ -420,10 +420,14 @@ static void usage_discard(void)
 
 static void print_discard_stat(struct ploop_discard_stat *stat)
 {
-	fprintf(stdout, "Balloon size: %8ldMB\n", stat->balloon_size >> 20);
-	fprintf(stdout, "Data size:    %8ldMB\n", stat->data_size >> 20);
-	fprintf(stdout, "Ploop size:   %8ldMB\n", stat->ploop_size >> 20);
-	fprintf(stdout, "Image size:   %8ldMB\n", stat->image_size >> 20);
+	fprintf(stdout, "Balloon size: %8lluMB\n",
+			(unsigned long long)stat->balloon_size >> 20);
+	fprintf(stdout, "Data size:    %8lluMB\n",
+			(unsigned long long)stat->data_size >> 20);
+	fprintf(stdout, "Ploop size:   %8lluMB\n",
+			(unsigned long long)stat->ploop_size >> 20);
+	fprintf(stdout, "Image size:   %8lluMB\n",
+			(unsigned long long)stat->image_size >> 20);
 }
 
 static int pb_discard(int argc, char **argv)
