@@ -927,7 +927,7 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 	ret = ioctl_device(fd, PLOOP_IOC_DISCARD_INIT, NULL);
 	if (ret) {
 		ploop_err(errno, "Can't initialize discard mode");
-		return 1;
+		return -1;
 	}
 
 	tpid = fork();
@@ -1010,7 +1010,7 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 	}
 
 	if (ret) {
-		err = 1;
+		err = -1;
 
 		ret = ioctl_device(fd, PLOOP_IOC_DISCARD_FINI, NULL);
 		if (ret < 0)
@@ -1031,7 +1031,7 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 	ret = waitpid(tpid, &status, 0);
 	if (ret == -1) {
 		ploop_err(errno, "wait() failed");
-		err = 1;
+		err = -1;
 	} else if(!WIFEXITED(status) || WEXITSTATUS(status)) {
 		if (WIFEXITED(status))
 			ploop_err(0, "The trim process failed with code %d",
@@ -1039,7 +1039,7 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 		else
 			ploop_err(0, "The trim process killed by signal %d",
 							WTERMSIG(status));
-		err = 1;
+		err = -1;
 	}
 
 	if (err == 0 && state == PLOOP_DISCARD_STAT) {
