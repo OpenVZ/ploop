@@ -914,7 +914,8 @@ enum {
 };
 
 static int __ploop_discard(int fd, const char *device, const char *mount_point,
-			int state, __u32 *minlen_c, __u32 cluster, __u32 to_free)
+			int state, __u32 *minlen_c,
+			__u32 cluster, __u32 to_free, const int *stop)
 {
 	pid_t tpid;
 	int err = 0, ret, status;
@@ -985,7 +986,7 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 				break;
 			}
 
-			if (size >= to_free) {
+			if (size >= to_free || (stop && *stop)) {
 				ploop_log(3, "Killing the trim process %d", tpid);
 				kill(tpid, SIGUSR1);
 				ret = ioctl(fd, PLOOP_IOC_DISCARD_FINI, NULL);
@@ -1066,7 +1067,7 @@ static int __ploop_discard(int fd, const char *device, const char *mount_point,
 }
 
 int ploop_discard(const char *device, const char *mount_point,
-				__u64 minlen_b, __u64 to_free)
+				__u64 minlen_b, __u64 to_free, const int *stop)
 {
 	int fd, ret, state;
 	int blocksize;
@@ -1096,7 +1097,7 @@ int ploop_discard(const char *device, const char *mount_point,
 
 	for (; state < PLOOP_DISCARD_MAX; state++) {
 		ret = __ploop_discard(fd, device, mount_point, state,
-					&minlen_c, cluster, to_free);
+					&minlen_c, cluster, to_free, stop);
 		if (ret)
 			break;
 	}

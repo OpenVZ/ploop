@@ -493,7 +493,7 @@ static int pb_discard(int argc, char **argv)
 	if (stat)
 		return pb_discard_stat(device, mount_point);
 
-	return ploop_discard(device, mount_point, minblock_b, to_free);
+	return ploop_discard(device, mount_point, minblock_b, to_free, NULL);
 }
 
 int main(int argc, char **argv)
