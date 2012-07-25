@@ -31,20 +31,27 @@
 
 int create_gpt_partition(const char *device, off_t size, __u32 blocksize)
 {
-	char cmd[512];
 	unsigned long long start = blocksize;
 	unsigned long long end = size - start;
+	char *argv[7];
+	char s1[22], s2[22];
 
 	if (size <= start) {
 		ploop_err(0, "Image size should be greater than %llu", start);
 		return -1;
 	}
-	snprintf(cmd, sizeof(cmd), "/sbin/parted -s %s mklabel gpt mkpart primary %llus %llus",
-			device,	start, end);
+	argv[0] = "/sbin/parted";
+	argv[1] = "-s";
+	argv[2] = (char *)device;
+	argv[3] = "mklabel gpt mkpart primary";
+	snprintf(s1, sizeof(s1), "%llus", start);
+	argv[4] = s1;
+	snprintf(s2, sizeof(s2), "%llus", end);
+	argv[5] = s2;
+	argv[6] = NULL;
 
-	ploop_log(1, "%s", cmd);
-	if (system(cmd)) {
-		ploop_err(0, "Failed to create partition (cmd: %s)", cmd);
+	if (run_prg(argv)) {
+		ploop_err(0, "Failed to create partition");
 		return -1;
 	}
 
@@ -54,20 +61,27 @@ int create_gpt_partition(const char *device, off_t size, __u32 blocksize)
 int make_fs(const char *device, const char *fstype)
 {
 	char part_device[64];
-	char cmd[512];
+	char *argv[8];
 
 	if (get_partition_device_name(device, part_device, sizeof(part_device)))
 		return -1;
-	snprintf(cmd, sizeof(cmd), "/sbin/mkfs -t %s -j -b4096 %s </dev/null",
-			fstype, part_device);
-	ploop_log(0, "%s", cmd);
-	if (system(cmd))
+	argv[0] = "/sbin/mkfs";
+	argv[1] = "-t";
+	argv[2] = (char*)fstype;
+	argv[3] = "-j";
+	argv[4] = "-b4096";
+	argv[5] = part_device;
+	argv[6] = NULL;
+
+	if (run_prg(argv))
 		return SYSEXIT_MKFS;
 
-	snprintf(cmd, sizeof(cmd), "/sbin/tune2fs -o user_xattr,acl %s </dev/null >/dev/null",
-			part_device);
-	ploop_log(0, "%s", cmd);
-	if (system(cmd))
+	argv[0] = "/sbin/tune2fs";
+	argv[1] =  "-ouser_xattr,acl";
+	argv[2] = part_device;
+	argv[3] = NULL;
+
+	if (run_prg(argv))
 		return SYSEXIT_MKFS;
 
 	return 0;
@@ -76,9 +90,10 @@ int make_fs(const char *device, const char *fstype)
 void tune_fs(const char *target, const char *device, unsigned long long size_sec)
 {
 	char part_device[64];
-	char cmd[512];
 	unsigned long long reserved_blocks;
 	struct statfs fs;
+	char *argv[5];
+	char buf[21];
 
 	if (get_partition_device_name(device, part_device, sizeof(part_device))) {
 		ploop_err(0, "tune_fs: unable to get partition device name for %s",
@@ -96,10 +111,14 @@ void tune_fs(const char *target, const char *device, unsigned long long size_sec
 				size_sec);
 		return;
 	}
-	snprintf(cmd, sizeof(cmd), "/sbin/tune2fs -r %llu %s",
-			reserved_blocks, part_device);
-	ploop_log(0, "Executing: %s", cmd);
-	system(cmd);
+	argv[0] = "/sbin/tune2fs";
+	argv[1] = "-r";
+	snprintf(buf, sizeof(buf), "%llu", reserved_blocks);
+	argv[2] = buf;
+	argv[3] = part_device;
+	argv[4] = NULL;
+
+	run_prg(argv);
 }
 
 static char *get_resize_prog(void)
@@ -118,9 +137,9 @@ static char *get_resize_prog(void)
 int resize_fs(const char *device)
 {
 	int ret;
-	char buf[256];
 	char part_device[64];
 	char *prog;
+	char *argv[4];
 
 	prog = get_resize_prog();
 	if (prog == NULL) {
@@ -134,12 +153,12 @@ int resize_fs(const char *device)
 		if (ret)
 			return ret;
 	}
-	snprintf(buf, sizeof(buf), "%s -p %s", prog, part_device);
-	ploop_log(0, "Executing: %s", buf);
-	ret = system(buf);
-	if (ret) {
-		ploop_err(0, "Failed to resize fs (cmd: %s)", buf);
+	argv[0] = prog;
+	argv[1] = "-p";
+	argv[2] = part_device;
+	argv[3] = NULL;
+
+	if (run_prg(argv))
 		return SYSEXIT_RESIZE_FS;
-	}
 	return 0;
 }

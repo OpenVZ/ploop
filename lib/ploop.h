@@ -317,6 +317,7 @@ int ploop_fname_cmp(const char *p1, const char *p2);
 int is_valid_guid(const char *guid);
 int read_line(const char *path, char *nbuf, int len);
 int is_valid_blocksize(__u32 blocksize);
+int run_prg(char *const argv[]);
 
 // merge
 PL_EXT int get_delta_info(const char *device, struct merge_info *info);

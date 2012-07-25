@@ -28,6 +28,8 @@
 #include <limits.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #include "ploop.h"
 
@@ -365,4 +367,56 @@ int ploop_set_component_name(struct ploop_disk_images_data *di,
 	if (di->runtime->component_name == NULL)
 		return SYSEXIT_NOMEM;
 	return 0;
+}
+
+static void arg2str(char *const argv[], char *buf, int len)
+{
+	int i, r;
+	char *sp = buf;
+	char *ep = buf + len;
+
+	for (i = 0; argv[i] != NULL; i++) {
+		r = snprintf(sp, ep - sp, "%s ", argv[i]);
+		if (r >= ep - sp)
+			break;
+		sp += r;
+	}
+}
+
+int run_prg(char *const argv[])
+{
+	int pid, ret, status;
+	char cmd[512];
+
+	arg2str(argv, cmd, sizeof(cmd));
+	ploop_log(1, "Running: %s", cmd);
+
+	pid = fork();
+	if (pid == 0) {
+		int fd = open("/dev/null", O_RDONLY);
+		dup2(fd, STDIN_FILENO);
+
+		execvp(argv[0], argv);
+	} else if (pid == -1) {
+		ploop_err(errno, "Can't fork");
+		return -1;
+	}
+	while ((ret = waitpid(pid, &status, 0)) == -1)
+		if (errno != EINTR)
+			break;
+	if (ret == -1) {
+		ploop_err(errno, "Can't waitpid %s", cmd);
+		return -1;
+	} else if (WIFEXITED(status)) {
+		ret = WEXITSTATUS(status);
+		if (ret == 0)
+			return 0;
+		ploop_err(0, "Command %s exited with code %d", cmd, ret);
+	} else if (WIFSIGNALED(status)) {
+		ploop_err(0, "Command %s received signal %d",
+				cmd, WTERMSIG(status));
+	} else
+		ploop_err(0, "Command %s died", cmd);
+
+	return -1;
 }
