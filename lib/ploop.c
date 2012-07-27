@@ -1203,7 +1203,9 @@ err:
 	if (lfd >= 0)
 		close(lfd);
 
-	if (ret == 0 && di)
+	if (ret == 0 && di != NULL &&
+			di->runtime->component_name == NULL &&
+			param->target != NULL)
 		drop_statfs_info(di->images[0]->file);
 
 	return ret;
@@ -1344,7 +1346,10 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	}
 
 	if (get_mount_dir(device, mnt, sizeof(mnt)) == 0) {
-		if (di != NULL)
+		/* The component_name feature allows multiple image mount.
+		 * Skip store statfs in custom case.
+		 */
+		if (di != NULL && di->runtime->component_name == NULL)
 			store_statfs_info(mnt, di->images[0]->file);
 		ploop_log(0, "Unmounting file system at %s", mnt);
 		if (do_umount(mnt)) {
