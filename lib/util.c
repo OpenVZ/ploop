@@ -261,8 +261,15 @@ static int ploop_find_dev_locked(const char *component_name, const char *image,
 			/* Special registration case
 			 * new_dev is ours currently created dev
 			 */
-			if (new_dev && !strcmp(new_dev, dev))
-				return 1;
+			if (new_dev != NULL) {
+				const char *p = strrchr(new_dev, '/');
+				if (p != NULL)
+					p++;
+				else
+					p = new_dev;
+				if (!strcmp(p, dev))
+					return 1;
+			}
 			snprintf(out, size, "/dev/%s", dev);
 			return 0;
 		}
