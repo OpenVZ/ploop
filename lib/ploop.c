@@ -1315,7 +1315,11 @@ err:
 
 int ploop_mount_snapshot(struct ploop_disk_images_data *di, struct ploop_mount_param *param)
 {
-	return mount_image(di, param, PLOOP_MOUNT_SNAPSHOT);
+	if (param->guid == NULL) {
+		ploop_err(0, "Snapshot guid is not specified");
+		return SYSEXIT_PARAM;
+	}
+	return ploop_mount_image(di, param);
 }
 
 static int ploop_stop_device(const char *device)

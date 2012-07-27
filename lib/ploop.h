@@ -53,9 +53,6 @@
 #define S2B(sec) ((off_t)(sec) << PLOOP1_SECTOR_LOG)
 #define B2S(sec) ((sec) >> PLOOP1_SECTOR_LOG)
 
-/* mount flags */
-#define PLOOP_MOUNT_SNAPSHOT   0x01
-
 struct delta_fops
 {
 	int		(*open)(char *pathname, int flags, mode_t mode);
