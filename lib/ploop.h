@@ -249,6 +249,7 @@ int get_list_size(char **list);
 void free_images_list(char **images);
 int PWRITE(struct delta * delta, void * buf, unsigned int size, off_t off);
 int PREAD(struct delta * delta, void *buf, unsigned int size, off_t off);
+PL_EXT int ploop_getdevice(int *minor);
 void get_disk_descriptor_fname(struct ploop_disk_images_data *di, char *buf, int size);
 void get_disk_descriptor_lock_fname(struct ploop_disk_images_data *di, char *out, int size);
 int ploop_find_dev_by_uuid(struct ploop_disk_images_data *di, int check_state, char *out, int len);

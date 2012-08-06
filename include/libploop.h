@@ -114,7 +114,6 @@ struct ploop_info {
 extern "C" {
 #endif
 
-int ploop_getdevice(int *minor);
 int ploop_read_diskdescriptor(const char *dir, struct ploop_disk_images_data *di);
 int ploop_set_component_name(struct ploop_disk_images_data *di,
 		const char *component_name);
