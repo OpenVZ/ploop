@@ -648,7 +648,7 @@ int ploop_getdevice(int *minor)
 
 	fd = open(PROC_PLOOP_MINOR, O_RDONLY);
 	if (fd < 0) {
-		ploop_err(errno, "Can't open device " PROC_PLOOP_MINOR);
+		ploop_err(errno, "Can't open " PROC_PLOOP_MINOR);
 		return -1;
 	}
 	ret = read(fd, buf, sizeof(buf));
