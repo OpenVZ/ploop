@@ -743,10 +743,11 @@ static int ploop_stop(int fd, const char *devname)
 static int get_mount_dir(const char *dev, char *buf, int size)
 {
 	FILE *fp;
-	struct mntent *ent;
+	struct mntent *ent, mntbuf;
 	int ret = 1;
 	int len;
 	const char *ep;
+	char tmp[512];
 
 	len = strlen(dev);
 	if (len == 0)
@@ -757,7 +758,7 @@ static int get_mount_dir(const char *dev, char *buf, int size)
 		ploop_err(errno, "Can't open /proc/mounts");
 		return -1;
 	}
-	while ((ent = getmntent(fp))) {
+	while ((ent = getmntent_r(fp, &mntbuf, tmp, sizeof(tmp)))) {
 		ep = ent->mnt_fsname + len;
 		// check for /dev/ploopN or /dev/ploopNp1
 		if (strncmp(dev, ent->mnt_fsname, len) == 0 &&
