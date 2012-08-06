@@ -35,25 +35,6 @@
 #include "cleanup.h"
 
 #define PLOOP_STATFS_FNAME	".statfs"
-#define NFS_SUPER_MAGIC		0x6969
-
-static int check_fs_type(const char *path, long magic)
-{
-	struct statfs st;
-
-	if (statfs(path, &st) != 0) {
-		ploop_err(errno, "statfs(%s)", path);
-		return -1;
-	}
-	if (st.f_type == magic)
-		return 1;
-	return 0;
-}
-
-int ploop_is_on_nfs(const char *path)
-{
-	return check_fs_type(path, NFS_SUPER_MAGIC);
-}
 
 int get_statfs_info(const char *mnt, struct ploop_info *info)
 {

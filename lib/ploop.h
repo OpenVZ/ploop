@@ -301,7 +301,6 @@ int resize_gpt_partition(const char *devname);
 // misc
 void get_basedir(const char *fname, char *out, int len);
 __u32 crc32(const unsigned char *buf, unsigned long len);
-int ploop_is_on_nfs(const char *path);
 int store_statfs_info(const char *mnt, char *image);
 int drop_statfs_info(const char *image);
 int read_statfs_info(const char *image, struct ploop_info *info);
