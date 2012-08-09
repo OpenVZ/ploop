@@ -580,12 +580,17 @@ static int plooptool_snapshot_switch(int argc, char **argv)
 {
 	int i, ret;
 	char *uuid = NULL;
+	int flags = 0;
 	struct ploop_disk_images_data *di = NULL;
 
-	while ((i = getopt(argc, argv, "u:")) != EOF) {
+	while ((i = getopt(argc, argv, "u:D")) != EOF) {
 		switch (i) {
 		case 'u':
 			uuid = optarg;
+			break;
+		case 'D':
+			/* for test purposes */
+			flags = PLOOP_SNAP_SKIP_TOPDELTA_DESTROY;
 			break;
 		default:
 			usage_snapshot_switch();
@@ -605,7 +610,7 @@ static int plooptool_snapshot_switch(int argc, char **argv)
 	if (ret)
 		return ret;
 
-	ret = ploop_switch_snapshot(di, uuid, 0);
+	ret = ploop_switch_snapshot(di, uuid, flags);
 
 	ploop_free_diskdescriptor(di);
 

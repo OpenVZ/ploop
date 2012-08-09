@@ -274,19 +274,17 @@ static int validate_disk_descriptor(struct ploop_disk_images_data *di)
 	if (di->nimages != di->nsnapshots) {
 		int ret;
 
-		ret = ploop_add_snapshot_entry(di, BASE_UUID, NONE_UUID);
+		ret = ploop_add_snapshot_entry(di, TOPDELTA_UUID, NONE_UUID);
 		if (ret)
 			return ret;
 		if (di->top_guid == NULL)
-			di->top_guid = strdup(BASE_UUID);
+			di->top_guid = strdup(TOPDELTA_UUID);
 	}
-	if (di->top_guid == NULL && find_snapshot_by_guid(di, BASE_UUID) != -1) {
+	if (di->top_guid == NULL && find_snapshot_by_guid(di, TOPDELTA_UUID) != -1) {
 		/* Parallels VM compatibility.
 		 * The top delta is hardcoded {5fbaabe3-6958-40ff-92a7-860e329aab41}
 		 */
-		ploop_err(0, "No TopGuid found, using " BASE_UUID);
-		di->top_guid = strdup(BASE_UUID);
-		di->runtime->vm_compat = 1;
+		di->top_guid = strdup(TOPDELTA_UUID);
 	}
 	if (!is_valid_guid(di->top_guid)) {
 		ploop_err(0, "Validation of %s failed: invalid top delta %s",
@@ -543,6 +541,7 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 		ploop_err(0, "Error at xmlTextWriter Snapshots");
 		goto err;
 	}
+
 	if (di->top_guid != NULL) {
 		rc = xmlTextWriterWriteElement(writer, BAD_CAST "TopGUID",
 				BAD_CAST di->top_guid);

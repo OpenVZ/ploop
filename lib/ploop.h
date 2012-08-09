@@ -34,7 +34,7 @@
 
 #define DISKDESCRIPTOR_XML      "DiskDescriptor.xml"
 /* Compatibility: Parallels use this UUID to mark top delta */
-#define BASE_UUID		"{5fbaabe3-6958-40ff-92a7-860e329aab41}"
+#define TOPDELTA_UUID		"{5fbaabe3-6958-40ff-92a7-860e329aab41}"
 #define NONE_UUID		"{00000000-0000-0000-0000-000000000000}"
 #define DEFAULT_FSTYPE		"ext4"
 #define BALLOON_FNAME		".balloon-c3a5ae3d-ce7f-43c4-a1ea-c61e2b4504e8"
@@ -153,7 +153,6 @@ struct xfer_desc
 struct ploop_disk_images_runtime_data {
 	int lckfd;
 	char *xml_fname;
-	int vm_compat;
 	char *component_name;
 };
 
@@ -259,7 +258,8 @@ int sys_syncfs(int fd);
 // manage struct ploop_disk_images_data
 int ploop_di_add_image(struct ploop_disk_images_data *di, const char *fname,
 		const char *guid, const char *parent_guid);
-int ploop_di_remove_image(struct ploop_disk_images_data *di, const char *guid, char **fname);
+int ploop_di_remove_image(struct ploop_disk_images_data *di, const char *guid,
+		int renew_top_uuid, char **fname);
 int ploop_di_merge_image(struct ploop_disk_images_data *di, const char *guid, char **fname);
 void ploop_di_change_guid(struct ploop_disk_images_data *di, const char *guid, const char *new_guid);
 char *find_image_by_guid(struct ploop_disk_images_data *di, const char *guid);
@@ -312,6 +312,7 @@ int is_valid_guid(const char *guid);
 int read_line(const char *path, char *nbuf, int len);
 int is_valid_blocksize(__u32 blocksize);
 int run_prg(char *const argv[]);
+int guidcmp(const char *p1, const char *p2);
 
 // merge
 PL_EXT int get_delta_info(const char *device, struct merge_info *info);

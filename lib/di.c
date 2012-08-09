@@ -36,7 +36,7 @@ static void free_image_data(struct ploop_image_data *data)
 	}
 }
 
-static int guidcmp(const char *p1, const char *p2)
+int guidcmp(const char *p1, const char *p2)
 {
 	return strcasecmp(p1, p2);
 }
@@ -299,7 +299,8 @@ int ploop_get_child_count_by_uuid(struct ploop_disk_images_data *di, const char 
 	return n;
 }
 
-int ploop_di_remove_image(struct ploop_disk_images_data *di, const char *guid, char **fname)
+int ploop_di_remove_image(struct ploop_disk_images_data *di, const char *guid,
+		int renew_top_uuid, char **fname)
 {
 	int snap_id, image_id, nr_ch;
 	struct ploop_image_data *image = NULL;
@@ -341,8 +342,9 @@ int ploop_di_remove_image(struct ploop_disk_images_data *di, const char *guid, c
 
 	ploop_log(3, "del snapshot %s", guid);
 	// update top uuid
-	if (guidcmp(guid, di->top_guid) == 0)
-		strcpy(di->top_guid, snapshot->parent_guid);
+	if (renew_top_uuid && guidcmp(guid, di->top_guid) == 0)
+		ploop_di_change_guid(di, snapshot->parent_guid, TOPDELTA_UUID);
+
 	remove_data_from_array((void**)di->snapshots, di->nsnapshots, snap_id);
 	di->nsnapshots--;
 	remove_data_from_array((void**)di->images, di->nimages, image_id);
@@ -408,6 +410,9 @@ int ploop_di_merge_image(struct ploop_disk_images_data *di, const char *guid, ch
 	di->nsnapshots--;
 	remove_data_from_array((void**)di->images, di->nimages, image_id);
 	di->nimages--;
+
+	if (guidcmp(snapshot->guid, TOPDELTA_UUID) == 0)
+		ploop_di_change_guid(di, snapshot->parent_guid, TOPDELTA_UUID);
 
 	free_snapshot_data(snapshot);
 	free_image_data(image);

@@ -39,13 +39,13 @@
 
 static int ploop_mount_fs(struct ploop_mount_param *param);
 
-static int not_supported_for_vm(struct ploop_disk_images_data *di)
+static int is_old_snapshot_format(struct ploop_disk_images_data *di)
 {
-	if (!di->runtime->vm_compat)
+	if (di->top_guid != NULL && !guidcmp(di->top_guid, TOPDELTA_UUID))
 		return 0;
 
-	ploop_err(0, "Operation is not supported for VM");
-	return SYSEXIT_PARAM;
+	ploop_err(0, "Snapshot is in old format");
+	return 1;
 }
 
 /* set cancel flag
@@ -489,7 +489,7 @@ static int create_image(struct ploop_disk_images_data *di,
 		goto err;
 	}
 
-	if (ploop_di_add_image(di, fname, BASE_UUID, NONE_UUID)) {
+	if (ploop_di_add_image(di, fname, TOPDELTA_UUID, NONE_UUID)) {
 		ret = SYSEXIT_NOMEM;
 		goto err;
 	}
@@ -1945,19 +1945,14 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 	int ret;
 	int fd;
 	char dev[64];
-	char uuid[61];
-	char uuid1[61];
+	char snap_guid[61];
+	char file_guid[61];
 	char fname[PATH_MAX];
 	char conf[PATH_MAX];
 	char conf_tmp[PATH_MAX];
 	int online = 0;
 	int n;
 	off_t size;
-	char *top_guid = NULL;
-
-	ret = not_supported_for_vm(di);
-	if (ret)
-		return ret;
 
 	if (di->nimages == 0) {
 		ploop_err(0, "No images");
@@ -1968,14 +1963,19 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 		return SYSEXIT_PARAM;
 	}
 
+	if (is_old_snapshot_format(di))
+		return SYSEXIT_PARAM;
+
 	if (ploop_lock_di(di))
 		return SYSEXIT_LOCK;
 
-	ret = gen_uuid_pair(uuid, sizeof(uuid), uuid1, sizeof(uuid1));
+	ret = gen_uuid_pair(snap_guid, sizeof(snap_guid),
+			file_guid, sizeof(file_guid));
 	if (ret) {
 		ploop_err(errno, "Can't generate uuid");
 		goto err_cleanup1;
 	}
+
 	if (param->guid != NULL) {
 		if (find_snapshot_by_guid(di, param->guid) != -1) {
 			ploop_err(0, "The snapshot %s already exist",
@@ -1983,10 +1983,7 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 			ret = SYSEXIT_PARAM;
 			goto err_cleanup1;
 		}
-		if (param->snap_guid)
-			ploop_di_change_guid(di, di->top_guid, param->guid);
-		else
-			strcpy(uuid, param->guid);
+		strcpy(snap_guid, param->guid);
 	}
 	n = get_snapshot_count(di);
 	if (n == -1) {
@@ -2003,10 +2000,10 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 		goto err_cleanup1;
 	}
 
-	top_guid = strdup(di->top_guid);
 	snprintf(fname, sizeof(fname), "%s.%s",
-			di->images[0]->file, uuid1);
-	ret = ploop_di_add_image(di, fname, uuid, get_top_delta_guid(di));
+			di->images[0]->file, file_guid);
+	ploop_di_change_guid(di, di->top_guid, snap_guid);
+	ret = ploop_di_add_image(di, fname, TOPDELTA_UUID, snap_guid);
 	if (ret)
 		goto err_cleanup1;
 
@@ -2022,7 +2019,7 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 
 	if (ret != 0) {
 		// offline snapshot
-		ret = get_image_size(di, top_guid, &size);
+		ret = get_image_size(di, snap_guid, &size);
 		if (ret)
 			goto err_cleanup2;
 		fd = create_empty_delta(fname, di->blocksize, size);
@@ -2051,14 +2048,13 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 				fname);
 
 	ploop_log(0, "ploop snapshot %s has been successfully created",
-			di->top_guid);
+			snap_guid);
 err_cleanup2:
 	if (ret && !online && unlink(conf_tmp))
-		ploop_err(errno, "Can't unlink %s",
-				conf_tmp);
+		ploop_err(errno, "Can't unlink %s", conf_tmp);
+
 err_cleanup1:
 	ploop_unlock_di(di);
-	free(top_guid);
 
 	return ret;
 }
@@ -2069,16 +2065,20 @@ int ploop_switch_snapshot(struct ploop_disk_images_data *di, const char *guid, i
 	int fd;
 	char dev[64];
 	char uuid[61];
-	char uuid1[61];
+	char file_uuid[61];
 	char new_top_delta_fname[PATH_MAX];
 	char *old_top_delta_fname = NULL;
 	char conf[PATH_MAX];
 	char conf_tmp[PATH_MAX];
 	off_t size;
 
-	ret = not_supported_for_vm(di);
-	if (ret)
-		return ret;
+	if (guid == NULL || !is_valid_guid(guid)) {
+		ploop_err(0, "Incorrect guid %s", guid);
+		return SYSEXIT_PARAM;
+	}
+
+	if (is_old_snapshot_format(di))
+		return SYSEXIT_PARAM;
 
 	if (ploop_lock_di(di))
 		return SYSEXIT_LOCK;
@@ -2100,12 +2100,17 @@ int ploop_switch_snapshot(struct ploop_disk_images_data *di, const char *guid, i
 	if (ret)
 		goto err_cleanup1;
 
-	ret = gen_uuid_pair(uuid, sizeof(uuid), uuid1, sizeof(uuid1));
+	ret = gen_uuid_pair(uuid, sizeof(uuid), file_uuid, sizeof(file_uuid));
 	if (ret) {
 		ploop_err(errno, "Can't generate uuid");
 		goto err_cleanup1;
 	}
-	if (!(flags & PLOOP_LEAVE_TOP_DELTA)) {
+
+	ret = ploop_di_remove_image(di, di->top_guid, 0, &old_top_delta_fname);
+	if (ret)
+		goto err_cleanup1;
+
+	if (!(flags & PLOOP_SNAP_SKIP_TOPDELTA_DESTROY)) {
 		// device should be stopped
 		ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
 		if (ret == -1) {
@@ -2113,18 +2118,17 @@ int ploop_switch_snapshot(struct ploop_disk_images_data *di, const char *guid, i
 			goto err_cleanup1;
 		} else if (ret == 0) {
 			ret = SYSEXIT_PARAM;
-			ploop_err(0, "Unable to perform switch to snapshot operation on running device (%s)",
+			ploop_err(0, "Unable to perform switch to snapshot operation"
+					" on running device (%s)",
 					dev);
 			goto err_cleanup1;
 		}
+	} else
+		old_top_delta_fname = NULL;
 
-		ret = ploop_di_remove_image(di, di->top_guid, &old_top_delta_fname);
-		if (ret)
-			goto err_cleanup1;
-	}
 	snprintf(new_top_delta_fname, sizeof(new_top_delta_fname), "%s.%s",
-			di->images[0]->file, uuid1);
-	ret = ploop_di_add_image(di, new_top_delta_fname, uuid, guid);
+			di->images[0]->file, file_uuid);
+	ret = ploop_di_add_image(di, new_top_delta_fname, TOPDELTA_UUID, guid);
 	if (ret)
 		goto err_cleanup1;
 
@@ -2189,9 +2193,8 @@ int ploop_delete_snapshot(struct ploop_disk_images_data *di, const char *guid)
 	char dev[64];
 	int snap_id;
 
-	ret = not_supported_for_vm(di);
-	if (ret)
-		return ret;
+	if (is_old_snapshot_format(di))
+		return SYSEXIT_PARAM;
 
 	if (ploop_lock_di(di))
 		return SYSEXIT_LOCK;
@@ -2221,7 +2224,7 @@ int ploop_delete_snapshot(struct ploop_disk_images_data *di, const char *guid)
 			goto err;
 		}
 		/* snapshot is not active and last -> delete */
-		ret = ploop_di_remove_image(di, guid, &fname);
+		ret = ploop_di_remove_image(di, guid, 1, &fname);
 		if (ret)
 			goto err;
 		get_disk_descriptor_fname(di, conf, sizeof(conf));
