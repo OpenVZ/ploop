@@ -313,6 +313,10 @@ int read_line(const char *path, char *nbuf, int len);
 int is_valid_blocksize(__u32 blocksize);
 int run_prg(char *const argv[]);
 int guidcmp(const char *p1, const char *p2);
+int auto_mount_image(struct ploop_disk_images_data *di,
+		struct ploop_mount_param *param);
+void free_mount_param(struct ploop_mount_param *param);
+
 
 // merge
 PL_EXT int get_delta_info(const char *device, struct merge_info *info);

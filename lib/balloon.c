@@ -1071,17 +1071,57 @@ int ploop_discard_by_dev(const char *device, const char *mount_point,
 }
 
 int ploop_discard(struct ploop_disk_images_data *di,
-		__u64 minlen_b, __u64 to_free, const int *stop)
+		struct ploop_discard_param *param)
 {
 	int ret;
 	char dev[PATH_MAX];
 	char mnt[PATH_MAX];
+	int mounted = 0;
 
-	ret = ploop_get_dev_and_mnt(di, dev, sizeof(dev), mnt, sizeof(mnt));
-	if (ret)
-		return ret;
+	if (ploop_lock_di(di))
+		return SYSEXIT_LOCK;
 
-	return do_ploop_discard(di, dev, mnt, minlen_b, to_free, stop);
+	ret = ploop_find_dev(di->runtime->component_name,
+			di->images[0]->file, dev, sizeof(dev));
+	if (ret == -1) {
+		ploop_unlock_di(di);
+		return SYSEXIT_LOCK;
+	} else if (ret == 0) {
+		if (ploop_get_mnt_by_dev(dev, mnt, sizeof(mnt))) {
+			ploop_err(0, "Unable to find mount point for %s", dev);
+			ploop_unlock_di(di);
+			return SYSEXIT_PARAM;
+		}
+	} else {
+		struct ploop_mount_param mount_param = {};
+
+		if (!param->automount) {
+			ploop_err(0, "Unable to discard: image is not mounted");
+			ploop_unlock_di(di);
+			return SYSEXIT_PARAM;
+		}
+		ret = auto_mount_image(di, &mount_param);
+		if (ret) {
+			ploop_unlock_di(di);
+			return ret;
+		}
+		mounted = 1;
+		snprintf(dev, sizeof(dev), "%s", mount_param.device);
+		snprintf(mnt, sizeof(mnt), "%s", mount_param.target);
+
+		free_mount_param(&mount_param);
+	}
+	ploop_unlock_di(di);
+
+	ret = do_ploop_discard(di, dev, mnt, param->minlen_b,
+			param->to_free, param->stop);
+
+	if (mounted && ploop_lock_di(di) == 0) {
+		ploop_umount(dev, di);
+		ploop_unlock_di(di);
+	}
+
+	return ret;
 }
 
 int ploop_complete_running_operation(const char *device)

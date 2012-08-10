@@ -434,15 +434,16 @@ static int pb_discard(int argc, char **argv)
 {
 	int ret, i;
 	off_t val;
-	__u64 to_free = ~0ULL, minblock_b = 0;
 	int stat = 0;
 	static struct option long_opts[] = {
 		{ "to-free", required_argument, 0, 666 },
 		{ "min-block", required_argument, 0, 667 },
 		{ "stat", no_argument, 0, 668 },
+		{ "automount", no_argument, 0, 669 },
 		{},
 	};
 	struct ploop_disk_images_data *di = NULL;
+	struct ploop_discard_param param = {};
 
 	while ((i = getopt_long(argc, argv, "d:m:", long_opts, NULL)) != EOF) {
 		switch (i) {
@@ -458,7 +459,7 @@ static int pb_discard(int argc, char **argv)
 				usage_discard();
 				return SYSEXIT_PARAM;
 			}
-			to_free = S2B(val);
+			param.to_free = S2B(val);
 			break;
 		case 667:
 			if (parse_size(optarg, &val)) {
@@ -466,10 +467,13 @@ static int pb_discard(int argc, char **argv)
 				usage_discard();
 				return SYSEXIT_PARAM;
 			}
-			minblock_b = S2B(val);
+			param.minlen_b = S2B(val);
 			break;
 		case 668:
 			stat = 1;
+			break;
+		case 669:
+			param.automount = 1;
 			break;
 		default:
 			usage_discard();
@@ -507,9 +511,10 @@ static int pb_discard(int argc, char **argv)
 			print_discard_stat(&d_stat);
 	} else {
 		if (di)
-			ret = ploop_discard(di, minblock_b, to_free, NULL);
+			ret = ploop_discard(di, &param);
 		else
-			ret = ploop_discard_by_dev(device, mount_point, minblock_b, to_free, NULL);
+			ret = ploop_discard_by_dev(device, mount_point,
+					param.minlen_b, param.to_free, NULL);
 	}
 
 	return ret;

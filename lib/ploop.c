@@ -63,7 +63,7 @@ static int is_operation_cancelled(void)
 	return 0;
 }
 
-static void free_mount_param(struct ploop_mount_param *param)
+void free_mount_param(struct ploop_mount_param *param)
 {
 	free(param->target);
 	free(param->guid);
@@ -1229,43 +1229,18 @@ static int mount_image(struct ploop_disk_images_data *di, struct ploop_mount_par
 	return ret;
 }
 
-static int auto_mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *param, int *mounted)
+int auto_mount_image(struct ploop_disk_images_data *di,
+		struct ploop_mount_param *param)
 {
 	char mnt[PATH_MAX];
-	int ret = 0;
-	int dev_mounted = 0;
-	int fs_mounted = 0;
+	int ret;
 
-	ret = ploop_find_dev_by_uuid(di, 1, param->device, sizeof(param->device));
-	if (ret == -1)
-		return SYSEXIT_MOUNT;
-	if (ret == 0) {
-		dev_mounted = 1;
-		ret = get_mount_dir(param->device, mnt, sizeof(mnt));
-		if (ret == -1) {
-			ploop_err(0, "Can't find mount point for %s",
-				param->device);
-			return SYSEXIT_MOUNT;
-		} else if (ret == 0) {
-			param->target = strdup(mnt);
-			fs_mounted = 1;
-		}
-	}
-	if (!fs_mounted) {
-		ret = get_temp_mountpoint(di->images[0]->file, 1, mnt, sizeof(mnt));
-		if (ret)
-			return ret;
-		param->target = strdup(mnt);
-	}
+	ret = get_temp_mountpoint(di->images[0]->file, 1, mnt, sizeof(mnt));
+	if (ret)
+		return ret;
+	param->target = strdup(mnt);
 
-	if (!dev_mounted) {
-		ret = mount_image(di, param, 0);
-		if (ret == 0)
-			*mounted = 1;
-	} else if (!fs_mounted) {
-		ret = ploop_mount_fs(param);
-	}
-	return ret;
+	return mount_image(di, param, 0);
 }
 
 int ploop_mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *param)
@@ -1437,7 +1412,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 	int ret;
 	struct ploop_mount_param mount_param = {};
 	char buf[PATH_MAX];
-	int were_mounted = 0;
+	int mounted = 0;
 	int balloonfd = -1;
 	struct stat st;
 	off_t dev_size = 0;
@@ -1456,9 +1431,10 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 	if (ret == -1)
 		goto err;
 	if (ret != 0) {
-		ret = auto_mount_image(di, &mount_param, &were_mounted);
+		ret = auto_mount_image(di, &mount_param);
 		if (ret)
 			goto err;
+		mounted = 1;
 	} else {
 		ret = ploop_complete_running_operation(buf);
 		if (ret)
@@ -1568,7 +1544,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 
 err:
 	close(balloonfd);
-	if (were_mounted)
+	if (mounted)
 		ploop_umount(mount_param.device, di);
 	ploop_unlock_di(di);
 	free_mount_param(&mount_param);

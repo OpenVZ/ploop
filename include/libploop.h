@@ -102,6 +102,14 @@ struct ploop_merge_param {
 	char dummy[32];
 };
 
+struct ploop_discard_param {
+	__u64 minlen_b;
+	__u64 to_free;
+	int automount;
+	const int *stop;
+	char dummy[32];
+};
+
 struct ploop_info {
 	unsigned long long fs_bsize;
 	unsigned long long fs_blocks;
@@ -179,7 +187,7 @@ int ploop_receive(const char *dst);
 int ploop_discard_get_stat(struct ploop_disk_images_data *di,
 		struct ploop_discard_stat *pd_stat);
 int ploop_discard(struct ploop_disk_images_data *di,
-		__u64 minlen_b, __u64 to_free, const int *stop);
+			struct ploop_discard_param *param);
 
 #ifdef __cplusplus
 }
