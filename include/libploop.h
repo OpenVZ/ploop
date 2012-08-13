@@ -20,6 +20,7 @@
 #define _LIBPLOOP_H_
 #pragma GCC visibility push(default)
 
+#include <sys/types.h>
 #include <linux/types.h>
 
 #define DISKDESCRIPTOR_XML      "DiskDescriptor.xml"
