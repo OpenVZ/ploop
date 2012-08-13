@@ -83,7 +83,7 @@ int main(int argc, char **argv)
 	signal(SIGPIPE, SIG_IGN);
 
 	if (!device)
-		return receive_process(recv_to);
+		return ploop_receive(recv_to);
 
 	if (recv_to) {
 		ofd = open(recv_to, O_WRONLY|O_CREAT|O_EXCL, 0600);
@@ -101,5 +101,5 @@ int main(int argc, char **argv)
 		ofd = 1;
 	}
 
-	return send_process(device, ofd, flush_cmd, (recv_to == NULL));
+	return ploop_send(device, ofd, flush_cmd, (recv_to == NULL));
 }

@@ -133,7 +133,7 @@ static int nread(int fd, void * buf, int len)
 	return -1;
 }
 
-int receive_process(const char *dst)
+int ploop_receive(const char *dst)
 {
 	int ofd, ret;
 	__u64 cluster = 0;
@@ -283,7 +283,7 @@ static int open_mount_point(const char *device)
 	return fd;
 }
 
-int send_process(const char *device, int ofd, const char *flush_cmd,
+int ploop_send(const char *device, int ofd, const char *flush_cmd,
 		int is_pipe)
 {
 	struct delta idelta = { .fd = -1 };

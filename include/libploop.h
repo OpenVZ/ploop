@@ -172,9 +172,9 @@ void ploop_set_verbose_level(int level);
 void ploop_cancel_operation(void);
 
 /* pcopy routines */
-int send_process(const char *device, int ofd, const char *flush_cmd,
+int ploop_send(const char *device, int ofd, const char *flush_cmd,
 		int is_pipe);
-int receive_process(const char *dst);
+int ploop_receive(const char *dst);
 
 int ploop_discard_get_stat(struct ploop_disk_images_data *di,
 		struct ploop_discard_stat *pd_stat);
