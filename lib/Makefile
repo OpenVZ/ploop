@@ -19,9 +19,11 @@ LIBOBJS=uuid.o \
 	util.o \
 	pcopy.o \
 	di.o \
-	cleanup.o
+	cleanup.o \
+	symbols.o
 
 SOURCES=$(LIBOBJS:.o=.c)
+GENERATED=symbols.c
 
 CFLAGS += $(shell pkg-config libxml-2.0 --cflags) -fPIC -fvisibility=hidden
 LDFLAGS += -L.
@@ -29,6 +31,11 @@ LDLIBS += $(shell pkg-config libxml-2.0 --libs) -lrt
 
 all: $(LIBPLOOP) $(LIBPLOOP_DYN)
 .PHONY: all
+
+symbols.c: ../gensym.sh ../include/libploop.h
+	$(E) "  GEN     " $@
+	$(Q) $^ $@
+
 
 $(LIBPLOOP): $(LIBOBJS)
 	$(E) "  LINK    " $@
@@ -39,7 +46,7 @@ $(LIBPLOOP_DYN): $(LIBOBJS)
 	$(E) "  LINK    " $@
 	$(Q) $(CC) $(CFLAGS) $(INC) $(LDFLAGS) -shared  $^ ${LDLIBS} -o $@
 
-.depend: $(SOURCES)
+.depend: $(filter-out $(GENERATED),$(SOURCES))
 -include .depend
 
 install-lockdir:
@@ -56,5 +63,5 @@ install: all install-lockdir
 
 clean:
 	$(E) "  CLEAN   "
-	$(Q) rm -f $(PROGS) *.o *.a *.so
+	$(Q) rm -f $(PROGS) $(GENERATED) *.o *.a *.so
 .PHONY: clean
