@@ -110,6 +110,17 @@ struct ploop_info {
 	unsigned long long fs_ifree;
 };
 
+struct ploop_discard_stat {
+	off_t data_size;
+	off_t ploop_size;
+	off_t image_size;
+	off_t balloon_size;
+};
+
+/* Constants to be used for ploop_set_verbose_level(): */
+#define PLOOP_LOG_NOCONSOLE	-2	/* disable all console logging */
+#define PLOOP_LOG_NOSTDOUT	-1	/* disable all but errors to stderr */
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -156,9 +167,6 @@ int ploop_set_log_file(const char *fname);
 void ploop_set_log_level(int level);
 /* set console logging level */
 void ploop_set_verbose_level(int level);
-/* Constants to be used for ploop_set_verbose_level(): */
-#define PLOOP_LOG_NOCONSOLE	-2	/* disable all console logging */
-#define PLOOP_LOG_NOSTDOUT	-1	/* disable all but errors to stderr */
 
 /* Cancelation API */
 void ploop_cancel_operation(void);
@@ -167,13 +175,6 @@ void ploop_cancel_operation(void);
 int send_process(const char *device, int ofd, const char *flush_cmd,
 		int is_pipe);
 int receive_process(const char *dst);
-
-struct ploop_discard_stat {
-	off_t data_size;
-	off_t ploop_size;
-	off_t image_size;
-	off_t balloon_size;
-};
 
 int ploop_discard_get_stat(struct ploop_disk_images_data *di,
 		struct ploop_discard_stat *pd_stat);
