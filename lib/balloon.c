@@ -911,7 +911,7 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 		struct ploop_balloon_ctl b_ctl;
 
 		ploop_log(3, "Waiting");
-		ret = ioctl_device(fd, PLOOP_IOC_DISCARD_WAIT, NULL);
+		ret = ioctl(fd, PLOOP_IOC_DISCARD_WAIT, NULL);
 		if (ret < 0) {
 			ploop_err(errno, "Waiting for a discard request failed");
 			break;
