@@ -28,7 +28,7 @@ extract_functions() {
 }
 
 disclaimer() {
-	echo "/* This file is auto-generated from $INPUT by $0."
+	echo "/* This file is auto-generated from $INPUT by $SELF."
 	echo " * DO NOT EDIT"
 	echo " */"
 }
