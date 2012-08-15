@@ -69,7 +69,7 @@ Headers and a static version of ploop library
 %attr(644,root,root) %{_incdir}/libploop.h
 %attr(644,root,root) %{_incdir}/ploop_if.h
 %attr(644,root,root) %{_incdir}/ploop1_image.h
-%attr(644,root,root) %{_incdir}/libploop-sym.h
+%attr(644,root,root) %{_incdir}/dynload.h
 
 %changelog
 * Sat Jun  9 2012 Kir Kolyshkin <kir@openvz.org> 1.4-1

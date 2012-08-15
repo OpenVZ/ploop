@@ -3,7 +3,7 @@
 SELF=$(basename $0)
 usage() {
 	echo "Usage: $SELF infile outfile" 1>&2
-	echo "       $SELF libploop.h libploop-sym.h" 1>&2
+	echo "       $SELF libploop.h dynload.h" 1>&2
 	echo "       $SELF libploop.h symbols.c" 1>&2
 	exit 1
 }
@@ -54,7 +54,7 @@ gen_c() {
 	disclaimer
 	echo
 	echo "#include <libploop.h>"
-	echo "#include <libploop-sym.h>"
+	echo "#include <dynload.h>"
 	echo
 	echo "void ploop_resolve_functions(struct ploop_functions * f) {"
 	# Initialize the structure with names
