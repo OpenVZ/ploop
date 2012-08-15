@@ -409,7 +409,8 @@ static int pb_check_and_repair(int argc, char **argv, int repair)
 static void usage_discard(void)
 {
 	fprintf(stderr, "Usage: ploop-balloon discard {-d DEVICE | -m MOUNT_POINT | DiskDescriptor.xml}\n"
-			"                     --to-free SIZE --min-block MIN_SIZE --stat\n"
+			"                     { [--to-free SIZE] [--min-block MIN_SIZE] |\n"
+			"                       [--stat] }\n"
 			"       DEVICE      := ploop device, e.g. /dev/ploop0\n"
 			"       MOUNT_POINT := path where fs living on ploop device mounted to\n"
 			"       SIZE        := NUMBER[kmg] (maximum space to free)\n"
