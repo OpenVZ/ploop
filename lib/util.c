@@ -459,6 +459,14 @@ static void arg2str(char *const argv[], char *buf, int len)
 	}
 }
 
+void cleanup_kill_process(void *data)
+{
+	int pid = *(int *) data;
+
+	ploop_log(1, "Killing process %d", pid);
+	kill(pid, SIGTERM);
+}
+
 int run_prg(char *const argv[])
 {
 	int pid, ret, status;

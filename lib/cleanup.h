@@ -23,7 +23,6 @@ extern "C" {
 struct ploop_cancel_handle *ploop_get_cancel_handle(void);
 struct ploop_cleanup_hook *register_cleanup_hook(cleanup_FN f, void *data);
 void unregister_cleanup_hook(struct ploop_cleanup_hook *h);
-void cleanup_kill_process(void *data);
 #ifdef __cplusplus
 }
 #endif

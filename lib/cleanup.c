@@ -58,14 +58,6 @@ void unregister_cleanup_hook(struct ploop_cleanup_hook *h)
 	}
 }
 
-void cleanup_kill_process(void *data)
-{
-	int pid = *(int *) data;
-
-	ploop_log(1, "Killing process %d", pid);
-	kill(pid, SIGTERM);
-}
-
 void ploop_cancel_operation(void)
 {
 	struct ploop_cleanup_hook *it;
