@@ -1023,6 +1023,8 @@ static int do_ploop_discard(struct ploop_disk_images_data *di,
 	}
 	cluster = S2B(blocksize);
 
+	if (to_free == 0)
+		to_free = ~0ULL;
 	to_free = to_free  / cluster;
 	if (!to_free) {
 		ploop_err(0, "Can't shrink by less than %d bytes", cluster);
