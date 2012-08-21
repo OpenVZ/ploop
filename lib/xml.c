@@ -339,7 +339,6 @@ int ploop_read_diskdescriptor(const char *fname, struct ploop_disk_images_data *
 		ret = validate_disk_descriptor(di);
 
 	xmlFreeDoc(doc);
-	xmlCleanupParser();
 
 	return ret;
 }
