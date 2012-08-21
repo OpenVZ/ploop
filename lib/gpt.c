@@ -140,9 +140,6 @@ static int blkpg_resize_partition(int fd, struct GptEntry *pe)
 	return ioctl_device(fd, BLKPG, &ioctl_arg);
 }
 
-#define GPT_HEADER_SIZE		1
-#define	GPT_PT_ENTRY_SIZE	32
-#define GPT_DATA_SIZE		(GPT_HEADER_SIZE + GPT_PT_ENTRY_SIZE)
 int resize_gpt_partition(const char *devname)
 {
 	unsigned char buf[SECTOR_SIZE*GPT_DATA_SIZE]; // LBA1 header, LBA2-34 partition entry
@@ -187,7 +184,7 @@ int resize_gpt_partition(const char *devname)
 	// change GPT header
 	pt->alternate_lba = size -1;
 	pt->last_usable_lba = size - GPT_DATA_SIZE -1;
-	pe->ending_lba = pt->last_usable_lba;
+	pe->ending_lba = (pt->last_usable_lba >> 3 << 3) - 1;
 
 	// Recalculate crc32
 	pe_crc32 = crc32((unsigned char *)pe, SECTOR_SIZE * GPT_PT_ENTRY_SIZE);

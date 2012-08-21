@@ -50,6 +50,11 @@
 #define FSCK_DROPINUSE 0x04
 #define FSCK_CHECK     0x08
 
+/* GPT */
+#define GPT_HEADER_SIZE		1
+#define GPT_PT_ENTRY_SIZE	32
+#define GPT_DATA_SIZE		(GPT_HEADER_SIZE + GPT_PT_ENTRY_SIZE)
+
 #define S2B(sec) ((off_t)(sec) << PLOOP1_SECTOR_LOG)
 #define B2S(sec) ((sec) >> PLOOP1_SECTOR_LOG)
 
