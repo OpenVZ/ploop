@@ -399,14 +399,18 @@ static int plooptool_umount(int argc, char **argv)
 	struct {
 		char * device;
 	} umountopts = { };
+	const char *component_name = NULL;
 
-	while ((i = getopt(argc, argv, "d:m:")) != EOF) {
+	while ((i = getopt(argc, argv, "d:m:c:")) != EOF) {
 		switch (i) {
 		case 'd':
 			umountopts.device = optarg;
 			break;
 		case 'm':
 			mnt = optarg;
+			break;
+		case 'c':
+			component_name = optarg;
 			break;
 		default:
 			usage_umount();
@@ -436,6 +440,9 @@ static int plooptool_umount(int argc, char **argv)
 		ret = read_dd(&di, argv[0]);
 		if (ret)
 			return ret;
+
+		if (component_name != NULL)
+			ploop_set_component_name(di, component_name);
 
 		ret = ploop_umount_image(di);
 
