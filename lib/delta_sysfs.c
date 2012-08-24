@@ -386,7 +386,7 @@ int ploop_find_dev_by_delta(char *delta, char *buf, int size)
 	}
 
 	while ((de = readdir(dp)) != NULL) {
-		if (strncmp("ploop", de->d_name, 4))
+		if (strncmp("ploop", de->d_name, 5))
 			continue;
 
 		snprintf(fname, sizeof(fname), "/sys/block/%s/pdelta/0/image",
