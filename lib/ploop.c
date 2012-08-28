@@ -1438,6 +1438,10 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		ploop_err(0, "No images in DiskDescriptor");
 		return -1;
 	}
+
+	if (check_blockdev_size(param->size))
+		return -1;
+
 	if (ploop_lock_di(di))
 		return SYSEXIT_LOCK;
 
