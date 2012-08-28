@@ -244,6 +244,20 @@ static int get_temp_mountpoint(const char *file, int create, char *buf, int len)
 	return 0;
 }
 
+static int check_blockdev_size(off_t sectors)
+{
+	const off_t max = (__u32)-1;
+
+	if (sectors > max) {
+		ploop_err(0, "An incorrect block device size specified: %lu sectors."
+				" The maximum allowed size is %lu sectors.",
+				sectors, max);
+		return -1;
+	}
+
+	return 0;
+}
+
 static int create_empty_delta(const char *path, __u32 blocksize, off_t bdsize)
 {
 	int fd;
@@ -254,7 +268,7 @@ static int create_empty_delta(const char *path, __u32 blocksize, off_t bdsize)
 
 	assert(blocksize);
 
-	if (bdsize > (__u32)-1)
+	if (check_blockdev_size(bdsize))
 		return -1;
 
 	if (posix_memalign(&buf, 4096, cluster)) {
@@ -314,7 +328,7 @@ static int create_empty_preallocated_delta(const char *path, __u32 blocksize, of
 	off_t off;
 	__u64 cluster = S2B(blocksize);
 
-	if (bdsize > (__u32)-1)
+	if (check_blockdev_size(bdsize))
 		return -1;
 
 	if (posix_memalign(&buf, 4096, cluster)) {
