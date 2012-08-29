@@ -1667,12 +1667,10 @@ static int expanded2preallocated(struct ploop_disk_images_data *di)
 	// FIXME: deny on snapshots
 	if (open_delta(&delta, di->images[0]->file, O_RDWR, OD_OFFLINE))
 		return SYSEXIT_OPEN;
+
 	cluster = S2B(delta.blocksize);
 	data_off = delta.alloc_head;
-	if (fsync(delta.fd)) {
-		ploop_err(errno, "fsync");
-		goto err;
-	}
+
 	// Second stage: update index
 	for (clu = 0; clu < delta.l2_size; clu++) {
 		int l2_cluster = (clu + PLOOP_MAP_OFFSET) / (cluster / sizeof(__u32));
