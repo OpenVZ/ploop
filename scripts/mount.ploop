@@ -15,6 +15,7 @@ OPTS_ORIG=""
 READLINK="/bin/readlink"
 MTAB="/etc/mtab"
 LOGFILE="/var/log/ploop_mount.log"
+MODULES="ploop pfmt_ploop1 pfmt_raw pio_direct pio_nfs pio_kaio"
 
 log() {
 	if [ "x$USER" = "x" ]; then
