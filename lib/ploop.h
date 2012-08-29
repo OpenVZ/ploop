@@ -32,7 +32,7 @@
 #endif
 #endif /* ! __NR_syncfs */
 
-#define DISKDESCRIPTOR_XML      "DiskDescriptor.xml"
+#define DISKDESCRIPTOR_XML	"DiskDescriptor.xml"
 /* Compatibility: Parallels use this UUID to mark top delta */
 #define TOPDELTA_UUID		"{5fbaabe3-6958-40ff-92a7-860e329aab41}"
 #define NONE_UUID		"{00000000-0000-0000-0000-000000000000}"
@@ -40,15 +40,15 @@
 #define BALLOON_FNAME		".balloon-c3a5ae3d-ce7f-43c4-a1ea-c61e2b4504e8"
 
 /* od_flags for open_delta() */
-#define OD_NOFLAGS      0x0
-#define OD_ALLOW_DIRTY  0x1
-#define OD_OFFLINE      0x2
+#define OD_NOFLAGS	0x0
+#define OD_ALLOW_DIRTY	0x1
+#define OD_OFFLINE	0x2
 
 /* fsck mode flags */
-#define FSCK_FORCE     0x01
-#define FSCK_HARDFORCE 0x02
-#define FSCK_DROPINUSE 0x04
-#define FSCK_CHECK     0x08
+#define FSCK_FORCE	0x01
+#define FSCK_HARDFORCE	0x02
+#define FSCK_DROPINUSE	0x04
+#define FSCK_CHECK	0x08
 
 /* GPT */
 #define GPT_HEADER_SIZE		1
@@ -204,9 +204,9 @@ int rmap2freemap(__u32 *rmap, __u32 iblk_start, __u32 iblk_end,
 struct ploop_freeblks_ctl;
 int freeblks_alloc(struct ploop_freeblks_ctl **freeblks_pp, int n);
 int freemap2freeblks(struct freemap *freemap,
-	       int lvl, struct ploop_freeblks_ctl **freeblks_pp, __u32 *total);
+		int lvl, struct ploop_freeblks_ctl **freeblks_pp, __u32 *total);
 int freeblks2freemap(struct ploop_freeblks_ctl *freeblks,
-		       struct freemap **freemap_pp, __u32 *total);
+		struct freemap **freemap_pp, __u32 *total);
 
 int range_build(__u32 a_h, __u32 n_free_blocks,
 		__u32 *rmap, __u32 rlen,
