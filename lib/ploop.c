@@ -1687,11 +1687,12 @@ static int expanded2preallocated(struct ploop_disk_images_data *di)
 		}
 		if (delta.l2[l2_slot] == 0) {
 			off_t idx_off = (off_t)l2_cluster * cluster + (l2_slot*sizeof(__u32));
+			int rc;
 
 			delta.l2[l2_slot] = data_off * delta.blocksize;
 
-			ret = sys_fallocate(delta.fd, 0, data_off * cluster, cluster);
-			if (ret) {
+			rc = sys_fallocate(delta.fd, 0, data_off * cluster, cluster);
+			if (rc) {
 				if (errno == ENOTSUP) {
 					if (buf == NULL) {
 						ploop_log(0, "Warning: fallocate is not supported,"
@@ -1702,9 +1703,9 @@ static int expanded2preallocated(struct ploop_disk_images_data *di)
 							goto err;
 						}
 					}
-					ret = PWRITE(&delta, buf, cluster, data_off * cluster);
+					rc = PWRITE(&delta, buf, cluster, data_off * cluster);
 				}
-				if (ret) {
+				if (rc) {
 					ploop_err(errno, "Failed to expand %s", di->images[0]->file);
 					goto err;
 				}
