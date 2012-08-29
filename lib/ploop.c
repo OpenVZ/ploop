@@ -994,7 +994,7 @@ static int ploop_mount_fs(struct ploop_mount_param *param)
 static int add_delta(int lfd, char *image, struct ploop_ctl_delta *req)
 {
 	int fd;
-	int ro = (req->c.pctl_flags == PLOOP_FMT_RDONLY);
+	int ro = (req->c.pctl_flags & PLOOP_FMT_RDONLY);
 
 	fd = open(image, O_DIRECT | (ro ? O_RDONLY : O_RDWR));
 	if (fd < 0) {
