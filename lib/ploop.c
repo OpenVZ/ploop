@@ -1600,8 +1600,7 @@ static int expanded2raw(struct ploop_disk_images_data *di)
 
 	snprintf(tmp, sizeof(tmp), "%s.tmp",
 			di->images[0]->file);
-	ret = open_delta_simple(&odelta, tmp, O_RDWR|O_CREAT|O_EXCL|O_TRUNC, OD_OFFLINE);
-	if (ret)
+	if (open_delta_simple(&odelta, tmp, O_RDWR|O_CREAT|O_EXCL|O_TRUNC, OD_OFFLINE))
 		goto err;
 
 	for (clu = 0; clu < delta.l2_size; clu++) {
