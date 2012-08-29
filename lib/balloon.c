@@ -1028,7 +1028,7 @@ static int do_ploop_discard(struct ploop_disk_images_data *di,
 	to_free = to_free / cluster;
 	if (!to_free) {
 		ploop_err(0, "Can't shrink by less than %d bytes", cluster);
-		return 0;
+		return -1;
 	}
 
 	fd = open_device(device);
