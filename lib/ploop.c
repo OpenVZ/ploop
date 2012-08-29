@@ -1049,6 +1049,7 @@ static int add_deltas(struct ploop_disk_images_data *di,
 	char *device = param->device;
 	int i;
 	int ret = 0;
+	struct ploop_ctl_delta req = {};
 
 	if (device[0] == '\0') {
 		char buf[64];
@@ -1077,24 +1078,24 @@ static int add_deltas(struct ploop_disk_images_data *di,
 	if (ret)
 		goto err;
 
+	req.c.pctl_format = PLOOP_FMT_PLOOP1;
+	req.c.pctl_cluster_log = ffs(blocksize) - 1;
+	req.c.pctl_size = 0;
+	req.c.pctl_chunks = 1;
+
+	req.f.pctl_fd = -1;
+	req.f.pctl_type = PLOOP_IO_AUTO;
+
 	for (i = 0; images[i] != NULL; i++) {
-		struct ploop_ctl_delta req;
 		int ro = (images[i+1] != NULL || param->ro) ? 1: 0;
 		char *image = images[i];
 
-		memset(&req, 0, sizeof(req));
-
-		req.c.pctl_format = PLOOP_FMT_PLOOP1;
 		if (raw && i == 0)
 			req.c.pctl_format = PLOOP_FMT_RAW;
 		if (ro)
 			req.c.pctl_flags = PLOOP_FMT_RDONLY;
-		req.c.pctl_cluster_log = ffs(blocksize) - 1;
-		req.c.pctl_size = 0;
-		req.c.pctl_chunks = 1;
-
-		req.f.pctl_fd = -1;
-		req.f.pctl_type = PLOOP_IO_AUTO;
+		else
+			req.c.pctl_flags &= ~PLOOP_FMT_RDONLY;
 
 		ploop_log(0, "Adding delta dev=%s img=%s (%s)",
 				device, image, ro ? "ro" : "rw");
