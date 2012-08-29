@@ -1082,7 +1082,6 @@ static int add_deltas(struct ploop_disk_images_data *di,
 	if (ret)
 		goto err;
 
-	req.c.pctl_format = PLOOP_FMT_PLOOP1;
 	req.c.pctl_cluster_log = ffs(blocksize) - 1;
 	req.c.pctl_size = 0;
 	req.c.pctl_chunks = 1;
@@ -1094,6 +1093,7 @@ static int add_deltas(struct ploop_disk_images_data *di,
 		int ro = (images[i+1] != NULL || param->ro) ? 1: 0;
 		char *image = images[i];
 
+		req.c.pctl_format = PLOOP_FMT_PLOOP1;
 		if (raw && i == 0)
 			req.c.pctl_format = PLOOP_FMT_RAW;
 		if (ro)
