@@ -439,7 +439,7 @@ err:
 	return ret;
 }
 
-int ploop_balloon_get_state(const char *device, __u32  *state)
+int ploop_balloon_get_state(const char *device, __u32 *state)
 {
 	int fd, ret;
 	struct ploop_balloon_ctl b_ctl;
@@ -1025,7 +1025,7 @@ static int do_ploop_discard(struct ploop_disk_images_data *di,
 
 	if (to_free == 0)
 		to_free = ~0ULL;
-	to_free = to_free  / cluster;
+	to_free = to_free / cluster;
 	if (!to_free) {
 		ploop_err(0, "Can't shrink by less than %d bytes", cluster);
 		return 0;
@@ -1210,7 +1210,7 @@ int ploop_discard_get_stat_by_dev(const char *device, const char *mount_point,
 		return 1;
 	}
 
-	pd_stat->ploop_size = S2B(ploop_size) -  balloon_stat.st_size;
+	pd_stat->ploop_size = S2B(ploop_size) - balloon_stat.st_size;
 	pd_stat->image_size = st.st_size;
 	pd_stat->data_size = pd_stat->ploop_size - stfs.f_bfree * stfs.f_bsize;
 	pd_stat->balloon_size = balloon_stat.st_size;

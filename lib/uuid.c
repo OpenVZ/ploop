@@ -70,7 +70,7 @@ static int uuid_new(unsigned char * uuid)
 	return 0;
 }
 
-static void uuid_unpack(unsigned char *in, struct helper_uuid_t  *uu)
+static void uuid_unpack(unsigned char *in, struct helper_uuid_t *uu)
 {
 	unsigned char *ptr = in;
 	__u32 tmp;

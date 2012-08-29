@@ -182,8 +182,8 @@ int resize_gpt_partition(const char *devname)
 		goto err;
 	}
 	// change GPT header
-	pt->alternate_lba = size -1;
-	pt->last_usable_lba = size - GPT_DATA_SIZE -1;
+	pt->alternate_lba = size - 1;
+	pt->last_usable_lba = size - GPT_DATA_SIZE - 1;
 	pe->ending_lba = (pt->last_usable_lba >> 3 << 3) - 1;
 
 	// Recalculate crc32
