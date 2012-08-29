@@ -459,7 +459,7 @@ static void arg2str(char *const argv[], char *buf, int len)
 	}
 }
 
-void cleanup_kill_process(void *data)
+static void cleanup_kill_process(void *data)
 {
 	int pid = *(int *) data;
 
