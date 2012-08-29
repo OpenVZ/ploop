@@ -122,6 +122,28 @@ int drop_statfs_info(const char *image)
 	return 0;
 }
 
+int read_line(const char *path, char *nbuf, int len)
+{
+	FILE *fp;
+
+	fp = fopen(path, "r");
+	if (fp == NULL) {
+		ploop_err(errno, "fopen %s", path);
+		return -1;
+	}
+	if (fgets(nbuf, len, fp) == NULL) {
+		ploop_err(errno, "read %s", path);
+		fclose(fp);
+		return -1;
+	}
+	fclose(fp);
+	len = strlen(nbuf);
+	if (len > 0 && nbuf[len-1] == '\n') {
+		nbuf[len-1] = 0;
+	}
+	return 0;
+}
+
 int is_valid_guid(const char *guid)
 {
 	int i;
