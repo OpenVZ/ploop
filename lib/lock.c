@@ -54,8 +54,8 @@ static void timer_handler(int ino)
 
 static int set_timer(timer_t *tid, unsigned int timeout)
 {
-	struct sigevent sigev;
-	struct itimerspec it;
+	struct sigevent sigev = {};
+	struct itimerspec it = {};
 
 	sigev.sigev_notify = SIGEV_SIGNAL;
 	sigev.sigev_signo = SIGRTMIN;
