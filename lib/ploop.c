@@ -244,13 +244,13 @@ static int get_temp_mountpoint(const char *file, int create, char *buf, int len)
 	return 0;
 }
 
-static int check_blockdev_size(off_t sectors)
+static int check_blockdev_size(unsigned long long sectors)
 {
-	const off_t max = (__u32)-1;
+	const unsigned long long max = (__u32)-1;
 
 	if (sectors > max) {
-		ploop_err(0, "An incorrect block device size specified: %lu sectors."
-				" The maximum allowed size is %lu sectors.",
+		ploop_err(0, "An incorrect block device size specified: %llu sectors."
+				" The maximum allowed size is %llu sectors.",
 				sectors, max);
 		return -1;
 	}
