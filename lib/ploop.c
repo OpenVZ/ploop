@@ -1780,6 +1780,7 @@ int ploop_get_info(struct ploop_disk_images_data *di, struct ploop_info *info)
 {
 	char mnt[PATH_MAX];
 	char dev[64];
+	int ret = -1;
 
 	if (read_statfs_info(di->images[0]->file, info) == 0)
 		return 0;
@@ -1789,13 +1790,12 @@ int ploop_get_info(struct ploop_disk_images_data *di, struct ploop_info *info)
 	if (ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev)) == 0 &&
 			get_mount_dir(dev, mnt, sizeof(mnt)) == 0)
 	{
-		ploop_unlock_di(di);
-		if (get_statfs_info(mnt, info) == 0)
-			return 0;
+		ret = get_statfs_info(mnt, info);
 	}
 
 	ploop_unlock_di(di);
-	return -1;
+
+	return ret;
 }
 
 int ploop_get_info_by_descr(const char *descr, struct ploop_info *info)
