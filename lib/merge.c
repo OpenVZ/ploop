@@ -239,9 +239,8 @@ int get_delta_info(const char *device, struct merge_info *info)
 		return SYSEXIT_PARAM;
 	}
 
-	if (info->end_level == 0) {
+	if (info->end_level == 0)
 		info->end_level = info->top_level;
-	}
 
 	if (info->end_level > info->top_level ||
 	    info->start_level > info->end_level)
