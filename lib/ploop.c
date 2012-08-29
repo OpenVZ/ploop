@@ -1106,7 +1106,7 @@ static int add_deltas(struct ploop_disk_images_data *di,
 	if (ioctl(*lfd_p, PLOOP_IOC_START, 0) < 0) {
 		ploop_err(errno, "PLOOP_IOC_START");
 		ret = SYSEXIT_DEVIOC;
-		goto err;
+		goto err1;
 	}
 
 err1:
