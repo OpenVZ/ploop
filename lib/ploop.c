@@ -1112,6 +1112,7 @@ static int add_deltas(struct ploop_disk_images_data *di,
 err1:
 	if (ret) {
 		int err = 0;
+		int empty = !i;
 
 		for (i = i - 1; i >= 0; i--) {
 			err = ioctl(*lfd_p, PLOOP_IOC_DEL_DELTA, &i);
@@ -1120,7 +1121,7 @@ err1:
 				break;
 			}
 		}
-		if (err == 0 && ioctl(*lfd_p, PLOOP_IOC_CLEAR, 0) < 0)
+		if (!empty && err == 0 && ioctl(*lfd_p, PLOOP_IOC_CLEAR, 0) < 0)
 			ploop_err(errno, "PLOOP_IOC_CLEAR");
 
 		unregister_ploop_dev(di ? di->runtime->component_name : NULL, images[0]);
