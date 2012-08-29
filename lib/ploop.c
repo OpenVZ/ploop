@@ -1097,7 +1097,7 @@ static int add_deltas(struct ploop_disk_images_data *di,
 		if (raw && i == 0)
 			req.c.pctl_format = PLOOP_FMT_RAW;
 		if (ro)
-			req.c.pctl_flags = PLOOP_FMT_RDONLY;
+			req.c.pctl_flags |= PLOOP_FMT_RDONLY;
 		else
 			req.c.pctl_flags &= ~PLOOP_FMT_RDONLY;
 
