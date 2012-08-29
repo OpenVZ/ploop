@@ -351,10 +351,14 @@ static int create_empty_preallocated_delta(const char *path, __u32 blocksize, of
 
 	rc = sys_fallocate(odelta.fd, 0, 0, S2B(vh.m_FirstBlockOffset + vh.m_SizeInSectors));
 	if (rc) {
-		if (errno == ENOTSUP)
-			ploop_err(errno, "fallocate");
-		ploop_err(errno, "Failed to create %s", path);
-		goto out_close;
+		if (errno == ENOTSUP) {
+			ploop_log(0, "Warning: fallocate is not supported, using truncate instead");
+			rc = ftruncate(odelta.fd, S2B(vh.m_FirstBlockOffset + vh.m_SizeInSectors));
+		}
+		if (rc) {
+			ploop_err(errno, "Failed to create %s", path);
+			goto out_close;
+		}
 	}
 
 	for (clu = 0; clu < SizeToFill / cluster; clu++) {
