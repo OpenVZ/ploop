@@ -340,19 +340,17 @@ close_dir:
 int ploop_find_dev_by_delta(char *delta, char *buf, int size)
 {
 	char fname[PATH_MAX];
+	char delta_r[PATH_MAX];
 	char image[PATH_MAX];
 	DIR *dp;
 	struct dirent *de;
-	struct stat st, st1;
+	struct stat st;
 	int ret = -1;
 	char name[64];
 	dev_t dev;
 
-	if (stat(delta, &st)) {
-		if (errno == ENOENT)
-			return 1;
-		ploop_err(errno, "ploop_find_dev_by_delta stat(%s)",
-				delta);
+	if (realpath(delta, delta_r) == NULL) {
+		ploop_err(errno, "Can't resolve %s", delta);
 		return -1;
 	}
 
@@ -369,13 +367,11 @@ int ploop_find_dev_by_delta(char *delta, char *buf, int size)
 
 		snprintf(fname, sizeof(fname), "/sys/block/%s/pdelta/0/image",
 				de->d_name);
-		if (stat(fname, &st1))
+		if (stat(fname, &st))
 			continue;
 		if (read_line(fname, image, sizeof(image)))
 			continue;
-		if (stat(image, &st1))
-			continue;
-		if (st.st_dev != st1.st_dev || st.st_ino != st1.st_ino)
+		if (strcmp(image, delta_r))
 			continue;
 
 		snprintf(fname, sizeof(fname), "/sys/block/%s/dev",
