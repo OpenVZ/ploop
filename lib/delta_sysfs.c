@@ -374,7 +374,7 @@ int ploop_find_dev_by_delta(char *delta, char *buf, int size)
 			goto err;
 		}
 		if (read_line(fname, image, sizeof(image)))
-			continue;
+			goto err;
 		if (strcmp(image, delta_r))
 			continue;
 
