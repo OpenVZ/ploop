@@ -353,17 +353,22 @@ int ploop_find_dev_by_delta(char *delta, char *buf, int size)
 	int ret = -1;
 	char name[64];
 	dev_t dev;
+	int lckfd;
 
 	if (realpath(delta, delta_r) == NULL) {
 		ploop_err(errno, "Can't resolve %s", delta);
 		return -1;
 	}
 
+	lckfd = ploop_global_lock();
+	if (lckfd == -1)
+		return -1;
+
 	snprintf(fname, sizeof(fname) - 1, "/sys/block/");
 	dp = opendir(fname);
 	if (dp == NULL) {
 		ploop_err(errno, "opendir %s", fname);
-		return -1;
+		goto err;
 	}
 
 	while ((de = readdir(dp)) != NULL) {
@@ -403,7 +408,9 @@ int ploop_find_dev_by_delta(char *delta, char *buf, int size)
 	ret = 1; /* not found */
 
 err:
-	closedir(dp);
+	if (dp)
+		closedir(dp);
+	close(lckfd);
 
 	return ret;
 }
