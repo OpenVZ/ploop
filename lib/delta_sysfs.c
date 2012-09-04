@@ -367,8 +367,12 @@ int ploop_find_dev_by_delta(char *delta, char *buf, int size)
 
 		snprintf(fname, sizeof(fname), "/sys/block/%s/pdelta/0/image",
 				de->d_name);
-		if (stat(fname, &st))
-			continue;
+		if (stat(fname, &st)) {
+			if (errno == ENOENT)
+				continue;
+			ploop_err(errno, "Can't stat %s", fname);
+			goto err;
+		}
 		if (read_line(fname, image, sizeof(image)))
 			continue;
 		if (strcmp(image, delta_r))
