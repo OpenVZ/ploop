@@ -337,6 +337,11 @@ close_dir:
 	return -1;
 }
 
+/* Find device by base delta and return the name
+ * return: -1 on error
+ *	    0 found
+ *	    1 not found
+ */
 int ploop_find_dev_by_delta(char *delta, char *buf, int size)
 {
 	char fname[PATH_MAX];
