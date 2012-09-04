@@ -344,7 +344,7 @@ int ploop_find_dev_by_delta(char *delta, char *buf, int size)
 	DIR *dp;
 	struct dirent *de;
 	struct stat st, st1;
-	int ret = 1;
+	int ret = -1;
 	char name[64];
 	dev_t dev;
 
@@ -380,20 +380,24 @@ int ploop_find_dev_by_delta(char *delta, char *buf, int size)
 
 		snprintf(fname, sizeof(fname), "/sys/block/%s/dev",
 				de->d_name);
-		if (get_dev_num(fname, &dev) == 0) {
-			snprintf(buf, size, "/dev/%s",
-					make_sysfs_dev_name(gnu_dev_minor(dev), name, sizeof(name)));
-			if (stat(buf, &st1) == 0 &&
-					st1.st_rdev != dev)
-			{
-				ploop_err(0, "Inconsistency in device number detected for %s sys_dev=%lu dev=%lu",
-						buf, (unsigned long)dev, (unsigned long)st1.st_rdev);
-				ret = -1;
-			} else
-				ret = 0;
-			break;
+		if (get_dev_num(fname, &dev))
+			goto err;
+
+		snprintf(buf, size, "/dev/%s",
+				make_sysfs_dev_name(gnu_dev_minor(dev), name, sizeof(name)));
+		if (stat(buf, &st) == 0 &&
+				st.st_rdev != dev)
+		{
+			ploop_err(0, "Inconsistency in device number detected for %s sys_dev=%lu dev=%lu",
+					buf, (unsigned long)dev, (unsigned long)st.st_rdev);
+			goto err;
 		}
+		ret = 0;
+		goto err;
 	}
+	ret = 1; /* not found */
+
+err:
 	closedir(dp);
 
 	return ret;
