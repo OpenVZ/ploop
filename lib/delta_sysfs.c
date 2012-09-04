@@ -231,7 +231,7 @@ static int get_dev_num(char *path, dev_t *dev_num)
 	int maj, min;
 
 	if (read_line(path, nbuf, sizeof(nbuf)))
-		return-1;
+		return -1;
 	if (sscanf(nbuf, "%d:%d", &maj, &min) != 2) {
 		ploop_err(0, "Unexpected format of /sys/.../dev: %s", nbuf);
 		return -1;
