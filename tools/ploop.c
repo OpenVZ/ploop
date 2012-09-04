@@ -27,6 +27,8 @@
 #include <limits.h>
 #include <string.h>
 #include <signal.h>
+#include <sys/types.h>
+#include <dirent.h>
 
 #include "ploop.h"
 #include "common.h"
@@ -878,6 +880,46 @@ static int plooptool_info(int argc, char **argv)
 	return ret;
 }
 
+static int plooptool_list(int argc, char **argv)
+{
+	char fname[PATH_MAX];
+	char image[PATH_MAX];
+	DIR *dp;
+	struct stat st;
+	struct dirent *de;
+	char cookie[PLOOP_COOKIE_SIZE];
+
+	snprintf(fname, sizeof(fname) - 1, "/sys/block/");
+	dp = opendir(fname);
+	if (dp == NULL) {
+		fprintf(stderr, "Can't opendir %s: %m", fname);
+		return 1;
+	}
+	while ((de = readdir(dp)) != NULL) {
+		if (strncmp("ploop", de->d_name, 5))
+			continue;
+
+		snprintf(fname, sizeof(fname), "/sys/block/%s/pdelta/0/image",
+				de->d_name);
+		if (stat(fname, &st))
+			continue;
+		if (read_line(fname, image, sizeof(image)))
+			continue;
+		snprintf(fname, sizeof(fname), "/sys/block/%s/pstate/cookie",
+				de->d_name);
+		if (stat(fname, &st) == 0) {
+			if (read_line(fname, cookie, sizeof(cookie)))
+				continue;
+		}
+
+		printf("%-12s %s %s\n", de->d_name, image, cookie);
+	}
+	closedir(dp);
+
+	return 0;
+}
+
+
 static void cancel_callback(int sig)
 {
 	ploop_cancel_operation();
@@ -940,6 +982,8 @@ int main(int argc, char **argv)
 		return plooptool_convert(argc, argv);
 	if (strcmp(cmd, "info") == 0)
 		return plooptool_info(argc, argv);
+	if (strcmp(cmd, "list") == 0)
+		return plooptool_list(argc, argv);
 
 	if (cmd[0] != '-') {
 		char ** nargs;

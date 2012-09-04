@@ -312,7 +312,7 @@ int ploop_get_child_count_by_uuid(struct ploop_disk_images_data *di, const char 
 int ploop_get_child_by_uuid(struct ploop_disk_images_data *di, const char *guid,  char **child_guid);
 int ploop_fname_cmp(const char *p1, const char *p2);
 int is_valid_guid(const char *guid);
-int read_line(const char *path, char *nbuf, int len);
+PL_EXT int read_line(const char *path, char *nbuf, int len);
 int is_valid_blocksize(__u32 blocksize);
 int run_prg(char *const argv[]);
 int guidcmp(const char *p1, const char *p2);
