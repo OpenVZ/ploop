@@ -92,7 +92,7 @@ int get_list_size(char **list)
 	return i;
 }
 
-static char **make_images_list(struct ploop_disk_images_data *di, char *guid, int reverse)
+static char **make_images_list(struct ploop_disk_images_data *di, const char *guid, int reverse)
 {
 	int n;
 	char **images;
@@ -524,7 +524,7 @@ err:
 }
 
 static int create_balloon_file(struct ploop_disk_images_data *di,
-		char *device, char *fstype)
+		const char *device, const char *fstype)
 {
 	int fd, ret;
 	char mnt[PATH_MAX];
@@ -925,7 +925,7 @@ int ploop_get_dev(struct ploop_disk_images_data *di, char *out, int len)
 	return ret;
 }
 
-static int reread_part(char *device)
+static int reread_part(const char *device)
 {
 	int fd;
 
@@ -991,7 +991,7 @@ static int ploop_mount_fs(struct ploop_mount_param *param)
 	return 0;
 }
 
-static int add_delta(int lfd, char *image, struct ploop_ctl_delta *req)
+static int add_delta(int lfd, const char *image, struct ploop_ctl_delta *req)
 {
 	int fd;
 	int ro = (req->c.pctl_flags & PLOOP_FMT_RDONLY);
