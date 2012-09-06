@@ -524,7 +524,7 @@ err:
 }
 
 static int create_balloon_file(struct ploop_disk_images_data *di,
-		const char *device, const char *fstype)
+		const char *device)
 {
 	int fd, ret;
 	char mnt[PATH_MAX];
@@ -588,7 +588,7 @@ static int ploop_init_image(struct ploop_disk_images_data *di, struct ploop_crea
 	ret = make_fs(mount_param.device, param->fstype);
 	if (ret)
 		goto err;
-	ret = create_balloon_file(di, mount_param.device, param->fstype);
+	ret = create_balloon_file(di, mount_param.device);
 	if (ret)
 		goto err;
 
