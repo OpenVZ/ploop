@@ -167,7 +167,7 @@ int ploop_get_size(const char * device, off_t * res)
 	return 0;
 }
 
-static int get_dev_num(char *path, dev_t *dev_num)
+static int get_dev_num(const char *path, dev_t *dev_num)
 {
 	char nbuf[4096];
 	int maj, min;
@@ -183,7 +183,7 @@ static int get_dev_num(char *path, dev_t *dev_num)
 	return 0;
 }
 
-static int get_dev_start(char *path, __u32 *start)
+static int get_dev_start(const char *path, __u32 *start)
 {
 	char nbuf[4096];
 
