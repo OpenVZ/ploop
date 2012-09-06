@@ -1151,9 +1151,15 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		return SYSEXIT_PARAM;
 	}
 
-	if (param->target != NULL && stat(param->target, &st)) {
-		ploop_err(0, "Mount point %s does not exist", param->target);
-		return SYSEXIT_PARAM;
+	if (param->target != NULL) {
+		if (stat(param->target, &st)) {
+			ploop_err(0, "Mount point %s does not exist", param->target);
+			return SYSEXIT_PARAM;
+		}
+		if (!S_ISDIR(st.st_mode)) {
+			ploop_err(0, "Mount point %s not a directory", param->target);
+			return SYSEXIT_PARAM;
+		}
 	}
 
 	if (raw) {
