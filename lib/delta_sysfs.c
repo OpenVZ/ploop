@@ -215,7 +215,7 @@ int dev_num2dev_start(const char *device, dev_t dev_num, __u32 *dev_start)
 	snprintf(nbuf, sizeof(nbuf) - 1, "/sys/block/%s", device);
 	dp = opendir(nbuf);
 	if (dp == NULL) {
-		ploop_err(errno, "sysfs opendir");
+		ploop_err(errno, "Can't opendir %s", nbuf);
 		return -1;
 	}
 
@@ -230,7 +230,7 @@ int dev_num2dev_start(const char *device, dev_t dev_num, __u32 *dev_start)
 		snprintf(nbuf, sizeof(nbuf) - 1, "/sys/block/%s/%s",
 			 device, de->d_name);
 		if (lstat(nbuf, &st)) {
-			ploop_err(errno, "lstat");
+			ploop_err(errno, "Can't lstat %s", nbuf);
 			goto close_dir;
 		}
 
@@ -305,7 +305,7 @@ int ploop_find_dev(const char *component_name, const char *delta,
 	snprintf(fname, sizeof(fname) - 1, "/sys/block/");
 	dp = opendir(fname);
 	if (dp == NULL) {
-		ploop_err(errno, "opendir %s", fname);
+		ploop_err(errno, "Can't opendir %s", fname);
 		goto err;
 	}
 
