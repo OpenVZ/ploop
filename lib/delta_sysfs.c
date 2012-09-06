@@ -71,53 +71,28 @@ int find_delta_names(const char * device, int start_level, int end_level,
 		     char **names, char ** format)
 {
 	int i;
-	FILE * fp;
-	int len;
+	char path[PATH_MAX];
 	char nbuf[4096];
 
 	if (memcmp(device, "/dev/", 5) == 0)
 		device += 5;
 
 	for (i = 0; i <= end_level - start_level; i++) {
-		snprintf(nbuf, sizeof(nbuf)-1, "/sys/block/%s/pdelta/%d/image",
+		snprintf(path, sizeof(path), "/sys/block/%s/pdelta/%d/image",
 			 device, start_level + i);
 
-		fp = fopen(nbuf, "r");
-		if (fp == NULL) {
-			ploop_err(errno, "fopen sysfs image %s", nbuf);
+		if (read_line(path, nbuf, sizeof(nbuf)))
 			return -1;
-		}
-		if (fgets(nbuf, sizeof(nbuf), fp) == NULL) {
-			ploop_err(errno, "read sysfs image");
-			fclose(fp);
-			return -1;
-		}
-		len = strlen(nbuf);
-		if (len > 0 && nbuf[len-1] == '\n') {
-			len--;
-			nbuf[len] = 0;
-		}
+
 		names[(end_level-start_level)-i] = strdup(nbuf);
-		fclose(fp);
 
 		if (i == 0) {
-			snprintf(nbuf, sizeof(nbuf)-1, "/sys/block/%s/pdelta/%d/format",
+			snprintf(path, sizeof(path), "/sys/block/%s/pdelta/%d/format",
 				 device, start_level);
-			fp = fopen(nbuf, "r");
-			if (fp == NULL) {
-				ploop_err(errno, "fopen sysfs format %s", nbuf);
+
+			if (read_line(path, nbuf, sizeof(nbuf)))
 				return -1;
-			}
-			if (fgets(nbuf, sizeof(nbuf), fp) == NULL) {
-				ploop_err(errno, "read sysfs format");
-				fclose(fp);
-				return -1;
-			}
-			len = strlen(nbuf);
-			if (len > 0 && nbuf[len-1] == '\n') {
-				len--;
-				nbuf[len] = 0;
-			}
+
 			if (format) {
 				if (strcmp(nbuf, "raw") == 0)
 					*format = "raw";
@@ -126,7 +101,6 @@ int find_delta_names(const char * device, int start_level, int end_level,
 				else
 					*format = "unknown";
 			}
-			fclose(fp);
 		}
 	}
 	return 0;
@@ -134,76 +108,43 @@ int find_delta_names(const char * device, int start_level, int end_level,
 
 int ploop_get_attr(const char * device, const char * attr, int * res)
 {
-	FILE * fp;
+	char path[PATH_MAX];
 	char nbuf[4096];
 
 	if (memcmp(device, "/dev/", 5) == 0)
 		device += 5;
 
-	snprintf(nbuf, sizeof(nbuf)-1, "/sys/block/%s/pstate/%s", device, attr);
+	snprintf(path, sizeof(path), "/sys/block/%s/pstate/%s", device, attr);
 
-	fp = fopen(nbuf, "r");
-	if (fp == NULL) {
-		ploop_err(errno, "fopen %s", nbuf);
+	if (read_line(path, nbuf, sizeof(nbuf)))
 		return -1;
-	}
-
-	if (fgets(nbuf, sizeof(nbuf), fp) == NULL) {
-		ploop_err(errno, "fgets");
-		fclose(fp);
-		return -1;
-	}
-	fclose(fp);
 
 	if (sscanf(nbuf, "%d", res) != 1) {
-		ploop_err(0, "Unexpected format of %s/pstate/%s %s",
-			device, attr, nbuf);
+		ploop_err(0, "Unexpected format of %s: %s", path, nbuf);
 		return -1;
 	}
 	return 0;
 }
 
-static int ploop_get_delta_attr_str(const char *device, int level, const char *attr,
-		char *nbuf, int nbuf_len)
+int ploop_get_delta_attr(const char *device, int level, const char *attr, int *res)
 {
-	FILE * fp;
+	char path[PATH_MAX];
+	char nbuf[4096];
 
 	if (memcmp(device, "/dev/", 5) == 0)
 		device += 5;
 
-	snprintf(nbuf, nbuf_len-1, "/sys/block/%s/pdelta/%d/%s",
+	snprintf(path, sizeof(path), "/sys/block/%s/pdelta/%d/%s",
 			device,	level, attr);
 
-	fp = fopen(nbuf, "r");
-	if (fp == NULL) {
-		ploop_err(errno, "fopen %s", nbuf);
+	if (read_line(path, nbuf, sizeof(nbuf)))
 		return -1;
-	}
-
-	if (fgets(nbuf, nbuf_len, fp) == NULL) {
-		ploop_err(errno, "fgets /sys/block/%s/pdelta/%d/%s",
-				device, level, attr);
-		fclose(fp);
-		return -1;
-	}
-	fclose(fp);
-
-	return 0;
-}
-
-int ploop_get_delta_attr(const char * device, int level, const char * attr, int * res)
-{
-	char nbuf[4096];
-	int err;
-
-	if ((err = ploop_get_delta_attr_str(device, level, attr, nbuf, sizeof(nbuf))))
-		return err;
 
 	if (sscanf(nbuf, "%d", res) != 1) {
-		ploop_err(0, "Unexpected format of %s/pdelta/%s %s",
-			device, attr, nbuf);
+		ploop_err(0, "Unexpected format of %s: %s", path, nbuf);
 		return -1;
 	}
+
 	return 0;
 }
 
@@ -233,6 +174,7 @@ static int get_dev_num(char *path, dev_t *dev_num)
 
 	if (read_line(path, nbuf, sizeof(nbuf)))
 		return -1;
+
 	if (sscanf(nbuf, "%d:%d", &maj, &min) != 2) {
 		ploop_err(0, "Unexpected format of %s: %s", path, nbuf);
 		return -1;
@@ -243,32 +185,15 @@ static int get_dev_num(char *path, dev_t *dev_num)
 
 static int get_dev_start(char *path, __u32 *start)
 {
-	FILE * fp;
-	int len;
 	char nbuf[4096];
 
-	fp = fopen(path, "r");
-	if (fp == NULL) {
-		ploop_err(errno, "fopen %s", path);
+	if (read_line(path, nbuf, sizeof(nbuf)))
 		return -1;
-	}
-	if (fgets(nbuf, sizeof(nbuf), fp) == NULL) {
-		ploop_err(errno, "read sysfs start");
-		fclose(fp);
-		return -1;
-	}
-	len = strlen(nbuf);
-	if (len > 0 && nbuf[len-1] == '\n') {
-		len--;
-		nbuf[len] = 0;
-	}
 
 	if (sscanf(nbuf, "%u", start) != 1) {
 		ploop_err(0, "Unexpected format of %s: %s", path, nbuf);
-		fclose(fp);
 		return -1;
 	}
-	fclose(fp);
 
 	return 0;
 }
@@ -460,8 +385,6 @@ int ploop_get_top_level(int devfd, const char *devname, int *top)
 	char path[PATH_MAX];
 	char name[64];
 	struct stat st;
-	FILE * fp;
-	int len;
 	char nbuf[4096];
 
 	if (fstat(devfd, &st)) {
@@ -472,30 +395,15 @@ int ploop_get_top_level(int devfd, const char *devname, int *top)
 	snprintf(path, sizeof(path) - 1, "/sys/block/%s/pstate/top",
 		 make_sysfs_dev_name(gnu_dev_minor(st.st_rdev), name, sizeof(name)));
 
-	fp = fopen(path, "r");
-	if (fp == NULL) {
-		ploop_err(errno, "fopen %s (%s)", path, devname);
+	if (read_line(path, nbuf, sizeof(nbuf)))
 		return -1;
-	}
-	if (fgets(nbuf, sizeof(nbuf), fp) == NULL) {
-		ploop_err(errno, "fgets from %s (%s)", path, devname);
-		fclose(fp);
-		return -1;
-	}
-	len = strlen(nbuf);
-	if (len > 0 && nbuf[len-1] == '\n') {
-		len--;
-		nbuf[len] = 0;
-	}
 
 	if (sscanf(nbuf, "%d", top) != 1) {
 		ploop_err(0, "Unexpected format of %s: %s (%s)",
 			  path, nbuf, devname);
-		fclose(fp);
 		errno = ERANGE;
 		return -1;
 	}
-	fclose(fp);
 
 	return 0;
 }
