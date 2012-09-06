@@ -233,7 +233,7 @@ static int get_dev_num(char *path, dev_t *dev_num)
 	if (read_line(path, nbuf, sizeof(nbuf)))
 		return -1;
 	if (sscanf(nbuf, "%d:%d", &maj, &min) != 2) {
-		ploop_err(0, "Unexpected format of /sys/.../dev: %s", nbuf);
+		ploop_err(0, "Unexpected format of %s: %s", path, nbuf);
 		return -1;
 	}
 	*dev_num = gnu_dev_makedev(maj, min);
@@ -263,7 +263,7 @@ static int get_dev_start(char *path, __u32 *start)
 	}
 
 	if (sscanf(nbuf, "%u", start) != 1) {
-		ploop_err(0, "Unexpected format of /sys/.../start: %s", nbuf);
+		ploop_err(0, "Unexpected format of %s: %s", path, nbuf);
 		fclose(fp);
 		return -1;
 	}
