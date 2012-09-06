@@ -86,21 +86,19 @@ int find_delta_names(const char * device, int start_level, int end_level,
 
 		names[(end_level-start_level)-i] = strdup(nbuf);
 
-		if (i == 0) {
+		if (i == 0 && format) {
 			snprintf(path, sizeof(path), "/sys/block/%s/pdelta/%d/format",
 				 device, start_level);
 
 			if (read_line(path, nbuf, sizeof(nbuf)))
 				return -1;
 
-			if (format) {
-				if (strcmp(nbuf, "raw") == 0)
-					*format = "raw";
-				else if (strcmp(nbuf, "ploop1") == 0)
-					*format = "ploop1";
-				else
-					*format = "unknown";
-			}
+			if (strcmp(nbuf, "raw") == 0)
+				*format = "raw";
+			else if (strcmp(nbuf, "ploop1") == 0)
+				*format = "ploop1";
+			else
+				*format = "unknown";
 		}
 	}
 	return 0;
