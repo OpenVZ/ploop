@@ -999,7 +999,6 @@ static int add_delta(int lfd, char *image, struct ploop_ctl_delta *req)
 	fd = open(image, O_DIRECT | (ro ? O_RDONLY : O_RDWR));
 	if (fd < 0) {
 		ploop_err(errno, "Can't open file %s", image);
-		close(fd);
 		return SYSEXIT_OPEN;
 	}
 
