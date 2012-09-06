@@ -995,6 +995,7 @@ static int add_delta(int lfd, const char *image, struct ploop_ctl_delta *req)
 {
 	int fd;
 	int ro = (req->c.pctl_flags & PLOOP_FMT_RDONLY);
+	int ret;
 
 	fd = open(image, O_DIRECT | (ro ? O_RDONLY : O_RDWR));
 	if (fd < 0) {
@@ -1009,11 +1010,14 @@ static int add_delta(int lfd, const char *image, struct ploop_ctl_delta *req)
 				(errno == ENOTSUP) ?
 					"unsupported underlying filesystem"
 					: strerror(errno));
-		close(fd);
-		return SYSEXIT_DEVIOC;
+		ret = SYSEXIT_DEVIOC;
+		goto out;
 	}
+	ret = 0;
+out:
 	close(fd);
-	return 0;
+
+	return ret;
 }
 
 static int create_ploop_dev(int minor)
