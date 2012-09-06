@@ -49,21 +49,18 @@ int ploop_find_top_delta_name_and_format(
 	char *img;
 	char *fmt;
 
-	if (ploop_get_attr(device, "top", &top_level)) {
-		ploop_err(0, "Can't find top delta");
+	if (ploop_get_attr(device, "top", &top_level))
 		return SYSEXIT_SYSFS;
-	}
 
-	if (find_delta_names(device, top_level, top_level,
-			     &img, &fmt)) {
-		ploop_err(errno, "find_delta_names");
-		return(SYSEXIT_SYSFS);
-	}
+	if (find_delta_names(device, top_level, top_level, &img, &fmt))
+		return SYSEXIT_SYSFS;
+
 	if (image)
 		strncpy(image, img, image_size);
 	free(img);
 	if (format)
 		strncpy(format, fmt, format_size);
+
 	return 0;
 }
 
