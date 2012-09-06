@@ -1284,7 +1284,7 @@ int ploop_mount_image(struct ploop_disk_images_data *di, struct ploop_mount_para
 		return -1;
 	}
 	if (ret == 0) {
-		ploop_err(0, "Image %s already mounted to %s",
+		ploop_err(0, "Image %s already used by device %s",
 				di->images[0]->file, dev);
 
 		ret = SYSEXIT_MOUNT;
