@@ -128,11 +128,11 @@ int read_line(const char *path, char *nbuf, int len)
 
 	fp = fopen(path, "r");
 	if (fp == NULL) {
-		ploop_err(errno, "fopen %s", path);
+		ploop_err(errno, "Can't open %s", path);
 		return -1;
 	}
 	if (fgets(nbuf, len, fp) == NULL) {
-		ploop_err(errno, "read %s", path);
+		ploop_err(errno, "Can't read %s", path);
 		fclose(fp);
 		return -1;
 	}
