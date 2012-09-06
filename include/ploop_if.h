@@ -39,6 +39,9 @@
 
 #define PLOOP_FLAG_FS_SYNC	0x10000000
 
+#define PLOOP_FLAG_COOKIE	4
+#define PLOOP_COOKIE_SIZE	64
+
 /* IO types. */
 
 #define PLOOP_IO_AUTO		0
@@ -97,6 +100,7 @@ struct ploop_ctl
 struct ploop_ctl_delta {
 	struct ploop_ctl c;
 	struct ploop_ctl_chunk f;
+	char cookie[PLOOP_COOKIE_SIZE];
 };
 
 struct ploop_truncate_ctl

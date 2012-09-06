@@ -28,6 +28,7 @@
 #include <sys/stat.h>
 #include <linux/fs.h>
 #include <sys/ioctl.h>
+#include <sys/utsname.h>
 
 #include "ploop.h"
 
@@ -337,12 +338,28 @@ close_dir:
 	return -1;
 }
 
+static int is_cookie_supported(void)
+{
+	struct utsname buf;
+	int major, minor;
+
+	uname(&buf);
+	// >= 2.6.32-042stab061.1
+	if (sscanf(buf.release, "%*d.%*d.%*d-%dstab%d.%*d", &major, &minor) != 2) {
+		ploop_err(0, "Can't parse kernel version %s", buf.release);
+		return 0;
+	}
+
+	return (major > 42 || (major == 42 && minor >= 61));
+}
+
 /* Find device by base delta and return the name
  * return: -1 on error
  *	    0 found
  *	    1 not found
  */
-int ploop_find_dev_by_delta(char *delta, char *buf, int size)
+int ploop_find_dev(const char *component_name, const char *delta,
+		char *buf, int size)
 {
 	char fname[PATH_MAX];
 	char delta_r[PATH_MAX];
@@ -352,6 +369,7 @@ int ploop_find_dev_by_delta(char *delta, char *buf, int size)
 	struct stat st;
 	int ret = -1;
 	char name[64];
+	char cookie[PLOOP_COOKIE_SIZE];
 	dev_t dev;
 	int lckfd;
 
@@ -387,6 +405,28 @@ int ploop_find_dev_by_delta(char *delta, char *buf, int size)
 			goto err;
 		if (strcmp(image, delta_r))
 			continue;
+
+		snprintf(fname, sizeof(fname), "/sys/block/%s/pstate/cookie",
+				de->d_name);
+		if (stat(fname, &st) == 0) {
+			if (read_line(fname, cookie, sizeof(cookie)))
+				goto err;
+			if (strncmp(component_name == NULL ? "" : component_name,
+						cookie, sizeof(cookie)))
+				continue;
+		} else {
+			if ((errno == ENOENT) && is_cookie_supported())
+				/* This is not an error, but a race between
+				 * mount and umount: device is being removed
+				 */
+				continue;
+			ploop_err(errno, "Can't stat %s", fname);
+			if ((errno == ENOENT) && component_name)
+				/* Using component_name on old kernel is bad */
+				ploop_err(0, "ERROR: OpenVZ kernel with ploop cookie support "
+						"(i.e. 042stab061.1 or greater) is required");
+			goto err;
+		}
 
 		snprintf(fname, sizeof(fname), "/sys/block/%s/dev",
 				de->d_name);

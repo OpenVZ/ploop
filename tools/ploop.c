@@ -448,7 +448,7 @@ static int plooptool_umount(int argc, char **argv)
 
 		ploop_free_diskdescriptor(di);
 	} else {
-		if (ploop_find_dev_by_delta(argv[0], device, sizeof(device)) != 0) {
+		if (ploop_find_dev(component_name, argv[0], device, sizeof(device)) != 0) {
 			fprintf(stderr, "Image %s is not mounted\n", argv[0]);
 			return SYSEXIT_PARAM;
 		}

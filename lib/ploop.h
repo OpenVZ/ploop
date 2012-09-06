@@ -273,8 +273,6 @@ int ploop_add_image_entry(struct ploop_disk_images_data *di, const char *fname, 
 int ploop_add_snapshot_entry(struct ploop_disk_images_data *di, const char *guid,
 		const char *parent_guid);
 int ploop_find_dev(const char *module, const char *image, char *out, int size);
-int register_ploop_dev(const char *module, const char *image, const char *dev);
-void unregister_ploop_dev(const char *module, const char *image);
 
 //balloon
 PL_EXT char *mntn2str(int mntn_type);

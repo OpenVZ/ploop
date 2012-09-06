@@ -1077,11 +1077,11 @@ static int add_deltas(struct ploop_disk_images_data *di,
 		goto err;
 	}
 
-	ret = register_ploop_dev(di ? di->runtime->component_name : NULL,
-			images[0], device);
-	if (ret)
-		goto err;
-
+	if (di != NULL && di->runtime->component_name != NULL) {
+		req.c.pctl_flags |= PLOOP_FLAG_COOKIE;
+		strncpy(req.cookie, di->runtime->component_name,
+				PLOOP_COOKIE_SIZE);
+	}
 	req.c.pctl_cluster_log = ffs(blocksize) - 1;
 	req.c.pctl_size = 0;
 	req.c.pctl_chunks = 1;
@@ -1127,9 +1127,6 @@ err1:
 		}
 		if (!empty && err == 0 && ioctl(*lfd_p, PLOOP_IOC_CLEAR, 0) < 0)
 			ploop_err(errno, "PLOOP_IOC_CLEAR");
-
-		if (err == 0)
-			unregister_ploop_dev(di ? di->runtime->component_name : NULL, images[0]);
 	}
 err:
 	if (lckfd != -1)
@@ -1348,9 +1345,6 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	}
 
 	ret = ploop_stop_device(device);
-
-	if (ret == 0 && di != NULL)
-		unregister_ploop_dev(di->runtime->component_name, di->images[0]->file);
 
 	return ret;
 }

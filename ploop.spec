@@ -47,6 +47,7 @@ fi
 Summary: ploop library
 Group: Applications/System
 Requires: libxml2
+Requires: vzkernel >= 2.6.32-042stab061.1
 
 %description lib
 Parallels loopback (ploop) block device API library

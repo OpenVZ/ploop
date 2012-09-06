@@ -141,7 +141,7 @@ void ploop_free_diskdescriptor(struct ploop_disk_images_data *di);
 char *ploop_get_base_delta_uuid(struct ploop_disk_images_data *di);
 int ploop_get_top_delta_fname(struct ploop_disk_images_data *di, char *out, int len);
 int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data *di);
-int ploop_find_dev_by_delta(char *delta, char *buf, int size);
+int ploop_find_dev(const char *component_name, const char *delta, char *buf, int size);
 int ploop_get_dev_by_mnt(const char *path, char *buf, int size);
 int ploop_get_mnt_by_dev(const char *dev, char *buf, int size);
 int ploop_get_dev(struct ploop_disk_images_data *di, char *out, int len);
