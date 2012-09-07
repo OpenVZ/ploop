@@ -59,7 +59,7 @@ read_spec
 SPEC_VR=$(echo $SPEC_VR | sed 's/-1$//')
 
 test "$build" = "yes" || exit 0
-make rpms
+make rpms || exit 1
 
 test "$install" = "yes" || exit 0
 sudo rpm -Uhv $(rpm --eval %{_rpmdir}/%{_arch})/ploop-*${GIT_VR}*.rpm
