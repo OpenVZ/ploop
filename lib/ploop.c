@@ -1798,14 +1798,11 @@ err:
 	return ret;
 }
 
-int ploop_get_info(struct ploop_disk_images_data *di, struct ploop_info *info)
+static int ploop_get_info(struct ploop_disk_images_data *di, struct ploop_info *info)
 {
 	char mnt[PATH_MAX];
 	char dev[64];
 	int ret = -1;
-
-	if (read_statfs_info(di->images[0]->file, info) == 0)
-		return 0;
 
 	if (ploop_lock_di(di))
 		return SYSEXIT_LOCK;
