@@ -991,7 +991,8 @@ static int ploop_mount_fs(struct ploop_mount_param *param)
 	return 0;
 }
 
-static int add_delta(int lfd, const char *image, struct ploop_ctl_delta *req)
+static int add_delta(int lfd, const char *component_name,
+		const char *image, struct ploop_ctl_delta *req, int level)
 {
 	int fd;
 	int ro = (req->c.pctl_flags & PLOOP_FMT_RDONLY);
@@ -1004,6 +1005,23 @@ static int add_delta(int lfd, const char *image, struct ploop_ctl_delta *req)
 	}
 
 	req->f.pctl_fd = fd;
+
+	if (level == 0) {
+		/* Base image: check if in use */
+		char dev[64];
+		int rc;
+
+		ret = SYSEXIT_PARAM;
+		rc = ploop_find_dev(component_name, image, dev, sizeof(dev));
+		if (rc < 0)
+			goto out;
+		if (rc == 0) {
+			ret = SYSEXIT_MOUNT;
+			ploop_err(0, "Image %s already used by device %s",
+					image, dev);
+			goto out;
+		}
+	}
 
 	if (ioctl(lfd, PLOOP_IOC_ADD_DELTA, req) < 0) {
 		ploop_err(0, "Can't add image %s: %s", image,
@@ -1057,6 +1075,7 @@ static int add_deltas(struct ploop_disk_images_data *di,
 	int i;
 	int ret = 0;
 	struct ploop_ctl_delta req = {};
+	const char *component_name = di ? di->runtime->component_name : NULL;
 
 	if (device[0] == '\0') {
 		char buf[64];
@@ -1106,7 +1125,7 @@ static int add_deltas(struct ploop_disk_images_data *di,
 
 		ploop_log(0, "Adding delta dev=%s img=%s (%s)",
 				device, image, ro ? "ro" : "rw");
-		ret = add_delta(*lfd_p, image, &req);
+		ret = add_delta(*lfd_p, component_name, image, &req, i);
 		if (ret)
 			goto err1;
 	}
