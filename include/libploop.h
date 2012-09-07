@@ -133,10 +133,9 @@ struct ploop_discard_stat {
 extern "C" {
 #endif
 
-int ploop_read_diskdescriptor(const char *dir, struct ploop_disk_images_data *di);
+int ploop_read_disk_descr(struct ploop_disk_images_data **di, const char *file);
 int ploop_set_component_name(struct ploop_disk_images_data *di,
 		const char *component_name);
-struct ploop_disk_images_data *ploop_alloc_diskdescriptor(void);
 void ploop_free_diskdescriptor(struct ploop_disk_images_data *di);
 char *ploop_get_base_delta_uuid(struct ploop_disk_images_data *di);
 int ploop_get_top_delta_fname(struct ploop_disk_images_data *di, char *out, int len);

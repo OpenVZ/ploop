@@ -181,7 +181,7 @@ void ploop_di_change_guid(struct ploop_disk_images_data *di, const char *guid, c
 		strcpy(di->top_guid, new_guid);
 }
 
-struct ploop_disk_images_data *ploop_alloc_diskdescriptor(void)
+struct ploop_disk_images_data *alloc_diskdescriptor(void)
 {
 	struct ploop_disk_images_data *p;
 

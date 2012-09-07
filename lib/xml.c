@@ -299,7 +299,7 @@ static int validate_disk_descriptor(struct ploop_disk_images_data *di)
 	return 0;
 }
 
-int ploop_read_diskdescriptor(const char *fname, struct ploop_disk_images_data *di)
+static int read_diskdescriptor(const char *fname, struct ploop_disk_images_data *di)
 {
 	int ret;
 	char path[PATH_MAX];
@@ -341,6 +341,20 @@ int ploop_read_diskdescriptor(const char *fname, struct ploop_disk_images_data *
 	xmlFreeDoc(doc);
 
 	return ret;
+}
+
+int ploop_read_disk_descr(struct ploop_disk_images_data **di, const char *file)
+{
+	*di = alloc_diskdescriptor();
+	if (*di == NULL)
+		return SYSEXIT_NOMEM;
+
+	if (read_diskdescriptor(file, *di)) {
+		ploop_free_diskdescriptor(*di);
+		return SYSEXIT_DISKDESCR;
+	}
+
+	return 0;
 }
 
 static int normalize_image_name(const char *basedir, const char *image, char *out, int len)

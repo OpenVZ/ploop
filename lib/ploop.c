@@ -639,7 +639,7 @@ int ploop_create_image(struct ploop_create_param *param)
 		return SYSEXIT_PARAM;
 	}
 
-	di = ploop_alloc_diskdescriptor();
+	di = alloc_diskdescriptor();
 	if (di == NULL)
 		return SYSEXIT_NOMEM;
 	di->blocksize = blocksize;
@@ -1826,14 +1826,9 @@ int ploop_get_info_by_descr(const char *descr, struct ploop_info *info)
 	if (read_statfs_info(descr, info) == 0)
 		return 0;
 
-	di = ploop_alloc_diskdescriptor();
-	if (di == NULL)
-		return SYSEXIT_MALLOC;
-
-	if (ploop_read_diskdescriptor(descr, di)) {
-		ploop_free_diskdescriptor(di);
-		return SYSEXIT_DISKDESCR;
-	}
+	ret = ploop_read_disk_descr(&di, descr);
+	if (ret)
+		return ret;
 
 	ret = ploop_get_info(di, info);
 
