@@ -706,7 +706,7 @@ static int do_umount(const char *mnt)
 		ret = umount(mnt);
 		if (ret == 0 || (ret == -1 && errno != EBUSY))
 			return ret;
-		ploop_log(3, "retry umount %s", mnt);
+		ploop_log(3, "Retrying umount %s", mnt);
 		sleep(1);
 	}
 	return ret;
