@@ -122,24 +122,34 @@ int drop_statfs_info(const char *image)
 	return 0;
 }
 
-int read_line(const char *path, char *nbuf, int len)
+int read_line_quiet(const char *path, char *nbuf, int len)
 {
 	FILE *fp;
 
 	fp = fopen(path, "r");
-	if (fp == NULL) {
-		ploop_err(errno, "Can't open %s", path);
-		return -1;
-	}
+	if (fp == NULL)
+		return errno;
 	if (fgets(nbuf, len, fp) == NULL) {
-		ploop_err(errno, "Can't read %s", path);
+		int err = errno;
 		fclose(fp);
-		return -1;
+		return errno;
 	}
 	fclose(fp);
 	len = strlen(nbuf);
-	if (len > 0 && nbuf[len-1] == '\n') {
+	if (len > 0 && nbuf[len-1] == '\n')
 		nbuf[len-1] = 0;
+
+	return 0;
+}
+
+int read_line(const char *path, char *nbuf, int len)
+{
+	int err;
+
+	err = read_line_quiet(path, nbuf, len);
+	if (err) {
+		ploop_err(err, "Can't open or read %s", path);
+		return -1;
 	}
 	return 0;
 }
