@@ -132,7 +132,7 @@ int read_line_quiet(const char *path, char *nbuf, int len)
 	if (fgets(nbuf, len, fp) == NULL) {
 		int err = errno;
 		fclose(fp);
-		return errno;
+		return err;
 	}
 	fclose(fp);
 	len = strlen(nbuf);
