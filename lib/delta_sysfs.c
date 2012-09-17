@@ -308,6 +308,8 @@ int ploop_find_dev(const char *component_name, const char *delta,
 	}
 
 	while ((de = readdir(dp)) != NULL) {
+		int err;
+
 		if (strncmp("ploop", de->d_name, 5))
 			continue;
 
@@ -326,25 +328,25 @@ int ploop_find_dev(const char *component_name, const char *delta,
 
 		snprintf(fname, sizeof(fname), "/sys/block/%s/pstate/cookie",
 				de->d_name);
-		if (stat(fname, &st) == 0) {
-			if (read_line(fname, cookie, sizeof(cookie)))
-				goto err;
-			if (strncmp(component_name == NULL ? "" : component_name,
-						cookie, sizeof(cookie)))
-				continue;
-		} else {
-			if ((errno == ENOENT) && is_cookie_supported())
+		err = read_line_quiet(fname, cookie, sizeof(cookie));
+		if (err) {
+			if ((err == ENOENT) && is_cookie_supported())
 				/* This is not an error, but a race between
 				 * mount and umount: device is being removed
 				 */
 				continue;
-			ploop_err(errno, "Can't stat %s", fname);
+
+			ploop_err(err, "Can't open or read %s", fname);
 			if ((errno == ENOENT) && component_name)
 				/* Using component_name on old kernel is bad */
 				ploop_err(0, "ERROR: OpenVZ kernel with ploop cookie support "
 						"(i.e. 042stab061.1 or greater) is required");
 			goto err;
 		}
+
+		if (strncmp(component_name == NULL ? "" : component_name,
+					cookie, sizeof(cookie)))
+			continue;
 
 		snprintf(buf, size, "/dev/%s", de->d_name);
 		ret = 0;
