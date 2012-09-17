@@ -286,7 +286,6 @@ int ploop_find_dev(const char *component_name, const char *delta,
 	char image[PATH_MAX];
 	DIR *dp;
 	struct dirent *de;
-	struct stat st;
 	int ret = -1;
 	char cookie[PLOOP_COOKIE_SIZE];
 	int lckfd;
@@ -315,14 +314,15 @@ int ploop_find_dev(const char *component_name, const char *delta,
 
 		snprintf(fname, sizeof(fname), "/sys/block/%s/pdelta/0/image",
 				de->d_name);
-		if (stat(fname, &st)) {
-			if (errno == ENOENT)
+		err = read_line_quiet(fname, image, sizeof(image));
+		if (err) {
+			if (err == ENOENT)
 				continue;
-			ploop_err(errno, "Can't stat %s", fname);
+
+			ploop_err(err, "Can't open or read %s", fname);
 			goto err;
 		}
-		if (read_line(fname, image, sizeof(image)))
-			goto err;
+
 		if (strcmp(image, delta_r))
 			continue;
 
