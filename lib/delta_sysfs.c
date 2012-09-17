@@ -288,9 +288,7 @@ int ploop_find_dev(const char *component_name, const char *delta,
 	struct dirent *de;
 	struct stat st;
 	int ret = -1;
-	char name[64];
 	char cookie[PLOOP_COOKIE_SIZE];
-	dev_t dev;
 	int lckfd;
 
 	if (realpath(delta, delta_r) == NULL) {
@@ -348,20 +346,7 @@ int ploop_find_dev(const char *component_name, const char *delta,
 			goto err;
 		}
 
-		snprintf(fname, sizeof(fname), "/sys/block/%s/dev",
-				de->d_name);
-		if (get_dev_num(fname, &dev))
-			goto err;
-
-		snprintf(buf, size, "/dev/%s",
-				make_sysfs_dev_name(gnu_dev_minor(dev), name, sizeof(name)));
-		if (stat(buf, &st) == 0 &&
-				st.st_rdev != dev)
-		{
-			ploop_err(0, "Inconsistency in device number detected for %s sys_dev=%lu dev=%lu",
-					buf, (unsigned long)dev, (unsigned long)st.st_rdev);
-			goto err;
-		}
+		snprintf(buf, size, "/dev/%s", de->d_name);
 		ret = 0;
 		goto err;
 	}
