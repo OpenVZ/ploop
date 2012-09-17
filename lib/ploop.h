@@ -221,6 +221,7 @@ int relocmap2relocblks(struct relocmap *relocmap, int lvl, __u32 a_h, __u32 n_sc
 			struct ploop_relocblks_ctl **relocblks_pp);
 PL_EXT int ploop_fsck(char *img, int flags, int ro, int verbose, __u32 *blocksize_p);
 /* Logging */
+int ploop_get_log_level(void);
 void ploop_log(int level, const char *format, ...)
 	__attribute__ ((__format__ (__printf__, 2, 3)));
 void __ploop_err(int err_no, const char *format, ...)

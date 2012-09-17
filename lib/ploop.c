@@ -698,6 +698,30 @@ static int do_ioctl(int fd, int req)
 	return ret;
 }
 
+static int print_lsof(int level, const char * message, const char * mnt, int err)
+{
+	FILE * lsoff;
+	char buffer[8192]; /* same as LOG_BUF_SIZE */
+
+	snprintf(buffer, sizeof(buffer), "/usr/sbin/lsof %s", mnt);
+	if ((lsoff = popen(buffer, "r")) == NULL) {
+		ploop_err(errno, "Can't exec lsof");
+		if (level == -1)
+			ploop_err(err, "%s %s", message, mnt);
+		else
+			ploop_log(level, "%s %s", message, mnt);
+
+		return -1;
+	}
+
+	while (fgets(buffer, sizeof(buffer), lsoff))
+		ploop_log(level, "%s %s: %s, lsof output follows:\n%s",
+				message, mnt, strerror(err), buffer);
+	pclose(lsoff);
+
+	return 0;
+}
+
 static int do_umount(const char *mnt)
 {
 	int i, ret;
@@ -706,10 +730,14 @@ static int do_umount(const char *mnt)
 		ret = umount(mnt);
 		if (ret == 0 || (ret == -1 && errno != EBUSY))
 			return ret;
-		ploop_log(3, "Retrying umount %s", mnt);
+		if (ploop_get_log_level() > 3)
+			print_lsof(3, "Retrying umount", mnt, errno);
+		else
+			ploop_log(3, "Retrying umount %s", mnt);
 		sleep(1);
 	}
-	return ret;
+	print_lsof(-1, "Can't umount", mnt, errno);
+	return -1;
 }
 
 static int delete_deltas(int devfd, const char *devname)

@@ -112,6 +112,12 @@ void ploop_set_log_level(int level)
 	_s_log_level = level;
 }
 
+int ploop_get_log_level(void)
+{
+	return _s_log_level;
+}
+
+
 void ploop_set_verbose_level(int level)
 {
 	_s_log_verbose_level = level;
