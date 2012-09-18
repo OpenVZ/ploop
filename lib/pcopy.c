@@ -571,9 +571,9 @@ int ploop_send(const char *device, int ofd, const char *flush_cmd,
 
 done:
 	if (fs_frozen)
-		ioctl_device(mntfd, FITHAW, 0);
+		(void)ioctl_device(mntfd, FITHAW, 0);
 	if (tracker_on)
-		ioctl_device(devfd, PLOOP_IOC_TRACK_ABORT, 0);
+		(void)ioctl_device(devfd, PLOOP_IOC_TRACK_ABORT, 0);
 	if (iobuf)
 		free(iobuf);
 	if (devfd >=0)

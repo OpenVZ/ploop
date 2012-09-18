@@ -423,7 +423,7 @@ out:
 err:
 	if (drop_state) {
 		memset(&b_ctl, 0, sizeof(b_ctl));
-		ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
+		(void)ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
 	}
 	close(fd);
 	free(pfiemap);
@@ -795,7 +795,7 @@ int ploop_balloon_check_and_repair(const char *device, const char *mount_point, 
 err:
 	if (drop_state) {
 		memset(&b_ctl, 0, sizeof(b_ctl));
-		ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
+		(void)ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
 	}
 
 	// FIXME: close_delta()
