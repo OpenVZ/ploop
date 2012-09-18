@@ -290,7 +290,7 @@ int ploop_send(const char *device, int ofd, const char *flush_cmd,
 	int tracker_on = 0;
 	int fs_frozen = 0;
 	int devfd = -1;
-	int mntfd;
+	int mntfd = -1;
 	int ret = 0;
 	char *send_from = NULL;
 	char *format = NULL;
