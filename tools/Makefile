@@ -23,7 +23,7 @@ $(PROGS): $(LIBPLOOP)
 
 %: %.o common.o
 	$(E) "  LD      " $@
-	$(Q) $(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
+	$(Q) $(CC) $(CFLAGS) $(LDFLAGS) $^ $(LDLIBS) -o $@
 
 .depend: $(SOURCES)
 -include .depend
