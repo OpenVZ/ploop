@@ -114,7 +114,8 @@ int main(int argc, char **argv)
 				continue;
 			}
 			snprintf(buf, sizeof(buf)-1, "%u\n", val);
-			(void)write(fd, buf, strlen(buf));
+			if (write(fd, buf, strlen(buf)) <= 0)
+				perror("write");
 			close(fd);
 		}
 		return 0;
@@ -135,7 +136,8 @@ int main(int argc, char **argv)
 			return SYSEXIT_SYSFS;
 		}
 		if (clear) {
-			(void)write(fd, "0\n", 2);
+			if (write(fd, "0\n", 2) <= 0)
+				perror("write");
 		} else {
 			n = read(fd, buf, sizeof(buf)-1);
 			if (n < 0) {
