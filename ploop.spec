@@ -19,7 +19,7 @@ This package contains tools to work with ploop devices and images.
 %setup -q
 
 %build
-make LIBDIR=%{_libdir} all
+make %{?_smp_mflags} LIBDIR=%{_libdir} all
 
 %install
 rm -rf %{buildroot}
