@@ -57,6 +57,7 @@
 
 #define S2B(sec) ((off_t)(sec) << PLOOP1_SECTOR_LOG)
 #define B2S(sec) ((sec) >> PLOOP1_SECTOR_LOG)
+#define ROUNDUP_BDSIZE(bdsize, blocksize) ((bdsize + blocksize - 1) / blocksize * blocksize)
 
 struct delta_fops
 {

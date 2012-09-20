@@ -244,14 +244,20 @@ static int get_temp_mountpoint(const char *file, int create, char *buf, int len)
 	return 0;
 }
 
-static int check_blockdev_size(unsigned long long sectors)
+static int check_blockdev_size(unsigned long long sectors, __u32 blocksize)
 {
 	const unsigned long long max = (__u32)-1;
 
 	if (sectors > max) {
-		ploop_err(0, "An incorrect block device size specified: %llu sectors."
+		ploop_err(0, "An incorrect block device size is specified: %llu sectors."
 				" The maximum allowed size is %llu sectors.",
 				sectors, max);
+		return -1;
+	}
+	if (sectors % blocksize) {
+		ploop_err(0, "An incorrect block device size is specified: %llu sectors."
+				" The block device size must be aligned to the cluster block size %d.",
+				sectors, blocksize);
 		return -1;
 	}
 
@@ -268,7 +274,7 @@ static int create_empty_delta(const char *path, __u32 blocksize, off_t bdsize)
 
 	assert(blocksize);
 
-	if (check_blockdev_size(bdsize))
+	if (check_blockdev_size(bdsize, blocksize))
 		return -1;
 
 	if (posix_memalign(&buf, 4096, cluster)) {
@@ -328,7 +334,7 @@ static int create_empty_preallocated_delta(const char *path, __u32 blocksize, of
 	off_t off;
 	__u64 cluster = S2B(blocksize);
 
-	if (check_blockdev_size(bdsize))
+	if (check_blockdev_size(bdsize, blocksize))
 		return -1;
 
 	if (posix_memalign(&buf, 4096, cluster)) {
@@ -644,7 +650,8 @@ int ploop_create_image(struct ploop_create_param *param)
 		return SYSEXIT_NOMEM;
 	di->blocksize = blocksize;
 	ret = create_image(di, param->image, di->blocksize,
-			param->size, param->mode);
+			ROUNDUP_BDSIZE(param->size, di->blocksize),
+			param->mode);
 	if (ret)
 		return ret;
 	if (param->fstype != NULL) {
@@ -1490,13 +1497,14 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 	__u64 balloon_size = 0;
 	__u64 new_balloon_size = 0;
 	struct statfs fs;
+	unsigned long long new_size = ROUNDUP_BDSIZE(param->size, di->blocksize);
 
 	if (di->nimages == 0) {
 		ploop_err(0, "No images in DiskDescriptor");
 		return -1;
 	}
 
-	if (check_blockdev_size(param->size))
+	if (check_blockdev_size(new_size, di->blocksize))
 		return -1;
 
 	if (ploop_lock_di(di))
@@ -1551,7 +1559,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		new_balloon_size -= B2S(delta);
 		ret = ploop_balloon_change_size(mount_param.device,
 				balloonfd, new_balloon_size);
-	} else if (param->size > dev_size) {
+	} else if (new_size > dev_size) {
 		char conf[PATH_MAX];
 		char conf_tmp[PATH_MAX];
 
@@ -1563,14 +1571,14 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 				goto err;
 		}
 		// Update size in the DiskDescriptor.xml
-		di->size = param->size;
+		di->size = new_size;
 		get_disk_descriptor_fname(di, conf, sizeof(conf));
 		snprintf(conf_tmp, sizeof(conf_tmp), "%s.tmp", conf);
 		ret = ploop_store_diskdescriptor(conf_tmp, di);
 		if (ret)
 			goto err;
 
-		ret = ploop_grow_device(mount_param.device, di->blocksize, param->size);
+		ret = ploop_grow_device(mount_param.device, di->blocksize, new_size);
 		if (ret) {
 			unlink(conf_tmp);
 			goto err;
@@ -1586,7 +1594,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		ret = resize_fs(mount_param.device);
 		if (ret)
 			goto err;
-		tune_fs(mount_param.target, mount_param.device, param->size);
+		tune_fs(mount_param.target, mount_param.device, new_size);
 	} else {
 		off_t available_balloon_size;
 		// SHRINK
@@ -1597,12 +1605,12 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			ret = SYSEXIT_FSTAT;
 			goto err;
 		}
-		new_balloon_size = dev_size - param->size;
+		new_balloon_size = dev_size - new_size;
 		available_balloon_size = balloon_size + B2S(fs.f_bfree * fs.f_bsize);
 		if (available_balloon_size < new_balloon_size) {
 			ploop_err(0, "Unable to change image size to %llu "
 					"sectors, minimal size is %lu",
-					param->size,
+					new_size,
 					(long unsigned)(dev_size - available_balloon_size));
 			ret = SYSEXIT_PARAM;
 			goto err;
@@ -1613,7 +1621,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 					balloonfd, new_balloon_size);
 			if (ret)
 				goto err;
-			tune_fs(mount_param.target, mount_param.device, param->size);
+			tune_fs(mount_param.target, mount_param.device, new_size);
 		}
 	}
 
