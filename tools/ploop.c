@@ -865,10 +865,11 @@ static int plooptool_info(int argc, char **argv)
 	int ret;
 	struct ploop_info info = {};
 
-	argc -= optind;
-	argv += optind;
+	/* skip the command itself (i.e. "info") */
+	argc -= 1;
+	argv += 1;
 
-	if (argc == 0) {
+	if (argc != 1) {
 		usage_info();
 		return SYSEXIT_PARAM;
 	}
