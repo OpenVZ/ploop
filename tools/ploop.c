@@ -265,7 +265,7 @@ static int plooptool_start(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if (argc) {
+	if (argc || !startopts.device) {
 		usage_start();
 		return SYSEXIT_PARAM;
 	}
@@ -316,7 +316,7 @@ static int plooptool_stop(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if (argc) {
+	if (argc || !stopopts.device) {
 		usage_stop();
 		return SYSEXIT_PARAM;
 	}
@@ -363,7 +363,7 @@ static int plooptool_clear(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if (argc) {
+	if (argc || !stopopts.device) {
 		usage_clear();
 		return SYSEXIT_PARAM;
 	}
