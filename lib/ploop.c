@@ -39,15 +39,6 @@
 
 static int ploop_mount_fs(struct ploop_mount_param *param);
 
-static int is_old_snapshot_format(struct ploop_disk_images_data *di)
-{
-	if (di->top_guid != NULL && !guidcmp(di->top_guid, TOPDELTA_UUID))
-		return 0;
-
-	ploop_err(0, "Snapshot is in old format");
-	return 1;
-}
-
 /* set cancel flag
  * Note: this function also clear the flag
  */
@@ -2012,9 +2003,6 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 		return SYSEXIT_PARAM;
 	}
 
-	if (is_old_snapshot_format(di))
-		return SYSEXIT_PARAM;
-
 	if (ploop_lock_di(di))
 		return SYSEXIT_LOCK;
 
@@ -2125,9 +2113,6 @@ int ploop_switch_snapshot(struct ploop_disk_images_data *di, const char *guid, i
 		ploop_err(0, "Incorrect guid %s", guid);
 		return SYSEXIT_PARAM;
 	}
-
-	if (is_old_snapshot_format(di))
-		return SYSEXIT_PARAM;
 
 	if (ploop_lock_di(di))
 		return SYSEXIT_LOCK;
@@ -2241,9 +2226,6 @@ int ploop_delete_snapshot(struct ploop_disk_images_data *di, const char *guid)
 	int nelem = 0;
 	char dev[64];
 	int snap_id;
-
-	if (is_old_snapshot_format(di))
-		return SYSEXIT_PARAM;
 
 	if (ploop_lock_di(di))
 		return SYSEXIT_LOCK;

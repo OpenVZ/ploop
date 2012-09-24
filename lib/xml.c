@@ -259,6 +259,28 @@ void get_basedir(const char *fname, char *out, int len)
 		*p = 0;
 }
 
+/* Convert to new format with constant TopGUID */
+static int convert_disk_descriptor(struct ploop_disk_images_data *di)
+{
+	if (di->top_guid != NULL && !guidcmp(di->top_guid, TOPDELTA_UUID))
+		return 0;
+
+	ploop_log(0, "DiskDescriptor.xml is in old format: converting");
+
+	if ((find_image_by_guid(di, TOPDELTA_UUID) != NULL) ||
+			(find_snapshot_by_guid(di, TOPDELTA_UUID) != -1)) {
+		ploop_err(0, "Can't convert: %s is in use",
+				TOPDELTA_UUID);
+		return -1;
+	}
+
+	ploop_log(0, "Changing %s to %s",
+			di->top_guid, TOPDELTA_UUID);
+	ploop_di_change_guid(di, di->top_guid, TOPDELTA_UUID);
+
+	return 0;
+}
+
 static int validate_disk_descriptor(struct ploop_disk_images_data *di)
 {
 	if (di->nimages == 0) {
@@ -381,6 +403,9 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 	char basedir[PATH_MAX] = "";
 
 	ploop_log(0, "Storing %s", fname);
+
+	if (convert_disk_descriptor(di))
+		return -1;
 
 	get_basedir(fname, tmp, sizeof(tmp));
 
