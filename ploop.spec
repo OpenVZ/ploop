@@ -1,7 +1,7 @@
 %define _incdir /usr/include/ploop
 Summary: ploop tools
 Name: ploop
-Version: 1.4
+Version: 1.5
 %define rel 1
 Release: %{rel}%{?dist}
 Group: Applications/System
@@ -73,6 +73,46 @@ Headers and a static version of ploop library
 %attr(644,root,root) %{_incdir}/dynload.h
 
 %changelog
+* Tue Sep 25 2012 Kir Kolyshkin <kir@openvz.org> 1.5-1
+- NOTE: this version requires vzkernel >= 2.6.32-042stab061.1
+- New functionality:
+- * switch from old /dev/ploop/ symlink-based to new kernel cookie registration
+- * snapshots: switch to schema with constant top delta uuid
+- * use /proc/vz/ploop_minor based interface to get free minor
+- * if ploop is in maintenance state, try to complete it before doing
+    snapshot/resize/merge/mount/umount/copy operation
+- * ploop mount: use in-kernel I/O module autodetection
+- * ploop balloon discard: new iterative compacting support
+- * ploop balloon discard: implement --stat
+- * ploop balloon discard: implement --automount
+- * ploop balloon discard: cancellation support
+- * ploop balloon: allow DiskDescriptor.xml argument
+- * ploop umount: implement -c component_name
+- * ploop list: implement
+- * /sbin/mount.ploop: do load ploop modules
+- Bug fixes:
+- * do not crash on empty DiskDescriptor.xml (libxml2 workaround)
+- * ploop convert: fix converting from expanded to raw
+- * ploop copy: fixed check for opened fd
+- * ploop copy: do not leak opened fds
+- * ploop create: fix gpt partition creation to be 4096 aligned
+- * ploop create, resize: round up size to be cluster aligned
+- * tools: few exit code fixes
+- * multiple usage, log and error message fixes
+- Improvements:
+- * ploop mount: check that mount point is a directory
+- * ploop umount: reduce retry count from 60 to 6
+- * ploop umount: print lsof output in case of failed umount
+- * ploop create: for prealloc image, use ftruncate if fallocate not supported
+- * ploop create, resize: add check for correct block device size
+- * scripts: de-bash-ify
+- * assorted code refactoring, cleanups and nitpicks
+- Library API changes:
+- * add ploop_resolve_functions() to aid in dynamic library loading
+- * introduce optimized ploop_get_info_by_descr(), remove ploop_get_info()
+- * replace ploop_{alloc,read}_diskdescriptor() with ploop_read_disk_descr()
+- * remove ploop_getdevice()
+
 * Sat Jun  9 2012 Kir Kolyshkin <kir@openvz.org> 1.4-1
 - ploop copy: fix data loss during migration (#2287)
 - ploop(8): fixed according to doc team review
