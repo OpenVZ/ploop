@@ -768,7 +768,7 @@ err:
 
 int ploop_merge_snapshot(struct ploop_disk_images_data *di, struct ploop_merge_param *param)
 {
-	int ret;
+	int ret = SYSEXIT_PARAM;
 	const char *guid = NULL;
 
 	if (ploop_lock_di(di))
