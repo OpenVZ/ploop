@@ -29,7 +29,7 @@ make DESTDIR=%{buildroot} LIBDIR=%{_libdir} install
 %clean
 rm -rf %{buildroot}
 
-%triggerin -- udev
+%triggerin -n lib -- udev
 SCRIPT="/lib/udev/rules.d/60-persistent-storage.rules"
 if [ -f $SCRIPT ]; then
 	fgrep 'KERNEL=="ploop*", GOTO="persistent_storage_end"' $SCRIPT > /dev/null 2>&1 ||
