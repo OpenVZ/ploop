@@ -8,7 +8,6 @@ Group: Applications/System
 License: GNU GPL
 Source: %{name}-%{version}.tar.bz2
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
-Requires: parted
 Requires: ploop-lib = %{version}
 BuildRequires: libxml2-devel
 
@@ -47,6 +46,7 @@ fi
 Summary: ploop library
 Group: Applications/System
 Requires: libxml2
+Requires: parted
 Conflicts: vzkernel < 2.6.32-042stab061.1
 
 %description lib
