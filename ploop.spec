@@ -36,6 +36,12 @@ if [ -f $SCRIPT ]; then
 	sed -i -e '1 s/^/KERNEL=="ploop*", GOTO="persistent_storage_end"\n/;' $SCRIPT
 fi
 
+SCRIPT2="/lib/udev/rules.d/80-iosched.rules"
+if [ -f $SCRIPT2 ]; then
+	fgrep 'KERNEL=="ploop*", GOTO="end_iosched"' $SCRIPT2 > /dev/null 2>&1 ||
+	sed -i -e '1 s/^/KERNEL=="ploop*", GOTO="end_iosched"\n/;' $SCRIPT2
+fi
+
 %files
 %attr(755,root,root) /sbin/*
 %attr(755,root,root) %{_sbindir}/ploop
