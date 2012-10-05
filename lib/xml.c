@@ -111,6 +111,7 @@ static int parse_xml(const char *basedir, xmlNode *root_node, struct ploop_disk_
 	__u64 val;
 	int is_preallocated = 0;
 	int mode = PLOOP_EXPANDED_MODE;
+	int n;
 
 	cur_node = seek(root_node, "/Disk_Parameters");
 	ERR(cur_node, "/Disk_Parameters");
@@ -143,29 +144,40 @@ static int parse_xml(const char *basedir, xmlNode *root_node, struct ploop_disk_
 	}
 	cur_node = seek(root_node, "/StorageData/Storage");
 	ERR(cur_node, "/StorageData/Storage");
-	node = seek(cur_node, "Blocksize");
-	if (node != NULL) {
-		data = get_element_txt(node);
-		if (parse_ul(data, &val)) {
+	for (n = 0; cur_node; cur_node = cur_node->next, n++) {
+		if (cur_node->type != XML_ELEMENT_NODE)
+			continue;
+
+		if (n > 0) {
 			ploop_err(0, "Invalid disk descriptor file format:"
-					" Invalid Blocksize %s", data);
+				" splitted disk is not supported.");
 			return -1;
 		}
-		di->blocksize = (unsigned)val;
-	}
-	node = seek(cur_node, "Preallocated");
-	if (node != NULL) {
-		data = get_element_txt(node);
-		if (parse_ul(data, &val) != 0 || val > 1) {
-			ploop_err(0, "Invalid disk descriptor file format:"
-				" Invalid Preallocated tag");
-			return -1;
+
+		node = seek(cur_node, "Blocksize");
+		if (node != NULL) {
+			data = get_element_txt(node);
+			if (parse_ul(data, &val)) {
+				ploop_err(0, "Invalid disk descriptor file format:"
+						" Invalid Blocksize %s", data);
+				return -1;
+			}
+			di->blocksize = (unsigned)val;
 		}
-		is_preallocated = val;
+		node = seek(cur_node, "Preallocated");
+		if (node != NULL) {
+			data = get_element_txt(node);
+			if (parse_ul(data, &val) != 0 || val > 1) {
+				ploop_err(0, "Invalid disk descriptor file format:"
+						" Invalid Preallocated tag");
+				return -1;
+			}
+			is_preallocated = val;
+		}
 	}
+
 	cur_node = seek(root_node, "/StorageData/Storage/Image");
 	ERR(cur_node, "/StorageData/Storage/Image");
-
 	for (; cur_node; cur_node = cur_node->next) {
 		if (cur_node->type != XML_ELEMENT_NODE)
 			continue;
