@@ -33,6 +33,7 @@
 #include <sys/vfs.h>
 #include <sys/syscall.h>
 #include <mntent.h>
+#include <ext2fs/ext2_fs.h>
 
 #include "ploop.h"
 #include "cleanup.h"
@@ -1193,6 +1194,48 @@ err:
 	return ret;
 }
 
+#ifndef EXT4_SUPER_MAGIC
+#define EXT4_SUPER_MAGIC	0xEF53
+#endif
+#ifndef FS_IOC_GETFLAGS
+#define FS_IOC_GETFLAGS	_IOR('f', 1, long)
+#endif
+
+static int check_mount_restrictions(struct ploop_mount_param *param, const char *fname)
+{
+	struct statfs st;
+	int fd;
+	long flags;
+
+	/* FIXME: */
+	if (getenv("PLOOP_SKIP_EXT4_EXTENTS_CHECK") != NULL)
+		return 0;
+	if (statfs(fname, &st) < 0) {
+		ploop_err(errno, "Unable to statfs %s", fname);
+		return -1;
+	}
+	if (st.f_type == EXT4_SUPER_MAGIC) {
+		fd = open(fname, O_RDONLY);
+		if (fd < 0) {
+			ploop_err(errno, "Can't open %s", fname);
+			return -1;
+		}
+		if (ioctl(fd, FS_IOC_GETFLAGS, &flags) < 0) {
+			ploop_err(errno, "FS_IOC_GETFLAGS %s", fname);
+			close(fd);
+			return -1;
+		}
+		close(fd);
+		if (!(flags & EXT4_EXTENTS_FL)) {
+			ploop_err(0, "The ploop image can not be used on ext3 or ext4 file"
+					" system without extents.");
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
 int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		struct ploop_mount_param *param, int raw)
 {
@@ -1229,6 +1272,9 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		}
 	} else if (di)
 		blocksize = di->blocksize;
+
+	if (check_mount_restrictions(param, images[0]))
+		return SYSEXIT_MOUNT;
 
 	for (i = 0; images[i] != NULL; i++) {
 		int ro;
