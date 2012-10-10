@@ -29,19 +29,6 @@ make DESTDIR=%{buildroot} LIBDIR=%{_libdir} install
 %clean
 rm -rf %{buildroot}
 
-%triggerin -n lib -- udev
-SCRIPT="/lib/udev/rules.d/60-persistent-storage.rules"
-if [ -f $SCRIPT ]; then
-	fgrep 'KERNEL=="ploop*", GOTO="persistent_storage_end"' $SCRIPT > /dev/null 2>&1 ||
-	sed -i -e '1 s/^/KERNEL=="ploop*", GOTO="persistent_storage_end"\n/;' $SCRIPT
-fi
-
-SCRIPT2="/lib/udev/rules.d/80-iosched.rules"
-if [ -f $SCRIPT2 ]; then
-	fgrep 'KERNEL=="ploop*", GOTO="end_iosched"' $SCRIPT2 > /dev/null 2>&1 ||
-	sed -i -e '1 s/^/KERNEL=="ploop*", GOTO="end_iosched"\n/;' $SCRIPT2
-fi
-
 %files
 %attr(755,root,root) /sbin/*
 %attr(755,root,root) %{_sbindir}/ploop
@@ -62,6 +49,19 @@ Parallels loopback (ploop) block device API library
 %defattr(-,root,root)
 %attr(755,root,root) %{_libdir}/libploop.so
 %dir /var/lock/ploop
+
+%triggerin lib -- udev
+SCRIPT="/lib/udev/rules.d/60-persistent-storage.rules"
+if [ -f $SCRIPT ]; then
+	fgrep 'KERNEL=="ploop*", GOTO="persistent_storage_end"' $SCRIPT > /dev/null 2>&1 ||
+	sed -i -e '1 s/^/KERNEL=="ploop*", GOTO="persistent_storage_end"\n/;' $SCRIPT
+fi
+
+SCRIPT2="/lib/udev/rules.d/80-iosched.rules"
+if [ -f $SCRIPT2 ]; then
+	fgrep 'KERNEL=="ploop*", GOTO="end_iosched"' $SCRIPT2 > /dev/null 2>&1 ||
+	sed -i -e '1 s/^/KERNEL=="ploop*", GOTO="end_iosched"\n/;' $SCRIPT2
+fi
 
 %package devel
 Summary: Headers for development with ploop library
