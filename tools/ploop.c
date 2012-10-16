@@ -884,14 +884,34 @@ static int plooptool_info(int argc, char **argv)
 	return ret;
 }
 
+static void usage_list(void)
+{
+	fprintf(stderr, "Usage: ploop list [-a]\n");
+}
+
 static int plooptool_list(int argc, char **argv)
 {
 	char fname[PATH_MAX];
 	char image[PATH_MAX];
+	char mnt[PATH_MAX] = "";
+	char dev[64];
 	DIR *dp;
 	struct stat st;
 	struct dirent *de;
 	char cookie[PLOOP_COOKIE_SIZE];
+	int all = 0;
+	int i;
+
+	while ((i = getopt(argc, argv, "a")) != EOF) {
+		switch (i) {
+		case 'a':
+			all = 1;
+			break;
+		default:
+			usage_list();
+			return SYSEXIT_PARAM;
+		}
+	}
 
 	snprintf(fname, sizeof(fname) - 1, "/sys/block/");
 	dp = opendir(fname);
@@ -916,7 +936,12 @@ static int plooptool_list(int argc, char **argv)
 				continue;
 		}
 
-		printf("%-12s %s %s\n", de->d_name, image, cookie);
+		if (all) {
+			mnt[0] = '\0';
+			snprintf(dev, sizeof(dev), "/dev/%s", de->d_name);
+			ploop_get_mnt_by_dev(dev, mnt, sizeof(mnt));
+		}
+		printf("%-12s %s %s %s\n", de->d_name, image, mnt, cookie);
 	}
 	closedir(dp);
 
