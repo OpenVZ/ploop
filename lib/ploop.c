@@ -1536,14 +1536,39 @@ int ploop_grow_device(const char *device, __u32 blocksize, off_t new_size)
 	return 0;
 }
 
+static int shrink_device(const char *device, __u64 new_size)
+{
+	int ret;
+
+	ploop_log(0, "Offline shrink");
+
+	if (e2fsck(device))
+		return -1;
+
+	/* offline resize */
+	ret = resize_fs(device, new_size);
+	if (ret)
+		return ret;
+
+	/* TODO
+	 * BLKDISCARD from block_count -> end
+	 * update GPT
+	 * truncate device
+	 */
+
+	return 0;
+}
+
 int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_param *param)
 {
 	int ret;
 	struct ploop_mount_param mount_param = {};
 	char buf[PATH_MAX];
-	int mounted = 0;
+	char part_device[64];
+	int mounted = -1;
 	int balloonfd = -1;
 	struct stat st;
+	off_t part_dev_size = 0;
 	off_t dev_size = 0;
 	__u64 balloon_size = 0;
 	__u64 new_balloon_size = 0;
@@ -1568,7 +1593,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		ret = auto_mount_image(di, &mount_param);
 		if (ret)
 			goto err;
-		mounted = 1;
+		mounted = 0;
 	} else {
 		ret = ploop_complete_running_operation(buf);
 		if (ret)
@@ -1581,11 +1606,25 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			goto err;
 		}
 		mount_param.target = strdup(buf);
+		mounted = 1;
 	}
+
+	ret = get_partition_device_name(mount_param.device, part_device, sizeof(part_device));
+	if (ret)
+		goto err;
 
 	ret = ploop_get_size(mount_param.device, &dev_size);
 	if (ret)
 		goto err;
+	ret = ploop_get_size(part_device, &part_dev_size);
+	if (ret)
+		goto err;
+	if (new_size <= (dev_size - part_dev_size)) {
+		ploop_err(0, "Unable to change image size to %llu sectors",
+				new_size);
+		ret = SYSEXIT_PARAM;
+		goto err;
+	}
 
 	ret = get_balloon(mount_param.target, &st, &balloonfd);
 	if (ret)
@@ -1614,13 +1653,26 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		char conf[PATH_MAX];
 		char conf_tmp[PATH_MAX];
 
-		// GROW
+		/* GROW */
 		if (balloon_size != 0) {
 			ret = ploop_balloon_change_size(mount_param.device,
 					balloonfd, 0);
 			if (ret)
 				goto err;
 		}
+		close(balloonfd);
+		balloonfd = -1;
+		if (!mounted) {
+			/* offline */
+			if (do_umount(mount_param.target)) {
+				ploop_err(errno, "umount %s failed", mount_param.target);
+			} else {
+				ret = e2fsck(part_device);
+				if (ret)
+					goto err;
+			}
+		}
+
 		// Update size in the DiskDescriptor.xml
 		di->size = new_size;
 		get_disk_descriptor_fname(di, conf, sizeof(conf));
@@ -1642,43 +1694,92 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			goto err;
 		}
 
-		ret = resize_fs(mount_param.device);
+		ret = resize_gpt_partition(mount_param.device);
 		if (ret)
 			goto err;
-		tune_fs(mount_param.target, mount_param.device, new_size);
-	} else {
-		off_t available_balloon_size;
-		// SHRINK
-		/* FIXME: resize file system in case fs_size != dev_size
-		 */
-		if (statfs(mount_param.target, &fs) != 0) {
-			ploop_err(errno, "statfs(%s)", mount_param.target);
-			ret = SYSEXIT_FSTAT;
-			goto err;
-		}
-		new_balloon_size = dev_size - new_size;
-		available_balloon_size = balloon_size + B2S(fs.f_bfree * fs.f_bsize);
-		if (available_balloon_size < new_balloon_size) {
-			ploop_err(0, "Unable to change image size to %llu "
-					"sectors, minimal size is %lu",
-					new_size,
-					(long unsigned)(dev_size - available_balloon_size));
-			ret = SYSEXIT_PARAM;
-			goto err;
-		}
 
-		if (new_balloon_size != balloon_size) {
-			ret = ploop_balloon_change_size(mount_param.device,
-					balloonfd, new_balloon_size);
+		/* resize up to the end of device */
+		ret = resize_fs(part_device, 0);
+		if (ret)
+			goto err;
+	} else {
+		__u64 new_fs_size = new_size - (dev_size - part_dev_size);
+
+		/*  SHRINK */
+		if (!mounted) {
+			/* Offline */
+			if (balloon_size != 0) {
+				/* FIXME: restore balloon size on failure */
+				ret = ploop_balloon_change_size(mount_param.device, balloonfd, 0);
+				if (ret)
+					goto err;
+			}
+			close(balloonfd); /* close to make umount possible */
+			balloonfd = -1;
+
+			ret = do_umount(mount_param.target);
+			if (ret) {
+				ploop_err(errno, "umount %s failed", mount_param.target);
+				goto err;
+			}
+
+			ret = shrink_device(part_device, new_fs_size);
 			if (ret)
 				goto err;
-			tune_fs(mount_param.target, mount_param.device, new_size);
+		} else {
+			/* Online */
+			struct dump2fs_data data = {};
+			__u64 available_balloon_size;
+			__u64 blocks;
+
+			ret = dumpe2fs(part_device, &data);
+			if (ret)
+				goto err;
+
+			blocks = data.block_count * B2S(data.block_size);
+			if (new_fs_size < blocks) {
+				/* shrink fs */
+				if (statfs(mount_param.target, &fs) != 0) {
+					ploop_err(errno, "statfs(%s)", mount_param.target);
+					ret = SYSEXIT_FSTAT;
+					goto err;
+				}
+
+				new_balloon_size = blocks - new_fs_size;
+				available_balloon_size = balloon_size + (fs.f_bfree * B2S(fs.f_bsize));
+				if (available_balloon_size < new_balloon_size) {
+					ploop_err(0, "Unable to change image size to %llu "
+							"sectors, minimal size is %llu",
+							new_fs_size,
+							(blocks - available_balloon_size));
+					ret = SYSEXIT_PARAM;
+					goto err;
+				}
+			} else {
+				/* grow fs */
+				new_balloon_size = 0;
+			}
+
+			if (new_balloon_size != balloon_size) {
+				ret = ploop_balloon_change_size(mount_param.device,
+						balloonfd, new_balloon_size);
+				if (ret)
+					goto err;
+				tune_fs(mount_param.target, part_device, new_fs_size);
+			}
+
+			if (new_balloon_size == 0) {
+				ret = resize_fs(part_device, new_fs_size);
+				if (ret)
+					goto err;
+			}
 		}
 	}
 
 err:
-	close(balloonfd);
-	if (mounted)
+	if (balloonfd != -1)
+		close(balloonfd);
+	if (mounted == 0)
 		ploop_umount(mount_param.device, di);
 	ploop_unlock_di(di);
 	free_mount_param(&mount_param);

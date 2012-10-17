@@ -162,6 +162,12 @@ struct ploop_disk_images_runtime_data {
 	char *component_name;
 };
 
+struct dump2fs_data {
+	__u64 block_count;
+	__u64 block_free;
+	__u32 block_size;
+};
+
 enum {
 	PLOOP_MERGE_WITH_CHILD = 0,
 	PLOOP_MERGE_WITH_PARENT = 1,
@@ -300,7 +306,9 @@ void ploop_unlock(int *lckfd);
 int get_partition_device_name(const char *device, char *out, int size);
 int make_fs(const char *device, const char *fstype);
 void tune_fs(const char *target, const char *device, unsigned long long size);
-int resize_fs(const char *device);
+int resize_fs(const char *device, __u64 blocks);
+int dumpe2fs(const char *device, struct dump2fs_data *data);
+int e2fsck(const char *device);
 int create_gpt_partition(const char *dev, off_t size, __u32 blocksize);
 int resize_gpt_partition(const char *devname);
 

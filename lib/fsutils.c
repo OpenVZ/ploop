@@ -89,17 +89,10 @@ int make_fs(const char *device, const char *fstype)
 
 void tune_fs(const char *target, const char *device, unsigned long long size_sec)
 {
-	char part_device[64];
 	unsigned long long reserved_blocks;
 	struct statfs fs;
 	char *argv[5];
 	char buf[21];
-
-	if (get_partition_device_name(device, part_device, sizeof(part_device))) {
-		ploop_err(0, "tune_fs: unable to get partition device name for %s",
-				device);
-		return;
-	}
 
 	if (statfs(target, &fs) != 0) {
 		ploop_err(errno, "tune_fs: can't statfs %s", target);
@@ -115,7 +108,7 @@ void tune_fs(const char *target, const char *device, unsigned long long size_sec
 	argv[1] = "-r";
 	snprintf(buf, sizeof(buf), "%llu", reserved_blocks);
 	argv[2] = buf;
-	argv[3] = part_device;
+	argv[3] = (char *)device;
 	argv[4] = NULL;
 
 	run_prg(argv);
@@ -134,31 +127,90 @@ static char *get_resize_prog(void)
 	return NULL;
 }
 
-int resize_fs(const char *device)
+int resize_fs(const char *device, __u64 size_sec)
 {
-	int ret;
-	char part_device[64];
 	char *prog;
-	char *argv[4];
+	char *argv[5];
+	char buf[22];
 
 	prog = get_resize_prog();
 	if (prog == NULL) {
 		ploop_err(0, "ext4 file system resizer not found");
 		return -1;
 	}
-	if (get_partition_device_name(device, part_device, sizeof(part_device)))
-		return -1;
-	if (strcmp(device, part_device) != 0) {
-		ret = resize_gpt_partition(device);
-		if (ret)
-			return ret;
-	}
 	argv[0] = prog;
 	argv[1] = "-p";
-	argv[2] = part_device;
-	argv[3] = NULL;
+	argv[2] = (char *)device;
+	if (size_sec) {
+		snprintf(buf, sizeof(buf), "%llus", size_sec);
+		argv[3] = buf;
+	} else
+		argv[3] = NULL;
+	argv[4] = NULL;
 
 	if (run_prg(argv))
 		return SYSEXIT_RESIZE_FS;
+	return 0;
+}
+
+enum {
+	BLOCK_COUNT,
+	BLOCK_FREE,
+	BLOCK_SIZE,
+};
+
+#define BLOCK_COUNT_BIT (1 << BLOCK_COUNT)
+#define BLOCK_FREE_BIT (1 << BLOCK_FREE)
+#define BLOCK_SIZE_BIT (1 << BLOCK_SIZE)
+
+int dumpe2fs(const char *device, struct dump2fs_data *data)
+{
+	char cmd[512];
+	char buf[512];
+	FILE *fp;
+	int found = BLOCK_COUNT_BIT | BLOCK_FREE_BIT | BLOCK_SIZE_BIT;
+
+	snprintf(cmd, sizeof(cmd),  "LANG=C /sbin/dumpe2fs -h %s", device);
+	fp = popen(cmd, "r");
+	if (fp == NULL) {
+		ploop_err(0, "Failed %s", cmd);
+		return -1;
+	}
+
+	while (fgets(buf, sizeof(buf), fp) != NULL) {
+		if ((found & BLOCK_COUNT_BIT) &&
+				sscanf(buf, "Block count: %llu", &data->block_count) == 1)
+			found &= ~BLOCK_COUNT_BIT;
+		else if ((found & BLOCK_FREE_BIT) &&
+				sscanf(buf, "Free blocks: %llu", &data->block_free) == 1)
+			found &= ~BLOCK_FREE_BIT;
+		else if ((found & BLOCK_SIZE_BIT) &&
+				sscanf(buf, "Block size: %u", &data->block_size) == 1)
+			found &= ~BLOCK_SIZE_BIT;
+	}
+
+	if (pclose(fp)) {
+		ploop_err(0, "failed %s", cmd);
+		return -1;
+	}
+	if (found) {
+		ploop_err(0, "Not enough data: %s (0x%x)", cmd, found);
+		return -1;
+	}
+
+	return 0;
+}
+
+int e2fsck(const char *device)
+{
+	char *arg[4];
+
+	arg[0] = "/sbin/e2fsck";
+	arg[1] = "-fp";
+	arg[2] = (char *)device;
+	arg[3] = NULL;
+
+	if (run_prg(arg))
+		return -1;
 	return 0;
 }
