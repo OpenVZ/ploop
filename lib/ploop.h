@@ -184,6 +184,7 @@ PL_EXT int ploop_get_attr(const char * device, const char * attr, int * res);
 int ploop_get_delta_attr(const char * device, int level, const char * attr, int * res);
 int ploop_get_size(const char * device, off_t * res);
 int dev_num2dev_start(const char *device, dev_t dev_num, __u32 *dev_start);
+int get_dev_start(const char *path, __u32 *start);
 int ploop_get_top_level(int devfd, const char *devname, int *top);
 
 int init_delta_array(struct delta_array *);
@@ -295,6 +296,7 @@ PL_EXT int ploop_discard_get_stat_by_dev(const char *device, const char *mount_p
 		struct ploop_discard_stat *pd_stat);
 PL_EXT int ploop_discard_by_dev(const char *device, const char *mount_point,
 		__u64 minlen_b, __u64 to_free, const int *stop);
+int ploop_blk_discard(const char* device, __u32 blocksize, __u64 start, __u64 end);
 
 /* lock */
 int ploop_lock_di(struct ploop_disk_images_data *di);

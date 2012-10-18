@@ -178,7 +178,7 @@ static int get_dev_num(const char *path, dev_t *dev_num)
 	return 0;
 }
 
-static int get_dev_start(const char *path, __u32 *start)
+int get_dev_start(const char *path, __u32 *start)
 {
 	char nbuf[4096];
 

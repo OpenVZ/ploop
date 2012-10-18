@@ -1536,26 +1536,54 @@ int ploop_grow_device(const char *device, __u32 blocksize, off_t new_size)
 	return 0;
 }
 
-static int shrink_device(const char *device, __u64 new_size)
+/* The code below works correctly only if
+ *	device=/dev/ploopN
+ *	part_dev_size=/dev/ploopNp1
+ */
+static int shrink_device(const char *device, const char *part_device,
+		__u64 part_dev_size, __u64 new_size, __u32 blocksize)
 {
+	struct dump2fs_data data;
+	char buf[PATH_MAX];
+	__u64 part_start;
 	int ret;
+	char *p1, *p2;
 
-	ploop_log(0, "Offline shrink");
+	p1 = strrchr(device, '/');
+	p2 = strrchr(part_device, '/');
+	snprintf(buf, sizeof(buf), "/sys/block/%s/%s/start", p1, p2);
+	if (get_dev_start(buf, (__u32*) &part_start)) {
+		ploop_err(0, "Can't find out offset from start of ploop device (%s)",
+				part_device);
+		return SYSEXIT_SYSFS;
+	}
 
-	if (e2fsck(device))
+	ploop_log(0, "Offline shrink dev=%s size=%llu start=%llu",
+			part_device, part_dev_size, part_start);
+
+	if (e2fsck(part_device))
 		return -1;
 
 	/* offline resize */
-	ret = resize_fs(device, new_size);
+	ret = resize_fs(part_device, new_size);
+	if (ret)
+		return ret;
+
+	if (dumpe2fs(part_device, &data))
+		return -1;
+
+	ret = ploop_blk_discard(device, blocksize,
+			S2B(part_start) + (data.block_count * data.block_size),
+			S2B(part_start) + S2B(part_dev_size));
 	if (ret)
 		return ret;
 
 	/* TODO
-	 * BLKDISCARD from block_count -> end
 	 * update GPT
-	 * truncate device
+	 * update size in ploop header (+ zero index table)
+	 * update size in DiskDescriptor.xml
+	 * add logic to the ploop_fsck to check partition & device size validity
 	 */
-
 	return 0;
 }
 
@@ -1619,6 +1647,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 	ret = ploop_get_size(part_device, &part_dev_size);
 	if (ret)
 		goto err;
+
 	if (new_size <= (dev_size - part_dev_size)) {
 		ploop_err(0, "Unable to change image size to %llu sectors",
 				new_size);
@@ -1723,7 +1752,8 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 				goto err;
 			}
 
-			ret = shrink_device(part_device, new_fs_size);
+			ret = shrink_device(mount_param.device, part_device, part_dev_size,
+					new_fs_size, di->blocksize);
 			if (ret)
 				goto err;
 		} else {

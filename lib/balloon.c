@@ -870,16 +870,46 @@ static int ploop_trim(const char *mount_point, __u64 minlen_b, __u64 cluster)
 	return ret;
 }
 
+static int blk_discard(int fd, __u32 cluster, __u64 start, __u64 len)
+{
+	__u64 max_discard_len = S2B(B2S(UINT_MAX) / cluster * cluster);
+
+	while (len > 0) {
+		__u64 range[2];
+		int ret;
+
+		range[0] = start;
+		range[1] = MIN(len, max_discard_len);
+
+		if (start % S2B(cluster) && len > range[1])
+			range[1] -= start % S2B(cluster);
+
+		ploop_log(1, "Call BLKDISCARD start=%llu length=%llu ", range[0], range[1]);
+		ret = ioctl_device(fd, BLKDISCARD, range);
+		if (ret)
+			return ret;
+
+		start += range[1];
+		len -= range[1];
+	}
+
+	return 0;
+}
+
 static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 			const char *device, const char *mount_point,
 			__u64 minlen_b, __u32 cluster, __u32 to_free,
-			const int *stop)
+			__u64 blk_discard_range[2], const int *stop)
 {
 	pid_t tpid;
 	int err = 0, ret, status;
 	__u32 size = 0;
 
-	ploop_log(3, "Trying to find free extents bigger than %llu bytes", minlen_b);
+	if (blk_discard_range != NULL)
+		ploop_log(0, "Discard %s start=%llu length=%llu",
+				device, blk_discard_range[0], blk_discard_range[1]);
+	else
+		ploop_log(3, "Trying to find free extents bigger than %llu bytes", minlen_b);
 
 	if (ploop_lock_di(di))
 		return SYSEXIT_LOCK;
@@ -900,7 +930,10 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 	}
 
 	if (tpid == 0) {
-		ret = ploop_trim(mount_point, minlen_b, cluster);
+		if (blk_discard_range != NULL)
+			ret = blk_discard(fd, cluster, blk_discard_range[0], blk_discard_range[1]);
+		else
+			ret = ploop_trim(mount_point, minlen_b, cluster);
 		if (ioctl_device(fd, PLOOP_IOC_DISCARD_FINI, NULL))
 			ploop_err(errno, "Can't finalize discard mode");
 
@@ -1036,7 +1069,32 @@ static int do_ploop_discard(struct ploop_disk_images_data *di,
 		return SYSEXIT_OPEN;
 
 	ret = __ploop_discard(di, fd, device, mount_point,
-					minlen_b, cluster, to_free, stop);
+					minlen_b, cluster, to_free, NULL, stop);
+
+	close(fd);
+
+	return ret;
+}
+
+int ploop_blk_discard(const char* device, __u32 blocksize, __u64 start, __u64 end)
+{
+	int ret, fd;
+	__u64 range[2];
+
+	if (start >= end)
+		return 0;
+
+	range[0] = start;
+	range[1] = end - start;
+
+	fd = open(device, O_RDWR);
+	if (fd < 0) {
+		ploop_err(errno, "Can't open ploop device %s",
+				device);
+		return -1;
+	}
+
+	ret = __ploop_discard(NULL, fd, device, NULL, 0, S2B(blocksize), ~0U, range, NULL);
 
 	close(fd);
 
