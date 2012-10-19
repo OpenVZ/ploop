@@ -1545,20 +1545,20 @@ static int shrink_device(const char *device, const char *part_device,
 {
 	struct dump2fs_data data;
 	char buf[PATH_MAX];
-	__u64 part_start;
+	__u32 part_start;
 	int ret;
 	char *p1, *p2;
 
 	p1 = strrchr(device, '/');
 	p2 = strrchr(part_device, '/');
 	snprintf(buf, sizeof(buf), "/sys/block/%s/%s/start", p1, p2);
-	if (get_dev_start(buf, (__u32*) &part_start)) {
+	if (get_dev_start(buf, &part_start)) {
 		ploop_err(0, "Can't find out offset from start of ploop device (%s)",
 				part_device);
 		return SYSEXIT_SYSFS;
 	}
 
-	ploop_log(0, "Offline shrink dev=%s size=%llu start=%llu",
+	ploop_log(0, "Offline shrink dev=%s size=%llu start=%u",
 			part_device, part_dev_size, part_start);
 
 	if (e2fsck(part_device))
