@@ -37,6 +37,7 @@
 
 #include "ploop.h"
 #include "ploop_if.h"
+#include "cleanup.h"
 
 #define EXT4_IOC_OPEN_BALLOON		_IO('f', 42)
 
@@ -817,6 +818,16 @@ static void stop_trim_handler(int sig)
 	trim_stop = 1;
 }
 
+static void cancel_discard(void *data)
+{
+	int fd = *(int *) data;
+	int ret;
+
+	ret = ioctl(fd, PLOOP_IOC_DISCARD_FINI);
+	if (ret < 0 && errno != EBUSY)
+		ploop_err(errno, "Can't finalize a discard mode");
+}
+
 /* The fragmentation of such blocks doesn't affect the speed of w/r */
 #define MAX_DISCARD_CLU 32
 
@@ -904,6 +915,7 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 	pid_t tpid;
 	int err = 0, ret, status;
 	__u32 size = 0;
+	struct ploop_cleanup_hook *h;
 
 	if (blk_discard_range != NULL)
 		ploop_log(0, "Discard %s start=%llu length=%llu",
@@ -928,6 +940,8 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 
 		return -1;
 	}
+
+	h = register_cleanup_hook(cancel_discard, &fd);
 
 	if (tpid == 0) {
 		if (blk_discard_range != NULL)
@@ -1020,6 +1034,8 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 	} else {
 		ploop_log(0, "%d clusters have been relocated", size);
 	}
+
+	unregister_cleanup_hook(h);
 
 	ret = waitpid(tpid, &status, 0);
 	if (ret == -1) {

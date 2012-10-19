@@ -535,6 +535,7 @@ int main(int argc, char **argv)
 	argv++;
 
 	ploop_set_verbose_level(3);
+	init_signals();
 
 	if (strcmp(cmd, "show") == 0)
 		return pb_show(argc, argv);

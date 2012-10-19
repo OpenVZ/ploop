@@ -20,6 +20,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <signal.h>
+
 #include "ploop1_image.h"
 #include "libploop.h"
 
@@ -86,4 +88,20 @@ int is_xml_fname(const char *fname)
 
 	p = strrchr(fname, '.');
 	return (p != NULL && !strcmp(p, ".xml"));
+}
+
+static void cancel_callback(int sig)
+{
+	ploop_cancel_operation();
+}
+
+void init_signals(void)
+{
+	struct sigaction act = {};
+
+	sigemptyset(&act.sa_mask);
+	act.sa_handler = cancel_callback;
+	sigaction(SIGTERM, &act, NULL);
+	sigaction(SIGINT, &act, NULL);
+	sigaction(SIGHUP, &act, NULL);
 }

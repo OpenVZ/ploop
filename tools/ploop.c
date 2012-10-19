@@ -948,23 +948,6 @@ static int plooptool_list(int argc, char **argv)
 	return 0;
 }
 
-
-static void cancel_callback(int sig)
-{
-	ploop_cancel_operation();
-}
-
-static void init_signals(void)
-{
-	struct sigaction act = {};
-
-	sigemptyset(&act.sa_mask);
-	act.sa_handler = cancel_callback;
-	sigaction(SIGTERM, &act, NULL);
-	sigaction(SIGINT, &act, NULL);
-	sigaction(SIGHUP, &act, NULL);
-}
-
 int main(int argc, char **argv)
 {
 	char * cmd;
