@@ -1601,15 +1601,13 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 	__u64 balloon_size = 0;
 	__u64 new_balloon_size = 0;
 	struct statfs fs;
-	unsigned long long new_size = ROUNDUP_BDSIZE(param->size, di->blocksize);
+	unsigned long long new_size;
+	__u32 blocksize = 0;
 
 	if (di->nimages == 0) {
 		ploop_err(0, "No images in DiskDescriptor");
 		return -1;
 	}
-
-	if (check_blockdev_size(new_size, di->blocksize))
-		return -1;
 
 	if (ploop_lock_di(di))
 		return SYSEXIT_LOCK;
@@ -1636,6 +1634,14 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		mount_param.target = strdup(buf);
 		mounted = 1;
 	}
+
+	ret = SYSEXIT_SYSFS;
+	if (ploop_get_attr(mount_param.device, "block_size", (int *)&blocksize))
+		goto err;
+
+	new_size = ROUNDUP_BDSIZE(param->size, blocksize);
+	if (check_blockdev_size(new_size, blocksize))
+		goto err;
 
 	ret = get_partition_device_name(mount_param.device, part_device, sizeof(part_device));
 	if (ret)
@@ -1710,7 +1716,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		if (ret)
 			goto err;
 
-		ret = ploop_grow_device(mount_param.device, di->blocksize, new_size);
+		ret = ploop_grow_device(mount_param.device, blocksize, new_size);
 		if (ret) {
 			unlink(conf_tmp);
 			goto err;
@@ -1753,7 +1759,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			}
 
 			ret = shrink_device(mount_param.device, part_device, part_dev_size,
-					new_fs_size, di->blocksize);
+					new_fs_size, blocksize);
 			if (ret)
 				goto err;
 		} else {
