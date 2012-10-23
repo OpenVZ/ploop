@@ -1786,8 +1786,8 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		if (ret)
 			goto err;
 	} else {
-		/* Grow or shrink fs but do not change block device size*/
-		if (!mounted) {
+		/* Grow or shrink fs but do not change block device size */
+		if (!mounted && param->use_offline_shrink) {
 			/* Offline */
 			if (balloon_size != 0) {
 				/* FIXME: restore balloon size on failure */
