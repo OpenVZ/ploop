@@ -820,12 +820,7 @@ static void stop_trim_handler(int sig)
 
 static void cancel_discard(void *data)
 {
-	int fd = *(int *) data;
-	int ret;
-
-	ret = ioctl(fd, PLOOP_IOC_DISCARD_FINI);
-	if (ret < 0 && errno != EBUSY)
-		ploop_err(errno, "Can't finalize a discard mode");
+	ploop_balloon_complete(data);
 }
 
 /* The fragmentation of such blocks doesn't affect the speed of w/r */
@@ -941,7 +936,7 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 		return -1;
 	}
 
-	h = register_cleanup_hook(cancel_discard, &fd);
+	h = register_cleanup_hook(cancel_discard, (void *) device);
 
 	if (tpid == 0) {
 		if (blk_discard_range != NULL)
@@ -1037,9 +1032,12 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 
 	unregister_cleanup_hook(h);
 
-	ret = waitpid(tpid, &status, 0);
+	while ((ret = waitpid(tpid, &status, 0)))
+		 if (errno != EINTR)
+			break;
 	if (ret == -1) {
-		ploop_err(errno, "wait() failed");
+		if (errno != ECHILD)
+			ploop_err(errno, "wait() failed");
 		err = -1;
 	} else if (WIFEXITED(status)) {
 		ret = WEXITSTATUS(status);
