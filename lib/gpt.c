@@ -140,7 +140,7 @@ static int blkpg_resize_partition(int fd, struct GptEntry *pe)
 	return ioctl_device(fd, BLKPG, &ioctl_arg);
 }
 
-int resize_gpt_partition(const char *devname)
+int resize_gpt_partition(const char *devname, __u64 new_size)
 {
 	unsigned char buf[SECTOR_SIZE*GPT_DATA_SIZE]; // LBA1 header, LBA2-34 partition entry
 	int fd;
@@ -151,12 +151,22 @@ int resize_gpt_partition(const char *devname)
 	off_t size;
 	__u64 tmp;
 
-	// Resize up to max available space
 	ret = ploop_get_size(devname, &size);
 	if (ret)
 		return -1;
 
-	ploop_log(1, "Resizing GPT partition to %ld", (long)size);
+	// Resize up to max available space
+	if (new_size == 0)
+		new_size = size;
+
+	if (new_size > size) {
+		ploop_err(0, "Unable to resize GPT partition:"
+				" incorrect parameter new_size=%llu size=%lu",
+				new_size, (long)size);
+		return -1;
+	}
+
+	ploop_log(1, "Resizing GPT partition to %ld", (long)new_size);
 	fd = open(devname, O_RDWR);
 	if (fd == -1) {
 		ploop_err(errno, "open %s", devname);
@@ -182,8 +192,8 @@ int resize_gpt_partition(const char *devname)
 		goto err;
 	}
 	// change GPT header
-	pt->alternate_lba = size - 1;
-	pt->last_usable_lba = size - GPT_DATA_SIZE - 1;
+	pt->alternate_lba = new_size - 1;
+	pt->last_usable_lba = new_size - GPT_DATA_SIZE - 1;
 	pe->ending_lba = (pt->last_usable_lba >> 3 << 3) - 1;
 
 	// Recalculate crc32
@@ -218,14 +228,14 @@ int resize_gpt_partition(const char *devname)
 	pt->header_crc32 = pt_crc32;
 
 	ret = pwrite(fd, pe, SECTOR_SIZE * GPT_PT_ENTRY_SIZE,
-			(size - GPT_DATA_SIZE)*SECTOR_SIZE);
+			(new_size - GPT_DATA_SIZE)*SECTOR_SIZE);
 	if (ret == -1) {
 		ploop_err(errno, "Failed to store secondary GPT %s", devname);
 		goto err;
 	}
 
 	// Store Secondary GPT header
-	ret = pwrite(fd, pt, SECTOR_SIZE, (size - GPT_HEADER_SIZE)*SECTOR_SIZE);
+	ret = pwrite(fd, pt, SECTOR_SIZE, (new_size - GPT_HEADER_SIZE)*SECTOR_SIZE);
 	if (ret == -1) {
 		ploop_err(errno, "Failed to store secondary GPT header %s", devname);
 		goto err;

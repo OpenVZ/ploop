@@ -1097,6 +1097,9 @@ int ploop_blk_discard(const char* device, __u32 blocksize, __u64 start, __u64 en
 	int ret, fd;
 	__u64 range[2];
 
+	start = S2B(start);
+	end = S2B(end);
+
 	if (start >= end)
 		return 0;
 

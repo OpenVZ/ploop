@@ -1536,11 +1536,50 @@ int ploop_grow_device(const char *device, __u32 blocksize, off_t new_size)
 	return 0;
 }
 
+static int ploop_raw_discard(struct ploop_disk_images_data *di, const char *device,
+		__u32 blocksize, __u64 start, __u64 end)
+{
+	int ret;
+	char conf[PATH_MAX];
+	__u64 new_end;
+
+	new_end = start + GPT_DATA_SIZE;
+	new_end = ROUNDUP_BDSIZE(new_end, blocksize);
+
+	if (new_end >= end)
+		return 0;
+
+	ret = resize_gpt_partition(device, new_end);
+	if (ret)
+		return ret;
+
+	ret = ploop_stop_device(device);
+	if (ret)
+		return ret;
+
+	ploop_log(0, "Truncate %s %lu",
+			di->images[0]->file, (long)S2B(new_end));
+	if (truncate(di->images[0]->file, S2B(new_end))) {
+		ploop_err(errno, "Failed to truncate %s",
+				di->images[0]->file);
+		return -1;
+	}
+
+	di->size = new_end;
+	get_disk_descriptor_fname(di, conf, sizeof(conf));
+	ret = ploop_store_diskdescriptor(conf, di);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
 /* The code below works correctly only if
  *	device=/dev/ploopN
  *	part_dev_size=/dev/ploopNp1
  */
-static int shrink_device(const char *device, const char *part_device,
+static int shrink_device(struct ploop_disk_images_data *di,
+		const char *device, const char *part_device,
 		__u64 part_dev_size, __u64 new_size, __u32 blocksize)
 {
 	struct dump2fs_data data;
@@ -1548,6 +1587,8 @@ static int shrink_device(const char *device, const char *part_device,
 	__u32 part_start;
 	int ret;
 	char *p1, *p2;
+	int top, raw;
+	__u64 start, end;
 
 	p1 = strrchr(device, '/');
 	p2 = strrchr(part_device, '/');
@@ -1557,10 +1598,14 @@ static int shrink_device(const char *device, const char *part_device,
 				part_device);
 		return SYSEXIT_SYSFS;
 	}
+	ret = ploop_get_attr(device, "top", &top);
+	if (ret)
+		return SYSEXIT_SYSFS;
 
-	ploop_log(0, "Offline shrink dev=%s size=%llu start=%u",
+	raw = (di->mode == PLOOP_RAW_MODE && top == 0);
+	ploop_log(0, "Offline shrink %s dev=%s size=%llu start=%u",
+			(raw) ? "raw" : "",
 			part_device, part_dev_size, part_start);
-
 	if (e2fsck(part_device))
 		return -1;
 
@@ -1572,18 +1617,16 @@ static int shrink_device(const char *device, const char *part_device,
 	if (dumpe2fs(part_device, &data))
 		return -1;
 
-	ret = ploop_blk_discard(device, blocksize,
-			S2B(part_start) + (data.block_count * data.block_size),
-			S2B(part_start) + S2B(part_dev_size));
+	start = part_start + B2S(data.block_count * data.block_size);
+	end = part_start + part_dev_size;
+	if (raw)
+		ret = ploop_raw_discard(di, device, blocksize, start, end);
+	else
+		ret = ploop_blk_discard(device, blocksize, start, end);
+
 	if (ret)
 		return ret;
 
-	/* TODO
-	 * update GPT
-	 * update size in ploop header (+ zero index table)
-	 * update size in DiskDescriptor.xml
-	 * add logic to the ploop_fsck to check partition & device size validity
-	 */
 	return 0;
 }
 
@@ -1603,6 +1646,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 	struct statfs fs;
 	unsigned long long new_size;
 	__u32 blocksize = 0;
+	__u64 new_fs_size;
 
 	if (di->nimages == 0) {
 		ploop_err(0, "No images in DiskDescriptor");
@@ -1635,6 +1679,8 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		mounted = 1;
 	}
 
+	//FIXME: Deny resize image if there are childs
+
 	ret = SYSEXIT_SYSFS;
 	if (ploop_get_attr(mount_param.device, "block_size", (int *)&blocksize))
 		goto err;
@@ -1654,12 +1700,14 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 	if (ret)
 		goto err;
 
-	if (new_size <= (dev_size - part_dev_size)) {
+	/* use (2 * blocksize) as reserved space for alligment */
+	if (new_size <= (2 * blocksize)) {
 		ploop_err(0, "Unable to change image size to %llu sectors",
 				new_size);
 		ret = SYSEXIT_PARAM;
 		goto err;
 	}
+	new_fs_size = new_size - (2 * blocksize);
 
 	ret = get_balloon(mount_param.target, &st, &balloonfd);
 	if (ret)
@@ -1729,18 +1777,16 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			goto err;
 		}
 
-		ret = resize_gpt_partition(mount_param.device);
+		ret = resize_gpt_partition(mount_param.device, 0);
 		if (ret)
 			goto err;
 
 		/* resize up to the end of device */
-		ret = resize_fs(part_device, 0);
+		ret = resize_fs(part_device, new_fs_size);
 		if (ret)
 			goto err;
 	} else {
-		__u64 new_fs_size = new_size - (dev_size - part_dev_size);
-
-		/*  SHRINK */
+		/* Grow or shrink fs but do not change block device size*/
 		if (!mounted) {
 			/* Offline */
 			if (balloon_size != 0) {
@@ -1758,7 +1804,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 				goto err;
 			}
 
-			ret = shrink_device(mount_param.device, part_device, part_dev_size,
+			ret = shrink_device(di, mount_param.device, part_device, part_dev_size,
 					new_fs_size, blocksize);
 			if (ret)
 				goto err;
