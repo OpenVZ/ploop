@@ -142,7 +142,8 @@ int resize_fs(const char *device, off_t size_sec)
 	argv[1] = "-p";
 	argv[2] = (char *)device;
 	if (size_sec) {
-		snprintf(buf, sizeof(buf), "%lus", (long)size_sec);
+		// align size to 4K
+		snprintf(buf, sizeof(buf), "%luk", (long)(size_sec >> 3 << 3) >> 1);
 		argv[3] = buf;
 	} else
 		argv[3] = NULL;

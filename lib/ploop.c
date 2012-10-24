@@ -1604,9 +1604,9 @@ static int shrink_device(struct ploop_disk_images_data *di,
 		return SYSEXIT_SYSFS;
 
 	raw = (di->mode == PLOOP_RAW_MODE && top == 0);
-	ploop_log(0, "Offline shrink %s dev=%s size=%lu start=%u",
+	ploop_log(0, "Offline shrink %s dev=%s size=%lu new_size=%lu, start=%u",
 			(raw) ? "raw" : "",
-			part_device, (long)part_dev_size, part_start);
+			part_device, (long)part_dev_size, (long)new_size, part_start);
 	if (e2fsck(part_device))
 		return -1;
 
@@ -1702,13 +1702,13 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		goto err;
 
 	/* use (2 * blocksize) as reserved space for alligment */
-	if (new_size <= (2 * blocksize)) {
+	if (new_size <= (4 * blocksize)) {
 		ploop_err(0, "Unable to change image size to %llu sectors",
 				new_size);
 		ret = SYSEXIT_PARAM;
 		goto err;
 	}
-	new_fs_size = new_size - (2 * blocksize);
+	new_fs_size = new_size - (4 * blocksize);
 
 	ret = get_balloon(mount_param.target, &st, &balloonfd);
 	if (ret)
