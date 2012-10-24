@@ -1090,7 +1090,7 @@ static int do_ploop_discard(struct ploop_disk_images_data *di,
 	return ret;
 }
 
-int ploop_blk_discard(const char* device, __u32 blocksize, __u64 start, __u64 end)
+int ploop_blk_discard(const char* device, __u32 blocksize, off_t start, off_t end)
 {
 	int ret, fd;
 	__u64 range[2];

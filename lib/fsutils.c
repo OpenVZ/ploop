@@ -127,7 +127,7 @@ static char *get_resize_prog(void)
 	return NULL;
 }
 
-int resize_fs(const char *device, __u64 size_sec)
+int resize_fs(const char *device, off_t size_sec)
 {
 	char *prog;
 	char *argv[5];
@@ -142,7 +142,7 @@ int resize_fs(const char *device, __u64 size_sec)
 	argv[1] = "-p";
 	argv[2] = (char *)device;
 	if (size_sec) {
-		snprintf(buf, sizeof(buf), "%llus", size_sec);
+		snprintf(buf, sizeof(buf), "%lus", (long)size_sec);
 		argv[3] = buf;
 	} else
 		argv[3] = NULL;

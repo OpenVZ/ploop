@@ -1229,6 +1229,7 @@ static int check_mount_restrictions(struct ploop_mount_param *param, const char 
 			return -1;
 		}
 		close(fd);
+
 		if (!(flags & EXT4_EXTENTS_FL)) {
 			ploop_err(0, "The ploop image can not be used on ext3 or ext4 file"
 					" system without extents.");
@@ -1537,11 +1538,11 @@ int ploop_grow_device(const char *device, __u32 blocksize, off_t new_size)
 }
 
 static int ploop_raw_discard(struct ploop_disk_images_data *di, const char *device,
-		__u32 blocksize, __u64 start, __u64 end)
+		__u32 blocksize, off_t start, off_t end)
 {
 	int ret;
 	char conf[PATH_MAX];
-	__u64 new_end;
+	off_t new_end;
 
 	new_end = start + GPT_DATA_SIZE;
 	new_end = ROUNDUP_BDSIZE(new_end, blocksize);
@@ -1580,7 +1581,7 @@ static int ploop_raw_discard(struct ploop_disk_images_data *di, const char *devi
  */
 static int shrink_device(struct ploop_disk_images_data *di,
 		const char *device, const char *part_device,
-		__u64 part_dev_size, __u64 new_size, __u32 blocksize)
+		off_t part_dev_size, off_t new_size, __u32 blocksize)
 {
 	struct dump2fs_data data;
 	char buf[PATH_MAX];
@@ -1588,7 +1589,7 @@ static int shrink_device(struct ploop_disk_images_data *di,
 	int ret;
 	char *p1, *p2;
 	int top, raw;
-	__u64 start, end;
+	off_t start, end;
 
 	p1 = strrchr(device, '/');
 	p2 = strrchr(part_device, '/');
@@ -1603,9 +1604,9 @@ static int shrink_device(struct ploop_disk_images_data *di,
 		return SYSEXIT_SYSFS;
 
 	raw = (di->mode == PLOOP_RAW_MODE && top == 0);
-	ploop_log(0, "Offline shrink %s dev=%s size=%llu start=%u",
+	ploop_log(0, "Offline shrink %s dev=%s size=%lu start=%u",
 			(raw) ? "raw" : "",
-			part_device, part_dev_size, part_start);
+			part_device, (long)part_dev_size, part_start);
 	if (e2fsck(part_device))
 		return -1;
 
@@ -1646,7 +1647,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 	struct statfs fs;
 	unsigned long long new_size;
 	__u32 blocksize = 0;
-	__u64 new_fs_size;
+	off_t new_fs_size;
 
 	if (di->nimages == 0) {
 		ploop_err(0, "No images in DiskDescriptor");
@@ -1830,9 +1831,9 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 				new_balloon_size = blocks - new_fs_size;
 				available_balloon_size = balloon_size + (fs.f_bfree * B2S(fs.f_bsize));
 				if (available_balloon_size < new_balloon_size) {
-					ploop_err(0, "Unable to change image size to %llu "
+					ploop_err(0, "Unable to change image size to %lu "
 							"sectors, minimal size is %llu",
-							new_fs_size,
+							(long)new_fs_size,
 							(blocks - available_balloon_size));
 					ret = SYSEXIT_PARAM;
 					goto err;

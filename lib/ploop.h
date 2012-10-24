@@ -296,7 +296,7 @@ PL_EXT int ploop_discard_get_stat_by_dev(const char *device, const char *mount_p
 		struct ploop_discard_stat *pd_stat);
 PL_EXT int ploop_discard_by_dev(const char *device, const char *mount_point,
 		__u64 minlen_b, __u64 to_free, const int *stop);
-int ploop_blk_discard(const char* device, __u32 blocksize, __u64 start, __u64 end);
+int ploop_blk_discard(const char* device, __u32 blocksize, off_t start, off_t end);
 
 /* lock */
 int ploop_lock_di(struct ploop_disk_images_data *di);
@@ -308,7 +308,7 @@ void ploop_unlock(int *lckfd);
 int get_partition_device_name(const char *device, char *out, int size);
 int make_fs(const char *device, const char *fstype);
 void tune_fs(const char *target, const char *device, unsigned long long size);
-int resize_fs(const char *device, __u64 blocks);
+int resize_fs(const char *device, off_t blocks);
 int dumpe2fs(const char *device, struct dump2fs_data *data);
 int e2fsck(const char *device);
 int create_gpt_partition(const char *dev, off_t size, __u32 blocksize);
