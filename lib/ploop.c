@@ -1680,7 +1680,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		mounted = 1;
 	}
 
-	//FIXME: Deny resize image if there are childs
+	/* FIXME: Deny resize image if there are children */
 
 	ret = SYSEXIT_SYSFS;
 	if (ploop_get_attr(mount_param.device, "block_size", (int *)&blocksize))
@@ -1702,7 +1702,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		goto err;
 
 	if (new_size != 0) {
-		/* use (2 * blocksize) as reserved space for alligment */
+		/* use (4 * blocksize) as reserved space for alignment */
 		if (new_size <= (4 * blocksize)) {
 			ploop_err(0, "Unable to change image size to %llu sectors",
 					new_size);
