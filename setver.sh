@@ -20,15 +20,14 @@ while test -n "$1"; do
 	   -v|--verbose)
 		verbose=yes
 		;;
-	   -c|--clean)
-		clean=yes
-		;;
 	   *)
 		echo "Invalid argument: $1" 1>&2
 		exit 1
 	esac
 	shift
 done
+
+test "$build" = "yes" && clean="yes"
 
 RPM_SPEC=ploop.spec
 
