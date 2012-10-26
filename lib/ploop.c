@@ -988,7 +988,7 @@ static int ploop_mount_fs(struct ploop_mount_param *param)
 	 * 1 mount ro and read balloon inode
 	 * 2 remount with balloon_ino=ino
 	 */
-	if (mount(part_device, param->target,	fstype, MS_RDONLY, NULL)) {
+	if (mount(part_device, param->target, fstype, MS_RDONLY, param->mount_data)) {
 		ploop_err(errno, "Can't mount file system dev=%s target=%s",
 				part_device, param->target);
 		return SYSEXIT_MOUNT;
