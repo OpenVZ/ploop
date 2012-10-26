@@ -71,10 +71,6 @@ fi
 test -z "$verbose" || \
 	grep -E -H '^Version:|^%define rel|^Source:|^%setup' $RPM_SPEC
 
-# Set version in configure.ac from spec
-read_spec
-SPEC_VR=$(echo $SPEC_VR | sed 's/-1$//')
-
 test "$build" = "yes" || exit 0
 make rpms || exit 1
 
