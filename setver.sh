@@ -29,7 +29,8 @@ done
 
 test "$build" = "yes" && clean="yes"
 
-RPM_SPEC=ploop.spec
+NAME=ploop
+RPM_SPEC=${NAME}.spec
 
 # Try to figure out version from git
 GIT_DESC=$(git describe --tags | sed s'/^[^0-9]*-\([0-9].*\)$/\1/')
@@ -74,4 +75,4 @@ test "$build" = "yes" || exit 0
 make rpms || exit 1
 
 test -z "$install" && exit 0
-sudo rpm -${install}hv $(rpm --eval %{_rpmdir}/%{_arch})/ploop-*${GIT_VR}*.rpm
+sudo rpm -${install}hv $(rpm --eval %{_rpmdir}/%{_arch})/${NAME}-*${GIT_VR}*.rpm
