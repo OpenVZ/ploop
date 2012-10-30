@@ -74,5 +74,14 @@ test -z "$verbose" || \
 test "$build" = "yes" || exit 0
 make rpms || exit 1
 
+# Remove dist tarball
+test "$clean" = "yes" && rm -f ${NAME}-${GIT_VR}.tar.bz2
+
 test -z "$install" && exit 0
 sudo rpm -${install}hv $(rpm --eval %{_rpmdir}/%{_arch})/${NAME}-*${GIT_VR}*.rpm
+
+# Remove rpms
+if test "$clean" = "yes"; then
+	rm -f $(rpm --eval %{_rpmdir}/%{_arch})/${NAME}-*${GIT_VR}*.rpm
+	rm -f $(rpm --eval %{_srcrpmdir})/${NAME}-*${GIT_VR}*.src.rpm
+fi
