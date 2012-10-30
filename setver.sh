@@ -49,7 +49,7 @@ read_spec
 # Store original spec
 if test "$clean" = "yes"; then
 	cp -a $RPM_SPEC .$RPM_SPEC.$$
-	trap "cp -a .$RPM_SPEC.$$ $RPM_SPEC" EXIT
+	trap "mv -f .$RPM_SPEC.$$ $RPM_SPEC" EXIT
 fi
 
 # Set version/release in spec from git
