@@ -236,7 +236,7 @@ static int get_temp_mountpoint(const char *file, int create, char *buf, int len)
 	return 0;
 }
 
-static int check_blockdev_size(unsigned long long sectors, __u32 blocksize)
+static int check_size(unsigned long long sectors)
 {
 	const unsigned long long max = (__u32)-1;
 
@@ -246,6 +246,14 @@ static int check_blockdev_size(unsigned long long sectors, __u32 blocksize)
 				sectors, max);
 		return -1;
 	}
+	return 0;
+}
+
+static int check_blockdev_size(unsigned long long sectors, __u32 blocksize)
+{
+	if (check_size(sectors))
+		return -1;
+
 	if (sectors % blocksize) {
 		ploop_err(0, "An incorrect block device size is specified: %llu sectors."
 				" The block device size must be aligned to the cluster block size %d.",
@@ -637,6 +645,9 @@ int ploop_create_image(struct ploop_create_param *param)
 	int ret;
 	__u32 blocksize;
 
+	if (check_size(param->size))
+		return SYSEXIT_PARAM;
+
 	blocksize = param->blocksize ?
 			param->blocksize : (1 << PLOOP1_DEF_CLUSTER_LOG);
 	if (!is_valid_blocksize(blocksize)) {
@@ -650,7 +661,7 @@ int ploop_create_image(struct ploop_create_param *param)
 		return SYSEXIT_NOMEM;
 	di->blocksize = blocksize;
 	ret = create_image(di, param->image, di->blocksize,
-			ROUNDUP_BDSIZE(param->size, di->blocksize),
+			ROUND_BDSIZE(param->size, di->blocksize),
 			param->mode);
 	if (ret)
 		goto out;
@@ -1654,6 +1665,9 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		return -1;
 	}
 
+	if (check_size(param->size))
+		return SYSEXIT_PARAM;
+
 	if (ploop_lock_di(di))
 		return SYSEXIT_LOCK;
 
@@ -1686,9 +1700,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 	if (ploop_get_attr(mount_param.device, "block_size", (int *)&blocksize))
 		goto err;
 
-	new_size = ROUNDUP_BDSIZE(param->size, blocksize);
-	if (check_blockdev_size(new_size, blocksize))
-		goto err;
+	new_size = ROUND_BDSIZE(param->size, blocksize);
 
 	ret = get_partition_device_name(mount_param.device, part_device, sizeof(part_device));
 	if (ret)
