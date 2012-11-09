@@ -2189,6 +2189,10 @@ int ploop_switch_snapshot(struct ploop_disk_images_data *di, const char *guid, i
 		ret = SYSEXIT_RENAME;
 		goto err_cleanup3;
 	}
+
+	/* destroy precached info */
+	drop_statfs_info(di->images[0]->file);
+
 	if (old_top_delta_fname != NULL) {
 		ploop_log(0, "Removing %s", old_top_delta_fname);
 		if (unlink(old_top_delta_fname))
