@@ -644,12 +644,15 @@ int ploop_create_image(struct ploop_create_param *param)
 			ROUNDUP_BDSIZE(param->size, di->blocksize),
 			param->mode);
 	if (ret)
-		return ret;
+		goto out;
+
 	if (param->fstype != NULL) {
 		ret = ploop_init_image(di, param);
 		if (ret)
 			ploop_drop_image(di);
 	}
+
+out:
 	ploop_free_diskdescriptor(di);
 
 	return ret;
