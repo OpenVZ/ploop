@@ -1421,7 +1421,7 @@ int ploop_umount_image(struct ploop_disk_images_data *di)
 	if (ret != 0) {
 		ploop_unlock_di(di);
 		ploop_err(0, "Image %s is not mounted", di->images[0]->file);
-		return -1;
+		return SYSEXIT_DEV_NOT_MOUNTED;
 	}
 
 	ret = ploop_complete_running_operation(dev);
