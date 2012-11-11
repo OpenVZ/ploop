@@ -502,7 +502,7 @@ static int plooptool_rm(int argc, char **argv)
 
 	lfd = open(rmopts.device, O_RDONLY);
 	if (lfd < 0) {
-		perror("open dev");
+		perror("Can't open device");
 		return SYSEXIT_DEVICE;
 	}
 
