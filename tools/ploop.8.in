@@ -73,6 +73,12 @@ ploop \- ploop device management utility
 .I uuid
 .I DiskDescriptor.xml
 .YS
+.SY ploop\ snapshot-list
+.OP -H
+.OP -u uuid
+.OP -o field\fR[,\fIfield\fR...]
+.I DiskDescriptor.xml
+.YS
 
 .SH DESCRIPTION
 
@@ -306,6 +312,32 @@ fashion).
 
 .IP "\fB-u\fR \fIuuid\fR"
 Specify a snapshot \fIuuid\fR to be deleted.
+.P
+.SS3 snapshot-list
+.P
+List available snapshots.
+
+.SY ploop\ snapshot-list
+.OP -H
+.OP -u uuid
+.OP -o field\fR[,\fIfield\fR...]
+.I DiskDescriptor.xml
+.YS
+
+.IP "\fB-H\fR, \fB--no-header\fR"
+Suppress displaying the header row. Usable for scripts.
+.IP "\fB-u\fR, \fB--uuid\fR, \fB--id\fR \fIuuid\fR"
+Filter the output to a specified \fIuuid\fR.
+.IP "\fB-o\fR, \fB--output\fR \fIfield\fR[,\fIfield\fR...]"
+Display only the specified \fIfield\fRs. Possible fields are:
+.br
+\(bu \fBuuid\fR		- snapshot's UUID;
+.br
+\(bu \fBparent_uuid\fR	- snapshot's parent UUID;
+.br
+\(bu \fBcurrent\fR	- if this snapshot is the current one;
+.br
+\(bu \fBfname\fR	- snapshot image file name.
 
 .SS ADVANCED COMMANDS
 .P
