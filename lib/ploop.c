@@ -1200,6 +1200,9 @@ err:
 #ifndef FS_IOC_GETFLAGS
 #define FS_IOC_GETFLAGS	_IOR('f', 1, long)
 #endif
+#ifndef EXT4_EXTENTS_FL
+#define EXT4_EXTENTS_FL		0x00080000 /* Inode uses extents */
+#endif
 
 static int check_mount_restrictions(struct ploop_mount_param *param, const char *fname)
 {

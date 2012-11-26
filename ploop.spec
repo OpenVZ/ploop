@@ -10,6 +10,7 @@ Source: %{name}-%{version}.tar.bz2
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 Requires: ploop-lib = %{version}
 BuildRequires: libxml2-devel
+BuildRequires: e2fsprogs-devel
 
 %description
 This package contains tools to work with ploop devices and images.
