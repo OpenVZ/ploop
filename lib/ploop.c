@@ -1416,7 +1416,7 @@ int ploop_umount_image(struct ploop_disk_images_data *di)
 	ret = ploop_find_dev_by_uuid(di, 0, dev, sizeof(dev));
 	if (ret == -1) {
 		ploop_unlock_di(di);
-		return -1;
+		return SYSEXIT_SYS;
 	}
 	if (ret != 0) {
 		ploop_unlock_di(di);
