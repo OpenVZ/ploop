@@ -474,8 +474,16 @@ static int create_image(struct ploop_disk_images_data *di,
 	char fname[PATH_MAX];
 	struct stat st;
 
-	if (size_sec == 0 || file == NULL)
+	if (size_sec == 0) {
+		ploop_err(0, "Incorrect block device size specified: "
+				"%lu sectors", (long)size_sec);
 		return SYSEXIT_PARAM;
+	}
+	if (file == NULL) {
+		ploop_err(0, "Image file name not specified");
+		return SYSEXIT_PARAM;
+	}
+
 	if (stat(file, &st) == 0) {
 		ploop_err(0, "File already exists %s", file);
 		return SYSEXIT_PARAM;
