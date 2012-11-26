@@ -33,6 +33,8 @@
 #include "ploop.h"
 #include "common.h"
 
+extern int plooptool_snapshot_list(int argc, char **argv);
+
 static void usage_summary(void)
 {
 	fprintf(stderr, "Usage: ploop init -s SIZE [-f FORMAT] NEW_DELTA\n"
@@ -48,6 +50,7 @@ static void usage_summary(void)
 			"       ploop snapshot-delete -u <uuid> DiskDescriptor.xml\n"
 			"       ploop snapshot-merge [-u <uuid>] DiskDescriptor.xml\n"
 			"       ploop snapshot-switch -u <uuid> DiskDescriptor.xml\n"
+			"       ploop snapshot-list [-o field[,field...]] [--uuid <UUID>] DiskDescriptor.xml\n"
 			"Also:  ploop { stat | start | stop | clear } ...\n"
 	       );
 }
@@ -975,6 +978,8 @@ int main(int argc, char **argv)
 		return plooptool_snapshot_delete(argc, argv);
 	if (strcmp(cmd, "snapshot-merge") == 0)
 		return plooptool_snapshot_merge(argc, argv);
+	if (strcmp(cmd, "snapshot-list") == 0)
+		return plooptool_snapshot_list(argc, argv);
 	if (strcmp(cmd, "getdev") == 0)
 		return plooptool_getdevice(argc, argv);
 	if (strcmp(cmd, "resize") == 0)

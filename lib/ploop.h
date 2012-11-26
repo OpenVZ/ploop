@@ -270,8 +270,8 @@ int ploop_di_remove_image(struct ploop_disk_images_data *di, const char *guid,
 		int renew_top_uuid, char **fname);
 int ploop_di_merge_image(struct ploop_disk_images_data *di, const char *guid, char **fname);
 void ploop_di_change_guid(struct ploop_disk_images_data *di, const char *guid, const char *new_guid);
-char *find_image_by_guid(struct ploop_disk_images_data *di, const char *guid);
-int find_snapshot_by_guid(struct ploop_disk_images_data *di, const char *guid);
+PL_EXT char *find_image_by_guid(struct ploop_disk_images_data *di, const char *guid);
+PL_EXT int find_snapshot_by_guid(struct ploop_disk_images_data *di, const char *guid);
 int ploop_add_image_entry(struct ploop_disk_images_data *di, const char *fname, const char *guid);
 int ploop_add_snapshot_entry(struct ploop_disk_images_data *di, const char *guid,
 		const char *parent_guid);
@@ -314,12 +314,12 @@ int get_statfs_info(const char *mnt, struct ploop_info *info);
 int ploop_get_child_count_by_uuid(struct ploop_disk_images_data *di, const char *guid);
 int ploop_get_child_by_uuid(struct ploop_disk_images_data *di, const char *guid,  char **child_guid);
 int ploop_fname_cmp(const char *p1, const char *p2);
-int is_valid_guid(const char *guid);
+PL_EXT int is_valid_guid(const char *guid);
 PL_EXT int read_line(const char *path, char *nbuf, int len);
 int read_line_quiet(const char *path, char *nbuf, int len);
 int is_valid_blocksize(__u32 blocksize);
 int run_prg(char *const argv[]);
-int guidcmp(const char *p1, const char *p2);
+PL_EXT int guidcmp(const char *p1, const char *p2);
 int auto_mount_image(struct ploop_disk_images_data *di,
 		struct ploop_mount_param *param);
 void free_mount_param(struct ploop_mount_param *param);

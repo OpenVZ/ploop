@@ -10,8 +10,8 @@ PROGS =	ploop \
 
 MAN8	= ploop.8
 MANS	= $(MAN8)
-OBJS	= $(addsuffix .o,$(PROGS)) common.o
-SOURCES	= $(addsuffix .c,$(PROGS)) common.c
+OBJS	= $(addsuffix .o,$(PROGS)) common.o ploop-snapshot.o
+SOURCES	= $(addsuffix .c,$(PROGS)) common.c ploop-snapshot.c
 CFLAGS	+= -I../lib
 LDFLAGS	+= -L../lib
 LDLIBS	+= -lploop
@@ -24,6 +24,8 @@ $(PROGS): $(LIBPLOOP)
 %: %.o common.o
 	$(E) "  LD      " $@
 	$(Q) $(CC) $(CFLAGS) $(LDFLAGS) $^ $(LDLIBS) -o $@
+
+ploop: ploop-snapshot.o
 
 .depend: $(SOURCES)
 -include .depend
