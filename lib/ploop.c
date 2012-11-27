@@ -2091,12 +2091,29 @@ static int ploop_get_info(struct ploop_disk_images_data *di, struct ploop_info *
 
 	if (ploop_lock_di(di))
 		return SYSEXIT_LOCK;
-	if (ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev)) == 0 &&
-			get_mount_dir(dev, mnt, sizeof(mnt)) == 0)
-	{
+
+	ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
+	if (ret == -1)
+		goto err;
+	if (ret == 0) {
+		ret = get_mount_dir(dev, mnt, sizeof(mnt));
+		if (ret)
+			goto err;
 		ret = get_statfs_info(mnt, info);
+	} else {
+		/* reinit .statfs */
+		struct ploop_mount_param param = {};
+
+		ret = auto_mount_image(di, &param);
+		if (ret == 0)
+			ploop_umount(param.device, di);
+		free_mount_param(&param);
+		ret = read_statfs_info(di->images[0]->file, info);
+		if (ret)
+			goto err;
 	}
 
+err:
 	ploop_unlock_di(di);
 
 	return ret;
