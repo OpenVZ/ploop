@@ -97,7 +97,7 @@ int get_balloon(const char *mount_point, struct stat *st, int *outfd)
 	int fd, fd2;
 
 	if (mount_point == NULL)
-		return -1;
+		return SYSEXIT_PARAM;
 
 	fd = open(mount_point, O_RDONLY);
 	if (fd < 0) {
