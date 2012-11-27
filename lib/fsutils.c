@@ -136,7 +136,7 @@ int resize_fs(const char *device, off_t size_sec)
 	prog = get_resize_prog();
 	if (prog == NULL) {
 		ploop_err(0, "ext4 file system resizer not found");
-		return -1;
+		return SYSEXIT_SYS;
 	}
 	argv[0] = prog;
 	argv[1] = "-p";
