@@ -1662,7 +1662,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 
 	if (di->nimages == 0) {
 		ploop_err(0, "No images in DiskDescriptor");
-		return -1;
+		return SYSEXIT_DISKDESCR;
 	}
 
 	if (check_size(param->size))
