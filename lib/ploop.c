@@ -1674,8 +1674,10 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		return SYSEXIT_LOCK;
 
 	ret = ploop_find_dev_by_uuid(di, 1, buf, sizeof(buf));
-	if (ret == -1)
+	if (ret == -1) {
+		ret = SYSEXIT_SYS;
 		goto err;
+	}
 	if (ret != 0) {
 		ret = auto_mount_image(di, &mount_param);
 		if (ret)
@@ -1705,8 +1707,10 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 	new_size = ROUND_BDSIZE(param->size, blocksize);
 
 	ret = get_partition_device_name(mount_param.device, part_device, sizeof(part_device));
-	if (ret)
+	if (ret) {
+		ret = SYSEXIT_SYS;
 		goto err;
+	}
 
 	ret = ploop_get_size(mount_param.device, &dev_size);
 	if (ret)
@@ -1818,6 +1822,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			ret = do_umount(mount_param.target);
 			if (ret) {
 				ploop_err(errno, "umount %s failed", mount_param.target);
+				ret = SYSEXIT_UMOUNT;
 				goto err;
 			}
 
