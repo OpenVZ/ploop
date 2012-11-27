@@ -78,7 +78,7 @@ static int fill_opts(void)
 	if (!device && mount_point) {
 		if (ploop_get_dev_by_mnt(mount_point, _device, sizeof(_device))) {
 			fprintf(stderr, "Unable to find ploop device by %s\n", mount_point);
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 		device = _device;
 		return 0;
@@ -87,7 +87,7 @@ static int fill_opts(void)
 	if (!mount_point && device) {
 		if (ploop_get_mnt_by_dev(device, _mount_point, sizeof(_mount_point))) {
 			fprintf(stderr, "Unable to find mount point for %s\n", device);
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 		mount_point = _mount_point;
 		return 0;
@@ -131,7 +131,7 @@ static int pb_show(int argc, char **argv)
 			break;
 		default:
 			usage_show();
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 	}
 
@@ -141,7 +141,7 @@ static int pb_show(int argc, char **argv)
 	GET_DD(argc, argv);
 	if (argc != 0 || fill_opts()) {
 		usage_show();
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	ret = get_balloon(mount_point, &st, NULL);
@@ -179,7 +179,7 @@ static int pb_status(int argc, char **argv)
 			break;
 		default:
 			usage_status();
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 	}
 
@@ -189,7 +189,7 @@ static int pb_status(int argc, char **argv)
 	GET_DD(argc, argv);
 	if (argc != 0 || fill_opts()) {
 		usage_status();
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	ret = ploop_balloon_get_state(device, &state);
@@ -225,7 +225,7 @@ static int pb_clear(int argc, char **argv)
 			break;
 		default:
 			usage_clear();
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 	}
 
@@ -235,7 +235,7 @@ static int pb_clear(int argc, char **argv)
 	GET_DD(argc, argv);
 	if (argc != 0 || fill_opts()) {
 		usage_clear();
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	ret = get_balloon(mount_point, NULL, &fd2);
@@ -272,7 +272,7 @@ static int pb_change(int argc, char **argv)
 			/* NB: currently, new_size is in 'sector' units */
 			if (parse_size(optarg, &new_size)) {
 				usage_change();
-				return -1;
+				return SYSEXIT_PARAM;
 			}
 			new_size_set++;
 			break;
@@ -284,7 +284,7 @@ static int pb_change(int argc, char **argv)
 			break;
 		default:
 			usage_change();
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 	}
 
@@ -294,7 +294,7 @@ static int pb_change(int argc, char **argv)
 	GET_DD(argc, argv);
 	if (argc != 0 || !new_size_set || fill_opts()) {
 		usage_change();
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 	ret = get_balloon(mount_point, NULL, &fd);
 	if (ret)
@@ -328,7 +328,7 @@ static int pb_complete(int argc, char **argv)
 			break;
 		default:
 			usage_complete();
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 	}
 
@@ -338,7 +338,7 @@ static int pb_complete(int argc, char **argv)
 	GET_DD(argc, argv);
 	if (argc != 0 || fill_opts()) {
 		usage_complete();
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	ret = get_balloon(mount_point, NULL, &fd);
@@ -386,7 +386,7 @@ static int pb_check_and_repair(int argc, char **argv, int repair)
 				usage_repair();
 			else
 				usage_check();
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 	}
 
@@ -399,7 +399,7 @@ static int pb_check_and_repair(int argc, char **argv, int repair)
 			usage_repair();
 		else
 			usage_check();
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	return ploop_balloon_check_and_repair(device, mount_point, repair);
@@ -478,7 +478,7 @@ static int pb_discard(int argc, char **argv)
 			break;
 		default:
 			usage_discard();
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 	}
 
@@ -527,7 +527,7 @@ int main(int argc, char **argv)
 
 	if (argc < 2) {
 		usage_summary();
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	cmd = argv[1];
@@ -555,5 +555,5 @@ int main(int argc, char **argv)
 		return pb_discard(argc, argv);
 
 	usage_summary();
-	return -1;
+	return SYSEXIT_PARAM;
 }
