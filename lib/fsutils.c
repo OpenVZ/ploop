@@ -175,7 +175,7 @@ int dumpe2fs(const char *device, struct dump2fs_data *data)
 	fp = popen(cmd, "r");
 	if (fp == NULL) {
 		ploop_err(0, "Failed %s", cmd);
-		return -1;
+		return SYSEXIT_SYS;
 	}
 
 	while (fgets(buf, sizeof(buf), fp) != NULL) {
@@ -192,11 +192,11 @@ int dumpe2fs(const char *device, struct dump2fs_data *data)
 
 	if (pclose(fp)) {
 		ploop_err(0, "failed %s", cmd);
-		return -1;
+		return SYSEXIT_SYS;
 	}
 	if (found) {
 		ploop_err(0, "Not enough data: %s (0x%x)", cmd, found);
-		return -1;
+		return SYSEXIT_SYS;
 	}
 
 	return 0;

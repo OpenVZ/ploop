@@ -1627,8 +1627,9 @@ static int shrink_device(struct ploop_disk_images_data *di,
 	if (ret)
 		return ret;
 
-	if (dumpe2fs(part_device, &data))
-		return -1;
+	ret = dumpe2fs(part_device, &data);
+	if (ret)
+		return ret;
 
 	start = part_start + B2S(data.block_count * data.block_size);
 	end = part_start + part_dev_size;
