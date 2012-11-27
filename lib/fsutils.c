@@ -212,6 +212,7 @@ int e2fsck(const char *device)
 	arg[3] = NULL;
 
 	if (run_prg(arg))
-		return -1;
+		return SYSEXIT_FSCK;
+
 	return 0;
 }

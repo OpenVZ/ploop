@@ -1618,8 +1618,9 @@ static int shrink_device(struct ploop_disk_images_data *di,
 	ploop_log(0, "Offline shrink %s dev=%s size=%lu new_size=%lu, start=%u",
 			(raw) ? "raw" : "",
 			part_device, (long)part_dev_size, (long)new_size, part_start);
-	if (e2fsck(part_device))
-		return -1;
+	ret = e2fsck(part_device);
+	if (ret)
+		return ret;
 
 	/* offline resize */
 	ret = resize_fs(part_device, new_size);

@@ -235,6 +235,7 @@ enum
 	SYSEXIT_PARAM,
 	SYSEXIT_DISKDESCR,
 	SYSEXIT_DEV_NOT_MOUNTED,
+	SYSEXIT_FSCK,
 };
 
 #pragma GCC visibility pop
