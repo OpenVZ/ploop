@@ -153,7 +153,7 @@ int resize_gpt_partition(const char *devname, __u64 new_size)
 
 	ret = ploop_get_size(devname, &size);
 	if (ret)
-		return -1;
+		return ret;
 
 	// Resize up to max available space
 	if (new_size == 0)
@@ -163,14 +163,14 @@ int resize_gpt_partition(const char *devname, __u64 new_size)
 		ploop_err(0, "Unable to resize GPT partition:"
 				" incorrect parameter new_size=%llu size=%lu",
 				new_size, (long)size);
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	ploop_log(1, "Resizing GPT partition to %ld", (long)new_size);
 	fd = open(devname, O_RDWR);
 	if (fd == -1) {
 		ploop_err(errno, "open %s", devname);
-		return -1;
+		return SYSEXIT_OPEN;
 	}
 	// skip LBA0 Protective MBR
 	ret = pread(fd, buf, sizeof(buf), SECTOR_SIZE);
@@ -213,6 +213,7 @@ int resize_gpt_partition(const char *devname, __u64 new_size)
 	ret = fsync(fd);
 	if (ret) {
 		ploop_err(errno, "Can't fsync %s", devname);
+		ret = SYSEXIT_FSYNC;
 		goto err;
 	}
 
@@ -245,5 +246,7 @@ int resize_gpt_partition(const char *devname, __u64 new_size)
 	ret = 0;
 err:
 	close(fd);
-	return ret != 0 ? SYSEXIT_CHANGE_GPT: 0;
+	if (ret < 0)
+		ret = SYSEXIT_CHANGE_GPT;
+	return ret;
 }
