@@ -64,7 +64,7 @@ int make_fs(const char *device, const char *fstype)
 	char *argv[8];
 
 	if (get_partition_device_name(device, part_device, sizeof(part_device)))
-		return -1;
+		return SYSEXIT_MKFS;
 	argv[0] = "/sbin/mkfs";
 	argv[1] = "-t";
 	argv[2] = (char*)fstype;
