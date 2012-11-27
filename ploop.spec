@@ -42,6 +42,7 @@ Group: Applications/System
 Requires: libxml2
 Requires: parted
 Conflicts: vzkernel < 2.6.32-042stab061.1
+Requires: e2fsprogs
 
 %description lib
 Parallels loopback (ploop) block device API library
