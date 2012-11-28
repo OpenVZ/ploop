@@ -948,7 +948,7 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 		if (ioctl_device(fd, PLOOP_IOC_DISCARD_FINI, NULL))
 			ploop_err(errno, "Can't finalize discard mode");
 
-		exit(ret < 0);
+		exit(ret != 0);
 	}
 
 	while (1) {
