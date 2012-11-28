@@ -74,7 +74,7 @@ static const __u32 crc32map[] = {
       0x2d02ef8dL
    };
 
-__u32 crc32(const unsigned char *buf, unsigned long len)
+__u32 ploop_crc32(const unsigned char *buf, unsigned long len)
 {
 	__u32 crc = 0xFFFFFFFFUL;
 

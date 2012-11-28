@@ -184,7 +184,7 @@ int resize_gpt_partition(const char *devname, __u64 new_size)
 	// Validate crc
 	orig_crc = pt->header_crc32;
 	pt->header_crc32 = 0;
-	pt_crc32 = crc32((unsigned char *)pt, pt->header_size);
+	pt_crc32 = ploop_crc32((unsigned char *)pt, pt->header_size);
 	if (pt_crc32 != orig_crc) {
 		ploop_err(0, "GPT validation failed orig crc %x != %x",
 				orig_crc, pt_crc32);
@@ -197,11 +197,11 @@ int resize_gpt_partition(const char *devname, __u64 new_size)
 	pe->ending_lba = (pt->last_usable_lba >> 3 << 3) - 1;
 
 	// Recalculate crc32
-	pe_crc32 = crc32((unsigned char *)pe, SECTOR_SIZE * GPT_PT_ENTRY_SIZE);
+	pe_crc32 = ploop_crc32((unsigned char *)pe, SECTOR_SIZE * GPT_PT_ENTRY_SIZE);
 	pt->partition_entry_array_crc32 = pe_crc32;
 
 	pt->header_crc32 = 0;
-	pt_crc32 = crc32((unsigned char *)pt, pt->header_size);
+	pt_crc32 = ploop_crc32((unsigned char *)pt, pt->header_size);
 	pt->header_crc32 = pt_crc32;
 
 	ploop_log(0, "Storing GPT");
@@ -225,7 +225,7 @@ int resize_gpt_partition(const char *devname, __u64 new_size)
 
 	// Recalculate crc32
 	pt->header_crc32 = 0;
-	pt_crc32 = crc32((unsigned char *)pt, pt->header_size);
+	pt_crc32 = ploop_crc32((unsigned char *)pt, pt->header_size);
 	pt->header_crc32 = pt_crc32;
 
 	ret = pwrite(fd, pe, SECTOR_SIZE * GPT_PT_ENTRY_SIZE,

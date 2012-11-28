@@ -319,7 +319,7 @@ int resize_gpt_partition(const char *devname, __u64 new_size);
 
 // misc
 void get_basedir(const char *fname, char *out, int len);
-__u32 crc32(const unsigned char *buf, unsigned long len);
+__u32 ploop_crc32(const unsigned char *buf, unsigned long len);
 int store_statfs_info(const char *mnt, char *image);
 int drop_statfs_info(const char *image);
 int read_statfs_info(const char *image, struct ploop_info *info);
