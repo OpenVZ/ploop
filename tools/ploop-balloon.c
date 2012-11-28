@@ -197,7 +197,7 @@ static int pb_status(int argc, char **argv)
 		return ret;
 
 	fprintf(stdout, "Current state of in-kernel maintenance: %s\n",
-	       mntn2str(state));
+			mntn2str(state));
 	return 0;
 }
 

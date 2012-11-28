@@ -52,7 +52,7 @@ static void usage_summary(void)
 			"       ploop snapshot-switch -u <uuid> DiskDescriptor.xml\n"
 			"       ploop snapshot-list [-o field[,field...]] [--uuid <UUID>] DiskDescriptor.xml\n"
 			"Also:  ploop { stat | start | stop | clear } ...\n"
-	       );
+		);
 }
 
 static void usage_init(void)
