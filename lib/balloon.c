@@ -594,7 +594,7 @@ int ploop_balloon_complete(const char *device)
 	if (fd == -1)
 		return -1;
 
-	err = ioctl(fd, PLOOP_IOC_DISCARD_FINI, NULL);
+	err = ioctl(fd, PLOOP_IOC_DISCARD_FINI);
 	if (err && errno != EBUSY) {
 		ploop_err(errno, "Can't finalize discard mode");
 		goto out;
