@@ -1574,14 +1574,14 @@ static int ploop_raw_discard(struct ploop_disk_images_data *di, const char *devi
 	if (truncate(di->images[0]->file, S2B(new_end))) {
 		ploop_err(errno, "Failed to truncate %s",
 				di->images[0]->file);
-		return -1;
+		return SYSEXIT_FTRUNCATE;
 	}
 
 	di->size = new_end;
 	get_disk_descriptor_fname(di, conf, sizeof(conf));
 	ret = ploop_store_diskdescriptor(conf, di);
 	if (ret)
-		return ret;
+		return SYSEXIT_DISKDESCR;
 
 	return 0;
 }
