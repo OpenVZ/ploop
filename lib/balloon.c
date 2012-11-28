@@ -931,10 +931,11 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 	tpid = fork();
 	if (tpid < 0) {
 		ploop_err(errno, "Can't fork");
-		if (ioctl_device(fd, PLOOP_IOC_DISCARD_FINI, NULL))
+		ret = ioctl_device(fd, PLOOP_IOC_DISCARD_FINI, NULL);
+		if (ret) {
 			ploop_err(errno, "Can't finalize discard mode");
-
-		return -1;
+			return ret;
+		}
 	}
 
 	h = register_cleanup_hook(cancel_discard, (void *) device);
@@ -1076,7 +1077,7 @@ static int do_ploop_discard(struct ploop_disk_images_data *di,
 	to_free = to_free / cluster;
 	if (!to_free) {
 		ploop_err(0, "Can't shrink by less than %d bytes", cluster);
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	fd = open_device(device);
@@ -1109,7 +1110,7 @@ int ploop_blk_discard(const char* device, __u32 blocksize, off_t start, off_t en
 	if (fd < 0) {
 		ploop_err(errno, "Can't open ploop device %s",
 				device);
-		return -1;
+		return SYSEXIT_OPEN;
 	}
 
 	ret = __ploop_discard(NULL, fd, device, NULL, 0, S2B(blocksize), ~0U, range, NULL);
