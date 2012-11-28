@@ -63,14 +63,14 @@ int main(int argc, char ** argv)
 			/* build bitmap and check for duplicate blocks */
 			flags |= FSCK_CHECK;
 			break;
+		case 'd':
+			flags |= FSCK_DROPINUSE;
+			break;
 		case 'r':
 			ro = 1;
 			break;
 		case 's':
 			silent = 1;
-			break;
-		case 'd':
-			flags |= FSCK_DROPINUSE;
 			break;
 		default:
 			usage();
