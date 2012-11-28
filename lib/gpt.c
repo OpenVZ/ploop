@@ -144,7 +144,7 @@ int resize_gpt_partition(const char *devname, __u64 new_size)
 {
 	unsigned char buf[SECTOR_SIZE*GPT_DATA_SIZE]; // LBA1 header, LBA2-34 partition entry
 	int fd;
-	int ret = -1;
+	int ret;
 	struct GptHeader *pt;
 	struct GptEntry *pe;
 	__u32 pt_crc32, pe_crc32, orig_crc;
