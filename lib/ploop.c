@@ -1660,7 +1660,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 	struct statfs fs;
 	unsigned long long new_size;
 	__u32 blocksize = 0;
-	off_t new_fs_size;
+	off_t new_fs_size = 0;
 
 	if (di->nimages == 0) {
 		ploop_err(0, "No images in DiskDescriptor");
