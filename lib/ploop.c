@@ -377,7 +377,7 @@ static int create_empty_preallocated_delta(const char *path, __u32 blocksize, of
 				l2_slot < vh.m_Size;
 				i++, l2_slot++)
 		{
-			off = vh.m_FirstBlockOffset + (l2_slot * blocksize);
+			off = (off_t)vh.m_FirstBlockOffset + (l2_slot * blocksize);
 			((__u32*)buf)[i] = off;
 		}
 		if (WRITE(odelta.fd, buf, cluster))
