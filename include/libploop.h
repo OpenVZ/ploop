@@ -26,6 +26,7 @@
 #define DISKDESCRIPTOR_XML      "DiskDescriptor.xml"
 
 #define PLOOP_SNAP_SKIP_TOPDELTA_DESTROY	0x01
+#define PLOOP_SNAP_SKIP_TOPDELTA_CREATE		0x02
 
 enum ploop_image_mode {
 	PLOOP_EXPANDED_MODE = 0,
@@ -96,6 +97,13 @@ struct ploop_snapshot_param {
 	char dummy[32];
 };
 
+struct ploop_snapshot_switch_param {
+	char *guid;
+	char *guid_old;	/* guid for old top delta */
+	int flags;
+	char dummy[32];
+};
+
 struct ploop_merge_param {
 	int unused1;
 	int merge_all;
@@ -156,6 +164,7 @@ int ploop_convert_image(struct ploop_disk_images_data *di, int mode, int flags);
 int ploop_get_info_by_descr(const char *descr, struct ploop_info *info);
 int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapshot_param *param);
 int ploop_merge_snapshot(struct ploop_disk_images_data *di, struct ploop_merge_param *param);
+int ploop_switch_snapshot_ex(struct ploop_disk_images_data *di, struct ploop_snapshot_switch_param *param);
 int ploop_switch_snapshot(struct ploop_disk_images_data *di, const char *uuid, int flags);
 int ploop_delete_snapshot(struct ploop_disk_images_data *di, const char *guid);
 int ploop_delete_top_delta(struct ploop_disk_images_data *di);

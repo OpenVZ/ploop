@@ -2378,20 +2378,23 @@ err_cleanup1:
 	return ret;
 }
 
-int ploop_switch_snapshot(struct ploop_disk_images_data *di, const char *guid, int flags)
+int ploop_switch_snapshot_ex(struct ploop_disk_images_data *di,
+		struct ploop_snapshot_switch_param *param)
 {
 	int ret;
 	int fd;
 	char dev[64];
 	char uuid[61];
 	char file_uuid[61];
-	char new_top_delta_fname[PATH_MAX];
+	char new_top_delta_fname[PATH_MAX] = "";
 	char *old_top_delta_fname = NULL;
 	char conf[PATH_MAX];
 	char conf_tmp[PATH_MAX];
 	off_t size;
+	const char *guid = param->guid;
+	int flags = param->flags;
 
-	if (guid == NULL || !is_valid_guid(guid)) {
+	if (!is_valid_guid(guid)) {
 		ploop_err(0, "Incorrect guid %s", guid);
 		return SYSEXIT_PARAM;
 	}
@@ -2423,10 +2426,6 @@ int ploop_switch_snapshot(struct ploop_disk_images_data *di, const char *guid, i
 		goto err_cleanup1;
 	}
 
-	ret = ploop_di_remove_image(di, di->top_guid, 0, &old_top_delta_fname);
-	if (ret)
-		goto err_cleanup1;
-
 	if (!(flags & PLOOP_SNAP_SKIP_TOPDELTA_DESTROY)) {
 		// device should be stopped
 		ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
@@ -2440,14 +2439,33 @@ int ploop_switch_snapshot(struct ploop_disk_images_data *di, const char *guid, i
 					dev);
 			goto err_cleanup1;
 		}
-	} else
-		old_top_delta_fname = NULL;
+		ret = ploop_di_remove_image(di, di->top_guid, 0, &old_top_delta_fname);
+		if (ret)
+			goto err_cleanup1;
+	} else if (param->guid_old != NULL) {
+		if (!is_valid_guid(param->guid_old)) {
+			ploop_err(0, "Incorrect guid %s", param->guid_old);
+			goto err_cleanup1;
+		}
 
-	snprintf(new_top_delta_fname, sizeof(new_top_delta_fname), "%s.%s",
+		if (find_snapshot_by_guid(di, param->guid_old) != -1) {
+			ploop_err(0, "Incorrect guid_old %s: already exists",
+					param->guid_old);
+			goto err_cleanup1;
+		}
+
+		ploop_di_change_guid(di, di->top_guid, param->guid_old);
+	}
+
+	if (flags & PLOOP_SNAP_SKIP_TOPDELTA_CREATE) {
+		ploop_di_change_guid(di, guid, TOPDELTA_UUID);
+	} else {
+		snprintf(new_top_delta_fname, sizeof(new_top_delta_fname), "%s.%s",
 			di->images[0]->file, file_uuid);
-	ret = ploop_di_add_image(di, new_top_delta_fname, TOPDELTA_UUID, guid);
-	if (ret)
-		goto err_cleanup1;
+		ret = ploop_di_add_image(di, new_top_delta_fname, TOPDELTA_UUID, guid);
+		if (ret)
+			goto err_cleanup1;
+	}
 
 	get_disk_descriptor_fname(di, conf, sizeof(conf));
 	snprintf(conf_tmp, sizeof(conf_tmp), "%s.tmp", conf);
@@ -2456,12 +2474,14 @@ int ploop_switch_snapshot(struct ploop_disk_images_data *di, const char *guid, i
 		goto err_cleanup1;
 
 	// offline snapshot
-	fd = create_empty_delta(new_top_delta_fname, di->blocksize, size);
-	if (fd == -1) {
-		ret = SYSEXIT_CREAT;
-		goto err_cleanup2;
+	if (!(flags & PLOOP_SNAP_SKIP_TOPDELTA_CREATE)) {
+		fd = create_empty_delta(new_top_delta_fname, di->blocksize, size);
+		if (fd == -1) {
+			ret = SYSEXIT_CREAT;
+			goto err_cleanup2;
+		}
+		close(fd);
 	}
-	close(fd);
 
 	if (rename(conf_tmp, conf)) {
 		ploop_err(errno, "Can't rename %s %s",
@@ -2494,6 +2514,16 @@ err_cleanup1:
 	free(old_top_delta_fname);
 
 	return ret;
+}
+
+int ploop_switch_snapshot(struct ploop_disk_images_data *di, const char *guid, int flags)
+{
+	struct ploop_snapshot_switch_param param = {};
+
+	param.guid = (char *) guid;
+	param.flags = flags;
+
+	return ploop_switch_snapshot_ex(di, &param);
 }
 
 int ploop_delete_top_delta(struct ploop_disk_images_data *di)
