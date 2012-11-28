@@ -77,7 +77,6 @@ static int open_device(const char *device)
 	return fd;
 }
 
-
 static int fsync_balloon(int fd)
 {
 	if (fsync(fd)) {
@@ -1014,7 +1013,6 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 			break;
 	}
 
-
 	if (ret) {
 		err = -1;
 
@@ -1064,12 +1062,13 @@ static int do_ploop_discard(struct ploop_disk_images_data *di,
 {
 	int fd, ret;
 	int blocksize;
-	__u32  cluster;
+	__u32 cluster;
 
 	if (ploop_get_attr(device, "block_size", &blocksize)) {
 		ploop_err(0, "Can't find block size");
 		return SYSEXIT_SYSFS;
 	}
+
 	cluster = S2B(blocksize);
 
 	if (to_free == 0)
@@ -1224,29 +1223,29 @@ int ploop_complete_running_operation(const char *device)
 		goto err;
 
 	ploop_log(0, "Completing an on-going operation %s for device %s",
-			mntn2str(b_ctl.mntn_type), device);
+		mntn2str(b_ctl.mntn_type), device);
 
 	switch (b_ctl.mntn_type) {
-		case PLOOP_MNTN_MERGE:
-			ret = ioctl_device(fd, PLOOP_IOC_MERGE, 0);
-			break;
-		case PLOOP_MNTN_GROW:
-			ret = ioctl_device(fd, PLOOP_IOC_GROW, 0);
-			break;
-		case PLOOP_MNTN_RELOC:
-		case PLOOP_MNTN_FBLOADED:
-			ret = ploop_balloon_complete(device);
-			break;
-		case PLOOP_MNTN_TRACK:
-			ret = ioctl_device(fd, PLOOP_IOC_TRACK_ABORT, 0);
-			break;
-		case PLOOP_MNTN_DISCARD:
-			ret = ploop_balloon_complete(device);
-			break;
-		case PLOOP_MNTN_BALLOON:
-			/*  FIXME : ploop_balloon_check_and_repair(device, mount_point, 1; */
-			ret = 0;
-			break;
+	case PLOOP_MNTN_MERGE:
+		ret = ioctl_device(fd, PLOOP_IOC_MERGE, 0);
+		break;
+	case PLOOP_MNTN_GROW:
+		ret = ioctl_device(fd, PLOOP_IOC_GROW, 0);
+		break;
+	case PLOOP_MNTN_RELOC:
+	case PLOOP_MNTN_FBLOADED:
+		ret = ploop_balloon_complete(device);
+		break;
+	case PLOOP_MNTN_TRACK:
+		ret = ioctl_device(fd, PLOOP_IOC_TRACK_ABORT, 0);
+		break;
+	case PLOOP_MNTN_DISCARD:
+		ret = ploop_balloon_complete(device);
+		break;
+	case PLOOP_MNTN_BALLOON:
+		/*  FIXME : ploop_balloon_check_and_repair(device, mount_point, 1; */
+		ret = 0;
+		break;
 	}
 
 err:

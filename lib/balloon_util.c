@@ -36,10 +36,9 @@
 #define MIN(a, b) (a < b ? a : b)
 
 static void range_fix_gaps(struct freemap *freemap, __u32 iblk_start, __u32 iblk_end,
-		    __u32 n_to_fix, __u32 *rmap);
+		__u32 n_to_fix, __u32 *rmap);
 static int range_split(struct freemap *rangemap, struct freemap *freemap,
-		 struct relocmap **relocmap_pp);
-
+		struct relocmap **relocmap_pp);
 
 struct pfiemap *fiemap_alloc(int n)
 {

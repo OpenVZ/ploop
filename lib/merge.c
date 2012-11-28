@@ -300,7 +300,6 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 			start_level, end_level);
 		return -1;
 	}
-
 	if (device) {
 		ret = ploop_complete_running_operation(device);
 		if (ret)

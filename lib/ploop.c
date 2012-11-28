@@ -607,9 +607,10 @@ static int ploop_init_image(struct ploop_disk_images_data *di, struct ploop_crea
 		goto err;
 
 err:
-	if (ploop_umount_image(di))
+	if (ploop_umount_image(di)) {
 		if (ret == 0)
 			ret = SYSEXIT_UMOUNT;
+	}
 
 	return ret;
 }
@@ -1317,7 +1318,6 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 	}
 
 	ret = add_deltas(di, images, param, raw, blocksize, &lfd);
-
 	if (ret)
 		goto err;
 
@@ -1367,7 +1367,9 @@ static int mount_image(struct ploop_disk_images_data *di, struct ploop_mount_par
 	images = make_images_list(di, guid, 0);
 	if (images == NULL)
 		return SYSEXIT_NOMEM;
+
 	ret = ploop_mount(di, images, param, (di->mode == PLOOP_RAW_MODE));
+
 	free_images_list(images);
 
 	return ret;
@@ -2202,12 +2204,10 @@ int create_snapshot(const char *device, const char *delta, __u32 blocksize, int 
 	req.c.pctl_cluster_log = ffs(blocksize) - 1;
 	req.c.pctl_size = 0;
 	req.c.pctl_chunks = 1;
-
 	req.f.pctl_type = PLOOP_IO_AUTO;
 
 	ploop_log(0, "Creating snapshot dev=%s img=%s", device, delta);
 	ret = do_snapshot(lfd, fd, &req);
-
 	if (ret)
 		unlink(delta);
 err:
@@ -2404,13 +2404,14 @@ int ploop_switch_snapshot(struct ploop_disk_images_data *di, const char *guid, i
 		ploop_err(errno, "Nothing to do, already on %s snapshot",
 				guid);
 		goto err_cleanup1;
-
 	}
+
 	if (find_snapshot_by_guid(di, guid) == -1) {
 		ploop_err(0, "Can't find snapshot by uuid %s",
 				guid);
 		goto err_cleanup1;
 	}
+
 	// Read image size from image header
 	ret = get_image_size(di, guid, &size);
 	if (ret)

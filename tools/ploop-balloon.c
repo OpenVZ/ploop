@@ -42,7 +42,7 @@ static int    force;	   /* do not flock hidden balloon */
 	do {							\
 		if (argc == 1 && is_xml_fname(argv[0])) {	\
 			disk_descriptor = argv[0];		\
-			argc--;	argv++;				\
+			argc--; argv++;				\
 		}						\
 	} while (0)
 

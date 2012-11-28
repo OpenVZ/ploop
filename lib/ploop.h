@@ -181,7 +181,6 @@ enum {
 #define PL_EXT __attribute__ ((visibility("default")))
 
 int gen_uuid_pair(char *uuid1, int len1, char *uuid2, int len2);
-
 int find_delta_names(const char * device, int start_level, int end_level,
 			    char **names, char ** format);
 PL_EXT int ploop_get_attr(const char * device, const char * attr, int * res);
@@ -337,7 +336,6 @@ PL_EXT int guidcmp(const char *p1, const char *p2);
 int auto_mount_image(struct ploop_disk_images_data *di,
 		struct ploop_mount_param *param);
 void free_mount_param(struct ploop_mount_param *param);
-
 
 // merge
 PL_EXT int get_delta_info(const char *device, struct merge_info *info);

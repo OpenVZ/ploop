@@ -95,6 +95,7 @@ int main(int argc, char ** argv)
 
 	if (argc == 1 && is_xml_fname(argv[0])) {
 		struct ploop_disk_images_data *di;
+
 		if (param.guid != NULL && param.merge_all != 0) {
 			fprintf(stderr, "Options -u and -A can't be used together\n");
 			usage();
