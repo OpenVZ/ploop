@@ -193,14 +193,14 @@ int ploop_get_top_level(int devfd, const char *devname, int *top);
 int init_delta_array(struct delta_array *);
 void deinit_delta_array(struct delta_array * p);
 int extend_delta_array(struct delta_array * p, char * path, int rw, int od_flags);
-PL_EXT void close_delta(struct delta *delta);
+void close_delta(struct delta *delta);
 PL_EXT int open_delta(struct delta * delta, const char * path, int rw, int od_flags);
-PL_EXT int open_delta_simple(struct delta * delta, const char * path, int rw, int od_flags);
+int open_delta_simple(struct delta * delta, const char * path, int rw, int od_flags);
 PL_EXT int dirty_delta(struct delta * delta);
 PL_EXT int clear_delta(struct delta * delta);
 PL_EXT int read_size_from_image(const char *img_name, int raw, off_t * res);
 PL_EXT int grow_delta(struct delta *odelta, off_t bdsize, void *buf,
-		       struct grow_maps *gm);
+		struct grow_maps *gm);
 PL_EXT int grow_raw_delta(const char *image, off_t append_size);
 PL_EXT int ploop_grow_device(const char *device, __u32 blocksize, off_t new_size);
 
