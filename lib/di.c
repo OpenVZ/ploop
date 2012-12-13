@@ -186,14 +186,18 @@ struct ploop_disk_images_data *alloc_diskdescriptor(void)
 	struct ploop_disk_images_data *p;
 
 	p = calloc(1, sizeof(struct ploop_disk_images_data));
-	if (p != NULL) {
-		p->runtime = calloc(1, sizeof(struct ploop_disk_images_runtime_data));
-		if (p->runtime == NULL) {
-			free(p);
-			return NULL;
-		}
-		p->runtime->lckfd = -1;
+	if (p == NULL) {
+		ploop_err(ENOMEM, "calloc failed");
+		return NULL;
 	}
+
+	p->runtime = calloc(1, sizeof(struct ploop_disk_images_runtime_data));
+	if (p->runtime == NULL) {
+		free(p);
+		ploop_err(ENOMEM, "calloc failed");
+		return NULL;
+	}
+	p->runtime->lckfd = -1;
 
 	return p;
 }
