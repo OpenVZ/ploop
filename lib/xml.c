@@ -394,6 +394,7 @@ int ploop_read_disk_descr(struct ploop_disk_images_data **di, const char *file)
 
 	if (read_diskdescriptor(file, *di)) {
 		ploop_free_diskdescriptor(*di);
+		*di = NULL;
 		return SYSEXIT_DISKDESCR;
 	}
 
