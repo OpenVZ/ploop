@@ -63,5 +63,5 @@ install: all install-lockdir
 
 clean:
 	$(E) "  CLEAN   "
-	$(Q) rm -f $(PROGS) $(GENERATED) *.o *.a *.so
+	$(Q) rm -f $(GENERATED) *.o *.a *.so
 .PHONY: clean
