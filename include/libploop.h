@@ -186,6 +186,7 @@ void ploop_set_verbose_level(int level);
 
 /* Cancelation API */
 void ploop_cancel_operation(void);
+int ploop_complete_running_operation(const char *device);
 
 /* pcopy routines */
 int ploop_send(const char *device, int ofd, const char *flush_cmd,
