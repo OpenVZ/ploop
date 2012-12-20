@@ -1749,7 +1749,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		}
 		close(balloonfd);
 		balloonfd = -1;
-		if (!mounted) {
+		if (!mounted && param->offline_resize) {
 			/* offline */
 			if (do_umount(mount_param.target)) {
 				ploop_err(errno, "umount %s failed", mount_param.target);
@@ -1791,7 +1791,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			goto err;
 	} else {
 		/* Grow or shrink fs but do not change block device size */
-		if (!mounted && param->use_offline_shrink) {
+		if (!mounted && param->offline_resize) {
 			/* Offline */
 			if (balloon_size != 0) {
 				/* FIXME: restore balloon size on failure */
