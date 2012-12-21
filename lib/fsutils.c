@@ -118,7 +118,7 @@ static char *get_resize_prog(void)
 {
 	int i;
 	struct stat st;
-	static char *progs[] = {"/sbin/resize4fs", "/sbin/resize2fs", NULL};
+	static char *progs[] = {"/usr/libexec/resize2fs", "/sbin/resize4fs", "/sbin/resize2fs", NULL};
 
 	for (i = 0; progs[i] != NULL; i++)
 		if (stat(progs[i], &st) == 0)
