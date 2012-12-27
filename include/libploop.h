@@ -134,7 +134,7 @@ struct ploop_discard_stat {
 	off_t balloon_size;
 };
 
-/* Constants to be used for ploop_set_verbose_level(): */
+/* Constants for ploop_set_verbose_level(): */
 #define PLOOP_LOG_NOCONSOLE	-2	/* disable all console logging */
 #define PLOOP_LOG_NOSTDOUT	-1	/* disable all but errors to stderr */
 
