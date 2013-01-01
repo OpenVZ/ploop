@@ -1,7 +1,7 @@
 %define _incdir /usr/include/ploop
 Summary: ploop tools
 Name: ploop
-Version: 1.5
+Version: 1.6
 %define rel 1
 Release: %{rel}%{?dist}
 Group: Applications/System
@@ -84,6 +84,33 @@ Headers and a static version of ploop library
 %attr(644,root,root) %{_incdir}/dynload.h
 
 %changelog
+* Mon Dec 31 2012 Kir Kolyshkin <kir@openvz.org> 1.6-1
+- New functionality:
+- * offline image shrink support
+- * tools: added snapshot-list functionality
+- * extend switch snapshot functionality: ploop_switch_snapshot_ex()
+- * ploop.spec: disable udev iosched config for ploop devices
+- * ploop list: added functionality to list mount points
+- Bug fixes:
+- * ploop_mount_fs(): use mount_data for first mount
+- * ploop_mount(): do not allow to use ploop on fs w/o extents
+- * ploop_{create,resize}_image(): fixed size checks and rounding
+- * ploop_create_image(): fix memory leak on error path
+- * ploop_get_info(): fix reported disk size after switching snapshot
+- * ploop_get_info(): fix when ploop device is not mounted
+- * ploop_{umount,resize}_image() and many others: do not return -1
+- Improvements:
+- * much faster resize when using resize2fs with EXT4_IOC_RESIZE_FS support
+- * ploop discard: add cancellation support
+- * ploop_resize_image(): use real blocksize
+- * parse_xml(): deny processing DiskDescriptor.xml with several <Storage>
+- * do not auto-generate dynload.h, instead check if it's uptodate
+- * create_image(): display error message for incorrect parameters case
+- * introduce/use SYSEXIT_DEV_NOT_MOUNTED and SYSEXIT_FSCK errors
+- * alloc_diskdescriptor(): log error if calloc() fails
+- * ploop.spec: require util-linux, e2fsprogs etc.
+- * ploop.spec: require libs of the proper arch
+
 * Tue Sep 25 2012 Kir Kolyshkin <kir@openvz.org> 1.5-1
 - NOTE: this version requires vzkernel >= 2.6.32-042stab061.1
 - New functionality:
