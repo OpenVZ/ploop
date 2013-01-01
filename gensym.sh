@@ -34,12 +34,9 @@ disclaimer() {
 }
 
 gen_h() {
-	echo "struct ploop_functions {"
 	# Make list of pointers to functions
-	extract_functions | \
+	extract_functions | sort | \
 	  sed 's/\(^.*[* ]\)ploop_\([a-z_]*\)\((.*\)$/\t\1(*\2)\3/'
-
-	echo "}; /* struct ploop_functions */"
 }
 
 gen_c() {
