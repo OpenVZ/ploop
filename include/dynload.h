@@ -60,6 +60,9 @@ struct ploop_functions {
 	int (*receive)(const char *dst);
 	int (*discard_get_stat)(struct ploop_disk_images_data *di, struct ploop_discard_stat *pd_stat);
 	int (*discard)(struct ploop_disk_images_data *di, struct ploop_discard_param *param);
+	/* 1.6 */
+	int (*switch_snapshot_ex)(struct ploop_disk_images_data *di, struct ploop_snapshot_switch_param *param);
+	int (*complete_running_operation)(const char *device);
 }; /* struct ploop_functions */
 
 __attribute__ ((visibility("default")))
