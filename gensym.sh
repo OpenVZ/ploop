@@ -34,20 +34,12 @@ disclaimer() {
 }
 
 gen_h() {
-	disclaimer
-	echo
-	echo "#include <sys/types.h>"
-	echo "#include <linux/types.h>"
-	echo
 	echo "struct ploop_functions {"
 	# Make list of pointers to functions
 	extract_functions | \
 	  sed 's/\(^.*[* ]\)ploop_\([a-z_]*\)\((.*\)$/\t\1(*\2)\3/'
 
-	echo "};"
-	echo
-	echo '__attribute__ ((visibility("default")))'
-	echo "void ploop_resolve_functions(struct ploop_functions * f);"
+	echo "}; /* struct ploop_functions */"
 }
 
 gen_c() {

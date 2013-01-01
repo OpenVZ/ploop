@@ -14,7 +14,10 @@ all install clean:
 	for d in $(SUBDIRS); do $(MAKE) -C $$d $@; done
 .PHONY: all install clean
 
-dist: tar
+check-api:
+	$(MAKE) -C include $@
+
+dist: check-api tar
 tar: $(TARBALL)
 .PHONY: dist tar
 
