@@ -7,7 +7,7 @@ Release: %{rel}%{?dist}
 Group: Applications/System
 License: GNU GPL
 Source: %{name}-%{version}.tar.bz2
-BuildRoot: %{_tmppath}/%{name}-%{version}-root
+BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Requires: ploop-lib = %{version}
 BuildRequires: libxml2-devel
 BuildRequires: e2fsprogs-devel
