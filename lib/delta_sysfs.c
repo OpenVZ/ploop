@@ -178,6 +178,19 @@ static int get_dev_num(const char *path, dev_t *dev_num)
 	return 0;
 }
 
+int get_dev_by_name(const char *device, dev_t *dev)
+{
+	char nbuf[4096];
+	const char *p = device;
+
+	if ((p = strrchr(device, '/')) != NULL)
+		p++;
+
+	snprintf(nbuf, sizeof(nbuf), "/sys/block/%s/dev", p);
+
+	return get_dev_num(nbuf, dev);
+}
+
 int get_dev_start(const char *path, __u32 *start)
 {
 	char nbuf[4096];

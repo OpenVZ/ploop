@@ -799,31 +799,36 @@ static int ploop_stop(int fd, const char *devname)
 	return 0;
 }
 
-static int get_mount_dir(const char *dev, char *buf, int size)
+static int get_mount_dir(const char *device, char *out, int size)
 {
 	FILE *fp;
-	struct mntent *ent, mntbuf;
 	int ret = 1;
-	int len;
-	const char *ep;
-	char tmp[512];
+	int n;
+	char buf[PATH_MAX];
+	char target[4097];
+	unsigned _major, _minor, minor, u;
+	dev_t dev;
 
-	len = strlen(dev);
-	if (len == 0)
+	if (get_dev_by_name(device, &dev))
 		return -1;
+	minor = gnu_dev_minor(dev);
 
-	fp = fopen("/proc/mounts", "r");
+	fp = fopen("/proc/self/mountinfo", "r");
 	if (fp == NULL) {
-		ploop_err(errno, "Can't open /proc/mounts");
+		ploop_err(errno, "Can't open /proc/self/mountinfo");
 		return -1;
 	}
-	while ((ent = getmntent_r(fp, &mntbuf, tmp, sizeof(tmp)))) {
-		ep = ent->mnt_fsname + len;
+
+	while (fgets(buf, sizeof(buf), fp)) {
+		n = sscanf(buf, "%u %u %u:%u %*s %4096s", &u, &u, &_major, &_minor, target);
+		if (n != 5)
+			continue;
 		// check for /dev/ploopN or /dev/ploopNp1
-		if (strncmp(dev, ent->mnt_fsname, len) == 0 &&
-			(*ep == '\0' || strcmp(ep, "p1") == 0))
+		if (_major == PLOOP_DEV_MAJOR &&
+				(_minor == minor || _minor == minor + 1))
 		{
-			snprintf(buf, size, "%s", ent->mnt_dir);
+			strncpy(out, target, size - 1);
+			out[size - 1] = 0;
 			ret = 0;
 			break;
 		}
