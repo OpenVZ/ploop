@@ -71,7 +71,7 @@ static void logger_ap(int level, int err_no, const char *format, va_list ap)
 			fflush(std);
 		}
 
-		if (_s_log_level > level && _s_log_file != NULL) {
+		if (_s_log_level >= level && _s_log_file != NULL) {
 			get_date(date, sizeof(date));
 			fprintf(_s_log_file, "%s : %s\n", date, buf);
 			fflush(_s_log_file);
