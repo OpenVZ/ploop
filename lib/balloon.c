@@ -100,7 +100,7 @@ int get_balloon(const char *mount_point, struct stat *st, int *outfd)
 
 	fd = open(mount_point, O_RDONLY);
 	if (fd < 0) {
-		ploop_err(errno, "Can't open mount_point");
+		ploop_err(errno, "Can't open mount point %s", mount_point);
 		return(SYSEXIT_OPEN);
 	}
 
@@ -108,7 +108,7 @@ int get_balloon(const char *mount_point, struct stat *st, int *outfd)
 	close(fd);
 
 	if (fd2 < 0) {
-		ploop_err(errno, "Can't ioctl mount_point");
+		ploop_err(errno, "Can't ioctl mount point %s", mount_point);
 		return(SYSEXIT_DEVIOC);
 	}
 
@@ -843,7 +843,7 @@ static int ploop_trim(const char *mount_point, __u64 minlen_b, __u64 cluster)
 
 	fd = open(mount_point, O_RDONLY);
 	if (fd < 0) {
-		ploop_err(errno, "Can't open mount_point");
+		ploop_err(errno, "Can't open mount point %s", mount_point);
 		return -1;
 	}
 
