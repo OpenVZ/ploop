@@ -70,8 +70,9 @@ int make_fs(const char *device, const char *fstype)
 	argv[2] = (char*)fstype;
 	argv[3] = "-j";
 	argv[4] = "-b4096";
-	argv[5] = part_device;
-	argv[6] = NULL;
+	argv[5] = "-Elazy_itable_init";
+	argv[6] = part_device;
+	argv[7] = NULL;
 
 	if (run_prg(argv))
 		return SYSEXIT_MKFS;
