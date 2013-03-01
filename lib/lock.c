@@ -24,6 +24,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/file.h>
+#include <sys/times.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <signal.h>
@@ -85,10 +86,23 @@ static int set_timer(timer_t *tid, unsigned int timeout)
 	return 0;
 }
 
+#define SEC_TO_NSEC(sec) ((clock_t)(sec) * 1000000000)
+static clock_t get_cpu_time(void)
+{
+	struct timespec ts;
+
+	if (clock_gettime(CLOCK_MONOTONIC, &ts)) {
+		ploop_err(errno, "clock_gettime");
+		return (clock_t)-1;
+	}
+	return SEC_TO_NSEC(ts.tv_sec) + ts.tv_nsec;
+}
+
 static int do_lock(const char *fname, unsigned int timeout)
 {
 	int fd, r, _errno;
 	timer_t tid;
+	clock_t end = 0;
 	struct sigaction osa;
 	struct sigaction sa = {
 			.sa_handler = timer_handler,
@@ -99,7 +113,10 @@ static int do_lock(const char *fname, unsigned int timeout)
 		return -1;
 	}
 	if (timeout) {
-		/* all other signals should be set with SA_RESTART */
+		end = get_cpu_time();
+		if (end == (clock_t)-1)
+			return -1;
+		end += SEC_TO_NSEC(timeout);
 		sigaction(SIGRTMIN, &sa, &osa);
 		if (set_timer(&tid, timeout)) {
 			close(fd);
@@ -110,7 +127,7 @@ static int do_lock(const char *fname, unsigned int timeout)
 		_errno = errno;
 		if (_errno != EINTR)
 			break;
-		if (timeout == 0)
+		if (timeout == 0 || get_cpu_time() < end)
 			continue;
 		_errno = EAGAIN;
 		break;
