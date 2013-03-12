@@ -593,7 +593,7 @@ static int ploop_init_image(struct ploop_disk_images_data *di, struct ploop_crea
 		if (ret)
 			goto err;
 	}
-	ret = make_fs(mount_param.device, param->fstype);
+	ret = make_fs(mount_param.device, param->fstype, param->fsblocksize);
 	if (ret)
 		goto err;
 	ret = create_balloon_file(di, mount_param.device);

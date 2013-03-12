@@ -57,22 +57,25 @@ static void usage_summary(void)
 
 static void usage_init(void)
 {
-	fprintf(stderr, "Usage: ploop init -s SIZE [-f FORMAT] [-t FSTYPE] [-b BLOCKSIZE] DELTA\n"
+	fprintf(stderr, "Usage: ploop init -s SIZE [-f FORMAT] [-t FSTYPE] [-b BLOCKSIZE]\n"
+			"		[-B FSBLOCKSIZE] DELTA\n"
 			"       SIZE := NUMBER[kmg]\n"
 			"       FORMAT := { raw | ploop1 }\n"
 			"       DELTA := path to new image file\n"
-			"       BLOCKSIZE := block size in sectors\n"
-			"       FSTYPE := make file system\n");
+			"       FSTYPE := make file system\n"
+			"       BLOCKSIZE := cluster block size in sectors\n"
+			"       FSBLOCKSIZE := file system block size in bytes\n");
 }
 
 static int plooptool_init(int argc, char **argv)
 {
 	int i, f, ret;
 	off_t size_sec = 0;
+	char * endptr;
 	struct ploop_create_param param = {};
 
 	param.mode = PLOOP_EXPANDED_MODE;
-	while ((i = getopt(argc, argv, "s:b:f:t:")) != EOF) {
+	while ((i = getopt(argc, argv, "s:b:B:f:t:")) != EOF) {
 		switch (i) {
 		case 's':
 			if (parse_size(optarg, &size_sec)) {
@@ -80,16 +83,20 @@ static int plooptool_init(int argc, char **argv)
 				return SYSEXIT_PARAM;
 			}
 			break;
-		case 'b': {
-			  char * endptr;
-
+		case 'b':
 			  param.blocksize = strtoul(optarg, &endptr, 0);
 			  if (*endptr != '\0') {
 				  usage_init();
 				  return SYSEXIT_PARAM;
 			  }
 			  break;
-		}
+		case 'B' :
+			  param.fsblocksize = strtoul(optarg, &endptr, 0);
+			  if (*endptr != '\0') {
+				  usage_init();
+				  return SYSEXIT_PARAM;
+			  }
+			  break;
 		case 'f':
 			f = parse_format_opt(optarg);
 			if (f < 0) {

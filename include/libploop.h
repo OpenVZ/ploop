@@ -55,6 +55,7 @@ struct ploop_create_param {
 	char *fstype;
 	int without_partition;
 	unsigned int blocksize;
+	unsigned int fsblocksize;
 	char dummy[32];
 };
 
