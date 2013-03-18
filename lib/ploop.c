@@ -1311,6 +1311,9 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		ret = ploop_mount_fs(param);
 		if (ret)
 			ploop_stop(lfd, param->device);
+	} else {
+		/* Dummy call to recreate devices */
+		reread_part(param->device);
 	}
 
 err:
