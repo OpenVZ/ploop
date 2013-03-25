@@ -913,6 +913,14 @@ static int plooptool_list(int argc, char **argv)
 		}
 	}
 
+	argc -= optind;
+	argv += optind;
+
+	if (argc != 0) {
+		usage_list();
+		return SYSEXIT_PARAM;
+	}
+
 	snprintf(fname, sizeof(fname) - 1, "/sys/block/");
 	dp = opendir(fname);
 	if (dp == NULL) {
