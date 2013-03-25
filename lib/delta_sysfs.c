@@ -181,12 +181,8 @@ static int get_dev_num(const char *path, dev_t *dev_num)
 int get_dev_by_name(const char *device, dev_t *dev)
 {
 	char nbuf[4096];
-	const char *p = device;
 
-	if ((p = strrchr(device, '/')) != NULL)
-		p++;
-
-	snprintf(nbuf, sizeof(nbuf), "/sys/block/%s/dev", p);
+	snprintf(nbuf, sizeof(nbuf), "/sys/block/%s/dev", basename(device));
 
 	return get_dev_num(nbuf, dev);
 }
