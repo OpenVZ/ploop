@@ -1589,13 +1589,11 @@ static int shrink_device(struct ploop_disk_images_data *di,
 	char buf[PATH_MAX];
 	__u32 part_start;
 	int ret;
-	char *p1, *p2;
 	int top, raw;
 	off_t start, end;
 
-	p1 = strrchr(device, '/');
-	p2 = strrchr(part_device, '/');
-	snprintf(buf, sizeof(buf), "/sys/block/%s/%s/start", p1, p2);
+	snprintf(buf, sizeof(buf), "/sys/block/%s/%s/start",
+			basename(device), basename(part_device));
 	if (get_dev_start(buf, &part_start)) {
 		ploop_err(0, "Can't find out offset from start of ploop device (%s)",
 				part_device);
