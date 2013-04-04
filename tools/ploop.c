@@ -75,7 +75,8 @@ static int plooptool_init(int argc, char **argv)
 	struct ploop_create_param param = {};
 
 	param.mode = PLOOP_EXPANDED_MODE;
-	while ((i = getopt(argc, argv, "s:b:B:f:t:")) != EOF) {
+	param.fmt_version = PLOOP_FMT_UNDEFINED;
+	while ((i = getopt(argc, argv, "s:b:B:f:t:v:")) != EOF) {
 		switch (i) {
 		case 's':
 			if (parse_size(optarg, &size_sec)) {
@@ -110,6 +111,17 @@ static int plooptool_init(int argc, char **argv)
 				param.fstype = strdup(optarg);
 			} else {
 				fprintf(stderr, "Incorrect file system type specified: %s\n",
+						optarg);
+				return SYSEXIT_PARAM;
+			}
+			break;
+		case 'v':
+			if (!strcmp(optarg, "1"))
+				param.fmt_version = PLOOP_FMT_V1;
+			else if (!strcmp(optarg, "2"))
+				param.fmt_version = PLOOP_FMT_V2;
+			else {
+				fprintf(stderr, "Unknown ploop image version: %s\n",
 						optarg);
 				return SYSEXIT_PARAM;
 			}
@@ -585,14 +597,11 @@ static int plooptool_snapshot(int argc, char **argv)
 
 		ploop_free_diskdescriptor(di);
 	} else {
-		__u32 blocksize = 0;
 		if (!device) {
 			usage_snapshot();
 			return SYSEXIT_PARAM;
 		}
-		if (ploop_get_attr(device, "block_size", (int*) &blocksize))
-			return SYSEXIT_SYSFS;
-		ret = create_snapshot(device, argv[0], blocksize, syncfs);
+		ret = create_snapshot(device, argv[0], syncfs);
 	}
 
 	return ret;

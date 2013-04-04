@@ -40,6 +40,7 @@
 /*
  * copy/paste of IMAGE_PARAMETERS from DiskImageComp.h
  */
+#pragma pack(push,1)
 struct ploop_pvd_header
 {
 	__u8  m_Sig[16];          /* Signature */
@@ -48,19 +49,28 @@ struct ploop_pvd_header
 	__u32 m_Cylinders;        /* tracks count */
 	__u32 m_Sectors;          /* Sectors per track count */
 	__u32 m_Size;             /* Size of disk in tracks */
-	__u32 m_SizeInSectors;    /* Size of disk in 512-byte sectors */
-	__u32 Unused;             /* Unused for now */
+	union {                   /* Size of disk in 512-byte sectors */
+		struct {
+			__u32 m_SizeInSectors_v1;
+			__u32 Unused;
+		};
+		__u64 m_SizeInSectors_v2;
+	};
 	__u32 m_DiskInUse;        /* Disk in use */
 	__u32 m_FirstBlockOffset; /* First data block offset (in sectors) */
 	__u32 m_Flags;            /* Misc flags */
 	__u8  m_Reserved[8];      /* Reserved */
 };
+#pragma pack(pop)
 
 /* Compressed disk (version 1) */
 #define PRL_IMAGE_COMPRESSED		2
 
 /* Compressed disk v1 signature */
-#define SIGNATURE_STRUCTURED_DISK "WithoutFreeSpace"
+#define SIGNATURE_STRUCTURED_DISK_V1 "WithoutFreeSpace"
+
+/* Compressed disk v2 signature */
+#define SIGNATURE_STRUCTURED_DISK_V2 "WithouFreSpacExt"
 
 /* Sign that the disk is in "using" state */
 #define SIGNATURE_DISK_IN_USE		0x746F6E59
@@ -74,7 +84,7 @@ struct ploop_pvd_header
 
 
 #define PLOOP1_SECTOR_LOG	9
-#define PLOOP1_DEF_CLUSTER_LOG	11 /* 1M cluster-block */
+#define PLOOP1_DEF_CLUSTER_LOG 11 /* 1M cluster-block */
 #define DEF_CLUSTER (1UL << (PLOOP1_DEF_CLUSTER_LOG + PLOOP1_SECTOR_LOG))
 
 /* Helpers to generate PVD-header based on requested bdsize */
@@ -90,14 +100,25 @@ struct CHSData
 	__u32 Cylinders;
 };
 
+#ifdef __KERNEL__
+# define ploop_do_div(n, base) do_div(n, base)
+#else
+# define ploop_do_div(n, base) ({		\
+	__u32 __rem = n % base;			\
+	n /= base;				\
+	__rem;					\
+ })
+#endif
 /*
  * Try to count disk sectors per track value
  */
 static inline __u32
 CalcSectors(const __u64 uiSize)
 {
+	__u64 size = uiSize;
+
 	/* Try to determine sector count */
-	if (!(uiSize % DEFAULT_SECTORS_COUNT))
+	if (!ploop_do_div(size, DEFAULT_SECTORS_COUNT))
 		return DEFAULT_SECTORS_COUNT;
 
 	if (!(uiSize % 32))
@@ -118,8 +139,10 @@ CalcSectors(const __u64 uiSize)
 static inline __u32
 CalcHeads(const __u64 uiSize)
 {
+	__u64 size = uiSize;
+
 	/* Try to determine heads count */
-	if (!(uiSize % DEFAULT_HEADS_COUNT))
+	if (!ploop_do_div(size, DEFAULT_HEADS_COUNT))
 		return DEFAULT_HEADS_COUNT;
 
 	if (!(uiSize % 8))
@@ -142,7 +165,8 @@ ConvertToCHSLow(__u64 From, struct CHSData *chs)
 {
 	chs->Sectors = DEFAULT_SECTORS_COUNT;
 	chs->Heads = DEFAULT_HEADS_COUNT;
-	chs->Cylinders = From / ( DEFAULT_SECTORS_COUNT * DEFAULT_HEADS_COUNT);
+	ploop_do_div(From, DEFAULT_SECTORS_COUNT * DEFAULT_HEADS_COUNT);
+	chs->Cylinders = From;
 }
 
 /*
@@ -182,14 +206,14 @@ ConvertToCHS(__u64 From, struct CHSData *chs)
 	if (chs->Sectors == (__u32)~0)
 		goto PureLBA;
 
-	Size /= chs->Sectors;
+	ploop_do_div(Size, chs->Sectors);
 
 	chs->Heads = CalcHeads(Size);
 
 	if (chs->Heads == (__u32)~0)
 		goto PureLBA;
 
-	Size /= chs->Heads;
+	ploop_do_div(Size, chs->Heads);
 
 	chs->Cylinders = Size;
 
@@ -212,34 +236,128 @@ GetHeaderSize(__u32 m_Size)
 	return Size;
 }
 
+static inline char *
+ploop1_signature(int version)
+{
+	switch (version) {
+	case PLOOP_FMT_V1:
+		return SIGNATURE_STRUCTURED_DISK_V1;
+	case PLOOP_FMT_V2:
+		return SIGNATURE_STRUCTURED_DISK_V2;
+#ifdef __KERNEL__
+	default:
+		BUG();
+#endif
+	}
+
+	return NULL;
+}
+
+static inline int
+ploop1_version(struct ploop_pvd_header *vh)
+{
+	if (!memcmp(vh->m_Sig, SIGNATURE_STRUCTURED_DISK_V1, sizeof(vh->m_Sig)))
+		return PLOOP_FMT_V1;
+
+	if (!memcmp(vh->m_Sig, SIGNATURE_STRUCTURED_DISK_V2, sizeof(vh->m_Sig)))
+		return PLOOP_FMT_V2;
+
+	return PLOOP_FMT_ERROR;
+}
+
+static inline void
+put_SizeInSectors(__u64 SizeInSectors, struct ploop_pvd_header *vh,
+		  int version)
+{
+	switch (version) {
+	case PLOOP_FMT_V1:
+		vh->m_SizeInSectors_v1 = SizeInSectors;
+		break;
+	case PLOOP_FMT_V2:
+		vh->m_SizeInSectors_v2 = SizeInSectors;
+		break;
+	}
+}
+
+#ifdef __KERNEL__
+static inline u64
+get_SizeInSectors_from_le(struct ploop_pvd_header *vh, int version)
+{
+	switch (version) {
+	case PLOOP_FMT_V1:
+		return le32_to_cpu(vh->m_SizeInSectors_v1);
+	case PLOOP_FMT_V2:
+		return le64_to_cpu(vh->m_SizeInSectors_v2);
+	default:
+		BUG();
+	}
+
+	return 0;
+}
+
+static inline void
+cpu_to_le_SizeInSectors(struct ploop_pvd_header *vh, int version)
+{
+	switch (version) {
+	case PLOOP_FMT_V1:
+		vh->m_SizeInSectors_v1 = cpu_to_le32(vh->m_SizeInSectors_v1);
+		break;
+	case PLOOP_FMT_V2:
+		vh->m_SizeInSectors_v2 = cpu_to_le64(vh->m_SizeInSectors_v2);
+		break;
+	default:
+		BUG();
+	}
+}
+#else
+static inline __u64
+get_SizeInSectors(struct ploop_pvd_header *vh)
+{
+	switch (ploop1_version(vh)) {
+	case PLOOP_FMT_V1:
+		return vh->m_SizeInSectors_v1;
+	case PLOOP_FMT_V2:
+		return vh->m_SizeInSectors_v2;
+	}
+
+	return 0;
+}
+#endif
+
 /*
  * Returns: "size to fill" (in bytes)
  *
  * NB: m_Flags and m_DiskInUse are being kept as is; our caller
  * should take care of them.
+ *
+ * NB: Both bdsize and blocksize are measured in sectors.
  */
 static inline __u32
-generate_pvd_header(struct ploop_pvd_header *vh, off_t bdsize, __u32 blocksize)
+generate_pvd_header(struct ploop_pvd_header *vh, __u64 bdsize, __u32 blocksize,
+		    int version)
 {
 	struct CHSData chs;
 	__u32 SizeToFill;
 	__u32 uiAlignmentSize;
+	__u64 SizeInSectors;
 
-	memcpy(vh->m_Sig, SIGNATURE_STRUCTURED_DISK, sizeof(vh->m_Sig));
+	memcpy(vh->m_Sig, ploop1_signature(version) , sizeof(vh->m_Sig));
 	vh->m_Type = PRL_IMAGE_COMPRESSED;
 
 	/* Round up to block size */
-	vh->m_SizeInSectors = bdsize + blocksize - 1;
-	vh->m_SizeInSectors /= blocksize;
-	vh->m_SizeInSectors *= blocksize;
+	SizeInSectors = bdsize + blocksize - 1;
+	ploop_do_div(SizeInSectors, blocksize);
+	SizeInSectors *= blocksize;
+	put_SizeInSectors(SizeInSectors, vh, version);
 
-	ConvertToCHS(vh->m_SizeInSectors, &chs);
+	ConvertToCHS(SizeInSectors, &chs);
 
 	vh->m_Sectors = blocksize;
 	vh->m_Heads = chs.Heads;
 	vh->m_Cylinders = chs.Cylinders;
 
-	vh->m_Size = vh->m_SizeInSectors / blocksize;
+	ploop_do_div(SizeInSectors, blocksize);
+	vh->m_Size = SizeInSectors;
 
 	uiAlignmentSize = blocksize << PLOOP1_SECTOR_LOG;
 	SizeToFill = GetHeaderSize(vh->m_Size);

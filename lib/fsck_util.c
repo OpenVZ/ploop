@@ -141,7 +141,8 @@ static int zero_index_fix(struct ploop_fsck_desc *d, __u32 clu,
 	return ret;
 }
 
-static int check_one_slot(struct ploop_fsck_desc *d, __u32 clu, __u32 isec, __u32 blocksize)
+static int check_one_slot(struct ploop_fsck_desc *d, __u32 clu, off_t isec,
+		__u32 blocksize, int version)
 {
 	__u64 cluster = S2B(blocksize);
 	__u32 cluster_log = ffs(blocksize) - 1;
@@ -153,7 +154,7 @@ static int check_one_slot(struct ploop_fsck_desc *d, __u32 clu, __u32 isec, __u3
 		return zero_index_fix(d, clu, SOFT_FIX, ZEROFIX, NONFATAL);
 	}
 
-	if (isec % (1 << cluster_log) != 0) {
+	if (version == PLOOP_FMT_V1 && (isec % (1 << cluster_log) != 0)) {
 		ploop_log(0, "L2 slot (%u) corrupted... ",
 				clu);
 		return zero_index_fix(d, clu, HARD_FIX, ZEROFIX, FATAL);
@@ -210,6 +211,7 @@ int ploop_fsck(char *img, int flags, int ro, int verbose, __u32 *blocksize_p)
 	int force = (flags & FSCK_FORCE);
 	int hard_force = (flags & FSCK_HARDFORCE);
 	int check = (flags & FSCK_CHECK);
+	int version;
 
 	fd = open(img, ro ? O_RDONLY : O_RDWR);
 	if (fd < 0) {
@@ -230,7 +232,8 @@ int ploop_fsck(char *img, int flags, int ro, int verbose, __u32 *blocksize_p)
 		goto done;
 
 	ret = SYSEXIT_PLOOPFMT;
-	if (memcmp(vh->m_Sig, SIGNATURE_STRUCTURED_DISK, sizeof(vh->m_Sig))) {
+	version = ploop1_version(vh);
+	if (version == PLOOP_FMT_ERROR) {
 		ploop_err(0, "Wrong signature in image %s", img);
 		goto done;
 	}
@@ -259,7 +262,7 @@ int ploop_fsck(char *img, int flags, int ro, int verbose, __u32 *blocksize_p)
 	l2_ptr = (__u32*)buf;
 
 	ret = 0;
-	bd_size = vh->m_SizeInSectors;
+	bd_size = get_SizeInSectors(vh);
 	alloc_head = l1_slots - 1;
 
 	if (!vh->m_DiskInUse && !force) {
@@ -320,7 +323,9 @@ int ploop_fsck(char *img, int flags, int ro, int verbose, __u32 *blocksize_p)
 			if (l2_ptr[j] == 0)
 				continue;
 
-			ret = check_one_slot(&d, l2_slot, l2_ptr[j], vh->m_Sectors);
+			ret = check_one_slot(&d, l2_slot,
+					ploop_ioff_to_sec(l2_ptr[j], vh->m_Sectors, version),
+					vh->m_Sectors, version);
 			if (ret)
 				goto done;
 		}

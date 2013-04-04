@@ -160,42 +160,42 @@ int open_delta(struct delta * delta, const char * path, int rw, int od_flags)
 	if ((err = p_memalign(&p, 4096, SECTOR_SIZE)))
 		goto error;
 	vh = p;
-
-	res = delta->fops->pread(delta->fd, vh, SECTOR_SIZE, 0);
+	delta->hdr0 = p;
+	/* read header */
+	res = delta->fops->pread(delta->fd, delta->hdr0, SECTOR_SIZE, 0);
 	if (res != SECTOR_SIZE) {
 		err = (res >= 0) ? EIO : errno;
 		ploop_err(errno, "read 1st sector of %s", path);
 		goto error;
 	}
-	delta->blocksize = vh->m_Sectors;
-	cluster = S2B(vh->m_Sectors);
 
-	if ((err = p_memalign(&p, 4096, cluster)))
-		goto error;
-	delta->hdr0 = p;
-
-	if ((err = p_memalign(&p, 4096, cluster)))
-		goto error;
-	delta->l2 = p;
-
-	res = delta->fops->pread(delta->fd, delta->hdr0, cluster, 0);
-	if (res != cluster) {
-		err = (res >= 0) ? EIO : errno;
-		ploop_err(errno, "read %s", path);
+	delta->version = ploop1_version(vh);
+	if (delta->version == PLOOP_FMT_ERROR) {
+		ploop_err(errno, "Unknown ploop image version in the header %s",
+				path);
+		err = EINVAL;
 		goto error;
 	}
 
-	if (memcmp(vh->m_Sig, SIGNATURE_STRUCTURED_DISK, sizeof(vh->m_Sig)) ||
-	    vh->m_Type != PRL_IMAGE_COMPRESSED ||
-	    !is_valid_blocksize(vh->m_Sectors)) {
+	if (vh->m_Type != PRL_IMAGE_COMPRESSED ||
+			!is_valid_blocksize(vh->m_Sectors))
+	{
 		ploop_err(errno, "Invalid image header %s", path);
 		err = EINVAL;
 		goto error;
 	}
-	delta->alloc_head = stat.st_size / (vh->m_Sectors * SECTOR_SIZE);
 
+	delta->blocksize = vh->m_Sectors;
+	delta->alloc_head = stat.st_size / (vh->m_Sectors * SECTOR_SIZE);
 	delta->l1_size = vh->m_FirstBlockOffset / vh->m_Sectors;
-	delta->l2_size = vh->m_SizeInSectors / vh->m_Sectors;
+	delta->l2_size = get_SizeInSectors(vh) / vh->m_Sectors;
+
+	cluster = S2B(vh->m_Sectors);
+	if (p_memalign(&p, 4096, cluster)) {
+		err = errno;
+		goto error;
+	}
+	delta->l2 = p;
 
 	if (vh->m_DiskInUse && !(od_flags & OD_ALLOW_DIRTY)) {
 		ploop_err(0, "Image is in use %s", path);
@@ -203,12 +203,10 @@ int open_delta(struct delta * delta, const char * path, int rw, int od_flags)
 		goto error;
 	}
 
-	free(vh);
 	return 0;
 
 error:
 	close_delta(delta);
-	free(vh);
 	errno = err;
 	return -1;
 }
@@ -343,27 +341,29 @@ static int relocate_block(struct delta *delta, __u32 iblk, void *buf,
 			delta->l2_cache = l2_cluster;
 		}
 
-		if (delta->l2[l2_slot] == iblk * B2S(cluster))
+		if (delta->l2[l2_slot] == ploop_sec_to_ioff((off_t)iblk * delta->blocksize,
+					delta->blocksize, delta->version))
 			break;
 	}
 
 	if (clu >= delta->l2_size)
 		return 0; /* found nothing */
 
-	if (READ(delta, buf, cluster,
-				S2B(delta->l2[l2_slot]))) {
+	if (READ(delta, buf, cluster, S2B(ploop_ioff_to_sec(delta->l2[l2_slot],
+						delta->blocksize, delta->version)))) {
 		ploop_err(errno, "Can't read block to relocate");
 		return -1;
 	}
 
-	delta->l2[l2_slot] = delta->alloc_head++ * B2S(cluster);
+	delta->l2[l2_slot] = ploop_sec_to_ioff((off_t)delta->alloc_head++ * delta->blocksize,
+			delta->blocksize, delta->version);
 	if (delta->l2[l2_slot] == 0) {
 		ploop_err(0, "relocate_block: delta->l2[l2_slot] == 0");
 		return -1;
 	}
 
-	if (WRITE(delta, buf, cluster,
-				S2B(delta->l2[l2_slot]))) {
+	if (WRITE(delta, buf, cluster, S2B(ploop_ioff_to_sec(delta->l2[l2_slot],
+						delta->blocksize, delta->version)))) {
 		ploop_err(errno, "Can't write relocate block");
 		return -1;
 	}
@@ -399,18 +399,19 @@ int grow_delta(struct delta *odelta, off_t bdsize, void *buf,
 	int i, rc;
 	struct ploop_pvd_header vh;
 	struct ploop_pvd_header *ivh = &vh;
-	int i_l1_size, i_l2_size;
+	int i_l1_size;
 	int i_l1_size_sync_alloc = 0;
+	off_t i_l2_size;
 	int map_idx = 0;
 	__u64 cluster = S2B(odelta->blocksize);
 
 	assert(cluster);
 
 	memset(ivh, 0, sizeof(*ivh));
-	generate_pvd_header(ivh, bdsize, odelta->blocksize);
+	generate_pvd_header(ivh, bdsize, odelta->blocksize, odelta->version);
 	ivh->m_DiskInUse = SIGNATURE_DISK_IN_USE;
 	i_l1_size = ivh->m_FirstBlockOffset / ivh->m_Sectors;
-	i_l2_size = ivh->m_SizeInSectors / ivh->m_Sectors;
+	i_l2_size = get_SizeInSectors(ivh) / ivh->m_Sectors;
 
 	if (odelta->alloc_head < odelta->l1_size) {
 		ploop_err(0, "grow_delta: odelta->alloc_head < odelta->l1_size");
@@ -423,6 +424,10 @@ int grow_delta(struct delta *odelta, off_t bdsize, void *buf,
 		return -1;
 	}
 
+	/* Total number of image-blocks in the image file is lesser
+	 * than number of image-blocks for new index table. So,
+	 * we can simply nullify this gap, no relocation needed for this
+	 */
 	if (odelta->alloc_head < i_l1_size) {
 		i_l1_size_sync_alloc = i_l1_size - odelta->alloc_head;
 		memset(buf, 0, cluster);
@@ -601,14 +606,13 @@ int ploop_grow_delta_offline(const char *image, off_t new_size)
 		return SYSEXIT_OPEN;
 
 	vh = (struct ploop_pvd_header *)delta.hdr0;
-	old_size = vh->m_SizeInSectors;
+	old_size = get_SizeInSectors(vh);
 
-	generate_pvd_header(&new_vh, new_size, delta.blocksize);
-
-	if (new_vh.m_SizeInSectors == old_size)
+	generate_pvd_header(&new_vh, new_size, delta.blocksize, ploop1_version(vh));
+	if (get_SizeInSectors(&new_vh) == old_size)
 		goto out;
 
-	if (new_vh.m_SizeInSectors < old_size) {
+	if (get_SizeInSectors(&new_vh) < old_size) {
 		ploop_err(0, "Error: new size %llu is less than "
 				"the old size %llu",
 				(unsigned long long)new_size,
@@ -628,7 +632,7 @@ int ploop_grow_delta_offline(const char *image, off_t new_size)
 		goto out;
 	}
 
-	ret = grow_delta(&delta, new_vh.m_SizeInSectors, buf, NULL);
+	ret = grow_delta(&delta, get_SizeInSectors(&new_vh), buf, NULL);
 	if (ret)
 		goto out;
 

@@ -74,7 +74,7 @@ static int sync_cache(struct delta * delta)
 	return 0;
 }
 
-static int locate_l2_entry(struct delta_array *p, int level, int i, int k, int *out)
+static int locate_l2_entry(struct delta_array *p, int level, int i, __u32 k, int *out)
 {
 	__u64 cluster;
 	for (level++; level < p->delta_max; level++) {
@@ -203,7 +203,7 @@ static int grow_lower_delta(const char *device, int top, int start_level, int en
 
 	/* save new image header of destination delta on disk */
 	vh = (struct ploop_pvd_header *)buf;
-	generate_pvd_header(vh, src_size, odelta.blocksize);
+	generate_pvd_header(vh, src_size, odelta.blocksize, odelta.version);
 	if (PREAD(&odelta, &vh->m_Flags, sizeof(vh->m_Flags),
 		  offsetof(struct ploop_pvd_header, m_Flags))) {
 		ret = SYSEXIT_READ;
@@ -287,12 +287,14 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 	char **names = NULL;
 	struct delta_array da = {};
 	struct delta odelta = {};
-	int i, k, i_end, ret = 0;
+	int i, i_end, ret = 0;
+	__u32 k;
 	__u32 allocated = 0;
 	__u64 cluster;
 	void *data_cache = NULL;
 	__u32 blocksize = 0;
 	__u32 prev_blocksize = 0;
+	int version;
 
 	if (start_level >= end_level || start_level < 0) {
 		ploop_err(0, "Invalid parameters: start_level %d end_level %d",
@@ -356,6 +358,13 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 			goto merge_done2;
 		}
 		prev_blocksize = blocksize;
+
+		if (i != 0 && version != da.delta_arr[i].version) {
+			ploop_err(errno, "Wrong version %s %d [prev %d]",
+					names[i], da.delta_arr[i].version, version);
+			goto merge_done2;
+		}
+		version = da.delta_arr[i].version;
 	}
 	if (blocksize == 0) {
 		ploop_err(errno, "Wrong blocksize 0");
@@ -392,11 +401,11 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 		vh = (struct ploop_pvd_header *)da.delta_arr[0].hdr0;
 
 		if (!raw) {
-			if ((ret = grow_delta(&odelta, vh->m_SizeInSectors,
+			if ((ret = grow_delta(&odelta, get_SizeInSectors(vh),
 				   data_cache, NULL)))
 				goto merge_done;
 		} else {
-			off_t src_size = vh->m_SizeInSectors;
+			off_t src_size = get_SizeInSectors(vh);
 			off_t dst_size;
 
 			ret = read_size_from_image(names[last_delta], 1, &dst_size);
@@ -457,7 +466,8 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 			}
 
 			if (PREAD(&da.delta_arr[level2], data_cache, cluster,
-						S2B(da.delta_arr[level2].l2[k]))) {
+						S2B(ploop_ioff_to_sec(da.delta_arr[level2].l2[k],
+								blocksize, version)))) {
 				ret = SYSEXIT_READ;
 				goto merge_done;
 			}
@@ -488,7 +498,8 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 			}
 
 			if (odelta.l2[k] == 0) {
-				odelta.l2[k] = odelta.alloc_head++ * B2S(cluster);
+				odelta.l2[k] = ploop_sec_to_ioff((off_t)odelta.alloc_head++ * B2S(cluster),
+							blocksize, version);
 				if (odelta.l2[k] == 0) {
 					ploop_err(0, "abort: odelta.l2[k] == 0");
 					ret = -1;
@@ -498,7 +509,8 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 				allocated++;
 			}
 			if (PWRITE(&odelta, data_cache, cluster,
-						S2B(odelta.l2[k]))) {
+						S2B(ploop_ioff_to_sec(odelta.l2[k],
+								blocksize, version)))) {
 				ret = SYSEXIT_WRITE;
 				goto merge_done;
 			}

@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <signal.h>
 
+#include "ploop_if.h"
 #include "ploop1_image.h"
 #include "libploop.h"
 

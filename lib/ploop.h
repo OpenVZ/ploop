@@ -6,8 +6,8 @@
 #include <sys/stat.h>
 #include <assert.h>
 
-#include "ploop1_image.h"
 #include "ploop_if.h"
+#include "ploop1_image.h"
 #include "libploop.h"
 
 #define PLOOP_DEV_MAJOR 182
@@ -57,11 +57,8 @@
 
 #define S2B(sec) ((off_t)(sec) << PLOOP1_SECTOR_LOG)
 #define B2S(sec) ((sec) >> PLOOP1_SECTOR_LOG)
-#define ROUNDUP_BDSIZE(size, blocksize) \
+#define ROUNDUP(size, blocksize) \
 	(((off_t)size + blocksize - 1) / blocksize * blocksize)
-#define ROUND_BDSIZE(size, blocksize) \
-	((size > 0xffffffffUL - blocksize) ? \
-	 (size / blocksize * blocksize) : ROUNDUP_BDSIZE(size, blocksize))
 
 struct delta_fops
 {
@@ -88,6 +85,7 @@ struct delta
 	int    l2_cache;
 	int    dirtied;
 	__u32  blocksize;
+	int    version;	  /* ploop1 version */
 
 	struct delta_fops *fops;
 };
@@ -180,6 +178,33 @@ enum {
 /* Mark lib functions used by ploop tools */
 #define PL_EXT __attribute__ ((visibility("default")))
 
+/* For PLOOP_FMT_V1:, L[idx] is the offset of iblock in image file measured
+ * in 512-bites sectors. For PLOOP_FMT_V2 - it's measured in cluster-blocks.
+ */
+static inline __u32 ploop_sec_to_ioff(off_t offSec, __u32 blocksize, int version)
+{
+	switch(version) {
+	case PLOOP_FMT_V1:
+		return offSec;
+	case PLOOP_FMT_V2:
+		return offSec / blocksize;
+	default:
+		assert(0);
+	}
+}
+
+static inline off_t ploop_ioff_to_sec(__u32 iblk, __u32 blocksize, int version)
+{
+	switch(version) {
+	case PLOOP_FMT_V1:
+		return iblk;
+	case PLOOP_FMT_V2:
+		return iblk * blocksize;
+	default:
+		assert(0);
+	}
+}
+
 int gen_uuid_pair(char *uuid1, int len1, char *uuid2, int len2);
 int find_delta_names(const char * device, int start_level, int end_level,
 			    char **names, char ** format);
@@ -264,7 +289,7 @@ void __ploop_err(int err_no, const char *format, ...)
 char *make_sysfs_dev_name(int minor, char *buf, int len);
 PL_EXT int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		struct ploop_mount_param *param, int raw);
-PL_EXT int create_snapshot(const char *device, const char *delta, __u32 blocksize, int syncfs);
+PL_EXT int create_snapshot(const char *device, const char *delta, int syncfs);
 int get_list_size(char **list);
 void free_images_list(char **images);
 int PWRITE(struct delta * delta, void * buf, unsigned int size, off_t off);
@@ -341,6 +366,7 @@ PL_EXT int guidcmp(const char *p1, const char *p2);
 int auto_mount_image(struct ploop_disk_images_data *di,
 		struct ploop_mount_param *param);
 void free_mount_param(struct ploop_mount_param *param);
+int is_large_disk_supported(void);
 
 // merge
 PL_EXT int get_delta_info(const char *device, struct merge_info *info);

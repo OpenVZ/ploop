@@ -33,21 +33,33 @@
 #define PLOOP_FMT_RAW		1
 #define PLOOP_FMT_PLOOP1	2
 
+/* PLOOP_FMT_PLOOP1 subversions */
+enum {
+	PLOOP_FMT_ERROR = -1,
+	PLOOP_FMT_UNDEFINED = 0,
+	PLOOP_FMT_V1,
+	PLOOP_FMT_V2,
+};
+
 /* Delta flags. */
 #define PLOOP_FMT_RDONLY	1
 #define PLOOP_FMT_FLAGS		1
 
 #define PLOOP_FLAG_FS_SYNC	0x10000000
 
+#define PLOOP_FMT_PREALLOCATED	2
+
 #define PLOOP_FLAG_COOKIE	4
 #define PLOOP_COOKIE_SIZE	64
+
+#define PLOOP_FLAG_CLUBLKS	8
 
 /* IO types. */
 
 #define PLOOP_IO_AUTO		0
 #define PLOOP_IO_DIRECT		1
 #define PLOOP_IO_NFS		2
-#define PLOOP_IO_PCS		3
+#define PLOOP_IO_RESERVED	3	/* reserved, do not use */
 #define PLOOP_IO_KAIO		4
 
 /*
@@ -302,10 +314,10 @@ struct ploop_track_extent
 #define PLOOP_IOC_DISCARD_WAIT _IO(PLOOPCTLTYPE, 25)
 
 /* Drop current state of free block extents */
-#define PLOOP_IOC_FBDROP       _IO(PLOOPCTLTYPE, 26)
+#define PLOOP_IOC_FBDROP	_IO(PLOOPCTLTYPE, 26)
 
 /* Filter extents with sizes less than arg */
-#define PLOOP_IOC_FBFILTER     _IOR(PLOOPCTLTYPE, 27, unsigned long)
+#define PLOOP_IOC_FBFILTER	_IOR(PLOOPCTLTYPE, 27, unsigned long)
 
 /* Events exposed via /sys/block/ploopN/pstate/event */
 #define PLOOP_EVENT_ABORTED	1

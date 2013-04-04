@@ -255,8 +255,9 @@ static int fiemap_extent_process(__u32 clu, __u32 len, __u32 *rmap, __u32 rlen,
 		}
 
 		if (delta->l2_cache != l2_cluster) {
-			PREAD(delta, delta->l2, cluster,
-			      (off_t)l2_cluster * cluster);
+			if (PREAD(delta, delta->l2, cluster,
+						(off_t)l2_cluster * cluster))
+				return SYSEXIT_READ;
 			delta->l2_cache = l2_cluster;
 		}
 
@@ -266,7 +267,8 @@ static int fiemap_extent_process(__u32 clu, __u32 len, __u32 *rmap, __u32 rlen,
 			if (!delta->l2[j])
 				continue;
 
-			ridx = delta->l2[j] / B2S(cluster);
+			ridx = delta->l2[j] / ploop_sec_to_ioff(delta->blocksize,
+							delta->blocksize, delta->version);
 			if (ridx >= rlen) {
 				ploop_err(0,
 					"Image corrupted: L2[%u] == %u (max=%llu)",
@@ -530,8 +532,8 @@ static int range_build_rmap(__u32 iblk_start, __u32 iblk_end,
 				return SYSEXIT_READ;
 			delta->l2_cache = l2_cluster;
 		}
-
-		ridx = delta->l2[l2_slot] / B2S(cluster);
+		ridx = delta->l2[l2_slot] / ploop_sec_to_ioff(delta->blocksize,
+				delta->blocksize, delta->version);
 		if (ridx >= rlen) {
 			ploop_err(0,
 				"Image corrupted: L2[%u] == %u (max=%llu) (2)",
