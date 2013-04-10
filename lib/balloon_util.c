@@ -701,7 +701,8 @@ static int range_split(struct freemap *rangemap, struct freemap *freemap,
 				l = MIN(ri + rl, fi) - ri;
 				ret = relocmap_add_extent(relocmap_pp, rc, ri, l, 0);
 				if (ret)
-					return ret;			}
+					return ret;
+			}
 
 			ri += l;
 			rc  += l;
