@@ -754,7 +754,7 @@ int ploop_balloon_check_and_repair(const char *device, const char *mount_point, 
 
 	ret = freemap2freeblks(freemap, top_level, &freeblks, &n_free_blocks);
 	if (ret)
-		return ret;
+		goto err;
 	if (!repair) {
 		ploop_log(0, "Found %u free blocks. Consider using "
 		       "\"ploop-balloon repair\"", n_free_blocks);
@@ -766,7 +766,7 @@ int ploop_balloon_check_and_repair(const char *device, const char *mount_point, 
 
 	ret = ioctl_device(fd, PLOOP_IOC_FREEBLKS, freeblks);
 	if (ret)
-		return ret;
+		goto err;
 	drop_state = 0;
 	freezed_a_h = freeblks->alloc_head;
 	if (freezed_a_h > reverse_map_len) {
@@ -787,7 +787,7 @@ int ploop_balloon_check_and_repair(const char *device, const char *mount_point, 
 		goto err;
 	ret = ioctl_device(fd, PLOOP_IOC_RELOCBLKS, relocblks);
 	if (ret)
-		return ret;
+		goto err;
 
 	ploop_log(0, "TRUNCATED: %u cluster-blocks (%llu bytes)",
 			relocblks->alloc_head,
