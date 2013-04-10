@@ -277,10 +277,8 @@ static int create_empty_delta(const char *path, __u32 blocksize, off_t bdsize)
 	if (check_blockdev_size(bdsize, blocksize))
 		return -1;
 
-	if (posix_memalign(&buf, 4096, cluster)) {
-		ploop_err(errno, "posix_memalign");
+	if (p_memalign(&buf, 4096, cluster))
 		return -1;
-	}
 
 	ploop_log(0, "Creating delta %s bs=%d size=%ld sectors",
 			path, blocksize, (long)bdsize);
@@ -337,10 +335,8 @@ static int create_empty_preallocated_delta(const char *path, __u32 blocksize, of
 	if (check_blockdev_size(bdsize, blocksize))
 		return -1;
 
-	if (posix_memalign(&buf, 4096, cluster)) {
-		ploop_err(errno, "posix_memalign");
+	if (p_memalign(&buf, 4096, cluster))
 		return -1;
-	}
 
 	ploop_log(0, "Creating preallocated delta %s bs=%d size=%ld sectors",
 			path, blocksize, (long)bdsize);
@@ -408,10 +404,8 @@ static int create_raw_delta(const char * path, off_t bdsize)
 	ploop_log(0, "Creating raw delta %s size=%ld sectors",
 			path, (long)bdsize);
 
-	if (posix_memalign(&buf, 4096, DEF_CLUSTER)) {
-		ploop_err(errno, "posix_memalign");
+	if (p_memalign(&buf, 4096, DEF_CLUSTER))
 		return -1;
-	}
 
 	fd = open(path, O_RDWR|O_CREAT|O_EXCL, 0600);
 	if (fd < 0) {
@@ -1896,10 +1890,8 @@ static int expanded2raw(struct ploop_disk_images_data *di)
 		return SYSEXIT_OPEN;
 	cluster = S2B(delta.blocksize);
 
-	if (posix_memalign(&buf, 4096, cluster)) {
-		ploop_err(errno, "posix_memalign");
+	if (p_memalign(&buf, 4096, cluster))
 		goto err;
-	}
 
 	snprintf(tmp, sizeof(tmp), "%s.tmp",
 			di->images[0]->file);

@@ -258,3 +258,14 @@ int run_prg(char *const argv[])
 
 	return -1;
 }
+
+int p_memalign(void **memptr, size_t alignment, size_t size)
+{
+	int ret;
+
+	ret = posix_memalign(memptr, alignment, size);
+	if (ret)
+		ploop_err(ret, "Memory allocation failed, posix_memalign");
+
+	return ret;
+}

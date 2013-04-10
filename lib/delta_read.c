@@ -157,7 +157,7 @@ int open_delta(struct delta * delta, const char * path, int rw, int od_flags)
 	delta->l2_cache = -1;
 	delta->dirtied = 0;
 
-	if (posix_memalign(&p, 4096, SECTOR_SIZE)) {
+	if (p_memalign(&p, 4096, SECTOR_SIZE)) {
 		close_delta(delta);
 		return -1;
 	}
@@ -172,16 +172,12 @@ int open_delta(struct delta * delta, const char * path, int rw, int od_flags)
 	delta->blocksize = vh->m_Sectors;
 	cluster = S2B(vh->m_Sectors);
 
-	if (posix_memalign(&p, 4096, cluster)) {
-		err = errno;
+	if ((err = p_memalign(&p, 4096, cluster)))
 		goto open_delta_failed;
-	}
 	delta->hdr0 = p;
 
-	if (posix_memalign(&p, 4096, cluster)) {
-		err = errno;
+	if ((err = p_memalign(&p, 4096, cluster)))
 		goto open_delta_failed;
-	}
 	delta->l2 = p;
 
 	res = delta->fops->pread(delta->fd, delta->hdr0, cluster, 0);
@@ -518,10 +514,9 @@ int grow_raw_delta(const char *image, off_t append_size)
 	void *buf;
 	unsigned long i = 0;
 
-	if (posix_memalign(&buf, 4096, DEF_CLUSTER)) {
-		ploop_err(errno, "posix_memalign");
+	if (p_memalign(&buf, 4096, DEF_CLUSTER))
 		return SYSEXIT_MALLOC;
-	}
+
 	memset(buf, 0, DEF_CLUSTER);
 
 	if (open_delta_simple(&delta, image, O_WRONLY, OD_NOFLAGS))

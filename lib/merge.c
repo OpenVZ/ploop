@@ -158,8 +158,7 @@ static int grow_lower_delta(const char *device, int top, int start_level, int en
 		goto done;
 	}
 	cluster = S2B(odelta.blocksize);
-	if (posix_memalign(&buf, 4096, cluster)) {
-		ploop_err(errno, "posix_memalign");
+	if (p_memalign(&buf, 4096, cluster)) {
 		ret = SYSEXIT_MALLOC;
 		goto done;
 	}
@@ -383,7 +382,7 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 			goto merge_done2;
 		}
 	}
-	if (posix_memalign(&data_cache, 4096, cluster)) {
+	if (p_memalign(&data_cache, 4096, cluster)) {
 		ret = SYSEXIT_NOMEM;
 		goto merge_done2;
 	}

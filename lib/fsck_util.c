@@ -252,9 +252,8 @@ int ploop_fsck(char *img, int flags, int ro, int verbose, __u32 *blocksize_p)
 	if (blocksize_p != NULL)
 		*blocksize_p = vh->m_Sectors;
 	cluster = S2B(vh->m_Sectors);
-	if (posix_memalign(&buf, 4096, cluster)) {
+	if (p_memalign(&buf, 4096, cluster)) {
 		ret = SYSEXIT_NOMEM;
-		ploop_err(errno, "posix_memalign");
 		goto done;
 	}
 	l2_ptr = (__u32*)buf;

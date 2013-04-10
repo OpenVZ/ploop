@@ -170,8 +170,7 @@ int ploop_receive(const char *dst)
 			free(iobuf);
 			iobuf = NULL;
 			cluster = desc.size;
-			if (posix_memalign(&iobuf, 4096, cluster)) {
-				ploop_err(errno, "posix_memalign");
+			if (p_memalign(&iobuf, 4096, cluster)) {
 				ret = SYSEXIT_MALLOC;
 				goto out;
 			}
@@ -328,8 +327,7 @@ int ploop_send(const char *device, int ofd, const char *flush_cmd,
 		goto done;
 	cluster = S2B(blocksize);
 
-	if (posix_memalign(&iobuf, 4096, cluster)) {
-		ploop_err(errno, "posix_memalign");
+	if (p_memalign(&iobuf, 4096, cluster)) {
 		ret = SYSEXIT_MALLOC;
 		goto done;
 	}
