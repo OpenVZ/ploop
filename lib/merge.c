@@ -384,8 +384,10 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 			goto merge_done2;
 		}
 	}
-	if (posix_memalign(&data_cache, 4096, cluster))
-		return -1;
+	if (posix_memalign(&data_cache, 4096, cluster)) {
+		ret = SYSEXIT_NOMEM;
+		goto merge_done2;
+	}
 
 	if (!device) {
 		struct ploop_pvd_header *vh;
