@@ -133,7 +133,7 @@ int open_delta_simple(struct delta * delta, const char * path, int rw, int od_fl
 
 int open_delta(struct delta * delta, const char * path, int rw, int od_flags)
 {
-	struct ploop_pvd_header *vh;
+	struct ploop_pvd_header *vh = NULL;
 	void *p;
 	ssize_t res;
 	struct stat stat;
@@ -148,8 +148,7 @@ int open_delta(struct delta * delta, const char * path, int rw, int od_flags)
 	rc = delta->fops->fstat(delta->fd, &stat);
 	if (rc != 0) {
 		ploop_err(errno, "stat %s", path);
-		close_delta(delta);
-		return -1;
+		goto error;
 	}
 
 	delta->l1_dirty = 0;
@@ -157,10 +156,8 @@ int open_delta(struct delta * delta, const char * path, int rw, int od_flags)
 	delta->l2_cache = -1;
 	delta->dirtied = 0;
 
-	if (p_memalign(&p, 4096, SECTOR_SIZE)) {
-		close_delta(delta);
-		return -1;
-	}
+	if ((err = p_memalign(&p, 4096, SECTOR_SIZE)))
+		goto error;
 	vh = p;
 
 	res = delta->fops->pread(delta->fd, vh, SECTOR_SIZE, 0);
