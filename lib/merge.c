@@ -344,13 +344,12 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 
 	for (i = 0; i < last_delta; i++) {
 		// FIXME: add check for blocksize
-		if (extend_delta_array(&da, names[i],
+		ret = extend_delta_array(&da, names[i],
 					device ? O_RDONLY|O_DIRECT : O_RDONLY,
-					device ? OD_NOFLAGS : OD_OFFLINE)) {
-			ploop_err(errno, "extend_delta_array");
-			ret = SYSEXIT_OPEN;
+					device ? OD_NOFLAGS : OD_OFFLINE);
+		if (ret)
 			goto merge_done2;
-		}
+
 		blocksize = da.delta_arr[i].blocksize;
 		if (i != 0 && blocksize != prev_blocksize) {
 			ploop_err(errno, "Wrong blocksize %s bs=%d [prev bs=%d]",

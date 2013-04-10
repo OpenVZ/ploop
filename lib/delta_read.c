@@ -53,13 +53,16 @@ int extend_delta_array(struct delta_array * p, char * path, int rw, int od_flags
 	struct delta * da;
 
 	da = realloc(p->delta_arr, (p->delta_max + 1)*sizeof(struct delta));
-	if (da == NULL)
-		return -1;
+	if (da == NULL) {
+		ploop_err(errno, "realloc");
+		return SYSEXIT_NOMEM;
+	}
 	p->delta_arr = da;
 
 	if (open_delta(&da[p->delta_max], path, rw, od_flags))
-		return -1;
+		return SYSEXIT_OPEN;
 	p->delta_max++;
+
 	return 0;
 }
 
