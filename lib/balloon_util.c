@@ -737,6 +737,7 @@ int relocmap2relocblks(struct relocmap *relocmap, int lvl, __u32 a_h, __u32 n_sc
 
 	for(i = 0; i < relocmap->n_entries_used; i++) {
 		if (!relocmap->extents[i].len) {
+			free(relocblks);
 			ploop_err(0, "abort: relocmap2relocblks !relocmap->extents[i].len");
 			return SYSEXIT_ABORT;
 		}
