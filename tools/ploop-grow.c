@@ -36,6 +36,7 @@ static void usage(void)
 {
 	fprintf(stderr, "Usage: ploop grow -s NEW_SIZE -d DEVICE\n"
 			"       ploop grow -s NEW_SIZE [-f raw] DELTA\n"
+			"       ploop grow -s NEW_SIZE DiskDescriptor.xml\n"
 		);
 }
 
