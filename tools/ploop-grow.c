@@ -169,13 +169,8 @@ main(int argc, char ** argv)
 
 	ploop_set_verbose_level(3);
 
-	if (device) {
-		__u32 blocksize = 0;
-
-		if (ploop_get_attr(device, "block_size", (int*) &blocksize))
-			return 1;
-		return ploop_grow_device(device, blocksize, new_size);
-	}
+	if (device)
+		return ploop_grow_device(device, new_size);
 	else if (raw)
 		return grow_raw_device_offline(argv[0], new_size);
 	else

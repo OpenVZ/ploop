@@ -1491,15 +1491,20 @@ int ploop_umount_image(struct ploop_disk_images_data *di)
 	return ret;
 }
 
-int ploop_grow_device(const char *device, __u32 blocksize, off_t new_size)
+int ploop_grow_device(const char *device, off_t new_size)
 {
 	int fd, ret;
 	struct ploop_ctl ctl;
 	off_t size;
+	__u32 blocksize = 0;
 
 	ret = ploop_get_size(device, &size);
 	if (ret)
 		return ret;
+
+	if (ploop_get_attr(device, "block_size", (int*) &blocksize))
+		return SYSEXIT_SYS;
+
 	ploop_log(0, "Growing dev=%s size=%llu sectors (new size=%llu)",
 				device, (unsigned long long)size,
 				(unsigned long long)new_size);
@@ -1768,7 +1773,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		if (ret)
 			goto err;
 
-		ret = ploop_grow_device(mount_param.device, blocksize, new_size);
+		ret = ploop_grow_device(mount_param.device, new_size);
 		if (ret) {
 			unlink(conf_tmp);
 			goto err;
