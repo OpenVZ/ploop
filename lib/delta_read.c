@@ -570,8 +570,9 @@ int ploop_grow_raw_delta_offline(const char *image, off_t new_size)
 		return 0;
 
 	if (new_size < old_size) {
-		fprintf(stderr, "Use truncate(1) for offline truncate "
-			"of raw delta\n");
+		/* Use truncate(1) for offline truncate of raw delta */
+		ploop_err(0, "Error: new size %lu is less than the old size %lu",
+				new_size, old_size);
 		return SYSEXIT_PARAM;
 	}
 
@@ -599,18 +600,19 @@ int ploop_grow_delta_offline(const char *image, off_t new_size)
 		goto out;
 
 	if (new_vh.m_SizeInSectors < old_size) {
-		fprintf(stderr, "Error: new size is less than the old size\n");
+		ploop_err(0, "Error: new size %lu is less than the old size %lu",
+				new_size, old_size);
 		ret = SYSEXIT_PARAM;
 		goto out;
 	}
 
 	if (dirty_delta(&delta)) {
-		perror("dirty_delta");
+		ploop_err(errno, "Failed to set dirty flag");
 		ret = SYSEXIT_WRITE;
 		goto out;
 	}
 
-	if (posix_memalign(&buf, 4096, S2B(delta.blocksize))) {
+	if (p_memalign(&buf, 4096, S2B(delta.blocksize))) {
 		ret = SYSEXIT_NOMEM;
 		goto out;
 	}
@@ -620,20 +622,20 @@ int ploop_grow_delta_offline(const char *image, off_t new_size)
 		goto out;
 
 	if (clear_delta(&delta)) {
-		perror("clear_delta");
+		ploop_err(errno, "Failed to clear dirty flag");
 		ret = SYSEXIT_WRITE;
 		goto out;
 	}
 
 	if (fsync(delta.fd)) {
-		perror("fsync");
+		ploop_err(errno, "fsync");
 		ret = SYSEXIT_FSYNC;
 		goto out;
 	}
 	ret = 0;
 
 out:
-/*	close_delta(&delta); */
+	close_delta(&delta);
 	free(buf);
 
 	return ret;
