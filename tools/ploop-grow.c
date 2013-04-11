@@ -34,8 +34,8 @@
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: ploop grow [-s NEW_SIZE] -d DEVICE\n"
-			"       ploop grow [-s NEW_SIZE] [-f raw] DELTA\n"
+	fprintf(stderr, "Usage: ploop grow -s NEW_SIZE -d DEVICE\n"
+			"       ploop grow -s NEW_SIZE [-f raw] DELTA\n"
 		);
 }
 
@@ -76,7 +76,7 @@ main(int argc, char ** argv)
 	argv += optind;
 
 	if (((argc != 0 || !device) && (argc != 1 || device)) ||
-	    (raw && device)) {
+	    (raw && device) || (new_size == 0)) {
 		usage();
 		return SYSEXIT_PARAM;
 	}
