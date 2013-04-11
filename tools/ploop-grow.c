@@ -70,10 +70,8 @@ static int ploop_grow_delta_offline(char *image, off_t new_size)
 	struct delta delta = {};
 	void *buf;
 
-	if (open_delta(&delta, image, new_size ? O_RDWR : O_RDONLY, OD_OFFLINE)) {
-		perror("open_delta");
+	if (open_delta(&delta, image, new_size ? O_RDWR : O_RDONLY, OD_OFFLINE))
 		return SYSEXIT_OPEN;
-	}
 
 	vh = (struct ploop_pvd_header *)delta.hdr0;
 	old_size = vh->m_SizeInSectors;
