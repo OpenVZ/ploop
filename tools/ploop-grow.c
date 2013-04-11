@@ -103,6 +103,4 @@ main(int argc, char ** argv)
 		return ploop_grow_raw_delta_offline(argv[0], new_size);
 	else
 		return ploop_grow_delta_offline(argv[0], new_size);
-
-	return 0;
 }
