@@ -83,7 +83,21 @@ main(int argc, char ** argv)
 
 	ploop_set_verbose_level(3);
 
-	if (device)
+	if (argc == 1 && is_xml_fname(argv[0]))
+	{
+		int ret;
+
+		struct ploop_disk_images_data *di;
+		ret = read_dd(&di, argv[0]);
+		if (ret)
+			return ret;
+
+		ret = ploop_grow_image(di, new_size);
+		ploop_free_diskdescriptor(di);
+
+		return ret;
+	}
+	else if (device)
 		return ploop_grow_device(device, new_size);
 	else if (raw)
 		return ploop_grow_raw_delta_offline(argv[0], new_size);
