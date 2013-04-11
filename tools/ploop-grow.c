@@ -31,10 +31,6 @@
 #include "ploop.h"
 #include "common.h"
 
-static int raw;
-static struct delta delta;
-static struct ploop_pvd_header new_vh;
-static char *device;
 
 static void usage(char *pname)
 {
@@ -78,6 +74,8 @@ static int grow_delta_offline(char *image, off_t new_size)
 {
 	off_t old_size;
 	struct ploop_pvd_header *vh;
+	struct ploop_pvd_header new_vh;
+	struct delta delta = {};
 	void *buf;
 
 	if (open_delta(&delta, image, new_size ? O_RDWR : O_RDONLY, OD_OFFLINE)) {
@@ -132,6 +130,8 @@ main(int argc, char ** argv)
 	char *pname = argv[0];
 	int i, f;
 	off_t new_size = 0; /* in sectors */
+	int raw = 0;
+	char *device = NULL;
 
 	while ((i = getopt(argc, argv, "f:d:s:")) != EOF) {
 		switch (i) {
