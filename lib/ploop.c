@@ -1538,6 +1538,52 @@ int ploop_grow_device(const char *device, off_t new_size)
 	return 0;
 }
 
+int ploop_grow_image(struct ploop_disk_images_data *di, off_t size)
+{
+	int ret;
+	char device[64];
+
+	if (ploop_lock_di(di))
+		return SYSEXIT_LOCK;
+
+	ret = ploop_find_dev_by_uuid(di, 1, device, sizeof(device));
+	if (ret == -1) {
+		ret = SYSEXIT_SYS;
+		goto err;
+	}
+	if (ret == 0) {
+		ret = ploop_grow_device(device, size);
+	} else {
+		int i;
+		const char *fname;
+
+		i = find_snapshot_by_guid(di, di->top_guid);
+		if (i == -1) {
+			ploop_err(0, "Unable to find top delta file name");
+			ret = SYSEXIT_PARAM;
+			goto err;
+		}
+
+		fname = find_image_by_guid(di, di->top_guid);
+		if (i == -1) {
+			ploop_err(0, "Unable to find top delta file name");
+			ret = SYSEXIT_PARAM;
+			goto err;
+		}
+
+		if (strcmp(di->snapshots[i]->parent_guid, NONE_UUID) == 0 &&
+				di->mode == PLOOP_RAW_MODE)
+			ret = ploop_grow_raw_delta_offline(fname, size);
+		else
+			ret = ploop_grow_delta_offline(fname, size);
+	}
+
+err:
+	ploop_unlock_di(di);
+
+	return ret;
+}
+
 static int ploop_raw_discard(struct ploop_disk_images_data *di, const char *device,
 		__u32 blocksize, off_t start, off_t end)
 {
