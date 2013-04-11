@@ -39,7 +39,7 @@ static void usage(char *pname)
 		pname, pname);
 }
 
-static int grow_raw_device_offline(const char *image, off_t new_size)
+static int ploop_grow_raw_delta_offline(const char *image, off_t new_size)
 {
 	int ret;
 	off_t old_size;
@@ -68,7 +68,7 @@ static int grow_raw_device_offline(const char *image, off_t new_size)
 	return grow_raw_delta(image, (new_size - old_size) << 9);
 }
 
-static int grow_delta_offline(char *image, off_t new_size)
+static int ploop_grow_delta_offline(char *image, off_t new_size)
 {
 	off_t old_size;
 	struct ploop_pvd_header *vh;
@@ -170,9 +170,9 @@ main(int argc, char ** argv)
 	if (device)
 		return ploop_grow_device(device, new_size);
 	else if (raw)
-		return grow_raw_device_offline(argv[0], new_size);
+		return ploop_grow_raw_delta_offline(argv[0], new_size);
 	else
-		return grow_delta_offline(argv[0], new_size);
+		return ploop_grow_delta_offline(argv[0], new_size);
 
 	return 0;
 }
