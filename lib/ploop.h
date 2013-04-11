@@ -204,6 +204,8 @@ PL_EXT int grow_delta(struct delta *odelta, off_t bdsize, void *buf,
 		struct grow_maps *gm);
 PL_EXT int grow_raw_delta(const char *image, off_t append_size);
 PL_EXT int ploop_grow_device(const char *device, off_t new_size);
+PL_EXT int ploop_grow_raw_delta_offline(const char *image, off_t new_size);
+PL_EXT int ploop_grow_delta_offline(const char *image, off_t new_size);
 
 struct pfiemap *fiemap_alloc(int n);
 int fiemap_get(int fd, __u64 off, __u64 start, off_t size, struct pfiemap **pfiemap_pp);
