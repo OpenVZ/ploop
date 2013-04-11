@@ -48,12 +48,6 @@ static int ploop_grow_raw_delta_offline(const char *image, off_t new_size)
 	if (ret)
 		return ret;
 
-	if (!new_size) {
-		printf("%s size is %llu sectors\n",
-			image, (unsigned long long)old_size);
-		return 0;
-	}
-
 	new_size = (new_size + (4096 >> 9) - 1) & ~((4096 >> 9) - 1);
 
 	if (new_size == old_size)
@@ -83,12 +77,6 @@ static int ploop_grow_delta_offline(char *image, off_t new_size)
 
 	vh = (struct ploop_pvd_header *)delta.hdr0;
 	old_size = vh->m_SizeInSectors;
-
-	if (!new_size) {
-		printf("%s size is %llu sectors\n",
-			image, (unsigned long long)old_size);
-		return 0;
-	}
 
 	generate_pvd_header(&new_vh, new_size, delta.blocksize);
 
