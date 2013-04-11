@@ -68,7 +68,8 @@ static int ploop_grow_delta_offline(char *image, off_t new_size)
 	struct ploop_pvd_header *vh;
 	struct ploop_pvd_header new_vh;
 	struct delta delta = {};
-	void *buf;
+	void *buf = NULL;
+	int ret = 0;
 
 	if (open_delta(&delta, image, new_size ? O_RDWR : O_RDONLY, OD_OFFLINE))
 		return SYSEXIT_OPEN;
@@ -79,33 +80,47 @@ static int ploop_grow_delta_offline(char *image, off_t new_size)
 	generate_pvd_header(&new_vh, new_size, delta.blocksize);
 
 	if (new_vh.m_SizeInSectors == old_size)
-		return 0;
+		goto out;
 
 	if (new_vh.m_SizeInSectors < old_size) {
 		fprintf(stderr, "Error: new size is less than the old size\n");
-		return SYSEXIT_PARAM;
+		ret = SYSEXIT_PARAM;
+		goto out;
 	}
 
 	if (dirty_delta(&delta)) {
 		perror("dirty_delta");
-		return SYSEXIT_WRITE;
+		ret = SYSEXIT_WRITE;
+		goto out;
 	}
 
-	if (posix_memalign(&buf, 4096, S2B(delta.blocksize)))
-		return SYSEXIT_NOMEM;
+	if (posix_memalign(&buf, 4096, S2B(delta.blocksize))) {
+		ret = SYSEXIT_NOMEM;
+		goto out;
+	}
 
-	grow_delta(&delta, new_vh.m_SizeInSectors, buf, NULL);
+	ret = grow_delta(&delta, new_vh.m_SizeInSectors, buf, NULL);
+	if (ret)
+		goto out;
 
 	if (clear_delta(&delta)) {
 		perror("clear_delta");
-		exit(SYSEXIT_WRITE);
+		ret = SYSEXIT_WRITE;
+		goto out;
 	}
 
 	if (fsync(delta.fd)) {
 		perror("fsync");
-		exit(SYSEXIT_FSYNC);
+		ret = SYSEXIT_FSYNC;
+		goto out;
 	}
-	return 0;
+	ret = 0;
+
+out:
+/*	close_delta(&delta); */
+	free(buf);
+
+	return ret;
 }
 
 int
