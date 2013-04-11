@@ -63,11 +63,9 @@ static int grow_raw_device_offline(const char *image, off_t new_size)
 		fprintf(stderr, "Use truncate(1) for offline truncate "
 			"of raw delta\n");
 		return -1;
-	} else {
-		grow_raw_delta(image, (new_size - old_size) << 9);
 	}
 
-	return 0;
+	return grow_raw_delta(image, (new_size - old_size) << 9);
 }
 
 static int grow_delta_offline(char *image, off_t new_size)
