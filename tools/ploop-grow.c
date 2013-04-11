@@ -32,11 +32,11 @@
 #include "common.h"
 
 
-static void usage(char *pname)
+static void usage(void)
 {
-	fprintf(stderr, "Usage: %s [-s NEW_SIZE] -d DEVICE\n"
-		        "       %s [-s NEW_SIZE] [-f raw] DELTA\n",
-		pname, pname);
+	fprintf(stderr, "Usage: ploop grow [-s NEW_SIZE] -d DEVICE\n"
+			"       ploop grow [-s NEW_SIZE] [-f raw] DELTA\n"
+		);
 }
 
 static int ploop_grow_raw_delta_offline(const char *image, off_t new_size)
@@ -113,7 +113,6 @@ static int ploop_grow_delta_offline(char *image, off_t new_size)
 int
 main(int argc, char ** argv)
 {
-	char *pname = argv[0];
 	int i, f;
 	off_t new_size = 0; /* in sectors */
 	int raw = 0;
@@ -124,7 +123,7 @@ main(int argc, char ** argv)
 		case 'f':
 			f = parse_format_opt(optarg);
 			if (f < 0) {
-				usage(pname);
+				usage();
 				return SYSEXIT_PARAM;
 			}
 			raw = (f == PLOOP_RAW_MODE);
@@ -134,12 +133,12 @@ main(int argc, char ** argv)
 			break;
 		case 's':
 			if (parse_size(optarg, &new_size)) {
-				usage(pname);
+				usage();
 				return SYSEXIT_PARAM;
 			}
 			break;
 		default:
-			usage(pname);
+			usage();
 			return SYSEXIT_PARAM;
 		}
 	}
@@ -149,7 +148,7 @@ main(int argc, char ** argv)
 
 	if (((argc != 0 || !device) && (argc != 1 || device)) ||
 	    (raw && device)) {
-		usage(pname);
+		usage();
 		return SYSEXIT_PARAM;
 	}
 
