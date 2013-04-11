@@ -74,7 +74,7 @@ int main(int argc, char ** argv)
 			break;
 		default:
 			usage();
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 	}
 
@@ -83,7 +83,7 @@ int main(int argc, char ** argv)
 
 	if (argc != 1) {
 		usage();
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	ploop_set_verbose_level(3);

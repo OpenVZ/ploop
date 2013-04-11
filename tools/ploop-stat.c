@@ -73,7 +73,7 @@ int main(int argc, char **argv)
 			break;
 		default:
 			usage();
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 	}
 
@@ -82,7 +82,7 @@ int main(int argc, char **argv)
 
 	if (argc || !device) {
 		usage();
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	if (memcmp(device, "/dev/", 5) == 0)

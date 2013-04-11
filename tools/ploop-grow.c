@@ -56,7 +56,7 @@ static int ploop_grow_raw_delta_offline(const char *image, off_t new_size)
 	if (new_size < old_size) {
 		fprintf(stderr, "Use truncate(1) for offline truncate "
 			"of raw delta\n");
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	return grow_raw_delta(image, (new_size - old_size) << 9);
@@ -85,7 +85,7 @@ static int ploop_grow_delta_offline(char *image, off_t new_size)
 
 	if (new_vh.m_SizeInSectors < old_size) {
 		fprintf(stderr, "Error: new size is less than the old size\n");
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	if (dirty_delta(&delta)) {
@@ -94,7 +94,7 @@ static int ploop_grow_delta_offline(char *image, off_t new_size)
 	}
 
 	if (posix_memalign(&buf, 4096, S2B(delta.blocksize)))
-		return -1;
+		return SYSEXIT_NOMEM;
 
 	grow_delta(&delta, new_vh.m_SizeInSectors, buf, NULL);
 
@@ -125,7 +125,7 @@ main(int argc, char ** argv)
 			f = parse_format_opt(optarg);
 			if (f < 0) {
 				usage(pname);
-				return -1;
+				return SYSEXIT_PARAM;
 			}
 			raw = (f == PLOOP_RAW_MODE);
 			break;
@@ -135,12 +135,12 @@ main(int argc, char ** argv)
 		case 's':
 			if (parse_size(optarg, &new_size)) {
 				usage(pname);
-				return -1;
+				return SYSEXIT_PARAM;
 			}
 			break;
 		default:
 			usage(pname);
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 	}
 
@@ -150,7 +150,7 @@ main(int argc, char ** argv)
 	if (((argc != 0 || !device) && (argc != 1 || device)) ||
 	    (raw && device)) {
 		usage(pname);
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	ploop_set_verbose_level(3);

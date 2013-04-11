@@ -56,7 +56,7 @@ int main(int argc, char ** argv)
 			f = parse_format_opt(optarg);
 			if (f < 0) {
 				usage();
-				return -1;
+				return SYSEXIT_PARAM;
 			}
 			raw = (f == PLOOP_RAW_MODE);
 			break;
@@ -67,13 +67,13 @@ int main(int argc, char ** argv)
 			if (sscanf(optarg, "%d..%d", &start_level, &end_level) != 2) {
 				if (sscanf(optarg, "%d", &start_level) != 1) {
 					usage();
-					return -1;
+					return SYSEXIT_PARAM;
 				}
 				end_level = start_level + 1;
 			}
 			if (start_level >= end_level || start_level < 0) {
 				usage();
-				return -1;
+				return SYSEXIT_PARAM;
 			}
 			break;
 		case 'u':
@@ -84,7 +84,7 @@ int main(int argc, char ** argv)
 			break;
 		default:
 			usage();
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 	}
 
@@ -99,7 +99,7 @@ int main(int argc, char ** argv)
 		if (param.guid != NULL && param.merge_all != 0) {
 			fprintf(stderr, "Options -u and -A can't be used together\n");
 			usage();
-			return -1;
+			return SYSEXIT_PARAM;
 		}
 
 		ret = read_dd(&di, argv[0]);
@@ -111,7 +111,7 @@ int main(int argc, char ** argv)
 		if (device == NULL) {
 			if (argc < 2) {
 				usage();
-				return -1;
+				return SYSEXIT_PARAM;
 			}
 			end_level = argc;
 			names = argv;
@@ -120,7 +120,7 @@ int main(int argc, char ** argv)
 
 			if (argc || raw) {
 				usage();
-				return -1;
+				return SYSEXIT_PARAM;
 			}
 
 			info.start_level = start_level;
