@@ -1931,7 +1931,7 @@ static int expanded2raw(struct ploop_disk_images_data *di)
 	struct delta odelta = {};
 	__u32 clu;
 	void *buf = NULL;
-	char tmp[PATH_MAX];
+	char tmp[PATH_MAX] = "";
 	int ret = -1;
 	__u64 cluster;
 
@@ -1991,7 +1991,7 @@ static int expanded2raw(struct ploop_disk_images_data *di)
 	ret = 0;
 err:
 	close(odelta.fd);
-	if (ret)
+	if (ret && tmp[0])
 		unlink(tmp);
 	close_delta(&delta);
 	free(buf);
