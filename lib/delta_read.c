@@ -147,6 +147,7 @@ int open_delta(struct delta * delta, const char * path, int rw, int od_flags)
 
 	rc = delta->fops->fstat(delta->fd, &stat);
 	if (rc != 0) {
+		err = errno;
 		ploop_err(errno, "stat %s", path);
 		goto error;
 	}
