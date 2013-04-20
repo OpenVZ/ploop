@@ -517,13 +517,15 @@ int grow_raw_delta(const char *image, off_t append_size)
 
 	memset(buf, 0, DEF_CLUSTER);
 
-	if (open_delta_simple(&delta, image, O_WRONLY, OD_NOFLAGS))
-		return SYSEXIT_OPEN;
+	if (open_delta_simple(&delta, image, O_WRONLY, OD_NOFLAGS)) {
+		ret = SYSEXIT_OPEN;
+		goto err1;
+	}
 
 	if(delta.fops->fstat(delta.fd, &stat)) {
 		ploop_err(errno, "fstat");
-		close_delta(&delta);
-		return SYSEXIT_READ;
+		ret = SYSEXIT_READ;
+		goto err;
 	}
 
 	pos = stat.st_size;
@@ -553,6 +555,9 @@ int grow_raw_delta(const char *image, off_t append_size)
 
 err:
 	close_delta(&delta);
+err1:
+	free(buf);
+
 	return ret;
 }
 
