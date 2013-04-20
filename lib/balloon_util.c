@@ -736,7 +736,7 @@ int relocmap2relocblks(struct relocmap *relocmap, int lvl, __u32 a_h, __u32 n_sc
 	relocblks->alloc_head = a_h;
 	relocblks->n_scanned  = n_scanned;
 
-	for(i = 0; i < relocmap->n_entries_used; i++) {
+	for(i = 0; i < n; i++) {
 		if (!relocmap->extents[i].len) {
 			free(relocblks);
 			ploop_err(0, "abort: relocmap2relocblks !relocmap->extents[i].len");
@@ -748,7 +748,7 @@ int relocmap2relocblks(struct relocmap *relocmap, int lvl, __u32 a_h, __u32 n_sc
 		relocblks->extents[i].free = relocmap->extents[i].free;
 	}
 
-	relocblks->n_extents = relocmap->n_entries_used;
+	relocblks->n_extents = n;
 	*relocblks_pp = relocblks;
 
 	return 0;
