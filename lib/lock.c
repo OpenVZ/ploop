@@ -91,8 +91,10 @@ static int do_lock(const char *fname, unsigned int timeout)
 	if (timeout) {
 		/* all other signals should be set with SA_RESTART */
 		sigaction(SIGRTMIN, &sa, &osa);
-		if (set_timer(&tid, timeout))
+		if (set_timer(&tid, timeout)) {
+			close(fd);
 			return -1;
+		}
 	}
 	while ((r = flock(fd, LOCK_EX)) == -1) {
 		_errno = errno;
