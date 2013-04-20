@@ -516,8 +516,11 @@ static int plooptool_rm(int argc, char **argv)
 	level = rmopts.level;
 	if (ioctl(lfd, PLOOP_IOC_DEL_DELTA, &level) < 0) {
 		perror("PLOOP_IOC_DEL_DELTA");
+		close(lfd);
 		return SYSEXIT_DEVIOC;
 	}
+
+	close(lfd);
 	return 0;
 }
 
