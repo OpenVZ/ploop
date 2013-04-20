@@ -123,6 +123,7 @@ static int pb_show(int argc, char **argv)
 		switch (i) {
 		case 'f':
 			force = 1;
+			break;
 		case 'd':
 			device = optarg;
 			break;
@@ -171,6 +172,7 @@ static int pb_status(int argc, char **argv)
 		switch (i) {
 		case 'f':
 			force = 1;
+			break;
 		case 'd':
 			device = optarg;
 			break;
@@ -375,6 +377,7 @@ static int pb_check_and_repair(int argc, char **argv, int repair)
 		switch (i) {
 		case 'f':
 			force = 1;
+			break;
 		case 'd':
 			device = optarg;
 			break;
