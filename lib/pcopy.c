@@ -530,8 +530,8 @@ int ploop_send(const char *device, int ofd, const char *flush_cmd,
 
 		if (iter > 2) {
 			ploop_err(0, "Too many iterations on frozen FS, aborting");
-			goto done;
 			ret = SYSEXIT_LOOP;
+			goto done;
 		}
 	}
 
