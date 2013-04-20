@@ -497,6 +497,10 @@ static int pb_discard(int argc, char **argv)
 	if (argc != 0 || (di != NULL && (device || mount_point)) ||
 			(di == NULL && fill_opts())) {
 		usage_discard();
+
+		if (di)
+			ploop_free_diskdescriptor(di);
+
 		return 1;
 	}
 
@@ -517,6 +521,9 @@ static int pb_discard(int argc, char **argv)
 			ret = ploop_discard_by_dev(device, mount_point,
 					param.minlen_b, param.to_free, NULL);
 	}
+
+	if (di)
+		ploop_free_diskdescriptor(di);
 
 	return ret;
 }
