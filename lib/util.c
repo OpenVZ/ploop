@@ -230,7 +230,14 @@ int run_prg(char *const argv[])
 	pid = fork();
 	if (pid == 0) {
 		int fd = open("/dev/null", O_RDONLY);
-		dup2(fd, STDIN_FILENO);
+		if (fd >= 0) {
+			dup2(fd, STDIN_FILENO);
+			close(fd);
+		}
+		else {
+			ploop_err(errno, "Can't open /dev/null");
+			return -1;
+		}
 
 		execvp(argv[0], argv);
 	} else if (pid == -1) {
