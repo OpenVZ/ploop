@@ -802,6 +802,7 @@ err:
 	// FIXME: close_delta()
 	close(balloonfd);
 	close(fd);
+	free(pfiemap);
 	free(freemap);
 	free(rangemap);
 	free(relocmap);
