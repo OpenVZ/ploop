@@ -2241,8 +2241,10 @@ int create_snapshot(const char *device, const char *delta, __u32 blocksize, int 
 	if (ret)
 		unlink(delta);
 err:
-	close(lfd);
-	close(fd);
+	if (lfd >= 0)
+		close(lfd);
+	if (fd >= 0)
+		close(fd);
 
 	return ret;
 }
