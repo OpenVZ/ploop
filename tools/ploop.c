@@ -281,6 +281,7 @@ static int plooptool_start(int argc, char **argv)
 
 	if (ioctl(lfd, PLOOP_IOC_START, 0) < 0) {
 		perror("PLOOP_IOC_START");
+		close(lfd);
 		return SYSEXIT_DEVIOC;
 	}
 
@@ -288,6 +289,7 @@ static int plooptool_start(int argc, char **argv)
 		perror("BLKRRPART");
 	}
 
+	close(lfd);
 	return 0;
 }
 
