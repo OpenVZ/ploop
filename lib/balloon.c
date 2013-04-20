@@ -800,8 +800,10 @@ err:
 	}
 
 	// FIXME: close_delta()
-	close(balloonfd);
-	close(fd);
+	if (balloonfd >= 0)
+		close(balloonfd);
+	if (fd >= 0)
+		close(fd);
 	free(pfiemap);
 	free(freemap);
 	free(rangemap);
