@@ -383,9 +383,11 @@ static int plooptool_clear(int argc, char **argv)
 
 	if (ioctl(lfd, PLOOP_IOC_CLEAR, 0) < 0) {
 		perror("PLOOP_IOC_CLEAR");
+		close(lfd);
 		return SYSEXIT_DEVIOC;
 	}
 
+	close(lfd);
 	return 0;
 }
 
