@@ -546,6 +546,7 @@ int grow_raw_delta(const char *image, off_t append_size)
 
 	if (delta.fops->fsync(delta.fd)) {
 		ploop_err(errno, "fsync");
+		ret = SYSEXIT_FSYNC;
 		goto err;
 	}
 	ret = 0;
