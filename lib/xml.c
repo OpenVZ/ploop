@@ -274,7 +274,11 @@ void get_basedir(const char *fname, char *out, int len)
 /* Convert to new format with constant TopGUID */
 static int convert_disk_descriptor(struct ploop_disk_images_data *di)
 {
-	if (di->top_guid != NULL && !guidcmp(di->top_guid, TOPDELTA_UUID))
+	if (di->top_guid == NULL) {
+		ploop_err(0, "Invalid DiskDescriptor.xml: TopGUID not found");
+		return -1;
+	}
+	if (!guidcmp(di->top_guid, TOPDELTA_UUID))
 		return 0;
 
 	ploop_log(0, "DiskDescriptor.xml is in old format: converting");
