@@ -260,7 +260,7 @@ static int is_fmt_version_valid(int version)
 
 static int default_fmt_version(void)
 {
-	return PLOOP_FMT_V1;
+	return is_large_disk_supported() ? PLOOP_FMT_V2 : PLOOP_FMT_V1;
 }
 
 static int check_size(unsigned long long sectors, __u32 blocksize, int version)
