@@ -578,8 +578,10 @@ int ploop_grow_raw_delta_offline(const char *image, off_t new_size)
 
 	if (new_size < old_size) {
 		/* Use truncate(1) for offline truncate of raw delta */
-		ploop_err(0, "Error: new size %lu is less than the old size %lu",
-				new_size, old_size);
+		ploop_err(0, "Error: new size %llu is less than "
+				"the old size %llu",
+				(unsigned long long)new_size,
+				(unsigned long long)old_size);
 		return SYSEXIT_PARAM;
 	}
 
@@ -607,8 +609,10 @@ int ploop_grow_delta_offline(const char *image, off_t new_size)
 		goto out;
 
 	if (new_vh.m_SizeInSectors < old_size) {
-		ploop_err(0, "Error: new size %lu is less than the old size %lu",
-				new_size, old_size);
+		ploop_err(0, "Error: new size %llu is less than "
+				"the old size %llu",
+				(unsigned long long)new_size,
+				(unsigned long long)old_size);
 		ret = SYSEXIT_PARAM;
 		goto out;
 	}
