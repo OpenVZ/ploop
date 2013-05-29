@@ -98,8 +98,8 @@ struct ploop_snapshot_param {
 };
 
 struct ploop_snapshot_switch_param {
-	char *guid;
-	char *guid_old;	/* guid for old top delta */
+	const char *guid;
+	const char *guid_old;	/* guid for old top delta */
 	int flags;
 	char dummy[32];
 };
