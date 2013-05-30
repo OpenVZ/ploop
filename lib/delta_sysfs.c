@@ -325,7 +325,7 @@ int ploop_find_dev(const char *component_name, const char *delta,
 				de->d_name);
 		err = read_line_quiet(fname, image, sizeof(image));
 		if (err) {
-			if (err == ENOENT)
+			if (err == ENOENT || err == ENODEV)
 				continue;
 
 			ploop_err(err, "Can't open or read %s", fname);
@@ -339,7 +339,8 @@ int ploop_find_dev(const char *component_name, const char *delta,
 				de->d_name);
 		err = read_line_quiet(fname, cookie, sizeof(cookie));
 		if (err) {
-			if ((err == ENOENT) && is_cookie_supported())
+			if ((err == ENOENT || err == ENODEV ) &&
+					is_cookie_supported())
 				/* This is not an error, but a race between
 				 * mount and umount: device is being removed
 				 */
