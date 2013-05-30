@@ -115,13 +115,11 @@ static int do_lock(const char *fname, unsigned int timeout)
 	if (timeout) {
 		end = get_cpu_time();
 		if (end == (clock_t)-1)
-			return -1;
+			goto err;
 		end += SEC_TO_NSEC(timeout);
 		sigaction(SIGRTMIN, &sa, &osa);
-		if (set_timer(&tid, timeout)) {
-			close(fd);
-			return -1;
-		}
+		if (set_timer(&tid, timeout))
+			goto err;
 	}
 	while ((r = flock(fd, LOCK_EX)) == -1) {
 		_errno = errno;
@@ -139,15 +137,17 @@ static int do_lock(const char *fname, unsigned int timeout)
 	if (r != 0) {
 		if (_errno == EAGAIN) {
 			ploop_err(_errno, "The %s is locked", fname);
-			close(fd);
-			return -1;
+			goto err;
 		} else {
 			ploop_err(_errno, "Error in flock(%s)", fname);
-			close(fd);
-			return -1;
+			goto err;
 		}
 	}
 	return fd;
+
+err:
+	close(fd);
+	return -1;
 }
 
 void ploop_unlock(int *lckfd)
