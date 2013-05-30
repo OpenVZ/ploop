@@ -2388,7 +2388,7 @@ static int get_image_param(struct ploop_disk_images_data *di, const char *guid,
 		}
 		*size = st.st_size / SECTOR_SIZE;
 		*version = PLOOP_FMT_UNDEFINED;
-		*blocksize = di != NULL ? di->blocksize : 1 << PLOOP1_DEF_CLUSTER_LOG;
+		*blocksize = di->blocksize;
 	} else {
 		ret = open_delta(&delta, image, O_RDONLY, OD_OFFLINE | OD_ALLOW_DIRTY);
 		if (ret)
