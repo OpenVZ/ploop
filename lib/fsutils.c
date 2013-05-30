@@ -63,17 +63,24 @@ int make_fs(const char *device, const char *fstype, unsigned int fsblocksize)
 	char part_device[64];
 	char fsblock_size[14];
 	char *argv[8];
+	char ext_opts[1024];
+
+	fsblocksize = fsblocksize != 0 ? fsblocksize : 4096;
 
 	if (get_partition_device_name(device, part_device, sizeof(part_device)))
 		return SYSEXIT_MKFS;
+
 	argv[0] = "/sbin/mkfs";
 	argv[1] = "-t";
 	argv[2] = (char*)fstype;
 	argv[3] = "-j";
 	snprintf(fsblock_size, sizeof(fsblock_size), "-b%u",
-			fsblocksize != 0 ? fsblocksize : 4096);
+			fsblocksize);
 	argv[4] = fsblock_size;
-	argv[5] = "-Elazy_itable_init";
+	/* Reserve enough space so that the block group descriptor table can grow to 16T */
+	snprintf(ext_opts, sizeof(ext_opts), "-Elazy_itable_init,resize=%llu",
+			16ULL*1024*1024*1024*1024 / fsblocksize);
+	argv[5] = ext_opts;
 	argv[6] = part_device;
 	argv[7] = NULL;
 
