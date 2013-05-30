@@ -18,6 +18,7 @@ ploop \- ploop device management utility
 .OP -f format
 .OP -t fstype
 .OP -b blocksize
+.OP -B fsblocksize
 .I delta_file
 .YS
 .SY ploop\ mount
@@ -113,6 +114,7 @@ file.
 .OP -f format
 .OP -t fstype
 .OP -b blocksize
+.OP -B fsblocksize
 .I delta_file
 .YS
 
@@ -130,6 +132,8 @@ Using \fBext3\fR is not recommended.
 .IP "\fB-b\fR \fIblocksize\fR"
 Device block size, in 512 byte sectors. Default block size is 2048 sectors,
 or 1 megabyte.
+.IP "\fB-B\fR \fIfsblocksize\fR"
+Filesystem block size, in bytes. Default is 4096 bytes.
 .IP \fIdelta_file\fR
 Path to a non-existent image file to be created.
 .P
