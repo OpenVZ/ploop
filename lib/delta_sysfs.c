@@ -267,21 +267,6 @@ close_dir:
 	return -1;
 }
 
-static int is_cookie_supported(void)
-{
-	struct utsname buf;
-	int major, minor;
-
-	uname(&buf);
-	// >= 2.6.32-042stab061.1
-	if (sscanf(buf.release, "%*d.%*d.%*d-%dstab%d.%*d", &major, &minor) != 2) {
-		ploop_err(0, "Can't parse kernel version %s", buf.release);
-		return 0;
-	}
-
-	return (major > 42 || (major == 42 && minor >= 61));
-}
-
 /* Find device by base delta and return the name
  * return: -1 on error
  *	    0 found
@@ -339,8 +324,7 @@ int ploop_find_dev(const char *component_name, const char *delta,
 				de->d_name);
 		err = read_line_quiet(fname, cookie, sizeof(cookie));
 		if (err) {
-			if ((err == ENOENT || err == ENODEV ) &&
-					is_cookie_supported())
+			if (err == ENOENT || err == ENODEV)
 				/* This is not an error, but a race between
 				 * mount and umount: device is being removed
 				 */
