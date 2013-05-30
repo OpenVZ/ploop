@@ -714,28 +714,36 @@ static int do_ioctl(int fd, int req)
 	return ret;
 }
 
-static int print_lsof(int level, const char * message, const char * mnt, int err)
+static int print_output(int level, const char *cmd, const char *arg)
 {
-	FILE * lsoff;
+	FILE *fp;
+	char command[PATH_MAX];
 	char buffer[8192]; /* same as LOG_BUF_SIZE */
+	int ret = -1;
+	int eno = errno;
 
-	snprintf(buffer, sizeof(buffer), "/usr/sbin/lsof %s", mnt);
-	if ((lsoff = popen(buffer, "r")) == NULL) {
-		ploop_err(errno, "Can't exec lsof");
-		if (level == -1)
-			ploop_err(err, "%s %s", message, mnt);
-		else
-			ploop_log(level, "%s %s", message, mnt);
+	snprintf(command, sizeof(command), "%s %s", cmd, arg);
 
-		return -1;
+	if ((fp = popen(command, "r")) == NULL) {
+		ploop_err(errno, "Can't exec %s", command);
+		goto out;
 	}
 
-	while (fgets(buffer, sizeof(buffer), lsoff))
-		ploop_log(level, "%s %s: %s, lsof output follows:\n%s",
-				message, mnt, strerror(err), buffer);
-	pclose(lsoff);
+	while (fgets(buffer, sizeof(buffer), fp)) {
+		char *p = strrchr(buffer, '\n');
+		if (p != NULL)
+			*p = '\0';
+		ploop_log(level, "--- %s output follows ---\n%s",
+				command, buffer);
+	}
+	pclose(fp);
+	ploop_log(level, "--- %s finished ---", cmd);
 
-	return 0;
+	ret = 0;
+
+out:
+	errno = eno;
+	return ret;
 }
 
 static int do_umount(const char *mnt)
@@ -747,12 +755,12 @@ static int do_umount(const char *mnt)
 		if (ret == 0 || (ret == -1 && errno != EBUSY))
 			return ret;
 		if (ploop_get_log_level() > 3)
-			print_lsof(3, "Retrying umount", mnt, errno);
-		else
-			ploop_log(3, "Retrying umount %s", mnt);
+			print_output(3, "lsof", mnt);
+		ploop_log(3, "Retrying umount %s", mnt);
 		sleep(1);
 	}
-	print_lsof(-1, "Can't umount", mnt, errno);
+	print_output(-1, "lsof", mnt);
+	ploop_err(-1, "Can't umount %s", mnt);
 	return -1;
 }
 
