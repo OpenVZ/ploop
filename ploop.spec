@@ -1,7 +1,7 @@
 %define _incdir /usr/include/ploop
 Summary: ploop tools
 Name: ploop
-Version: 1.6
+Version: 1.7
 %define rel 1
 Release: %{rel}%{?dist}
 Group: Applications/System
@@ -84,6 +84,45 @@ Headers and a static version of ploop library
 %attr(644,root,root) %{_incdir}/dynload.h
 
 %changelog
+* Fri May 31 2013 Kir Kolyshkin <kir@openvz.org> 1.7-1
+- New functionality:
+-- Large ploop image format support
+--- Now image size limit is 64 TB (was 2TB)
+--- Kernel >= 042stab078 is required
+-- Move ploop_grow* functions from tools to lib
+-- ploop grow: add DiskDescriptor.xml support
+-- ploop init, ploop_create_image(): add FS blocksize parameter
+- Improvements:
+-- make_fs(): create ext4fs with lazy_itable_init
+--- 3x smaller size and 3x faster creation time for 20GB image
+-- lib/ploop.h: "unexport" some internal functions
+-- Use /proc/self/mountinfo to get mount point by device
+-- More clear errors on parsing DiskDescriptor.xml
+-- print_output(): generalize print_lsof(), improve
+-- add_delta(): print more diags if EBUSY
+-- extend_delta_array(): print errors, return SYSEXIT_*
+-- run_prg(): print error if execvp() failed
+-- lib/balloon.c: print file name in an error message
+-- Introduce and use p_memalign(), fix errno handling
+-- Improvements and fixes to ploop_grow_*() to be used from library
+-- ploop_read_disk_descr(): set *di to NULL in case of error
+-- ploop_find_dev(): always assume ploop cookie is supported
+-- resize_fs(): try harder to find resize2fs binary
+-- Makefile.inc: ability to add CFLAGS
+- Fixes:
+-- lib/lock.c: create_file(): make sure dir exists (#2493, #2597)
+-- lib/fsutils.c: use ploop_execvp, drop absolute paths to binaries (#2595)
+-- ploop_log(): fix loglevel checking for file logging
+-- ploop_snapshot_switch_param: guids are const
+-- Recreate ploopXpY devices on ploop mount
+-- ploop_find_dev(): treat ENODEV as ENOENT on /sys reads
+-- use basename() to strip device from path
+-- ploop list: check for extra arguments
+-- ploop balloon: fix -f option processing
+-- Fixed lots of memory leaks, mostly on error paths
+-- open_delta(): simplify error handling
+-- Fixes for other issues big and small, reported by Coverity
+
 * Mon Dec 31 2012 Kir Kolyshkin <kir@openvz.org> 1.6-1
 - New functionality:
 - * offline image shrink support
