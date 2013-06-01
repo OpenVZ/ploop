@@ -294,7 +294,7 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 	void *data_cache = NULL;
 	__u32 blocksize = 0;
 	__u32 prev_blocksize = 0;
-	int version;
+	int version = PLOOP_FMT_UNDEFINED;
 
 	if (start_level >= end_level || start_level < 0) {
 		ploop_err(0, "Invalid parameters: start_level %d end_level %d",
