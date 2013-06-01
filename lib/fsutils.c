@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2008-2012, Parallels, Inc. All rights reserved.
+ *  Copyright (C) 2008-2013, Parallels, Inc. All rights reserved.
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -40,7 +40,7 @@ int create_gpt_partition(const char *device, off_t size, __u32 blocksize)
 		ploop_err(0, "Image size should be greater than %llu", start);
 		return -1;
 	}
-	argv[0] = "/sbin/parted";
+	argv[0] = "parted";
 	argv[1] = "-s";
 	argv[2] = (char *)device;
 	argv[3] = "mklabel gpt mkpart primary";
@@ -70,7 +70,7 @@ int make_fs(const char *device, const char *fstype, unsigned int fsblocksize)
 	if (get_partition_device_name(device, part_device, sizeof(part_device)))
 		return SYSEXIT_MKFS;
 
-	argv[0] = "/sbin/mkfs";
+	argv[0] = "mkfs";
 	argv[1] = "-t";
 	argv[2] = (char*)fstype;
 	argv[3] = "-j";
@@ -87,7 +87,7 @@ int make_fs(const char *device, const char *fstype, unsigned int fsblocksize)
 	if (run_prg(argv))
 		return SYSEXIT_MKFS;
 
-	argv[0] = "/sbin/tune2fs";
+	argv[0] = "tune2fs";
 	argv[1] =  "-ouser_xattr,acl";
 	argv[2] = part_device;
 	argv[3] = NULL;
@@ -217,7 +217,7 @@ int e2fsck(const char *device)
 {
 	char *arg[4];
 
-	arg[0] = "/sbin/e2fsck";
+	arg[0] = "e2fsck";
 	arg[1] = "-fp";
 	arg[2] = (char *)device;
 	arg[3] = NULL;
