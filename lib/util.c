@@ -218,6 +218,29 @@ static void cleanup_kill_process(void *data)
 	kill(pid, SIGTERM);
 }
 
+static int ploop_execvp(const char *file, char *const argv[])
+{
+	char *const paths[] = {
+		"/sbin", "/bin",
+		"/usr/sbin", "/usr/bin",
+		"/usr/local/sbin", "/usr/bin",
+		NULL
+	};
+	int i, ret;
+
+	if (file[0] == '/')
+		return execv(file, argv);
+
+	for (i = 0; paths[i] != NULL; i++) {
+		char cmd[PATH_MAX];
+
+		snprintf(cmd, sizeof(cmd), "%s/%s", paths[i], file);
+		ret = execv(cmd, argv);
+	}
+
+	return ret;
+}
+
 int run_prg(char *const argv[])
 {
 	int pid, ret, status;
@@ -239,7 +262,7 @@ int run_prg(char *const argv[])
 			return -1;
 		}
 
-		execvp(argv[0], argv);
+		ploop_execvp(argv[0], argv);
 
 		ploop_err(errno, "Can't exec %s", argv[0]);
 		return 127;
