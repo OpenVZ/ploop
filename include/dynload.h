@@ -63,6 +63,7 @@ struct ploop_functions {
 	/* 1.6 */
 	int (*switch_snapshot_ex)(struct ploop_disk_images_data *di, struct ploop_snapshot_switch_param *param);
 	int (*complete_running_operation)(const char *device);
+	/* 1.7: no new functions */
 }; /* struct ploop_functions */
 
 __attribute__ ((visibility("default")))
