@@ -240,6 +240,9 @@ int run_prg(char *const argv[])
 		}
 
 		execvp(argv[0], argv);
+
+		ploop_err(errno, "Can't exec %s", argv[0]);
+		return 127;
 	} else if (pid == -1) {
 		ploop_err(errno, "Can't fork");
 		return -1;
