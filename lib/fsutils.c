@@ -212,11 +212,12 @@ int dumpe2fs(const char *device, struct dump2fs_data *data)
 int e2fsck(const char *device)
 {
 	char *arg[4];
+	int i = 0;
 
-	arg[0] = "e2fsck";
-	arg[1] = "-fp";
-	arg[2] = (char *)device;
-	arg[3] = NULL;
+	arg[i++] = "e2fsck";
+	arg[i++] = "-fp";
+	arg[i++] = (char *)device;
+	arg[i++] = NULL;
 
 	if (run_prg(arg))
 		return SYSEXIT_FSCK;
