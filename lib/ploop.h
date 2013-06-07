@@ -175,6 +175,12 @@ enum {
 	PLOOP_MERGE_WITH_PARENT = 1,
 };
 
+/* flags for e2fsck() */
+enum e2fsck_flags {
+	E2FSCK_PREEN	= 1 << 0, /* -p */
+	E2FSCK_FORCE	= 1 << 1, /* -f */
+};
+
 /* Mark lib functions used by ploop tools */
 #define PL_EXT __attribute__ ((visibility("default")))
 
@@ -342,7 +348,7 @@ int make_fs(const char *device, const char *fstype, unsigned int fsblocksize);
 void tune_fs(const char *target, const char *device, unsigned long long size);
 int resize_fs(const char *device, off_t blocks);
 int dumpe2fs(const char *device, struct dump2fs_data *data);
-int e2fsck(const char *device);
+int e2fsck(const char *device, int flags);
 int create_gpt_partition(const char *dev, off_t size, __u32 blocksize);
 int resize_gpt_partition(const char *devname, __u64 new_size);
 

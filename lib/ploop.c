@@ -1736,7 +1736,7 @@ static int shrink_device(struct ploop_disk_images_data *di,
 	ploop_log(0, "Offline shrink %s dev=%s size=%lu new_size=%lu, start=%u",
 			(raw) ? "raw" : "",
 			part_device, (long)part_dev_size, (long)new_size, part_start);
-	ret = e2fsck(part_device);
+	ret = e2fsck(part_device, E2FSCK_FORCE | E2FSCK_PREEN);
 	if (ret)
 		return ret;
 
@@ -1894,7 +1894,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			if (do_umount(mount_param.target)) {
 				ploop_err(errno, "umount %s failed", mount_param.target);
 			} else {
-				ret = e2fsck(part_device);
+				ret = e2fsck(part_device, E2FSCK_FORCE | E2FSCK_PREEN);
 				if (ret)
 					goto err;
 			}

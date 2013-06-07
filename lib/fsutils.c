@@ -209,13 +209,16 @@ int dumpe2fs(const char *device, struct dump2fs_data *data)
 	return 0;
 }
 
-int e2fsck(const char *device)
+int e2fsck(const char *device, int flags)
 {
-	char *arg[4];
+	char *arg[5];
 	int i = 0;
 
 	arg[i++] = "e2fsck";
-	arg[i++] = "-fp";
+	if (flags & E2FSCK_PREEN)
+		arg[i++] = "-p";
+	if (flags & E2FSCK_FORCE)
+		arg[i++] = "-f";
 	arg[i++] = (char *)device;
 	arg[i++] = NULL;
 
