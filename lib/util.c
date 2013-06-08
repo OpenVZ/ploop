@@ -241,7 +241,7 @@ static int ploop_execvp(const char *file, char *const argv[])
 	return ret;
 }
 
-int run_prg(char *const argv[])
+int run_prg_rc(char *const argv[], int *rc)
 {
 	int pid, ret, status;
 	char cmd[512];
@@ -280,6 +280,10 @@ int run_prg(char *const argv[])
 		return -1;
 	} else if (WIFEXITED(status)) {
 		ret = WEXITSTATUS(status);
+		if (rc) {
+			*rc = ret;
+			return 0;
+		}
 		if (ret == 0)
 			return 0;
 		ploop_err(0, "Command %s exited with code %d", cmd, ret);
@@ -290,6 +294,11 @@ int run_prg(char *const argv[])
 		ploop_err(0, "Command %s died", cmd);
 
 	return -1;
+}
+
+int run_prg(char *const argv[])
+{
+	return run_prg_rc(argv, NULL);
 }
 
 int p_memalign(void **memptr, size_t alignment, size_t size)
