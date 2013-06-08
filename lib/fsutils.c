@@ -213,6 +213,7 @@ int e2fsck(const char *device, int flags)
 {
 	char *arg[5];
 	int i = 0;
+	int ret;
 
 	arg[i++] = "e2fsck";
 	if (flags & E2FSCK_PREEN)
@@ -222,8 +223,14 @@ int e2fsck(const char *device, int flags)
 	arg[i++] = (char *)device;
 	arg[i++] = NULL;
 
-	if (run_prg(arg))
+	if (run_prg_rc(arg, &ret))
 		return SYSEXIT_FSCK;
+
+	/* exit code < 4 is OK, see man e2fsck */
+	if (ret >= 4) {
+		ploop_err(0, "e2fsck failed (exit code %d)\n", ret);
+		return SYSEXIT_FSCK;
+	}
 
 	return 0;
 }
