@@ -19,7 +19,6 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -39,15 +38,6 @@
 static int create_file(char *fname)
 {
 	int fd;
-	int ret;
-	char *dir;
-
-	dir = basename(fname); /* Note GNU basename is used here */
-	ret = mkdir(dir, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH|S_IXOTH);
-	if ((ret < 0) && (errno != EEXIST)) {
-		ploop_err(errno, "Can't create directory %s", dir);
-		return -1;
-	}
 
 	fd = open(fname, O_WRONLY | O_CREAT | O_TRUNC, 0600);
 	if (fd == -1) {
