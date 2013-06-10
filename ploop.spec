@@ -1,7 +1,7 @@
 %define _incdir /usr/include/ploop
 Summary: ploop tools
 Name: ploop
-Version: 1.7
+Version: 1.7.1
 %define rel 1
 Release: %{rel}%{?dist}
 Group: Applications/System
@@ -85,6 +85,12 @@ Headers and a static version of ploop library
 %attr(644,root,root) %{_incdir}/dynload.h
 
 %changelog
+* Mon Jun 10 2013 Kir Kolyshkin <kir@openvz.org> 1.7.1-1
+- Fixes:
+-- default image format is V1, unless specified explicitly
+-- tmpfiles.d file added for /var/lock/ploop (#2493)
+-- fixed creating strange directories under ./ (#2623)
+
 * Fri May 31 2013 Kir Kolyshkin <kir@openvz.org> 1.7-1
 - New functionality:
 -- Large ploop image format support
