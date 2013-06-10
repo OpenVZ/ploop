@@ -7,7 +7,7 @@ RELEASE=$(shell awk '/^%define rel / {if ($$3 != 1) print "-"$$3}' $(SPEC))
 NAMEVER=$(NAME)-$(VERSION)$(RELEASE)
 TARBALL=$(NAMEVER).tar.bz2
 
-SUBDIRS=include lib tools scripts
+SUBDIRS=include lib tools scripts etc
 
 all install clean:
 	@set -e; \

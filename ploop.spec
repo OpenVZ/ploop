@@ -54,6 +54,7 @@ Parallels loopback (ploop) block device API library
 %defattr(-,root,root)
 %attr(755,root,root) %{_libdir}/libploop.so
 %dir /var/lock/ploop
+%{_prefix}/lib/tmpfiles.d/%{name}.conf
 
 %triggerin lib -- udev
 SCRIPT="/lib/udev/rules.d/60-persistent-storage.rules"

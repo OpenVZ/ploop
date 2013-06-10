@@ -10,6 +10,7 @@ endif
 LOCKDIR=/var/lock/ploop
 MANDIR=/usr/share/man
 MAN8DIR=$(MANDIR)/man8
+TMPFILESDIR=/usr/lib/tmpfiles.d
 DEBUG=yes
 
 CFLAGS += -I. -I../include -Wall -fno-strict-aliasing -Wstrict-prototypes \
