@@ -544,7 +544,7 @@ static int create_image(struct ploop_disk_images_data *di,
 	}
 
 	if (stat(file, &st) == 0) {
-		ploop_err(0, "File already exists %s", file);
+		ploop_err(EEXIST, "Can't create %s", file);
 		return SYSEXIT_PARAM;
 	}
 
