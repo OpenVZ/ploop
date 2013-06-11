@@ -548,7 +548,6 @@ static int create_image(struct ploop_disk_images_data *di,
 		return SYSEXIT_PARAM;
 	}
 
-	ret = SYSEXIT_NOMEM;
 	di->size = size_sec;
 	di->mode = mode;
 
