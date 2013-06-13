@@ -23,6 +23,7 @@ ploop \- ploop device management utility
 .YS
 .SY ploop\ mount
 .OP -r
+.OP -F
 .OP -f format
 .OP -b blocksize
 .OP -d device
@@ -35,6 +36,7 @@ ploop \- ploop device management utility
 .YS
 .SY ploop\ mount
 .OP -r
+.OP -F
 .OP -d device
 .OP -m mount_point
 .OP -o mount_options
@@ -150,6 +152,7 @@ forms.
 
 .SY ploop\ mount
 .OP -r
+.OP -F
 .OP -f format
 .OP -b blocksize
 .OP -d device
@@ -163,6 +166,7 @@ forms.
 
 .SY ploop\ mount
 .OP -r
+.OP -F
 .OP -d device
 .OP -m mount_point
 .OP -o mount_options
@@ -174,6 +178,9 @@ forms.
 
 .IP \fB-r\fR
 Mount as read-only.
+.IP \fB-F\fR
+Run \fBfsck\fR(8) on inner filesystem before mounting it. This option
+is ignored if \fB-m\fR is not used.
 .IP "\fB-f\fR \fIformat\fR"
 Image format.
 Ignored if DiskDescriptor.xml is specified. Otherwise,

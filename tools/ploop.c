@@ -162,6 +162,7 @@ static void usage_mount(void)
 			"       MOUNT_OPTS := additional mount options, comma-separated\n"
 			"       *DELTA := path to image file\n"
 			"       -r     - mount images read-only\n"
+			"       -F     - run fsck on inner filesystem before mounting it\n"
 		);
 }
 
@@ -173,13 +174,16 @@ static int plooptool_mount(int argc, char **argv)
 	struct ploop_mount_param mountopts = {};
 	const char *component_name = NULL;
 
-	while ((i = getopt(argc, argv, "rf:d:m:t:u:o:b:c:")) != EOF) {
+	while ((i = getopt(argc, argv, "rFf:d:m:t:u:o:b:c:")) != EOF) {
 		switch (i) {
 		case 'd':
 			strncpy(mountopts.device, optarg, sizeof(mountopts.device)-1);
 			break;
 		case 'r':
 			mountopts.ro = 1;
+			break;
+		case 'F':
+			mountopts.fsck = 1;
 			break;
 		case 'f':
 			f = parse_format_opt(optarg);
