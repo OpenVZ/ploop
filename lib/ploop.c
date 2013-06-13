@@ -1080,6 +1080,11 @@ static int ploop_mount_fs(struct ploop_mount_param *param)
 
 	if (get_partition_device_name(param->device, part_device, sizeof(part_device)))
 		return SYSEXIT_MOUNT;
+
+	if (param->fsck && (strncmp(fstype, "ext", 3) == 0))
+		if (e2fsck(part_device, E2FSCK_PREEN))
+			return SYSEXIT_FSCK;
+
 	/* Two step mount
 	 * 1 mount ro and read balloon inode
 	 * 2 remount with balloon_ino=ino

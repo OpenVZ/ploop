@@ -45,6 +45,7 @@ struct ploop_mount_param {
 	int quota;
 	char *mount_data;
 	unsigned int blocksize; /* blocksize for raw image */
+	int fsck;
 	char dummy[32];
 };
 
