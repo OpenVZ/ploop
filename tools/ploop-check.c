@@ -33,9 +33,9 @@ static int silent;	/* print messages only if errors detected */
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: ploop fsck [-f|-F] [-c] [-r] [-s] [-d] DELTA\n"
+	fprintf(stderr, "Usage: ploop check [-f|-F] [-c] [-r] [-s] [-d] DELTA\n"
 			"       DELTA := path to image file\n"
-			"	-f     - force fsck even if dirty flag is clear\n"
+			"	-f     - force check even if dirty flag is clear\n"
 			"	-F     - -f and try to fix even fatal errors (dangerous)\n"
 			"	-c     - check for duplicated blocks and holes\n"
 			"	-r     - do not modify DELTA (read-only access)\n"
@@ -53,18 +53,18 @@ int main(int argc, char ** argv)
 		switch (i) {
 		case 'f':
 			/* try to repair non-fatal conditions */
-			flags |= FSCK_FORCE;
+			flags |= CHECK_FORCE;
 			break;
 		case 'F':
 			/* try to repair even fatal conditions */
-			flags |= (FSCK_FORCE | FSCK_HARDFORCE);
+			flags |= (CHECK_FORCE | CHECK_HARDFORCE);
 			break;
 		case 'c':
 			/* build bitmap and check for duplicate blocks */
-			flags |= FSCK_CHECK;
+			flags |= CHECK_DETAILED;
 			break;
 		case 'd':
-			flags |= FSCK_DROPINUSE;
+			flags |= CHECK_DROPINUSE;
 			break;
 		case 'r':
 			ro = 1;
@@ -88,5 +88,5 @@ int main(int argc, char ** argv)
 
 	ploop_set_verbose_level(3);
 
-	return ploop_fsck(argv[0], flags, ro, !silent, NULL);
+	return ploop_check(argv[0], flags, ro, !silent, NULL);
 }

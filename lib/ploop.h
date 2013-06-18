@@ -44,11 +44,11 @@
 #define OD_ALLOW_DIRTY	0x1
 #define OD_OFFLINE	0x2
 
-/* fsck mode flags */
-#define FSCK_FORCE	0x01
-#define FSCK_HARDFORCE	0x02
-#define FSCK_DROPINUSE	0x04
-#define FSCK_CHECK	0x08
+/* flags for ploop_check() */
+#define CHECK_FORCE	0x01
+#define CHECK_HARDFORCE	0x02
+#define CHECK_DROPINUSE	0x04
+#define CHECK_DETAILED	0x08
 
 /* GPT */
 #define GPT_HEADER_SIZE		1
@@ -265,7 +265,7 @@ struct relocmap *relocmap_alloc(int n);
 struct ploop_relocblks_ctl;
 int relocmap2relocblks(struct relocmap *relocmap, int lvl, __u32 a_h, __u32 n_scanned,
 			struct ploop_relocblks_ctl **relocblks_pp);
-PL_EXT int ploop_fsck(char *img, int flags, int ro, int verbose, __u32 *blocksize_p);
+PL_EXT int ploop_check(char *img, int flags, int ro, int verbose, __u32 *blocksize_p);
 /* Logging */
 int ploop_get_log_level(void);
 void ploop_log(int level, const char *format, ...)

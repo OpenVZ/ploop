@@ -42,7 +42,7 @@ static void usage_summary(void)
 			"       ploop umount -d DEVICE\n"
 			"       ploop { delete | rm } -d DEVICE -l LEVEL\n"
 			"       ploop merge -d DEVICE [-l LEVEL[..TOP_LEVEL]]\n"
-			"       ploop fsck [-fcr] DELTA\n"
+			"       ploop check [-fcr] DELTA\n"
 			"       ploop getdev\n"
 			"       ploop resize -s SIZE BASE_DELTA\n"
 			"       ploop snapshot [-F] -d DEVICE NEW_DELTA\n"

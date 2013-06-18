@@ -2,7 +2,7 @@ include ../Makefile.inc
 
 PROGS =	ploop \
 	ploop-stat \
-	ploop-fsck \
+	ploop-check \
 	ploop-merge \
 	ploop-copy \
 	ploop-grow \

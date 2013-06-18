@@ -43,7 +43,7 @@ enum {
 	HARD_FIX
 };
 
-struct ploop_fsck_desc {
+struct ploop_check_desc {
 	int    fd;
 	int    ro;
 	int    hard_force;
@@ -116,7 +116,7 @@ static int zero_index(int fd, __u32 clu)
 		     "write zero index");
 }
 
-static int zero_index_fix(struct ploop_fsck_desc *d, __u32 clu,
+static int zero_index_fix(struct ploop_check_desc *d, __u32 clu,
 			   int hard_fix, int ignore, int fatal)
 {
 	char *msg;
@@ -141,7 +141,7 @@ static int zero_index_fix(struct ploop_fsck_desc *d, __u32 clu,
 	return ret;
 }
 
-static int check_one_slot(struct ploop_fsck_desc *d, __u32 clu, off_t isec,
+static int check_one_slot(struct ploop_check_desc *d, __u32 clu, off_t isec,
 		__u32 blocksize, int version)
 {
 	__u64 cluster = S2B(blocksize);
@@ -181,9 +181,9 @@ static int check_one_slot(struct ploop_fsck_desc *d, __u32 clu, off_t isec,
 	return 0;
 }
 
-int ploop_fsck(char *img, int flags, int ro, int verbose, __u32 *blocksize_p)
+int ploop_check(char *img, int flags, int ro, int verbose, __u32 *blocksize_p)
 {
-	struct ploop_fsck_desc d;
+	struct ploop_check_desc d;
 	int i, j;
 	int fd;
 	int ret = 0;
@@ -208,20 +208,20 @@ int ploop_fsck(char *img, int flags, int ro, int verbose, __u32 *blocksize_p)
 	int clean = 1;	    /* image is clean */
 	__u64 cluster;
 
-	int force = (flags & FSCK_FORCE);
-	int hard_force = (flags & FSCK_HARDFORCE);
-	int check = (flags & FSCK_CHECK);
+	int force = (flags & CHECK_FORCE);
+	int hard_force = (flags & CHECK_HARDFORCE);
+	int check = (flags & CHECK_DETAILED);
 	int version;
 
 	fd = open(img, ro ? O_RDONLY : O_RDWR);
 	if (fd < 0) {
-		ploop_err(errno, "ploop_fsck: can't open %s",
+		ploop_err(errno, "ploop_check: can't open %s",
 				img);
 		return SYSEXIT_OPEN;
 	}
 
 	if (fstat(fd, &stb)) {
-		ploop_err(errno, "ploop_fsck: can't fstat %s",
+		ploop_err(errno, "ploop_check: can't fstat %s",
 				img);
 		ret = SYSEXIT_OPEN;
 		goto done;
@@ -267,7 +267,7 @@ int ploop_fsck(char *img, int flags, int ro, int verbose, __u32 *blocksize_p)
 
 	if (!vh->m_DiskInUse && !force) {
 		if (verbose)
-			ploop_log(0, "Image is clean, fsck is skipped");
+			ploop_log(0, "Image is clean, check is skipped");
 		goto done;
 	}
 
@@ -276,7 +276,7 @@ int ploop_fsck(char *img, int flags, int ro, int verbose, __u32 *blocksize_p)
 		bmap_size = (bmap_size + 31)/8;
 		bmap = malloc(bmap_size);
 		if (bmap == NULL) {
-			ploop_err(ENOMEM, "ploop_fsck: malloc");
+			ploop_err(ENOMEM, "ploop_check: malloc");
 			if (verbose) {
 				check = 0;
 			} else {
@@ -378,7 +378,7 @@ int ploop_fsck(char *img, int flags, int ro, int verbose, __u32 *blocksize_p)
 
 	if (vh->m_DiskInUse != 0) {
 		ploop_err(0, "Dirty flag is set");
-		if (!(flags & FSCK_DROPINUSE)) {
+		if (!(flags & CHECK_DROPINUSE)) {
 			ret = SYSEXIT_PLOOPINUSE;
 			goto done;
 		}

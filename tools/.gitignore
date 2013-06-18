@@ -3,7 +3,7 @@ ploop.8
 common.o
 ploop.o
 ploop-stat.o
-ploop-fsck.o
+ploop-check.o
 ploop-merge.o
 ploop-copy.o
 ploop-grow.o
@@ -11,7 +11,7 @@ ploop-balloon.o
 ploop-snapshot.o
 ploop
 ploop-stat
-ploop-fsck
+ploop-check
 ploop-merge
 ploop-copy
 ploop-grow

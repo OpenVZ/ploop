@@ -1364,14 +1364,14 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 
 	for (i = 0; images[i] != NULL; i++) {
 		int ro;
-		int flags = FSCK_CHECK | (di ? FSCK_DROPINUSE : 0);
+		int flags = CHECK_DETAILED | (di ? CHECK_DROPINUSE : 0);
 		__u32 cur_blocksize;
 
 		if (raw && i == 0)
 			continue;
 
 		ro  = (images[i+1] != NULL || param->ro) ? 1 : 0;
-		ret = ploop_fsck(images[i], flags, ro, 0, &cur_blocksize);
+		ret = ploop_check(images[i], flags, ro, 0, &cur_blocksize);
 		if (ret) {
 			ploop_err(0, "%s (%s): irrecoverable errors",
 					images[i], ro ? "ro" : "rw");

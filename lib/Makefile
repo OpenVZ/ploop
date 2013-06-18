@@ -6,7 +6,7 @@ LIBOBJS=uuid.o \
 	delta_read.o \
 	delta_sysfs.o \
 	balloon_util.o \
-	fsck_util.o \
+	check.o \
 	ploop.o \
 	xml.o \
 	logger.o \
