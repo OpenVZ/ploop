@@ -201,7 +201,7 @@ static int parse_xml(const char *basedir, xmlNode *root_node, struct ploop_disk_
 			file = get_element_txt(node);
 			if (file != NULL) {
 				if (basedir[0] != 0 && file[0] != '/')
-					snprintf(image, sizeof(image), "%s/%s", basedir, file);
+					snprintf(image, sizeof(image), "%s%s", basedir, file);
 				else
 					snprintf(image, sizeof(image), "%s", file);
 			}
@@ -268,7 +268,9 @@ void get_basedir(const char *fname, char *out, int len)
 
 	p = strrchr(out, '/');
 	if (p != NULL)
-		*p = 0;
+		*(++p) = '\0';
+	else
+		out[0] = '\0';
 }
 
 /* Convert to new format with constant TopGUID */

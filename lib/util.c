@@ -61,7 +61,7 @@ int store_statfs_info(const char *mnt, char *image)
 	struct ploop_info info;
 
 	get_basedir(image, fname, sizeof(fname)-sizeof(PLOOP_STATFS_FNAME));
-	strcat(fname, "/"PLOOP_STATFS_FNAME);
+	strcat(fname, PLOOP_STATFS_FNAME);
 
 	if (get_statfs_info(mnt, &info))
 		return -1;
@@ -88,7 +88,7 @@ int read_statfs_info(const char *image, struct ploop_info *info)
 	char fname[PATH_MAX];
 
 	get_basedir(image, fname, sizeof(fname)-sizeof(PLOOP_STATFS_FNAME));
-	strcat(fname, "/"PLOOP_STATFS_FNAME);
+	strcat(fname, PLOOP_STATFS_FNAME);
 
 	fd = open(fname, O_RDONLY, 0600);
 	if (fd == -1) {
@@ -112,7 +112,7 @@ int drop_statfs_info(const char *image)
 	char fname[PATH_MAX];
 
 	get_basedir(image, fname, sizeof(fname)-sizeof(PLOOP_STATFS_FNAME));
-	strcat(fname, "/"PLOOP_STATFS_FNAME);
+	strcat(fname, PLOOP_STATFS_FNAME);
 
 	if (unlink(fname) < 0 && errno != ENOENT) {
 		ploop_err(errno, "Can't delete file %s", fname);

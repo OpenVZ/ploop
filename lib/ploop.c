@@ -508,7 +508,7 @@ void get_disk_descriptor_fname(struct ploop_disk_images_data *di, char *buf, int
 
 		get_basedir(image, buf, size - sizeof(DISKDESCRIPTOR_XML));
 
-		strcat(buf, "/"DISKDESCRIPTOR_XML);
+		strcat(buf, DISKDESCRIPTOR_XML);
 	} else {
 		// Use custom
 		snprintf(buf, size, "%s", di->runtime->xml_fname);
