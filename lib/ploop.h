@@ -373,7 +373,6 @@ PL_EXT int guidcmp(const char *p1, const char *p2);
 int auto_mount_image(struct ploop_disk_images_data *di,
 		struct ploop_mount_param *param);
 void free_mount_param(struct ploop_mount_param *param);
-int is_large_disk_supported(void);
 
 // merge
 PL_EXT int get_delta_info(const char *device, struct merge_info *info);

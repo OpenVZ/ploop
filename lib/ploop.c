@@ -248,14 +248,14 @@ static int get_temp_mountpoint(const char *file, int create, char *buf, int len)
 	return 0;
 }
 
-int is_large_disk_supported(void)
+int ploop_is_large_disk_supported(void)
 {
 	return (access("/sys/module/ploop/parameters/large_disk_support", R_OK) == 0 ? 1 : 0);
 }
 
 static int is_fmt_version_valid(int version)
 {
-	return version != PLOOP_FMT_V2 || is_large_disk_supported();
+	return version != PLOOP_FMT_V2 || ploop_is_large_disk_supported();
 }
 
 static int default_fmt_version(void)
@@ -1616,7 +1616,7 @@ int ploop_grow_device(const char *device, off_t new_size)
 	memset(&ctl, 0, sizeof(ctl));
 
 	ctl.pctl_cluster_log = ffs(blocksize) - 1;
-	if (is_large_disk_supported()) {
+	if (ploop_is_large_disk_supported()) {
 		/* the new size is aligned to cluster block */
 		ctl.pctl_flags |= PLOOP_FLAG_CLUBLKS;
 		ctl.pctl_size = new_size >> ctl.pctl_cluster_log;
@@ -1831,7 +1831,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		goto err;
 
 	version = PLOOP_FMT_V1;
-	if (is_large_disk_supported() &&
+	if (ploop_is_large_disk_supported() &&
 			ploop_get_attr(mount_param.device, "fmt_version", &version))
 		goto err;
 
@@ -2311,7 +2311,7 @@ int create_snapshot(const char *device, const char *delta, int syncfs)
 		return SYSEXIT_SYSFS;
 
 	version = PLOOP_FMT_V1;
-	if (is_large_disk_supported() &&
+	if (ploop_is_large_disk_supported() &&
 			ploop_get_attr(device, "fmt_version", &version))
 		return SYSEXIT_SYSFS;
 
