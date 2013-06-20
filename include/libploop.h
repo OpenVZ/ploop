@@ -130,6 +130,13 @@ struct ploop_info {
 	unsigned long long fs_ifree;
 };
 
+struct ploop_spec {
+	off_t size;
+	__u32 blocksize;
+	int fmt_version;
+	char dummy[32];
+};
+
 struct ploop_discard_stat {
 	off_t data_size;
 	off_t ploop_size;
@@ -180,6 +187,7 @@ int ploop_find_top_delta_name_and_format(
 char *ploop_find_parent_by_guid(struct ploop_disk_images_data *di, const char *guid);
 int ploop_uuid_generate(char *uuid, int len);
 int ploop_is_large_disk_supported(void);
+int ploop_get_spec(struct ploop_disk_images_data *di, struct ploop_spec *spec);
 
 const char *ploop_get_last_error(void);
 int ploop_set_log_file(const char *fname);

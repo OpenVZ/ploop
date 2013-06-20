@@ -2412,6 +2412,21 @@ static int get_image_param(struct ploop_disk_images_data *di, const char *guid,
 	return 0;
 }
 
+int ploop_get_spec(struct ploop_disk_images_data *di, struct ploop_spec *spec)
+{
+	int ret;
+
+	if (ploop_lock_di(di))
+		return SYSEXIT_LOCK;
+
+	ret = get_image_param(di, di->top_guid, &spec->size, &spec->blocksize,
+			&spec->fmt_version);
+
+	ploop_unlock_di(di);
+
+	return ret;
+}
+
 int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapshot_param *param)
 {
 	int ret;
