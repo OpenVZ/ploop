@@ -531,6 +531,7 @@ static int create_image(struct ploop_disk_images_data *di,
 	int ret;
 	struct ploop_pvd_header vh = {};
 	char fname[PATH_MAX];
+	char ddxml[PATH_MAX];
 	struct stat st;
 
 	if (size_sec == 0) {
@@ -545,6 +546,12 @@ static int create_image(struct ploop_disk_images_data *di,
 
 	if (stat(file, &st) == 0) {
 		ploop_err(EEXIST, "Can't create %s", file);
+		return SYSEXIT_PARAM;
+	}
+
+	get_disk_descriptor_fname(di, ddxml, sizeof(ddxml));
+	if (stat(ddxml, &st) == 0) {
+		ploop_err(EEXIST, "Can't create %s", ddxml);
 		return SYSEXIT_PARAM;
 	}
 
@@ -575,8 +582,7 @@ static int create_image(struct ploop_disk_images_data *di,
 		goto err;
 	}
 
-	get_disk_descriptor_fname(di, fname, sizeof(fname));
-	if (ploop_store_diskdescriptor(fname, di))
+	if (ploop_store_diskdescriptor(ddxml, di))
 		goto err;
 	ret = 0;
 err:
