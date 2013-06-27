@@ -73,18 +73,16 @@ struct GptEntry
 	__u64 ending_lba;
 };
 
-int get_partition_device_name(const char *device, char *out, int size)
+static int has_partition(const char *device, int *res)
 {
 	int ret;
 	unsigned long long signature;
-	const char *p;
-	struct stat st;
 	int fd;
 
 	fd = open(device, O_RDONLY);
 	if (fd == -1) {
 		ploop_err(errno, "Can't open %s", device);
-		return -1;
+		return SYSEXIT_OPEN;
 	}
 	ret = pread(fd, &signature, sizeof(signature), 512);
 	if (ret != sizeof(signature)) {
@@ -95,10 +93,25 @@ int get_partition_device_name(const char *device, char *out, int size)
 					device, ret,
 					(unsigned)sizeof(signature));
 		close(fd);
-		return -1;
+		return SYSEXIT_READ;
 	}
+	*res = (signature == GPT_SIGNATURE) ? 1 : 0;
+
 	close(fd);
-	if (signature == GPT_SIGNATURE) {
+	return 0;
+}
+
+int get_partition_device_name(const char *device, char *out, int size)
+{
+	int ret, part;
+	const char *p;
+	struct stat st;
+
+	ret = has_partition(device, &part);
+	if (ret)
+		return ret;
+
+	if (part) {
 		p = device;
 		if (strncmp(device, "/dev/", 5) == 0)
 			p += 5;
@@ -117,6 +130,7 @@ int get_partition_device_name(const char *device, char *out, int size)
 		chmod(device, 0600);
 	} else
 		snprintf(out, size, "%s", device);
+
 	return 0;
 }
 
@@ -144,12 +158,19 @@ int resize_gpt_partition(const char *devname, __u64 new_size)
 {
 	unsigned char buf[SECTOR_SIZE*GPT_DATA_SIZE]; // LBA1 header, LBA2-34 partition entry
 	int fd;
-	int ret;
+	int part, ret;
 	struct GptHeader *pt;
 	struct GptEntry *pe;
 	__u32 pt_crc32, pe_crc32, orig_crc;
 	off_t size;
 	__u64 tmp;
+
+	ret = has_partition(devname, &part);
+	if (ret)
+		return ret;
+
+	if (!part)
+		return 0;
 
 	ret = ploop_get_size(devname, &size);
 	if (ret)
