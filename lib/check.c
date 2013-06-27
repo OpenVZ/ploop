@@ -271,6 +271,20 @@ int ploop_check(char *img, int flags, int ro, int verbose, __u32 *blocksize_p)
 		goto done;
 	}
 
+	if (vh->m_DiskInUse && (vh->m_Flags & CIF_FmtVersionConvert)) {
+		ploop_err(0, "Image %s is in the changing version state",
+				img);
+		ret = SYSEXIT_PLOOPFMT;
+		goto done;
+	}
+
+	if (vh->m_DiskInUse && (vh->m_Flags & CIF_FmtVersionConvert)) {
+		ploop_err(0, "Image %s is in the changing version state",
+				img);
+		ret = SYSEXIT_PLOOPFMT;
+		goto done;
+	}
+
 	if (check) {
 		bmap_size = (stb.st_size + cluster - 1)/(cluster);
 		bmap_size = (bmap_size + 31)/8;

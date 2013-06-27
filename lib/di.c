@@ -223,7 +223,7 @@ void ploop_free_diskdescriptor(struct ploop_disk_images_data *di)
 	free(di);
 }
 
-static int find_image_idx_by_guid(struct ploop_disk_images_data *di, const char *guid)
+int find_image_idx_by_guid(struct ploop_disk_images_data *di, const char *guid)
 {
 	int i;
 

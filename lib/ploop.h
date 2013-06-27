@@ -228,6 +228,8 @@ int extend_delta_array(struct delta_array * p, char * path, int rw, int od_flags
 void close_delta(struct delta *delta);
 int open_delta(struct delta * delta, const char * path, int rw, int od_flags);
 int open_delta_simple(struct delta * delta, const char * path, int rw, int od_flags);
+int change_delta_version(struct delta *delta, int version);
+int change_delta_flags(struct delta * delta, __u32 flags);
 int dirty_delta(struct delta * delta);
 int clear_delta(struct delta * delta);
 int read_size_from_image(const char *img_name, int raw, off_t * res);
@@ -304,6 +306,7 @@ PL_EXT int ploop_getdevice(int *minor);
 struct ploop_disk_images_data *alloc_diskdescriptor(void);
 void get_disk_descriptor_fname(struct ploop_disk_images_data *di, char *buf, int size);
 void get_disk_descriptor_lock_fname(struct ploop_disk_images_data *di, char *out, int size);
+int find_image_idx_by_guid(struct ploop_disk_images_data *di, const char *guid);
 int ploop_find_dev_by_uuid(struct ploop_disk_images_data *di, int check_state, char *out, int len);
 int sys_fallocate(int fd, int mode, off_t offset, off_t len);
 int sys_syncfs(int fd);
@@ -373,11 +376,15 @@ PL_EXT int guidcmp(const char *p1, const char *p2);
 int auto_mount_image(struct ploop_disk_images_data *di,
 		struct ploop_mount_param *param);
 void free_mount_param(struct ploop_mount_param *param);
+int check_and_restore_fmt_version(struct ploop_disk_images_data *di);
 
 // merge
 PL_EXT int get_delta_info(const char *device, struct merge_info *info);
 PL_EXT int merge_image(const char *device, int start_level, int end_level, int raw, int merge_top,
 		char **images);
 int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *guid, int merge_mode);
+
+PL_EXT int ploop_change_fmt_version(struct ploop_disk_images_data *di,
+		int new_version, int flags);
 
 #endif

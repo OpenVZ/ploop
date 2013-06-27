@@ -832,8 +832,9 @@ static int plooptool_resize(int argc, char **argv)
 
 static void usage_convert(void)
 {
-	fprintf(stderr, "Usage: ploop convert -f FORMAT DiskDescriptor.xml\n"
+	fprintf(stderr, "Usage: ploop convert {-f FORMAT | -v VERSION} DiskDescriptor.xml\n"
 			"       FORMAT := { raw | preallocated }\n"
+			"       VERSION := { 1 | 2 }\n"
 			);
 }
 
@@ -842,11 +843,22 @@ static int plooptool_convert(int argc, char **argv)
 	int i, ret;
 	struct ploop_disk_images_data *di;
 	int mode = -1;
+	int version = -1;
 
-	while ((i = getopt(argc, argv, "f:")) != EOF) {
+	while ((i = getopt(argc, argv, "f:v:")) != EOF) {
 		switch (i) {
 		case 'f':
 			mode = parse_format_opt(optarg);
+			break;
+		case 'v':
+			if (!strcmp(optarg, "1"))
+				version = PLOOP_FMT_V1;
+			else if (!strcmp(optarg, "2"))
+				version = PLOOP_FMT_V2;
+			else {
+				 usage_convert();
+				 return SYSEXIT_PARAM;
+			}
 			break;
 		default:
 			usage_convert();
@@ -857,7 +869,10 @@ static int plooptool_convert(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if (argc == 0 || mode == -1) {
+	if (argc == 0 ||
+		(mode == -1 && version == -1) ||
+		(mode != -1 && version != -1))
+	{
 		usage_convert();
 		return SYSEXIT_PARAM;
 	}
@@ -865,8 +880,10 @@ static int plooptool_convert(int argc, char **argv)
 	ret = read_dd(&di, argv[0]);
 	if (ret)
 		return ret;
-
-	ret = ploop_convert_image(di, mode, 0);
+	if (mode != -1)
+		ret = ploop_convert_image(di, mode, 0);
+	else if (version != -1)
+		ret = ploop_change_fmt_version(di, version, 0);
 
 	ploop_free_diskdescriptor(di);
 

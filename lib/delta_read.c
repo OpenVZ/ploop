@@ -211,6 +211,33 @@ error:
 	return -1;
 }
 
+int change_delta_version(struct delta *delta, int version)
+{
+	if (PWRITE(delta, ploop1_signature(version),
+			sizeof(((struct ploop_pvd_header*) 0)->m_Sig),
+			offsetof(struct ploop_pvd_header, m_Sig)))
+		return SYSEXIT_WRITE;
+
+	if (delta->fops->fsync(delta->fd)) {
+		ploop_err(errno, "fsync");
+		return SYSEXIT_FSYNC;
+	}
+	return 0;
+}
+
+int change_delta_flags(struct delta * delta, __u32 flags)
+{
+	if (PWRITE(delta, &flags, sizeof(flags),
+			offsetof(struct ploop_pvd_header, m_Flags)))
+		return SYSEXIT_WRITE;
+
+	if (delta->fops->fsync(delta->fd)) {
+		ploop_err(errno, "Failed to change delta flags");
+		return SYSEXIT_FSYNC;
+	}
+	return 0;
+}
+
 static int change_delta_state(struct delta * delta, __u32 m_DiskInUse)
 {
 	ssize_t res;

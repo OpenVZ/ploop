@@ -1366,6 +1366,9 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 	if (check_mount_restrictions(param, images[0]))
 		return SYSEXIT_MOUNT;
 
+	if (di && (ret = check_and_restore_fmt_version(di)))
+		goto err;
+
 	for (i = 0; images[i] != NULL; i++) {
 		int ro;
 		int flags = CHECK_DETAILED | (di ? CHECK_DROPINUSE : 0);
@@ -2229,6 +2232,373 @@ err:
 	return ret;
 }
 
+#define BACKUP_IDX_FNAME(fname, image)	snprintf(fname, sizeof(fname), "%s.idx", image)
+static int backup_idx_table(struct delta *d, const char *image)
+{
+	char fname[PATH_MAX];
+	int fd, ret;
+	__u32 clu, cluster;
+
+	BACKUP_IDX_FNAME(fname, image);
+
+	ploop_log(0, "Backup index table %s", fname);
+	fd = open(fname, O_CREAT | O_WRONLY | O_TRUNC, 0600);
+	if (fd < 0 ) {
+		ploop_err(errno, "Failed to create %s", fname);
+		return SYSEXIT_OPEN;
+	}
+
+	cluster = S2B(d->blocksize);
+	for (clu = 0; clu < d->l1_size; clu++) {
+		if (PREAD(d, d->l2, cluster, (off_t)clu * cluster)) {
+			ret = SYSEXIT_WRITE;
+			goto err;
+		}
+
+		if (WRITE(fd, d->l2, cluster)) {
+			ret = SYSEXIT_READ;
+			goto err;
+		}
+	}
+	if (fsync(fd)) {
+		ploop_err(errno, "Failed to sync %s", fname);
+		ret = SYSEXIT_FSYNC;
+		goto err;
+	}
+	ret = 0;
+err:
+	close(fd);
+	return ret;
+}
+
+/* Write index table */
+static int writeback_idx(struct delta *delta)
+{
+	__u32 l1_cluster = delta->l2_cache;
+	__u8 *buf = (__u8 *)delta->l2;
+	int skip = l1_cluster == 0 ? sizeof(struct ploop_pvd_header) : 0;
+
+	if (PWRITE(delta, (__u8 *)buf + skip, S2B(delta->blocksize) - skip,
+				(off_t)l1_cluster * S2B(delta->blocksize) + skip))
+		return SYSEXIT_WRITE;
+
+	delta->dirtied = 0;
+	return 0;
+}
+
+static int change_fmt_version(struct delta *d, int new_version)
+{
+	__u32 clu, l2_cluster, l2_slot;
+	int ret, n;
+	off_t off;
+	__u32 cluster = S2B(d->blocksize);
+
+	n = cluster / sizeof(__u32);
+	d->dirtied = 0;
+	for (clu = 0; clu < d->l1_size * n - PLOOP_MAP_OFFSET; clu++) {
+		l2_cluster = (clu + PLOOP_MAP_OFFSET) / n;
+		l2_slot    = (clu + PLOOP_MAP_OFFSET) % n;
+
+		if (d->l2_cache != l2_cluster) {
+			if (d->dirtied && (ret = writeback_idx(d)))
+				goto err;
+
+			if (PREAD(d, d->l2, cluster, (off_t)l2_cluster * cluster)) {
+				ret = SYSEXIT_READ;
+				goto err;
+			}
+
+			d->l2_cache = l2_cluster;
+		}
+		if (d->l2[l2_slot] == 0)
+			continue;
+
+		off = ploop_ioff_to_sec(d->l2[l2_slot], d->blocksize, d->version);
+		if (new_version == PLOOP_FMT_V1 && check_size(off, d->blocksize, new_version)) {
+			ret = SYSEXIT_PLOOPFMT;
+			goto err;
+		}
+		d->l2[l2_slot] = ploop_sec_to_ioff(off, d->blocksize, new_version);
+		d->dirtied = 1;
+	}
+
+	if (d->dirtied && (ret = writeback_idx(d)))
+		goto err;
+
+	/* update header and sync */
+	ret = change_delta_version(d, new_version);
+	if (ret)
+		goto err;
+err:
+	return ret;
+}
+
+int ploop_change_fmt_version(struct ploop_disk_images_data *di, int new_version, int flags)
+{
+	char fname[PATH_MAX];
+	struct delta_array da = {};
+	int ret, rc, i;
+	struct ploop_pvd_header *vh;
+
+	init_delta_array(&da);
+	if (new_version != PLOOP_FMT_V1 && new_version != PLOOP_FMT_V2) {
+		ploop_err(0, "Incorrect version is specified");
+		return SYSEXIT_PARAM;
+	}
+
+	if (new_version == PLOOP_FMT_V2 && !ploop_is_large_disk_supported()) {
+		ploop_err(0, "The PLOOP_FMT_V2 is not supported by kernel");
+		return SYSEXIT_PARAM;
+	}
+
+	if (ploop_lock_di(di))
+		return SYSEXIT_LOCK;
+
+	if (di->mode == PLOOP_RAW_MODE) {
+		ploop_err(0, "Changing image version format"
+				" on raw image is not supported");
+		goto err;
+	}
+
+	rc = ploop_find_dev_by_uuid(di, 1, fname, sizeof(fname));
+	if (rc == -1) {
+		ret = SYSEXIT_SYS;
+		goto err;
+	} else if (rc == 0) {
+		ret = SYSEXIT_PARAM;
+		ploop_err(0, "Image is mounted: changing image version "
+				" online is not supported");
+		goto err;
+	}
+	/* 0. Validate */
+	for (i = 0; i < di->nimages; i++) {
+		if (extend_delta_array(&da, di->images[i]->file,
+					O_RDWR, OD_OFFLINE)) {
+			ret = SYSEXIT_OPEN;
+			goto err;
+		}
+		if (new_version == PLOOP_FMT_V1 &&
+		    ((off_t)da.delta_arr[i].l2_size * da.delta_arr[i].blocksize) > 0xffffffff)
+		{
+			ret = SYSEXIT_PARAM;
+			ploop_err(0, "Unable to convert image to PLOOP_FMT_V1:"
+					" the image size is not compatible");
+			goto err;
+		}
+	}
+	/* 1. Backup index table */
+	for (i = 0; i < di->nimages; i++) {
+		ret = backup_idx_table(&da.delta_arr[i], di->images[i]->file);
+		if (ret)
+			goto err_rm;
+	}
+	/* 2. Lock deltas */
+	for (i = 0; i < di->nimages; i++) {
+		if (dirty_delta(&da.delta_arr[i])) {
+			ret = SYSEXIT_WRITE;
+			goto err;
+		}
+		vh = (struct ploop_pvd_header *) da.delta_arr[i].hdr0;
+		ret = change_delta_flags(&da.delta_arr[i],
+				(vh->m_Flags | CIF_FmtVersionConvert));
+		if (ret)
+			goto err;
+	}
+
+	/* Recheck ploop state after locking */
+	rc = ploop_find_dev_by_uuid(di, 1, fname, sizeof(fname));
+	if (rc == -1) {
+		ret = SYSEXIT_SYS;
+		goto err;
+	} else if (rc == 0) {
+		ret = SYSEXIT_PARAM;
+		ploop_err(0, "Image is mounted: changing image version "
+				" online is not supported");
+		goto err;
+	}
+
+	/* 3. Convert */
+	for (i = 0; i < di->nimages; i++) {
+		ploop_log(0, "Convert %s to verion %d",
+				di->images[i]->file, new_version);
+		ret = change_fmt_version(&da.delta_arr[i], new_version);
+		if (ret)
+			goto err;
+	}
+
+	/* 4. Unlock */
+	for (i = 0; i < di->nimages; i++) {
+		vh = (struct ploop_pvd_header *) da.delta_arr[i].hdr0;
+		ret = change_delta_flags(&da.delta_arr[i],
+				(vh->m_Flags & ~CIF_FmtVersionConvert));
+		if (ret)
+			goto err;
+
+		if (clear_delta(&da.delta_arr[i])) {
+			ret = SYSEXIT_WRITE;
+			goto err;
+		}
+	}
+
+err_rm:
+	/* 5. Drop index table backup */
+	for (i = 0; i < di->nimages; i++) {
+		BACKUP_IDX_FNAME(fname, di->images[i]->file);
+		if (unlink(fname) && errno != ENOENT)
+			ploop_err(errno, "Failed to unlink %s", fname);
+	}
+
+err:
+	deinit_delta_array(&da);
+	ploop_unlock_di(di);
+
+	if (ret == 0)
+		ploop_log(0, "ploop image has been successfully converted");
+
+	return ret;
+}
+
+static int do_restore_fmt_version(struct delta *d, struct delta *idelta)
+{
+	int ret = 1;
+	__u32 cluster;
+	__u32 clu;
+	void *buf = NULL;
+
+	if (d->l1_size != idelta->l1_size ||
+			d->l2_size != idelta->l2_size ||
+			d->blocksize != idelta->blocksize)
+	{
+		ret = SYSEXIT_PARAM;
+		ploop_err(0, "Unable to restore: header mismatch");
+		goto err;
+	}
+
+	cluster = S2B(idelta->blocksize);
+	if (p_memalign(&buf, 4096, cluster)) {
+		ret = SYSEXIT_MALLOC;
+		goto err;
+	}
+
+	for (clu = 0; clu < idelta->l1_size; clu++) {
+		off_t off = clu * cluster;
+
+		if (PREAD(idelta, buf, cluster, off)) {
+			ret = SYSEXIT_READ;
+			goto err;
+		}
+
+		if (clu == 0) {
+			struct ploop_pvd_header *vh = (struct ploop_pvd_header *)buf;
+			vh->m_DiskInUse = 1;
+			vh->m_Flags |= CIF_FmtVersionConvert;
+		}
+
+		if (PWRITE(d, buf, cluster, off)) {
+			ret = SYSEXIT_WRITE;
+			goto err;
+		}
+	}
+	if (fsync(d->fd)) {
+		ploop_err(errno, "Failed to sync");
+		ret = SYSEXIT_FSYNC;
+		goto err;
+	}
+	ret = 0;
+err:
+	free(buf);
+	return ret;
+}
+
+static int restore_fmt_version(const char *file)
+{
+	char fname[PATH_MAX];
+	int ret;
+	struct ploop_pvd_header *vh;
+	struct delta d = {};
+	struct delta idelta = {};
+
+	ret = open_delta(&d, file, O_RDWR, OD_ALLOW_DIRTY | OD_OFFLINE);
+	if (ret)
+		return ret;
+
+	vh = (struct ploop_pvd_header *) d.hdr0;
+	if (!(vh->m_Flags & CIF_FmtVersionConvert)) {
+		close_delta(&d);
+		return 0;
+	}
+
+	BACKUP_IDX_FNAME(fname, file);
+	ret = open_delta(&idelta, fname, O_RDONLY, OD_ALLOW_DIRTY | OD_OFFLINE);
+	if (ret)
+		goto err;
+
+	ploop_log(0, "Restore index table %s", file);
+	ret = do_restore_fmt_version(&d, &idelta);
+	if (ret)
+		goto err;
+
+	ret = change_delta_flags(&d,(vh->m_Flags & ~CIF_FmtVersionConvert));
+	if (ret)
+		goto err;
+
+	if (clear_delta(&d)) {
+		ret = SYSEXIT_WRITE;
+		goto err;
+	}
+
+	if (unlink(fname) && errno != ENOENT)
+		ploop_err(errno, "Failed to unlink %s", fname);
+
+err:
+	close_delta(&d);
+	close_delta(&idelta);
+
+	return ret;
+}
+
+int check_and_restore_fmt_version(struct ploop_disk_images_data *di)
+{
+	int i, base_id, ret;
+	struct ploop_pvd_header *vh;
+	struct delta d = {};
+	const char *guid;
+
+	if ((guid = ploop_get_base_delta_uuid(di)) == NULL ||
+		 (base_id = find_image_idx_by_guid(di, guid)) == -1)
+	{
+		ploop_log(-1, "Unable to find base image");
+		return SYSEXIT_PARAM;
+	}
+
+	/* Check CIF_FmtVersionConvert mark on root image */
+	ret = open_delta(&d, di->images[base_id]->file, O_RDONLY, OD_ALLOW_DIRTY | OD_OFFLINE);
+	if (ret)
+		return ret;
+
+	vh = (struct ploop_pvd_header *) d.hdr0;
+	if (!(vh->m_Flags & CIF_FmtVersionConvert)) {
+		close_delta(&d);
+		return 0;
+	}
+
+	close_delta(&d);
+
+	ploop_log(0, "Image remains in converting fmt version state, restore...");
+	for (i = 0; i < di->nimages; i++) {
+		if (i == base_id)
+			continue;
+		ret = restore_fmt_version(di->images[i]->file);
+		if (ret)
+			goto err;
+	}
+	/* Do restore base image at the end */
+	ret = restore_fmt_version(di->images[base_id]->file);
+
+err:
+	return ret;
+}
+
 static int ploop_get_info(struct ploop_disk_images_data *di, struct ploop_info *info)
 {
 	char mnt[PATH_MAX];
@@ -2404,7 +2774,7 @@ static int get_image_param(struct ploop_disk_images_data *di, const char *guid,
 		*version = PLOOP_FMT_UNDEFINED;
 		*blocksize = di->blocksize;
 	} else {
-		ret = open_delta(&delta, image, O_RDONLY, OD_OFFLINE | OD_ALLOW_DIRTY);
+		ret = open_delta(&delta, image, O_RDONLY, OD_OFFLINE);
 		if (ret)
 			return ret;
 		*size = delta.l2_size * delta.blocksize;

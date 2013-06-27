@@ -80,6 +80,7 @@ struct ploop_pvd_header
  */
 #define	CIF_NoFlags		0x00000000 /* No any flags */
 #define	CIF_Empty		0x00000001 /* No any data was written */
+#define	CIF_FmtVersionConvert	0x00000002 /* Version Convert in progree  */
 #define	CIF_Invalid		0xFFFFFFFF /* Invalid flag */
 
 
