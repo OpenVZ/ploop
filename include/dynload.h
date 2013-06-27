@@ -64,6 +64,9 @@ struct ploop_functions {
 	int (*switch_snapshot_ex)(struct ploop_disk_images_data *di, struct ploop_snapshot_switch_param *param);
 	int (*complete_running_operation)(const char *device);
 	/* 1.7: no new functions */
+	/* 1.8 */
+	int (*is_large_disk_supported)(void);
+	int (*get_spec)(struct ploop_disk_images_data *di, struct ploop_spec *spec);
 }; /* struct ploop_functions */
 
 __attribute__ ((visibility("default")))
