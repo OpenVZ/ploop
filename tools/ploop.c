@@ -57,10 +57,11 @@ static void usage_summary(void)
 
 static void usage_init(void)
 {
-	fprintf(stderr, "Usage: ploop init -s SIZE [-f FORMAT] [-t FSTYPE] [-b BLOCKSIZE]\n"
+	fprintf(stderr, "Usage: ploop init -s SIZE [-f FORMAT] [-v VERSION] [-t FSTYPE] [-b BLOCKSIZE]\n"
 			"		[-B FSBLOCKSIZE] DELTA\n"
 			"       SIZE := NUMBER[kmg]\n"
 			"       FORMAT := { raw | ploop1 }\n"
+			"       VERSION := { 1 | 2 }\n"
 			"       DELTA := path to new image file\n"
 			"       FSTYPE := make file system\n"
 			"       BLOCKSIZE := cluster block size in sectors\n"
