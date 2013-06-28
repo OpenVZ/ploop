@@ -59,6 +59,11 @@ ploop \- ploop device management utility
 .I image_file
 }
 .YS
+.SY ploop\ resize
+.B -s
+.I size
+.I DiskDescriptor.xml
+.YS
 .SY ploop\ snapshot
 .OP -u uuid
 .I DiskDescriptor.xml
