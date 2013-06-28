@@ -8,6 +8,9 @@ PROGS =	ploop \
 	ploop-grow \
 	ploop-balloon
 
+SCRIPTS = ploop-fsck
+BINS    = $(PROGS) $(SCRIPTS)
+
 MAN8	= ploop.8
 MANS	= $(MAN8)
 OBJS	= $(addsuffix .o,$(PROGS)) common.o ploop-snapshot.o
@@ -39,13 +42,13 @@ install-man: $(MANS)
 	$(Q) $(INSTALL) -d $(DESTDIR)$(MAN8DIR)
 	$(Q) $(INSTALL) -m 644 $(MAN8) $(DESTDIR)$(MAN8DIR)/
 
-install-progs: $(PROGS)
+install-bin: $(BINS)
 	$(Q) $(INSTALL) -d $(DESTDIR)$(USRSBINDIR)
-	$(E) "  INSTALL " $(PROGS)
-	$(Q) $(INSTALL) -m 755 $(PROGS) $(DESTDIR)$(USRSBINDIR)/
+	$(E) "  INSTALL " $(BINS)
+	$(Q) $(INSTALL) -m 755 $(BINS) $(DESTDIR)$(USRSBINDIR)/
 
-install: install-progs install-man
-.PHONY: install install-progs install-man
+install: install-bin install-man
+.PHONY: install install-bin install-man
 
 clean:
 	$(E) "  CLEAN   "
