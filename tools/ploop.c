@@ -68,6 +68,17 @@ static void usage_init(void)
 			"       FSBLOCKSIZE := file system block size in bytes\n");
 }
 
+static int parse_version_opt(const char *arg)
+{
+	if (!strcmp(arg, "1"))
+		return PLOOP_FMT_V1;
+	else if (!strcmp(arg, "2"))
+		return PLOOP_FMT_V2;
+
+	fprintf(stderr, "Invalid -v argument: %s\n", arg);
+	return -1;
+}
+
 static int plooptool_init(int argc, char **argv)
 {
 	int i, f, ret;
@@ -117,15 +128,12 @@ static int plooptool_init(int argc, char **argv)
 			}
 			break;
 		case 'v':
-			if (!strcmp(optarg, "1"))
-				param.fmt_version = PLOOP_FMT_V1;
-			else if (!strcmp(optarg, "2"))
-				param.fmt_version = PLOOP_FMT_V2;
-			else {
-				fprintf(stderr, "Unknown ploop image version: %s\n",
-						optarg);
+			f = parse_version_opt(optarg);
+			if (f < 0) {
+				usage_init();
 				return SYSEXIT_PARAM;
 			}
+			param.fmt_version = f;
 			break;
 		default:
 			usage_init();
@@ -852,11 +860,8 @@ static int plooptool_convert(int argc, char **argv)
 			mode = parse_format_opt(optarg);
 			break;
 		case 'v':
-			if (!strcmp(optarg, "1"))
-				version = PLOOP_FMT_V1;
-			else if (!strcmp(optarg, "2"))
-				version = PLOOP_FMT_V2;
-			else {
+			version = parse_version_opt(optarg);
+			if (version < 0) {
 				 usage_convert();
 				 return SYSEXIT_PARAM;
 			}
