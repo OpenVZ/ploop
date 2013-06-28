@@ -2959,8 +2959,8 @@ int ploop_switch_snapshot_ex(struct ploop_disk_images_data *di,
 		goto err_cleanup1;
 	}
 
-	// Read image size from image header
-	ret = get_image_param(di, di->top_guid, &size, &blocksize, &version);
+	// Read image param from snapshot we going to switch on
+	ret = get_image_param(di, guid, &size, &blocksize, &version);
 	if (ret)
 		goto err_cleanup1;
 
