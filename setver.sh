@@ -78,7 +78,8 @@ make rpms || exit 1
 test "$clean" = "yes" && rm -f ${NAME}-${GIT_VR}.tar.bz2
 
 test -z "$install" && exit 0
-sudo rpm -${install}hv $(rpm --eval %{_rpmdir}/%{_arch})/${NAME}-*${GIT_VR}*.rpm
+sudo rpm -${install}hv \
+	$(rpm --eval %{_rpmdir}/%{_arch})/${NAME}-*${GIT_VR}*.rpm || exit 1
 
 # Remove rpms
 if test "$clean" = "yes"; then
