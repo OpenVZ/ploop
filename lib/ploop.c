@@ -500,15 +500,19 @@ out_close:
 	return -1;
 }
 
+static void get_disk_descriptor_fname_by_image(const char *image,
+		char *buf, int size)
+{
+	get_basedir(image, buf, size - sizeof(DISKDESCRIPTOR_XML));
+	strcat(buf, DISKDESCRIPTOR_XML);
+}
+
 void get_disk_descriptor_fname(struct ploop_disk_images_data *di, char *buf, int size)
 {
 	if (di->runtime->xml_fname == NULL) {
 		// Use default DiskDescriptor.xml
-		const char *image = di->images[0]->file;
-
-		get_basedir(image, buf, size - sizeof(DISKDESCRIPTOR_XML));
-
-		strcat(buf, DISKDESCRIPTOR_XML);
+		get_disk_descriptor_fname_by_image(di->images[0]->file,
+				buf, size);
 	} else {
 		// Use custom
 		snprintf(buf, size, "%s", di->runtime->xml_fname);
@@ -549,7 +553,7 @@ static int create_image(struct ploop_disk_images_data *di,
 		return SYSEXIT_PARAM;
 	}
 
-	get_disk_descriptor_fname(di, ddxml, sizeof(ddxml));
+	get_disk_descriptor_fname_by_image(file, ddxml, sizeof(ddxml));
 	if (stat(ddxml, &st) == 0) {
 		ploop_err(EEXIST, "Can't create %s", ddxml);
 		return SYSEXIT_PARAM;
