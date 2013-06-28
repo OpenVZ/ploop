@@ -16,6 +16,7 @@ ploop \- ploop device management utility
 .B -s
 .I size
 .OP -f format
+.OP -v version
 .OP -t fstype
 .OP -b blocksize
 .OP -B fsblocksize
@@ -114,6 +115,7 @@ file.
 .B -s
 .I size
 .OP -f format
+.OP -v version
 .OP -t fstype
 .OP -b blocksize
 .OP -B fsblocksize
@@ -126,6 +128,9 @@ Image size. If no suffix is specified, the \fIsize\fR is in sector units
 \fBG\fR suffix to set the size in kilo-, mega-, or gigabytes.
 .IP "\fB-f\fR \fIformat\fR"
 Image format. See \fBIMAGE FORMATS\fR below.
+.IP "\fB-v\fR \fIversion\fR"
+Image version, can be \fB1\fR or \fB2\fR. Default is \fB2\fR, if supported
+by the kernel.
 .IP "\fB-t\fR \fIfstype\fR"
 File system type. If this parameter is specified, a partition,
 a filesystem, and a balloon file will be created inside the image.
