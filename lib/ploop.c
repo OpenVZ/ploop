@@ -2337,7 +2337,7 @@ int ploop_change_fmt_version(struct ploop_disk_images_data *di, int new_version,
 {
 	char fname[PATH_MAX];
 	struct delta_array da = {};
-	int ret, rc, i;
+	int ret = 0, rc, i;
 	struct ploop_pvd_header *vh;
 
 	init_delta_array(&da);
