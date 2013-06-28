@@ -8,7 +8,7 @@
 .if \\n[.$] \&\\$*
 ..
 .
-.TH ploop 8 "25 May 2012" "OpenVZ" "Containers"
+.TH ploop 8 "28 June 2013" "OpenVZ" "Containers"
 .SH NAME
 ploop \- ploop device management utility
 .SH SYNOPSYS
@@ -62,6 +62,16 @@ ploop \- ploop device management utility
 .SY ploop\ resize
 .B -s
 .I size
+.I DiskDescriptor.xml
+.YS
+.SY ploop\ convert
+{
+.B -f
+.I format
+|
+.B -v
+.I version
+}
 .I DiskDescriptor.xml
 .YS
 .SY ploop\ snapshot
@@ -269,6 +279,26 @@ Image size. If no suffix is specified, \fIsize\fR is in sector units
 \fBG\fR suffix to set the size in kilo-, mega-, or gigabytes.
 .IP \fIDiskDescriptor.xml\fR
 Path to the DiskDescriptor.xml file with information about images.
+.P
+.SS3 convert
+.P
+Convert ploop image format or version.
+
+.SY ploop\ convert
+{
+.B -f
+.I format
+|
+.B -v
+.I version
+}
+.I DiskDescriptor.xml
+.YS
+.IP "\fB-f\fR \fIformat\fR"
+Image format. See \fBIMAGE FORMATS\fR below.
+.IP "\fB-v\fR \fIversion\fR"
+Image version, can be \fB1\fR or \fB2\fR. Only offline image version
+conversion is supported.
 .P
 .SS3 snapshot
 .P
