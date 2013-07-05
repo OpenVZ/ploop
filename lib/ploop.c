@@ -2241,7 +2241,7 @@ static int backup_idx_table(struct delta *d, const char *image)
 
 	BACKUP_IDX_FNAME(fname, image);
 
-	ploop_log(0, "Backup index table %s", fname);
+	ploop_log(0, "Backing up index table %s", fname);
 	fd = open(fname, O_CREAT | O_WRONLY | O_TRUNC, 0600);
 	if (fd < 0 ) {
 		ploop_err(errno, "Failed to create %s", fname);
@@ -2419,7 +2419,7 @@ int ploop_change_fmt_version(struct ploop_disk_images_data *di, int new_version,
 
 	/* 3. Convert */
 	for (i = 0; i < di->nimages; i++) {
-		ploop_log(0, "Convert %s to version %d",
+		ploop_log(0, "Converting %s to version %d",
 				di->images[i]->file, new_version);
 		ret = change_fmt_version(&da.delta_arr[i], new_version);
 		if (ret)
