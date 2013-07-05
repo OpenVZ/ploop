@@ -2419,7 +2419,7 @@ int ploop_change_fmt_version(struct ploop_disk_images_data *di, int new_version,
 
 	/* 3. Convert */
 	for (i = 0; i < di->nimages; i++) {
-		ploop_log(0, "Convert %s to verion %d",
+		ploop_log(0, "Convert %s to version %d",
 				di->images[i]->file, new_version);
 		ret = change_fmt_version(&da.delta_arr[i], new_version);
 		if (ret)
