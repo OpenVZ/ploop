@@ -156,7 +156,7 @@ int ploop_di_add_image(struct ploop_disk_images_data *di, const char *fname,
 		return ret;
 	}
 
-	ploop_log(3, "add snapshot %s", guid);
+	ploop_log(3, "Adding snapshot %s", guid);
 	free(di->top_guid);
 	di->top_guid = top_guid;
 
