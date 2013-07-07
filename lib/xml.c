@@ -424,7 +424,7 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 	xmlTextWriterPtr writer = NULL;
 	xmlDocPtr doc = NULL;
 	char tmp[PATH_MAX];
-	char basedir[PATH_MAX] = "";
+	char basedir[PATH_MAX];
 
 	ploop_log(0, "Storing %s", fname);
 
@@ -432,8 +432,10 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 		return -1;
 
 	get_basedir(fname, tmp, sizeof(tmp));
+	if (tmp[0] == '\0')
+		strcpy(tmp, "./");
 
-	if (*tmp && realpath(tmp, basedir) == NULL) {
+	if (realpath(tmp, basedir) == NULL) {
 		ploop_err(errno, "Can't resolve %s", tmp);
 		return -1;
 	}
