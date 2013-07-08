@@ -635,7 +635,7 @@ int ploop_grow_delta_offline(const char *image, off_t new_size)
 	vh = (struct ploop_pvd_header *)delta.hdr0;
 	old_size = get_SizeInSectors(vh);
 
-	generate_pvd_header(&new_vh, new_size, delta.blocksize, ploop1_version(vh));
+	generate_pvd_header(&new_vh, new_size, delta.blocksize, delta.version);
 	if (get_SizeInSectors(&new_vh) == old_size)
 		goto out;
 
