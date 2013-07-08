@@ -416,8 +416,8 @@ static void usage_discard(void)
 			"                       [--stat] }\n"
 			"       DEVICE      := ploop device, e.g. /dev/ploop0\n"
 			"       MOUNT_POINT := path where fs living on ploop device mounted to\n"
-			"       SIZE        := NUMBER[kmg] (maximum space to free)\n"
-			"       MIN_SIZE    := NUMBER[kmg] (minimum size of a linear slice to be freed)\n"
+			"       SIZE        := NUMBER[KMGT] (maximum space to free)\n"
+			"       MIN_SIZE    := NUMBER[KMGT] (minimum size of a linear slice to be freed)\n"
 			"Action: discard unused blocks from the image.\n"
 		);
 }

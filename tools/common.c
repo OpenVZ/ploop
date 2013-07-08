@@ -40,6 +40,12 @@ int parse_size(const char *opt, off_t *sz, const char *name)
 		goto err;
 
 	switch (*endptr) {
+	case 'T': case 't':
+		if (val >= ~0ULL/(1024ULL*1024*1024*1024/512))
+			goto large;
+		val *= 1024ULL*1024*1024*1024/512;
+		*sz = val;
+		break;
 	case 'G': case 'g':
 		if (val >= ~0ULL/(1024*1024*1024/512))
 			goto large;

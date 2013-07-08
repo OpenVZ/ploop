@@ -139,8 +139,8 @@ file.
 
 .IP "\fB-s\fR \fIsize\fR"
 Image size. If no suffix is specified, the \fIsize\fR is in sector units
-(one sector is 512 bytes). One can specify optional \fBK\fR, \fBM\fR, or
-\fBG\fR suffix to set the size in kilo-, mega-, or gigabytes.
+(one sector is 512 bytes). One can specify optional \fBK\fR, \fBM\fR,
+\fBG\fR or \fBT\fR suffix to set the size in kilo-, mega-, giga- or terabytes.
 .IP "\fB-f\fR \fIformat\fR"
 Image format. See \fBIMAGE FORMATS\fR below.
 .IP "\fB-v\fR \fIversion\fR"
@@ -275,8 +275,8 @@ either grow or shrink the ploop image and the underlying file system.
 
 .IP "\fB-s\fR \fIsize\fR"
 Image size. If no suffix is specified, \fIsize\fR is in sector units
-(one sector is 512 bytes). One can specify optional \fBK\fR, \fBM\fR, or
-\fBG\fR suffix to set the size in kilo-, mega-, or gigabytes.
+(one sector is 512 bytes). One can specify optional \fBK\fR, \fBM\fR,
+\fBG\fR or \fBT\fR suffix to set the size in kilo-, mega-, giga- or terabytes.
 .IP \fIDiskDescriptor.xml\fR
 Path to the DiskDescriptor.xml file with information about images.
 .P

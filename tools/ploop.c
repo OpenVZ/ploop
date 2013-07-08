@@ -59,7 +59,7 @@ static void usage_init(void)
 {
 	fprintf(stderr, "Usage: ploop init -s SIZE [-f FORMAT] [-v VERSION] [-t FSTYPE] [-b BLOCKSIZE]\n"
 			"		[-B FSBLOCKSIZE] DELTA\n"
-			"       SIZE := NUMBER[kmg]\n"
+			"       SIZE := NUMBER[KMGT]\n"
 			"       FORMAT := { raw | ploop1 }\n"
 			"       VERSION := { 1 | 2 }\n"
 			"       DELTA := path to new image file\n"
@@ -788,7 +788,7 @@ static int plooptool_getdevice(int argc, char **argv)
 static void usage_resize(void)
 {
 	fprintf(stderr, "Usage: ploop resize -s NEW_SIZE DiskDescriptor.xml\n"
-			"       NEW_SIZE := NUMBER[kmg]\n");
+			"       NEW_SIZE := NUMBER[KMGT]\n");
 }
 
 static int plooptool_resize(int argc, char **argv)
