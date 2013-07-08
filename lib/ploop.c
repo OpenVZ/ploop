@@ -291,7 +291,7 @@ static int check_size(unsigned long long sectors, __u32 blocksize, int version)
 	return 0;
 }
 
-static int check_blockdev_size(unsigned long long sectors, __u32 blocksize, int version)
+int check_blockdev_size(unsigned long long sectors, __u32 blocksize, int version)
 {
 	if (check_size(sectors, blocksize, version))
 		return -1;
@@ -1594,12 +1594,17 @@ int ploop_grow_device(const char *device, off_t new_size)
 	struct ploop_ctl ctl;
 	off_t size;
 	__u32 blocksize = 0;
+	int version = PLOOP_FMT_V1;
 
 	ret = ploop_get_size(device, &size);
 	if (ret)
 		return ret;
 
 	if (ploop_get_attr(device, "block_size", (int*) &blocksize))
+		return SYSEXIT_SYS;
+
+	if (ploop_is_large_disk_supported() &&
+			ploop_get_attr(device, "fmt_version", &version))
 		return SYSEXIT_SYS;
 
 	if (new_size == size)
@@ -1610,6 +1615,9 @@ int ploop_grow_device(const char *device, off_t new_size)
 				(long)new_size, (long)size);
 		return SYSEXIT_PARAM;
 	}
+
+	if (check_size(new_size, blocksize, version))
+		return SYSEXIT_PARAM;
 
 	ploop_log(0, "Growing dev=%s size=%llu sectors (new size=%llu)",
 				device, (unsigned long long)size,

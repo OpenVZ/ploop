@@ -377,6 +377,7 @@ int auto_mount_image(struct ploop_disk_images_data *di,
 		struct ploop_mount_param *param);
 void free_mount_param(struct ploop_mount_param *param);
 int check_and_restore_fmt_version(struct ploop_disk_images_data *di);
+int check_blockdev_size(unsigned long long sectors, __u32 blocksize, int version);
 
 // merge
 PL_EXT int get_delta_info(const char *device, struct merge_info *info);

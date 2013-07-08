@@ -633,6 +633,12 @@ int ploop_grow_delta_offline(const char *image, off_t new_size)
 		return SYSEXIT_OPEN;
 
 	vh = (struct ploop_pvd_header *)delta.hdr0;
+
+	if (check_blockdev_size(new_size, delta.blocksize, delta.version)) {
+		ret = SYSEXIT_PARAM;
+		goto out;
+	}
+
 	old_size = get_SizeInSectors(vh);
 
 	generate_pvd_header(&new_vh, new_size, delta.blocksize, delta.version);
