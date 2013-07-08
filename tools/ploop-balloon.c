@@ -272,7 +272,7 @@ static int pb_change(int argc, char **argv)
 		switch (i) {
 		case 's':
 			/* NB: currently, new_size is in 'sector' units */
-			if (parse_size(optarg, &new_size)) {
+			if (parse_size(optarg, &new_size, "-s")) {
 				usage_change();
 				return SYSEXIT_PARAM;
 			}
@@ -458,16 +458,14 @@ static int pb_discard(int argc, char **argv)
 			mount_point = optarg;
 			break;
 		case 666:
-			if (parse_size(optarg, &val)) {
-				fprintf(stderr, "Invalid value for --to-free: %s\n", optarg);
+			if (parse_size(optarg, &val, "--to-free")) {
 				usage_discard();
 				return SYSEXIT_PARAM;
 			}
 			param.to_free = S2B(val);
 			break;
 		case 667:
-			if (parse_size(optarg, &val)) {
-				fprintf(stderr, "Invalid value for --min-block: %s\n", optarg);
+			if (parse_size(optarg, &val, "--min-block")) {
 				usage_discard();
 				return SYSEXIT_PARAM;
 			}

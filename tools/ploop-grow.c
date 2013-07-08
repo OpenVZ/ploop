@@ -62,7 +62,7 @@ main(int argc, char ** argv)
 			device = optarg;
 			break;
 		case 's':
-			if (parse_size(optarg, &new_size)) {
+			if (parse_size(optarg, &new_size, "-s")) {
 				usage();
 				return SYSEXIT_PARAM;
 			}

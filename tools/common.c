@@ -26,7 +26,7 @@
 #include "ploop1_image.h"
 #include "libploop.h"
 
-int parse_size(const char * opt, off_t * sz)
+int parse_size(const char *opt, off_t *sz, const char *name)
 {
 	__u64 val;
 	char * endptr;
@@ -34,27 +34,27 @@ int parse_size(const char * opt, off_t * sz)
 	val = strtoul(opt, &endptr, 0);
 
 	if (opt == endptr)
-		return -1;
+		goto err;
 
 	if (strlen(endptr) > 1)
-		return -1;
+		goto err;
 
 	switch (*endptr) {
 	case 'G': case 'g':
 		if (val >= ~0ULL/(1024*1024*1024/512))
-			return -1;
+			goto large;
 		val *= 1024*1024*1024/512;
 		*sz = val;
 		break;
 	case 'M': case 'm':
 		if (val >= ~0ULL/(1024*1024/512))
-			return -1;
+			goto large;
 		val *= 1024*1024/512;
 		*sz = val;
 		break;
 	case 'K': case 'k':
 		if (val >= ~0ULL/(1024/512))
-			return -1;
+			goto large;
 		val *= 1024/512;
 		*sz = val;
 		break;
@@ -62,11 +62,21 @@ int parse_size(const char * opt, off_t * sz)
 		*sz = (off_t)val;
 		break;
 	default:
-		return -1;
+		goto err;
 	}
+
 	if (val >= (0xffffffffULL << PLOOP1_SECTOR_LOG))
-		return -1;
+		goto large;
+
 	return 0;
+
+err:
+	fprintf(stderr, "ERROR: Invalid argument for option %s: %s\n", name, opt);
+	return -1;
+
+large:
+	fprintf(stderr, "ERROR: Too large value for option %s: %s\n", name, opt);
+	return -1;
 }
 
 int parse_format_opt(const char *opt)

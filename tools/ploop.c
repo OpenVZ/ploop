@@ -91,7 +91,7 @@ static int plooptool_init(int argc, char **argv)
 	while ((i = getopt(argc, argv, "s:b:B:f:t:v:")) != EOF) {
 		switch (i) {
 		case 's':
-			if (parse_size(optarg, &size_sec)) {
+			if (parse_size(optarg, &size_sec, "-s")) {
 				usage_init();
 				return SYSEXIT_PARAM;
 			}
@@ -802,7 +802,7 @@ static int plooptool_resize(int argc, char **argv)
 	while ((i = getopt(argc, argv, "s:b")) != EOF) {
 		switch (i) {
 		case 's':
-			if (parse_size(optarg, &new_size)) {
+			if (parse_size(optarg, &new_size, "-s")) {
 				usage_resize();
 				return SYSEXIT_PARAM;
 			}
