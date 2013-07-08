@@ -1602,9 +1602,6 @@ int ploop_grow_device(const char *device, off_t new_size)
 	if (ploop_get_attr(device, "block_size", (int*) &blocksize))
 		return SYSEXIT_SYS;
 
-	ploop_log(0, "Growing dev=%s size=%llu sectors (new size=%llu)",
-				device, (unsigned long long)size,
-				(unsigned long long)new_size);
 	if (new_size == size)
 		return 0;
 
@@ -1613,6 +1610,10 @@ int ploop_grow_device(const char *device, off_t new_size)
 				(long)new_size, (long)size);
 		return SYSEXIT_PARAM;
 	}
+
+	ploop_log(0, "Growing dev=%s size=%llu sectors (new size=%llu)",
+				device, (unsigned long long)size,
+				(unsigned long long)new_size);
 
 	fd = open(device, O_RDONLY);
 	if (fd < 0) {
