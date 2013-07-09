@@ -115,7 +115,7 @@ void tune_fs(const char *target, const char *device, unsigned long long size_sec
 				size_sec);
 		return;
 	}
-	argv[0] = "/sbin/tune2fs";
+	argv[0] = "tune2fs";
 	argv[1] = "-r";
 	snprintf(buf, sizeof(buf), "%llu", reserved_blocks);
 	argv[2] = buf;
