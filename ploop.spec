@@ -1,7 +1,7 @@
 %define _incdir /usr/include/ploop
 Summary: ploop tools
 Name: ploop
-Version: 1.7
+Version: 1.8
 %define rel 1
 Release: %{rel}%{?dist}
 Group: Applications/System
@@ -85,6 +85,43 @@ Headers and a static version of ploop library
 %attr(644,root,root) %{_incdir}/dynload.h
 
 %changelog
+* Tue Jul  9 2013 Kir Kolyshkin <kir@openvz.org> 1.8-1
+- New functionality:
+-- convert from/to v1/v2 ploop version format (ploop convert -v)
+-- ploop_mount_fs(): add option to run fsck
+-- ploop mount: add -F to run fsck for inner fs
+-- export ploop_is_large_disk_supported()
+-- add/export ploop_get_spec()
+-- ploop fsck: rename to ploop check
+- Fixes:
+-- resize_gpt_partition(): skip if there is no partition
+-- switch snapshot: read parameters from image we are to switch to
+-- ploop create: error out if DiskDescriptor.xml exists
+-- e2fsck(): properly check e2fsck binary exit code
+-- ploop grow: check size wrt format
+-- tools/Makefile: don't strip binaries on install
+-- ploop init: fix an error message
+- Improvements:
+-- create_image(): remove useless assignment
+-- number of log messages improved/fixed
+-- tools parse_size(): print error
+-- tools/ploop: allow T suffix for blockdev size
+-- ploop_grow_delta_offline(): use delta.version
+-- tune_fs(): drop absolute path to tune2fs
+- Documentation:
+-- ploop init usage: add -v VERSION
+-- ploop --help: rm -P from ploop mount syntax
+-- ploop(8): add -v for ploop init
+-- ploop(8): add ploop resize to SYNOPSYS
+-- ploop(8): add ploop convert
+-- ploop(8): add -F for ploop mount
+
+* Mon Jun 10 2013 Kir Kolyshkin <kir@openvz.org> 1.7.1-1
+- Fixes:
+-- default image format is V1, unless specified explicitly
+-- tmpfiles.d file added for /var/lock/ploop (#2493)
+-- fixed creating strange directories under ./ (#2623)
+
 * Fri May 31 2013 Kir Kolyshkin <kir@openvz.org> 1.7-1
 - New functionality:
 -- Large ploop image format support
