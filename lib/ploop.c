@@ -2573,6 +2573,9 @@ int check_and_restore_fmt_version(struct ploop_disk_images_data *di)
 	struct delta d = {};
 	const char *guid;
 
+	if (di->mode == PLOOP_RAW_MODE)
+		return 0;
+
 	if ((guid = ploop_get_base_delta_uuid(di)) == NULL ||
 		 (base_id = find_image_idx_by_guid(di, guid)) == -1)
 	{
