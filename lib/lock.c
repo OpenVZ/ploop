@@ -102,6 +102,10 @@ static int do_lock(const char *fname, unsigned int timeout)
 		ploop_err(errno, "Can't open lock file %s", fname);
 		return -1;
 	}
+
+	/* Set FD_CLOEXEC explicitly */
+	fcntl(fd, F_SETFD, FD_CLOEXEC);
+
 	if (timeout) {
 		end = get_cpu_time();
 		if (end == (clock_t)-1)
