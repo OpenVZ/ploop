@@ -67,8 +67,11 @@ struct ploop_functions {
 	/* 1.8 */
 	int (*is_large_disk_supported)(void);
 	int (*get_spec)(struct ploop_disk_images_data *di, struct ploop_spec *spec);
+	/* 1.9 */
+	int (*get_devs)(struct ploop_disk_images_data *di, char **out[]);
+	void (*free_array)(char *array[]);
 	/* padding for up to 64 pointers (512 bytes) */
-	void *padding[24];
+	void *padding[22];
 }; /* struct ploop_functions */
 
 __attribute__ ((visibility("default")))

@@ -267,22 +267,24 @@ close_dir:
 	return -1;
 }
 
-/* Find device by base delta and return the name
+/* Find device(s) by base delta and return name(s)
  * return: -1 on error
  *	    0 found
  *	    1 not found
  */
-int ploop_find_dev(const char *component_name, const char *delta,
-		char *buf, int size)
+int ploop_get_dev_by_delta(const char *component_name, const char *delta,
+		char **out[])
 {
 	char fname[PATH_MAX];
 	char delta_r[PATH_MAX];
 	char image[PATH_MAX];
+	char dev[64];
 	DIR *dp;
 	struct dirent *de;
 	int ret = -1;
 	char cookie[PLOOP_COOKIE_SIZE];
 	int lckfd;
+	int nelem = 1;
 
 	if (realpath(delta, delta_r) == NULL) {
 		ploop_err(errno, "Can't resolve %s", delta);
@@ -302,6 +304,7 @@ int ploop_find_dev(const char *component_name, const char *delta,
 
 	while ((de = readdir(dp)) != NULL) {
 		int err;
+		char **t;
 
 		if (strncmp("ploop", de->d_name, 5))
 			continue;
@@ -341,16 +344,52 @@ int ploop_find_dev(const char *component_name, const char *delta,
 		if (component_name && strncmp(component_name, cookie, sizeof(cookie)))
 			continue;
 
-		snprintf(buf, size, "/dev/%s", de->d_name);
-		ret = 0;
-		goto err;
+		snprintf(dev, sizeof(dev), "/dev/%s", de->d_name);
+		t = realloc(*out, (nelem+1) * sizeof(char *));
+		if (t == NULL || (t[nelem-1] = strdup(dev)) == NULL) {
+			ploop_err(ENOMEM, "Memory allocation failed");
+			goto err;
+		}
+		t[nelem++] = NULL;
+		*out = t;
+		if (component_name)
+			break;
+
 	}
-	ret = 1; /* not found */
+	ret = 0;
 
 err:
 	if (dp)
 		closedir(dp);
 	close(lckfd);
+
+	return ret ? ret : (nelem == 1);
+}
+
+void ploop_free_array(char *array[])
+{
+	char **p;
+
+	if (array == NULL)
+		return;
+
+	for (p = array; *p != NULL; p++)
+		free(*p);
+	free(array);
+}
+
+int ploop_find_dev(const char *delta, const char *component_name,
+		char *out, int size)
+{
+	int ret;
+	char **devs = NULL;
+
+	ret = ploop_get_dev_by_delta(delta,
+			component_name ? component_name : "",
+			&devs);
+	if (ret == 0)
+		snprintf(out, size, devs[0]);
+	ploop_free_array(devs);
 
 	return ret;
 }

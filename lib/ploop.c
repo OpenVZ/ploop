@@ -1057,6 +1057,11 @@ int ploop_get_dev(struct ploop_disk_images_data *di, char *out, int len)
 	return ret;
 }
 
+int ploop_get_devs(struct ploop_disk_images_data *di, char ***out)
+{
+	return ploop_get_dev_by_delta(di->images[0]->file, NULL, out);
+}
+
 static int reread_part(const char *device)
 {
 	int fd;
