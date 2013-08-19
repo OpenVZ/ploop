@@ -338,8 +338,7 @@ int ploop_find_dev(const char *component_name, const char *delta,
 			goto err;
 		}
 
-		if (strncmp(component_name == NULL ? "" : component_name,
-					cookie, sizeof(cookie)))
+		if (component_name && strncmp(component_name, cookie, sizeof(cookie)))
 			continue;
 
 		snprintf(buf, size, "/dev/%s", de->d_name);
