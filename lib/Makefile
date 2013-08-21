@@ -44,7 +44,7 @@ $(LIBPLOOP): $(LIBOBJS)
 
 $(LIBPLOOP_DYN): $(LIBOBJS)
 	$(E) "  LINK    " $@
-	$(Q) $(CC) $(CFLAGS) $(INC) $(LDFLAGS) -shared  $^ ${LDLIBS} -o $@
+	$(Q) $(CC) $(CFLAGS) $(LDFLAGS) -shared  $^ ${LDLIBS} -o $@
 
 .depend: $(filter-out $(GENERATED),$(SOURCES))
 -include .depend
