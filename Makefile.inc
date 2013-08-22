@@ -1,3 +1,5 @@
+NAME=ploop
+
 CC=gcc
 INSTALL=install
 SBINDIR=/sbin
