@@ -56,6 +56,10 @@ Parallels loopback (ploop) block device API library
 %dir /var/lock/ploop
 %{_prefix}/lib/tmpfiles.d/%{name}.conf
 
+%post lib -p /sbin/ldconfig
+
+%postun lib -p /sbin/ldconfig
+
 %triggerin lib -- udev
 SCRIPT="/lib/udev/rules.d/60-persistent-storage.rules"
 if [ -f $SCRIPT ]; then
