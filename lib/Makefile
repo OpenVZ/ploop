@@ -67,13 +67,13 @@ $(LIBPLOOP_SO): $(LIBPLOOP_SO_X)
 -include .depend
 
 install-lockdir:
-	$(Q) $(INSTALL) -d $(DESTDIR)/$(LOCKDIR)
+	$(Q) $(INSTALL) -d $(DESTDIR)$(LOCKDIR)
 .PHONY: install-lockdir
 
 install: all install-lockdir
-	$(Q) $(INSTALL) -d $(DESTDIR)/$(LIBDIR)
+	$(Q) $(INSTALL) -d $(DESTDIR)$(LIBDIR)
 	$(E) "  INSTALL " $(LIBPLOOP)
-	$(Q) $(INSTALL) -m 644 $(LIBPLOOP) $(DESTDIR)/$(LIBDIR)
+	$(Q) $(INSTALL) -m 644 $(LIBPLOOP) $(DESTDIR)$(LIBDIR)
 	$(E) "  INSTALL " $(LIBPLOOP_SO_X_Y)
 	$(Q) $(INSTALL) -m 755 $(LIBPLOOP_SO_X_Y) $(DESTDIR)$(LIBDIR)
 	$(E) "  INSTALL " $(LIBPLOOP_SO_X) $(LIBPLOOP_SO)

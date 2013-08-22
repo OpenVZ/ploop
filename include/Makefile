@@ -10,9 +10,9 @@ clean:
 .PHONY: clean
 
 install:
-	$(Q) $(INSTALL) -d $(DESTDIR)/$(INCDIR)
+	$(Q) $(INSTALL) -d $(DESTDIR)$(INCDIR)
 	$(E) "  INSTALL " $(INCLUDES)
-	$(Q) $(INSTALL) -m 644 $(INCLUDES) $(DESTDIR)/$(INCDIR)
+	$(Q) $(INSTALL) -m 644 $(INCLUDES) $(DESTDIR)$(INCDIR)
 .PHONY: install
 
 check-api: ../gensym.sh libploop.h
