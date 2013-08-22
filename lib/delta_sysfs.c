@@ -286,6 +286,8 @@ int ploop_get_dev_by_delta(const char *component_name, const char *delta,
 	int lckfd;
 	int nelem = 1;
 
+	*out = NULL;
+
 	if (realpath(delta, delta_r) == NULL) {
 		ploop_err(errno, "Can't resolve %s", delta);
 		return -1;
@@ -382,7 +384,7 @@ int ploop_find_dev(const char *delta, const char *component_name,
 		char *out, int size)
 {
 	int ret;
-	char **devs = NULL;
+	char **devs;
 
 	ret = ploop_get_dev_by_delta(delta,
 			component_name ? component_name : "",
