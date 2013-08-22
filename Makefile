@@ -16,6 +16,7 @@ all install clean:
 
 check-api:
 	$(MAKE) -C include $@
+.PHONY: check-api
 
 dist: check-api tar
 tar: $(TARBALL)
