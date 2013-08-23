@@ -268,9 +268,16 @@ close_dir:
 }
 
 /* Find device(s) by base delta and return name(s)
- * return: -1 on error
- *	    0 found
- *	    1 not found
+ * in a NULL-terminated array pointed to by 'out'.
+ * Note that
+ *  - if 0 is returned, 'out' should be free'd using
+ *    ploop_free_array()
+ *  - when 'component_name' is not NULL,
+ *    no more than one device will be returned
+ * Return:
+ *  -1 on error
+ *   0 found
+ *   1 not found
  */
 int ploop_get_dev_by_delta(const char *component_name, const char *delta,
 		char **out[])
@@ -387,6 +394,8 @@ int ploop_find_dev(const char *delta, const char *component_name,
 	char **devs;
 
 	ret = ploop_get_dev_by_delta(delta,
+			/* We only need one device, so
+			 * always set component_name */
 			component_name ? component_name : "",
 			&devs);
 	if (ret == 0)
