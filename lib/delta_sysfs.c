@@ -372,7 +372,10 @@ err:
 		closedir(dp);
 	close(lckfd);
 
-	return ret ? ret : (nelem == 1);
+	if (ret)
+		return ret;
+
+	return (nelem == 1);
 }
 
 void ploop_free_array(char *array[])
