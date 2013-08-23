@@ -355,12 +355,16 @@ int ploop_get_dev_by_delta(const char *component_name, const char *delta,
 
 		snprintf(dev, sizeof(dev), "/dev/%s", de->d_name);
 		t = realloc(*out, (nelem+1) * sizeof(char *));
-		if (t == NULL || (t[nelem-1] = strdup(dev)) == NULL) {
+		if (t == NULL) {
+			ploop_err(ENOMEM, "Memory allocation failed");
+			goto err;
+		}
+		*out = t;
+		if ((t[nelem-1] = strdup(dev)) == NULL) {
 			ploop_err(ENOMEM, "Memory allocation failed");
 			goto err;
 		}
 		t[nelem++] = NULL;
-		*out = t;
 		if (component_name)
 			break;
 
@@ -372,8 +376,11 @@ err:
 		closedir(dp);
 	close(lckfd);
 
-	if (ret)
+	if (ret) {
+		ploop_free_array(*out);
+		*out = NULL;
 		return ret;
+	}
 
 	return (nelem == 1);
 }
