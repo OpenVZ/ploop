@@ -1,7 +1,7 @@
 include ../Makefile.inc
 
-all clean:
-.PHONY: all clean
+all clean distclean:
+.PHONY: all clean distclean
 
 install:
 	$(Q) $(INSTALL) -d $(DESTDIR)$(TMPFILESDIR)

@@ -84,3 +84,7 @@ clean:
 	$(E) "  CLEAN   "
 	$(Q) rm -f $(GENERATED) *.o *.a *.so *.so.*
 .PHONY: clean
+
+distclean: clean
+	$(Q) rm -f .depend
+.PHONY: distclean

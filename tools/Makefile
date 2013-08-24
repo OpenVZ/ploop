@@ -54,3 +54,7 @@ clean:
 	$(E) "  CLEAN   "
 	$(Q) rm -f $(PROGS) $(OBJS) $(MANS)
 .PHONY: clean
+
+distclean: clean
+	$(Q) rm -f .depend
+.PHONY: distclean

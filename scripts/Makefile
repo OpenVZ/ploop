@@ -5,8 +5,8 @@ SCRIPTS=mount.ploop umount.ploop
 all: $(SCRIPTS)
 .PHONY: all
 
-clean:
-.PHONY: clean
+clean distclean:
+.PHONY: clean distclean
 
 install:
 	$(INSTALL) -d $(DESTDIR)$(SBINDIR)

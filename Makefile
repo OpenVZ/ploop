@@ -8,7 +8,7 @@ TARBALL=$(NAMEVER).tar.bz2
 
 SUBDIRS=include lib tools scripts etc
 
-all install clean:
+all install clean distclean:
 	@set -e; \
 	for d in $(SUBDIRS); do $(MAKE) -C $$d $@; done
 .PHONY: all install clean

@@ -9,6 +9,9 @@ clean:
 	$(Q) rm -f new-dynload.h
 .PHONY: clean
 
+distclean: clean
+.PHONY: distclean
+
 install:
 	$(Q) $(INSTALL) -d $(DESTDIR)$(INCDIR)
 	$(E) "  INSTALL " $(INCLUDES)
