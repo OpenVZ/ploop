@@ -1105,8 +1105,8 @@ static int ploop_mount_fs(struct ploop_mount_param *param)
 	 * 2 remount with balloon_ino=ino
 	 */
 	if (mount(part_device, param->target, fstype, MS_RDONLY, param->mount_data)) {
-		ploop_err(errno, "Can't mount file system dev=%s target=%s",
-				part_device, param->target);
+		ploop_err(errno, "Can't mount file system dev=%s target=%s data='%s'",
+				part_device, param->target, param->mount_data);
 		return SYSEXIT_MOUNT;
 	}
 	snprintf(buf, sizeof(buf), "%s/" BALLOON_FNAME, param->target);
