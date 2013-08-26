@@ -1485,7 +1485,7 @@ int ploop_mount_image(struct ploop_disk_images_data *di, struct ploop_mount_para
 	ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
 	if (ret == -1) {
 		ploop_unlock_di(di);
-		return -1;
+		return SYSEXIT_SYS;
 	}
 	if (ret == 0) {
 		ploop_err(0, "Image %s already used by device %s",
@@ -2626,8 +2626,10 @@ static int ploop_get_info(struct ploop_disk_images_data *di, struct ploop_info *
 		return SYSEXIT_LOCK;
 
 	ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
-	if (ret == -1)
+	if (ret == -1) {
+		ret = SYSEXIT_SYS;
 		goto err;
+	}
 	if (ret == 0) {
 		ret = get_mount_dir(dev, mnt, sizeof(mnt));
 		if (ret)
@@ -2891,8 +2893,10 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 		goto err_cleanup1;
 
 	ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
-	if (ret == -1)
+	if (ret == -1) {
+		ret = SYSEXIT_SYS;
 		goto err_cleanup2;
+	}
 	else if (ret == 0)
 		online = 1;
 
@@ -2991,7 +2995,7 @@ int ploop_switch_snapshot_ex(struct ploop_disk_images_data *di,
 		// device should be stopped
 		ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
 		if (ret == -1) {
-			ret = SYSEXIT_PARAM;
+			ret = SYSEXIT_SYS;
 			goto err_cleanup1;
 		} else if (ret == 0) {
 			ret = SYSEXIT_PARAM;
@@ -3116,8 +3120,10 @@ int ploop_delete_snapshot(struct ploop_disk_images_data *di, const char *guid)
 		goto err;
 	}
 	ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
-	if (ret == -1)
+	if (ret == -1) {
+		ret = SYSEXIT_SYS;
 		goto err;
+	}
 	else if (ret == 0 && strcmp(di->top_guid, guid) == 0) {
 		ret = SYSEXIT_PARAM;
 		ploop_err(0, "Unable to delete active snapshot %s",
