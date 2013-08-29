@@ -20,10 +20,10 @@ MAN8DIR=$(MANDIR)/man8
 TMPFILESDIR=/usr/lib/tmpfiles.d
 DEBUG=yes
 
+CFLAGS := $(if $(DEBUG),-g -O0 -DDEBUG,-O2) $(CFLAGS)
 CFLAGS += -I. -I../include -fno-strict-aliasing \
 	-Wall -Wstrict-prototypes -Werror -Wformat-security \
 	-D_GNU_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64
-CFLAGS += $(if $(DEBUG),-g -O0 -DDEBUG,-O2)
 CFLAGS += $(RPM_OPT_FLAGS) $(CPPFLAGS)
 
 LDFLAGS += $(if $(DEBUG),-g -rdynamic,)
