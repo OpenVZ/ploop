@@ -24,7 +24,7 @@ CFLAGS += -I. -I../include -fno-strict-aliasing \
 	-Wall -Wstrict-prototypes -Werror -Wformat-security \
 	-D_GNU_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64
 CFLAGS += $(if $(DEBUG),-g -O0 -DDEBUG,-O2)
-CFLAGS += $(RPM_OPT_FLAGS)
+CFLAGS += $(RPM_OPT_FLAGS) $(CPPFLAGS)
 
 LDFLAGS += $(if $(DEBUG),-g -rdynamic,)
 
