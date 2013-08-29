@@ -46,6 +46,8 @@ gen_c() {
 	echo "#include <dynload.h>"
 	echo
 	echo "void ploop_resolve_functions(struct ploop_functions * f) {"
+	echo "#define BUILD_BUG_ON(condition) ((void)sizeof(char[1 - 2*!!(condition)]))"
+	echo "BUILD_BUG_ON(sizeof(*f) != 64*sizeof(void *));"
 	# Initialize the structure with names
 	extract_functions | \
 	  sed 's/^.*[* ]ploop_\([a-z_]*\)(.*$/\1/' | \
