@@ -1,7 +1,7 @@
 %define _incdir /usr/include/ploop
 Summary: ploop tools
 Name: ploop
-Version: 1.8
+Version: 1.9
 %define rel 1
 Release: %{rel}%{?dist}
 Group: Applications/System
@@ -90,6 +90,25 @@ Headers and a static version of ploop library
 %attr(644,root,root) %{_incdir}/dynload.h
 
 %changelog
+* Wed Aug 28 2013 Kir Kolyshkin <kir@openvz.org> 1.9-1
+- New functionality:
+-- libploop.so: implement SONAME and versioning
+-- Introduce ploop_get_devs() to get all mounted devices per dd.xml
+- Fixes:
+-- make_fs(): reserve max possible GDT block for online resize
+-- do_lock(): set FD_CLOEXEC explicitly on lock fd
+-- fix raw image creation (broken in ploop 1.8)
+-- return SYSEXIT_SYS on ploop_find_dev_by_uuid() failure
+-- ploop.spec: run ldconfig on install/uninstall
+- Improvements:
+-- Display mount data in error message on mount() failure
+-- dynload.h: pad the struct ploop_functions to 64 pointers
+-- gensym.sh: add code to check sizeof(struct ploop_function)
+-- etc/Makefile: ploop.conf should not be executable
+-- Makefile.inc: support Debian multiarch
+-- Makefile: add distclean target
+-- Makefile cleanups
+
 * Tue Jul  9 2013 Kir Kolyshkin <kir@openvz.org> 1.8-1
 - New functionality:
 -- convert from/to v1/v2 ploop version format (ploop convert -v)
