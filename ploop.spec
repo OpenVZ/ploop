@@ -45,7 +45,7 @@ Conflicts: vzkernel < 2.6.32-042stab061.1
 Requires: util-linux
 Requires: e2fsprogs
 Requires: e2fsprogs-resize2fs-static
-Conflicts: vzctl < 4.1.2
+Conflicts: vzctl < 4.5
 
 %description lib
 Parallels loopback (ploop) block device API library
