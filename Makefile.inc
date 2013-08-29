@@ -6,7 +6,12 @@ SBINDIR=/sbin
 USRSBINDIR=/usr/sbin
 INCDIR=/usr/include/ploop
 LIBDIR=/usr/lib
-ifeq "$(shell uname -m)" "x86_64"
+# For DEB-based systems
+DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null)
+ifdef $(DEB_HOST_MULTIARCH)
+LIBDIR=/usr/lib/$(DEB_HOST_MULTIARCH)
+# For RPM-based systems
+else ifeq "$(shell uname -m)" "x86_64"
 LIBDIR=/usr/lib64
 endif
 LOCKDIR=/var/lock/ploop
