@@ -409,7 +409,7 @@ int ploop_find_dev(const char *delta, const char *component_name,
 			component_name ? component_name : "",
 			&devs);
 	if (ret == 0)
-		snprintf(out, size, devs[0]);
+		snprintf(out, size, "%s", devs[0]);
 	ploop_free_array(devs);
 
 	return ret;
