@@ -98,7 +98,7 @@ static int do_lock(const char *fname, unsigned int timeout)
 			.sa_handler = timer_handler,
 		};
 
-	if ((fd = open(fname, O_RDONLY)) == -1) {
+	if ((fd = open(fname, O_RDWR)) == -1) {
 		ploop_err(errno, "Can't open lock file %s", fname);
 		return -1;
 	}
