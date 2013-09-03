@@ -466,7 +466,7 @@ int ploop_send(const char *device, int ofd, const char *flush_cmd,
 		goto done;
 	fs_frozen = 1;
 
-	ret = ioctl(devfd, PLOOP_IOC_SYNC, 0);
+	ret = ioctl_device(devfd, PLOOP_IOC_SYNC, 0);
 	if (ret)
 		goto done;
 
