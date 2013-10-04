@@ -191,6 +191,10 @@ int ploop_global_lock(void)
 	struct stat st;
 
 	if (stat(PLOOP_GLOBAL_LOCK_FILE, &st)) {
+		if (stat(PLOOP_LOCK_DIR, &st) && mkdir(PLOOP_LOCK_DIR, 0700)) {
+			ploop_err(errno, "Faied to create " PLOOP_LOCK_DIR);
+			return -1;
+		}
 		if (create_file(PLOOP_GLOBAL_LOCK_FILE))
 			return -1;
 	}
