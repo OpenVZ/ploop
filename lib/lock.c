@@ -164,13 +164,12 @@ void get_disk_descriptor_lock_fname(struct ploop_disk_images_data *di,
 
 int ploop_lock_di(struct ploop_disk_images_data *di)
 {
-	struct stat st;
 	char fname[PATH_MAX];
 
 	if (di == NULL)
 		return 0;
 	get_disk_descriptor_lock_fname(di, fname, sizeof(fname));
-	if (stat(fname, &st)) {
+	if (access(fname, F_OK)) {
 		if (create_file(fname))
 			return -1;
 	}
@@ -188,10 +187,8 @@ void ploop_unlock_di(struct ploop_disk_images_data *di)
 
 int ploop_global_lock(void)
 {
-	struct stat st;
-
-	if (stat(PLOOP_GLOBAL_LOCK_FILE, &st)) {
-		if (stat(PLOOP_LOCK_DIR, &st) && mkdir(PLOOP_LOCK_DIR, 0700)) {
+	if (access(PLOOP_GLOBAL_LOCK_FILE, F_OK)) {
+		if (access(PLOOP_LOCK_DIR, F_OK) && mkdir(PLOOP_LOCK_DIR, 0700)) {
 			ploop_err(errno, "Faied to create " PLOOP_LOCK_DIR);
 			return -1;
 		}
