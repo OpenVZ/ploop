@@ -188,7 +188,8 @@ void ploop_unlock_di(struct ploop_disk_images_data *di)
 int ploop_global_lock(void)
 {
 	if (access(PLOOP_GLOBAL_LOCK_FILE, F_OK)) {
-		if (access(PLOOP_LOCK_DIR, F_OK) && mkdir(PLOOP_LOCK_DIR, 0700)) {
+		if (access(PLOOP_LOCK_DIR, F_OK) &&
+				mkdir(PLOOP_LOCK_DIR, 0700) && errno != EEXIST) {
 			ploop_err(errno, "Faied to create " PLOOP_LOCK_DIR);
 			return -1;
 		}
