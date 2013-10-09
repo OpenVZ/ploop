@@ -190,7 +190,7 @@ int ploop_global_lock(void)
 	if (access(PLOOP_GLOBAL_LOCK_FILE, F_OK)) {
 		if (access(PLOOP_LOCK_DIR, F_OK) &&
 				mkdir(PLOOP_LOCK_DIR, 0700) && errno != EEXIST) {
-			ploop_err(errno, "Faied to create " PLOOP_LOCK_DIR);
+			ploop_err(errno, "Failed to create " PLOOP_LOCK_DIR);
 			return -1;
 		}
 		if (create_file(PLOOP_GLOBAL_LOCK_FILE))
