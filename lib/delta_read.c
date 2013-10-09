@@ -624,7 +624,7 @@ int ploop_grow_delta_offline(const char *image, off_t new_size)
 {
 	off_t old_size;
 	struct ploop_pvd_header *vh;
-	struct ploop_pvd_header new_vh;
+	struct ploop_pvd_header new_vh = {};
 	struct delta delta = {};
 	void *buf = NULL;
 	int ret = 0;

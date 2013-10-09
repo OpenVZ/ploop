@@ -379,7 +379,7 @@ static int create_empty_preallocated_delta(const char *path, __u32 blocksize,
 	struct delta odelta = {};
 	int rc, clu, i;
 	void * buf = NULL;
-	struct ploop_pvd_header vh;
+	struct ploop_pvd_header vh = {};
 	__u32 SizeToFill;
 	__u32 l2_slot = 0;
 	off_t off;
@@ -402,8 +402,8 @@ static int create_empty_preallocated_delta(const char *path, __u32 blocksize,
 
 	memset(buf, 0, cluster);
 	SizeToFill = generate_pvd_header(&vh, bdsize, blocksize, version);
-	memcpy(buf, &vh, sizeof(struct ploop_pvd_header));
 	vh.m_Flags = CIF_Empty;
+	memcpy(buf, &vh, sizeof(struct ploop_pvd_header));
 
 	sizeBytes = S2B(vh.m_FirstBlockOffset + get_SizeInSectors(&vh));
 	rc = sys_fallocate(odelta.fd, 0, 0, sizeBytes);
