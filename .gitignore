@@ -2,3 +2,5 @@ cscope.out
 tags
 ploop-*.tar.bz2
 *.patch
+.build-id
+.version-id
