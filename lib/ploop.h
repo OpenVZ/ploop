@@ -205,7 +205,7 @@ static inline off_t ploop_ioff_to_sec(__u32 iblk, __u32 blocksize, int version)
 	case PLOOP_FMT_V1:
 		return iblk;
 	case PLOOP_FMT_V2:
-		return iblk * blocksize;
+		return (off_t)iblk * blocksize;
 	default:
 		assert(0);
 	}
