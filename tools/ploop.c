@@ -925,21 +925,50 @@ static void print_info(struct ploop_info *info)
 
 static int plooptool_info(int argc, char **argv)
 {
-	int ret;
+	int ret, i;
+	int spec = 0;
 	struct ploop_info info = {};
 
-	/* skip the command itself (i.e. "info") */
-	argc -= 1;
-	argv += 1;
+	while ((i = getopt(argc, argv, "s")) != EOF) {
+		switch (i) {
+		case 's':
+			spec = 1;
+			break;
+		default:
+			usage_convert();
+			return SYSEXIT_PARAM;
+		}
+	}
 
-	if (argc != 1) {
+	argc -= optind;
+	argv += optind;
+
+	if (argc != 1 || !is_xml_fname(argv[0])) {
 		usage_info();
 		return SYSEXIT_PARAM;
 	}
 
-	ret = ploop_get_info_by_descr(argv[0], &info);
-	if (ret == 0)
-		print_info(&info);
+	if (spec) {
+		struct ploop_disk_images_data *di;
+		struct ploop_spec spec = {};
+
+		ret = read_dd(&di, argv[0]);
+		if (ret)
+			return ret;
+
+		ret = ploop_get_spec(di, &spec);
+		if (ret == 0)
+			printf("size:\t\t%llu\nblocksize:\t%d\nfmt_version:\t%d\n",
+				(unsigned long long)spec.size,
+				spec.blocksize,
+				spec.fmt_version);
+
+		ploop_free_diskdescriptor(di);
+	} else {
+		ret = ploop_get_info_by_descr(argv[0], &info);
+		if (ret == 0)
+			print_info(&info);
+	}
 
 	return ret;
 }
