@@ -1593,6 +1593,84 @@ int ploop_umount_image(struct ploop_disk_images_data *di)
 	return ret;
 }
 
+static int get_image_param_online(const char *device, off_t *size,
+		__u32 *blocksize, int *version)
+{
+	if (ploop_get_attr(device, "block_size",  (int *)blocksize))
+		return SYSEXIT_SYS;
+
+	*version = PLOOP_FMT_V1;
+	if (ploop_is_large_disk_supported() &&
+			ploop_get_attr(device, "fmt_version", version))
+		return SYSEXIT_SYSFS;
+
+	return ploop_get_size(device, size);
+}
+
+static int get_image_param_offline(struct ploop_disk_images_data *di, const char *guid,
+		off_t *size, __u32 *blocksize, int *version)
+{
+	int ret;
+	struct delta delta;
+	const char *image;
+	int raw = 0;
+
+	image = find_image_by_guid(di, guid);
+	if (image == NULL) {
+		ploop_err(0, "Can't find image by top guid %s",
+				guid);
+		return SYSEXIT_PARAM;
+	}
+	if (di->mode == PLOOP_RAW_MODE) {
+		int i;
+
+		i = find_snapshot_by_guid(di, guid);
+		if (i == -1) {
+			ploop_err(0, "Can't find snapshot by guid %s",
+					guid);
+			return SYSEXIT_PARAM;
+		}
+		if (strcmp(di->snapshots[i]->parent_guid, NONE_UUID) == 0)
+			raw = 1;
+	}
+	if (raw) {
+		struct stat st;
+
+		if (stat(image, &st)) {
+			ploop_err(errno, "Failed to stat %s",
+					image);
+			return SYSEXIT_FSTAT;
+		}
+		*size = st.st_size / SECTOR_SIZE;
+		*version = PLOOP_FMT_UNDEFINED;
+		*blocksize = di->blocksize;
+	} else {
+		ret = open_delta(&delta, image, O_RDONLY, OD_OFFLINE);
+		if (ret)
+			return ret;
+		*size = delta.l2_size * delta.blocksize;
+		*version = delta.version;
+		*blocksize = delta.blocksize;
+		close_delta(&delta);
+	}
+
+	return 0;
+}
+
+static int get_image_param(struct ploop_disk_images_data *di, const char *guid,
+		off_t *size, __u32 *blocksize, int *version)
+{
+	int ret;
+	char dev[64];
+
+	ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
+	if (ret == -1)
+		return SYSEXIT_SYS;
+	else if (ret == 0)
+		return get_image_param_online(dev, size, blocksize, version);
+	return get_image_param_offline(di, guid, size, blocksize, version);
+}
+
 int ploop_grow_device(const char *device, off_t new_size)
 {
 	int fd, ret;
@@ -1846,18 +1924,16 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		mounted = 1;
 	}
 
-	/* FIXME: Deny resize image if there are children */
-	ret = SYSEXIT_SYSFS;
-	if (ploop_get_attr(mount_param.device, "block_size", (int *)&blocksize))
+	//FIXME: Deny resize image if there are childs
+	ret = get_image_param_online(mount_param.device, &dev_size,
+			&blocksize, &version);
+	if (ret)
 		goto err;
 
-	version = PLOOP_FMT_V1;
-	if (ploop_is_large_disk_supported() &&
-			ploop_get_attr(mount_param.device, "fmt_version", &version))
+	if (check_size(param->size, blocksize, version)) {
+		ret = SYSEXIT_PARAM;
 		goto err;
-
-	if (check_size(param->size, blocksize, version))
-		goto err;
+	}
 
 	new_size = round_bdsize(param->size, blocksize, version);
 
@@ -1867,9 +1943,6 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		goto err;
 	}
 
-	ret = ploop_get_size(mount_param.device, &dev_size);
-	if (ret)
-		goto err;
 	ret = ploop_get_size(part_device, &part_dev_size);
 	if (ret)
 		goto err;
@@ -2691,7 +2764,7 @@ int create_snapshot(const char *device, const char *delta, int syncfs)
 	int ret;
 	int lfd = -1;
 	int fd = -1;
-	__u64 bdsize;
+	off_t bdsize;
 	struct ploop_ctl_delta req;
 	__u32 blocksize;
 	int version;
@@ -2700,31 +2773,15 @@ int create_snapshot(const char *device, const char *delta, int syncfs)
 	if (ret)
 		return ret;
 
-	if (ploop_get_attr(device, "block_size", (int*) &blocksize))
-		return SYSEXIT_SYSFS;
-
-	version = PLOOP_FMT_V1;
-	if (ploop_is_large_disk_supported() &&
-			ploop_get_attr(device, "fmt_version", &version))
-		return SYSEXIT_SYSFS;
+	ret = get_image_param_online(device, &bdsize,
+			&blocksize, &version);
+	if (ret)
+		return ret;
 
 	lfd = open(device, O_RDONLY);
 	if (lfd < 0) {
 		ploop_err(errno, "Can't open device %s", device);
 		return SYSEXIT_DEVICE;
-	}
-
-	if (ioctl(lfd, BLKGETSIZE64, &bdsize) < 0) {
-		ploop_err(errno, "ioctl(BLKGETSIZE) %s", device);
-		ret = SYSEXIT_BLKDEV;
-		goto err;
-	}
-	bdsize = bytes2sec(bdsize);
-
-	if (bdsize == 0) {
-		ploop_err(0, "Can't get block device %s size", device);
-		ret = SYSEXIT_BLKDEV;
-		goto err;
 	}
 
 	fd = create_empty_delta(delta, blocksize, bdsize, version);
@@ -2753,56 +2810,6 @@ err:
 		close(fd);
 
 	return ret;
-}
-
-static int get_image_param(struct ploop_disk_images_data *di, const char *guid,
-		off_t *size, __u32 *blocksize, int *version)
-{
-	int ret;
-	struct delta delta;
-	const char *image;
-	int raw = 0;
-
-	image = find_image_by_guid(di, guid);
-	if (image == NULL) {
-		ploop_err(0, "Can't find image by top guid %s",
-				guid);
-		return SYSEXIT_PARAM;
-	}
-	if (di->mode == PLOOP_RAW_MODE) {
-		int i;
-
-		i = find_snapshot_by_guid(di, guid);
-		if (i == -1) {
-			ploop_err(0, "Can't find snapshot by guid %s",
-					guid);
-			return SYSEXIT_PARAM;
-		}
-		if (strcmp(di->snapshots[i]->parent_guid, NONE_UUID) == 0)
-			raw = 1;
-	}
-	if (raw) {
-		struct stat st;
-
-		if (stat(image, &st)) {
-			ploop_err(errno, "Failed to stat %s",
-					image);
-			return SYSEXIT_FSTAT;
-		}
-		*size = st.st_size / SECTOR_SIZE;
-		*version = PLOOP_FMT_UNDEFINED;
-		*blocksize = di->blocksize;
-	} else {
-		ret = open_delta(&delta, image, O_RDONLY, OD_OFFLINE);
-		if (ret)
-			return ret;
-		*size = delta.l2_size * delta.blocksize;
-		*version = delta.version;
-		*blocksize = delta.blocksize;
-		close_delta(&delta);
-	}
-
-	return 0;
 }
 
 int ploop_get_spec(struct ploop_disk_images_data *di, struct ploop_spec *spec)
@@ -2902,7 +2909,7 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 
 	if (!online) {
 		// offline snapshot
-		ret = get_image_param(di, snap_guid, &size, &blocksize, &version);
+		ret = get_image_param_offline(di, snap_guid, &size, &blocksize, &version);
 		if (ret)
 			goto err_cleanup2;
 
