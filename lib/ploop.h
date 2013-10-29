@@ -4,6 +4,7 @@
 #include <linux/types.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <assert.h>
 
 #include "ploop_if.h"
