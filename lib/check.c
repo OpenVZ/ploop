@@ -56,7 +56,7 @@ struct ploop_check_desc {
 	__u32 *alloc_head;
 };
 
-static int READ(int fd, void * buf, unsigned int size, off_t pos, char *msg)
+static int read_safe(int fd, void * buf, unsigned int size, off_t pos, char *msg)
 {
 	ssize_t res;
 
@@ -73,7 +73,7 @@ static int READ(int fd, void * buf, unsigned int size, off_t pos, char *msg)
 	return SYSEXIT_READ;
 }
 
-static int WRITE(int fd, void * buf, unsigned int size, off_t pos, char *msg)
+static int write_safe(int fd, void * buf, unsigned int size, off_t pos, char *msg)
 {
 	ssize_t res;
 
@@ -89,7 +89,7 @@ static int WRITE(int fd, void * buf, unsigned int size, off_t pos, char *msg)
 	return SYSEXIT_WRITE;
 }
 
-static int FSYNC(int fd)
+static int fsync_safe(int fd)
 {
 	if (fsync(fd)) {
 		ploop_err(errno, "fsync");
@@ -98,7 +98,7 @@ static int FSYNC(int fd)
 	return 0;
 }
 
-static int CLOSE(int fd)
+static int close_safe(int fd)
 {
 	if (close(fd)) {
 		ploop_err(errno, "close");
@@ -111,7 +111,7 @@ static int zero_index(int fd, __u32 clu)
 {
 	__u32 zero = 0;
 
-	return WRITE(fd, &zero, sizeof(zero),
+	return write_safe(fd, &zero, sizeof(zero),
 		     clu * sizeof(clu) + sizeof(struct ploop_pvd_header),
 		     "write zero index");
 }
@@ -227,7 +227,7 @@ int ploop_check(char *img, int flags, int ro, int verbose, __u32 *blocksize_p)
 		goto done;
 	}
 
-	ret = READ(fd, vh, sizeof(*vh), 0, "read PVD header");
+	ret = read_safe(fd, vh, sizeof(*vh), 0, "read PVD header");
 	if (ret)
 		goto done;
 
@@ -314,13 +314,13 @@ int ploop_check(char *img, int flags, int ro, int verbose, __u32 *blocksize_p)
 	for (i = 0; i < l1_slots; i++) {
 		int skip = (i == 0) ? sizeof(*vh) / sizeof(__u32) : 0;
 
-		ret = READ(fd, buf, cluster, i * cluster,
+		ret = read_safe(fd, buf, cluster, i * cluster,
 			   "read index table");
 		if (ret)
 			goto done;
 
 		if (!ro && vh->m_DiskInUse) {
-			ret = WRITE(fd, buf, cluster, i * cluster,
+			ret = write_safe(fd, buf, cluster, i * cluster,
 				    "re-write index table");
 			if (ret)
 				goto done;
@@ -413,11 +413,11 @@ int ploop_check(char *img, int flags, int ro, int verbose, __u32 *blocksize_p)
 	vh->m_DiskInUse = 0;
 	vh->m_Flags = m_Flags;
 
-	ret = WRITE(fd, vh, sizeof(*vh), 0, "write PVD header");
+	ret = write_safe(fd, vh, sizeof(*vh), 0, "write PVD header");
 	if (!ret)
-		ret = FSYNC(fd);
+		ret = fsync_safe(fd);
 done:
-	ret2 = CLOSE(fd);
+	ret2 = close_safe(fd);
 	if (ret2 && !ret)
 		ret = ret2;
 
