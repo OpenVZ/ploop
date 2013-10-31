@@ -23,8 +23,13 @@
 #include <stdlib.h>
 #include <malloc.h>
 #include <sys/stat.h>
+#include <sys/ioctl.h>
+#include <sys/vfs.h>
 #include <linux/types.h>
 #include <string.h>
+#include <linux/fs.h>
+#include <linux/fiemap.h>
+#include <linux/magic.h>
 
 #include "ploop.h"
 
@@ -426,4 +431,83 @@ done:
 	free(buf);
 
 	return ret;
+}
+
+int ploop_check_delta(const char *image, int fd, __u64 blocksize)
+{
+	int last;
+	int i, ret;
+	struct statfs sfs;
+	struct stat st;
+	__u64 prev_end;
+	char buf[40960] = "";
+	struct fiemap *fiemap = (struct fiemap *)buf;
+	struct fiemap_extent *fm_ext = &fiemap->fm_extents[0];
+
+	int count = (sizeof(buf) - sizeof(*fiemap)) /
+		    sizeof(struct fiemap_extent);
+
+	ret = fstatfs(fd, &sfs);
+	if (ret < 0) {
+		ploop_err(errno, "Unable to statfs the delta file %s", image);
+		return SYSEXIT_FSTAT;
+	}
+
+	if (sfs.f_type != EXT4_SUPER_MAGIC)
+		return 0;
+
+	ret = fstat(fd, &st);
+	if (ret < 0) {
+		ploop_err(errno, "Unalble to stat the delta file %s", image);
+		return SYSEXIT_FSTAT;
+	}
+
+	prev_end = 0;
+	last = 0;
+
+	while (!last && prev_end < st.st_size) {
+		fiemap->fm_start	= prev_end;
+		fiemap->fm_length	= st.st_size;
+		fiemap->fm_flags	= FIEMAP_FLAG_SYNC;
+		fiemap->fm_extent_count = count;
+
+		ret = ioctl_device(fd, FS_IOC_FIEMAP, (unsigned long) fiemap);
+		if (ret)
+			return ret;
+
+		if (fiemap->fm_mapped_extents == 0)
+			break;
+
+		for (i = 0; i < fiemap->fm_mapped_extents; i++) {
+			if (fm_ext[i].fe_flags & FIEMAP_EXTENT_LAST)
+				last = 1;
+			if (prev_end != fm_ext[i].fe_logical) {
+				ploop_err(0, "Delta file %s is sparse; sparse "
+					"files are not currently supported by ploop", image);
+				return SYSEXIT_BAD_DELTA;
+			}
+
+			prev_end = fm_ext[i].fe_logical + fm_ext[i].fe_length;
+
+			if ((fm_ext[i].fe_flags & FIEMAP_EXTENT_UNWRITTEN) &&
+			    (fm_ext[i].fe_logical % blocksize ||
+					fm_ext[i].fe_length % blocksize)) {
+				ploop_err(0, "Delta files %s contains uninitialized blocks "
+						"which are not aligned to cluster size", image);
+				return SYSEXIT_BAD_DELTA;
+			}
+			if (fm_ext[i].fe_flags & ~(FIEMAP_EXTENT_LAST |
+						   FIEMAP_EXTENT_UNWRITTEN))
+				ploop_log(1, "Warning: the extent with unexpected flags 0x%x",
+									fm_ext[i].fe_flags);
+		}
+	}
+
+	if (st.st_size != prev_end) {
+		ploop_err(0, "Delta file %s is sparse; sparse "
+			"files are not currently supported by ploop", image);
+		return SYSEXIT_BAD_DELTA;
+	}
+
+	return 0;
 }
