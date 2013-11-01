@@ -17,6 +17,7 @@ MTAB="/etc/mtab"
 LOGFILE="/var/log/ploop_mount.log"
 MODULES="ploop pfmt_ploop1 pfmt_raw pio_direct pio_nfs pio_kaio"
 VERBOSE=""
+FAKE=""
 SELF=$(basename $0)
 
 log() {
@@ -128,6 +129,9 @@ while [ -n "$1" ]; do
 	    -v)
 		VERBOSE=yes
 		;;
+	    -f)
+		FAKE=yes
+		;;
 	esac
 	shift
 done
@@ -144,10 +148,12 @@ load_modules
 
 # Call the ploop utility
 verbose "running $PLOOP mount $OPTIONS -m $MOUNT_POINT $DISK_DESCRIPTOR"
-if [ "x$USER" = "x" ]; then
-	$PLOOP mount $OPTIONS -m $MOUNT_POINT $DISK_DESCRIPTOR >> $LOGFILE 2>&1
-else
-	$PLOOP mount $OPTIONS -m $MOUNT_POINT $DISK_DESCRIPTOR
+if [ -z "$FAKE" ]; then
+	if [ "x$USER" = "x" ]; then
+		$PLOOP mount $OPTIONS -m $MOUNT_POINT $DISK_DESCRIPTOR >> $LOGFILE 2>&1
+	else
+		$PLOOP mount $OPTIONS -m $MOUNT_POINT $DISK_DESCRIPTOR
+	fi
 fi
 
 if [ $? -ne 0 ]; then
