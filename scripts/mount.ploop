@@ -132,6 +132,12 @@ while [ -n "$1" ]; do
 	    -f)
 		FAKE=yes
 		;;
+	    -n)
+		# Deliberately ignore, since otherwise there will be
+		# no record with "ploop" in /etc/mtab and umount won't
+		# run umount.ploop helper.
+		verbose "option -n deliberately ignored"
+		;;
 	esac
 	shift
 done
