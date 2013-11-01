@@ -29,6 +29,7 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include <ctype.h>
 
 #include "ploop.h"
 #include "common.h"
@@ -470,6 +471,13 @@ static int plooptool_umount(int argc, char **argv)
 	}
 
 	if (umountopts.device != NULL) {
+		int len = strlen(umountopts.device);
+
+		/* if partition is provided, strip it */
+		if (strcmp(umountopts.device + len - 2, "p1") == 0 &&
+				isdigit(umountopts.device[len - 3]))
+			umountopts.device[len - 2] = '\0';
+
 		ret = ploop_umount(umountopts.device, NULL);
 	}else if (mnt != NULL) {
 		if (ploop_get_dev_by_mnt(mnt, device, sizeof(device))) {
