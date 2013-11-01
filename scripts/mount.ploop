@@ -16,12 +16,18 @@ READLINK="/bin/readlink"
 MTAB="/etc/mtab"
 LOGFILE="/var/log/ploop_mount.log"
 MODULES="ploop pfmt_ploop1 pfmt_raw pio_direct pio_nfs pio_kaio"
+VERBOSE=""
+SELF=$(basename $0)
 
 log() {
 	if [ "x$USER" = "x" ]; then
 		echo $* >> $LOGFILE
 	fi
 	echo $*
+}
+
+verbose() {
+	[ -n "$VERBOSE" ] && echo "$SELF: $*"
 }
 
 parse_opt() {
@@ -119,6 +125,9 @@ while [ -n "$1" ]; do
 			OPTIONS="$OPTIONS -r"
 		fi
 		;;
+	    -v)
+		VERBOSE=yes
+		;;
 	esac
 	shift
 done
@@ -134,6 +143,7 @@ done
 load_modules
 
 # Call the ploop utility
+verbose "running $PLOOP mount $OPTIONS -m $MOUNT_POINT $DISK_DESCRIPTOR"
 if [ "x$USER" = "x" ]; then
 	$PLOOP mount $OPTIONS -m $MOUNT_POINT $DISK_DESCRIPTOR >> $LOGFILE 2>&1
 else
@@ -147,6 +157,7 @@ fi
 
 # Fill /etc/mtab
 if [ -f $MTAB ]; then
+	verbose "adding mount to $MTAB"
 	echo "$DISK_DESCRIPTOR $MOUNT_POINT ploop $OPTS_ORIG 0 0" >> $MTAB
 fi
 
