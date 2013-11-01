@@ -109,16 +109,17 @@ else
 fi
 
 # Parse options
-while [ "x$1" != "x" ]; do
-	if [ "x$1" = "x-o" ]; then
+while [ -n "$1" ]; do
+	case "$1" in
+	    -o)
 		shift
 		OPTS_ORIG="$1"
 		ro=`parse_opt $1 ro`
 		if [ $? -eq 0 -a "x$ro" != "x" ]; then
 			OPTIONS="$OPTIONS -r"
 		fi
-		shift
-	fi
+		;;
+	esac
 	shift
 done
 
