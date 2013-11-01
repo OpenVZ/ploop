@@ -6,13 +6,21 @@
 # (c) 2012. Parallels IP Holdings GmbH. All rights reserved.
 #
 
-PLOOP="/usr/sbin/ploop"
+PLOOP="ploop"
 MOUNT_POINT=""
 PLOOP_DEV=""
 MTAB="/etc/mtab"
 DESCRIPTOR="DiskDescriptor.xml"
 
-if [ ! -x $PLOOP ]; then
+# Make sure we have sane PATH
+for P in /sbin /usr/sbin /usr/local/sbin; do
+	if ! echo ":${PATH}:" | fgrep -q ":${P}:"; then
+		PATH="$P:$PATH"
+	fi
+done
+export PATH
+
+if ! which $PLOOP >/dev/null; then
 	echo "$PLOOP utility is not found"
 	exit 2
 fi

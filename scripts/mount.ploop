@@ -6,7 +6,7 @@
 # (c) 2012. Parallels IP Holdings GmbH. All rights reserved.
 #
 
-PLOOP="/usr/sbin/ploop"
+PLOOP="ploop"
 DESCRIPTOR="DiskDescriptor.xml"
 DISK_DESCRIPTOR=""
 MOUNT_POINT=""
@@ -60,7 +60,7 @@ canonicalize() {
 }
 
 check_bin() {
-	if [ ! -x $1 ]; then
+	if ! which $1 >/dev/null; then
 		log "$1 utility is not found"
 		exit 2
 	fi
@@ -78,6 +78,14 @@ load_modules() {
 if [ "x$USER" = "x" ]; then
 	date >> $LOGFILE
 fi
+
+# Make sure we have sane PATH
+for P in /sbin /usr/sbin /usr/local/sbin; do
+	if ! echo ":${PATH}:" | fgrep -q ":${P}:"; then
+		PATH="$P:$PATH"
+	fi
+done
+export PATH
 
 check_bin $PLOOP
 check_bin $READLINK
