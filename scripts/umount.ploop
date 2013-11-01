@@ -42,13 +42,12 @@ if [ $? -ne 0 ]; then
 fi
 
 # Clear /etc/mtab
-grep -v -E "^[a-zA-Z0-9/\.]*/$DESCRIPTOR $MOUNT_POINT ploop " $MTAB > $MTAB.$$
-if [ $? -ne 0 ]; then
-	echo "Failed to save $MTAB"
-	exit 32
-else
-	mv -f $MTAB.$$ $MTAB
-	chmod 0644 $MTAB
+if [ -f $MTAB ]; then
+	sed -i "\~^[a-zA-Z0-9/\.]*/$DESCRIPTOR $MOUNT_POINT ploop ~d" $MTAB
+	if [ $? -ne 0 ]; then
+		echo "Failed to save $MTAB"
+		exit 32
+	fi
 fi
 
 exit 0
