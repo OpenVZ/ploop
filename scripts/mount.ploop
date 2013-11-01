@@ -138,6 +138,12 @@ while [ -n "$1" ]; do
 		# run umount.ploop helper.
 		verbose "option -n deliberately ignored"
 		;;
+	    -s)
+		# ignore as we don't have any subtypes
+		;;
+	    *)
+		verbose "unexpected option $* ignored"
+		;;
 	esac
 	shift
 done
