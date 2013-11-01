@@ -33,18 +33,11 @@ else
 	MOUNT_POINT=$1
 fi
 
-# Check that it's already mounted
-PLOOP_DEV=`awk -v mpoint=$MOUNT_POINT '{if ($2 == mpoint) print $1}' /proc/mounts 2>/dev/null`
-if [ "x$PLOOP_DEV" = "x" ]; then
-	echo "$MOUNT_POINT is not mounted"
-	exit 32
-fi
-
 # Call the ploop utility
-$PLOOP umount -d $PLOOP_DEV
+$PLOOP umount -m $MOUNT_POINT
 
 if [ $? -ne 0 ]; then
-	echo "$PLOOP umount -d $PLOOP_DEV command failed"
+	echo "$PLOOP umount -m $MOUNT_POINT failed"
 	exit 32
 fi
 
