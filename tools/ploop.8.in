@@ -211,7 +211,7 @@ Ignored if DiskDescriptor.xml is specified. Otherwise,
 required for raw images.
 .IP "\fB-d\fR \fIdevice\fR"
 Ploop device to use, e.g.i, \fB/dev/ploop0\fR. If not specified,
-the first unused ploop device will be used.
+a randomly numbered ploop device will be used.
 .IP "\fB-m \fImount_point\fR
 If this option is specified, ploop goes on to mount the file system to
 directory denoted by \fImount_point\fR.
