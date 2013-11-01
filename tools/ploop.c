@@ -935,7 +935,7 @@ static int plooptool_info(int argc, char **argv)
 			spec = 1;
 			break;
 		default:
-			usage_convert();
+			usage_info();
 			return SYSEXIT_PARAM;
 		}
 	}
