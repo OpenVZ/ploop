@@ -253,8 +253,7 @@ specify what to unmount. The recommended way is to use DiskDescriptor.xml.
 }
 .YS
 .IP "\fB-d\fR \fIdevice\fR"
-Ploop device, e.g., \fB/dev/ploop0\fR. If not specified,
-the first unused ploop device will be used.
+Ploop device, e.g., \fB/dev/ploop0\fR.
 .IP "\fB-m \fImount_point\fR
 Mount point of a ploop device to unmount.
 .IP \fIDiskDescriptor.xml\fR
