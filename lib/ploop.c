@@ -1289,9 +1289,6 @@ err:
 	return ret;
 }
 
-#ifndef EXT4_SUPER_MAGIC
-#define EXT4_SUPER_MAGIC	0xEF53
-#endif
 #ifndef FS_IOC_GETFLAGS
 #define FS_IOC_GETFLAGS	_IOR('f', 1, long)
 #endif

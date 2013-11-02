@@ -29,7 +29,6 @@
 #include <string.h>
 #include <linux/fs.h>
 #include <linux/fiemap.h>
-#include <linux/magic.h>
 
 #include "ploop.h"
 

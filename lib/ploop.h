@@ -33,6 +33,11 @@
 #endif
 #endif /* ! __NR_syncfs */
 
+/* from linux/magic.h */
+#ifndef EXT4_SUPER_MAGIC
+#define EXT4_SUPER_MAGIC	0xEF53
+#endif
+
 #define DISKDESCRIPTOR_XML	"DiskDescriptor.xml"
 /* Compatibility: Parallels use this UUID to mark top delta */
 #define TOPDELTA_UUID		"{5fbaabe3-6958-40ff-92a7-860e329aab41}"
