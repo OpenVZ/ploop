@@ -51,7 +51,7 @@ fi
 
 # Clear /etc/mtab
 if [ -f $MTAB ]; then
-	sed -i "\~^[a-zA-Z0-9/\.]*/$DESCRIPTOR $MOUNT_POINT ploop ~d" $MTAB
+	sed -i "\;^[a-zA-Z0-9/\.]*/$DESCRIPTOR $MOUNT_POINT ploop ;d" $MTAB
 	if [ $? -ne 0 ]; then
 		echo "Failed to save $MTAB"
 		exit 32
