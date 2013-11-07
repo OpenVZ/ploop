@@ -1664,11 +1664,16 @@ static int get_image_param(struct ploop_disk_images_data *di, const char *guid,
 	int ret;
 	char dev[64];
 
-	ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
-	if (ret == -1)
-		return SYSEXIT_SYS;
-	else if (ret == 0)
-		return get_image_param_online(dev, size, blocksize, version);
+	/* The 'size' parameter is delta specific so
+	 * get offline for non top delta.
+	 */
+	if (strcmp(di->top_guid, guid) == 0) {
+		ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
+		if (ret == -1)
+			return SYSEXIT_SYS;
+		if (ret == 0)
+			return get_image_param_online(dev, size, blocksize, version);
+	}
 	return get_image_param_offline(di, guid, size, blocksize, version);
 }
 
