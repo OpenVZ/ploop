@@ -55,6 +55,7 @@
 #define CHECK_HARDFORCE	0x02
 #define CHECK_DROPINUSE	0x04
 #define CHECK_DETAILED	0x08
+#define CHECK_SPARSE	0x10
 
 /* GPT */
 #define GPT_HEADER_SIZE		1

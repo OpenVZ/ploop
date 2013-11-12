@@ -1145,10 +1145,6 @@ static int add_delta(int lfd, const char *image, struct ploop_ctl_delta *req)
 		return SYSEXIT_OPEN;
 	}
 
-	ret = ploop_check_delta(image, fd, S2B(1 << req->c.pctl_cluster_log));
-	if (ret)
-		goto out;
-
 	req->f.pctl_fd = fd;
 
 	if (ioctl(lfd, PLOOP_IOC_ADD_DELTA, req) < 0) {

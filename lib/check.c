@@ -31,6 +31,7 @@
 #include <linux/fiemap.h>
 
 #include "ploop.h"
+int check_and_repair_sparse(const char *image, int fd, __u64 blocksize);
 
 enum {
 	ZEROFIX = 0,
@@ -421,6 +422,10 @@ int ploop_check(char *img, int flags, int ro, int verbose, __u32 *blocksize_p)
 	if (!ret)
 		ret = fsync_safe(fd);
 done:
+	if (ret == 0 && (flags & CHECK_SPARSE)) {
+		ret = check_and_repair_sparse(img, fd, cluster);
+	}
+
 	ret2 = close_safe(fd);
 	if (ret2 && !ret)
 		ret = ret2;
@@ -432,7 +437,40 @@ done:
 	return ret;
 }
 
-int ploop_check_delta(const char *image, int fd, __u64 blocksize)
+static int fill_hole(const char *image, int fd, off_t start, off_t end, int *log)
+{
+	static char buf[0x100000];
+	off_t offset;
+
+	if (!*log) {
+		*log = 1;
+		ploop_err(0, "Warning: ploop image '%s' is sparse.", image);
+		ploop_log(0, "Reallocating sparse blocks back.");
+	}
+
+	ploop_log(1, "Filling hole at start=%lu len=%lu", start, end - start);
+
+	bzero(buf, sizeof(buf));
+	for (offset = start; offset < end; offset += sizeof(buf)) {
+		ssize_t n, len;
+
+		len = end - offset;
+		if (len > sizeof(buf))
+			len = sizeof(buf);
+
+		n = pwrite(fd, buf, len, offset);
+		if (n != len) {
+			if (n >= 0)
+				errno = EIO;
+			ploop_err(errno, "Failed to write");
+			return SYSEXIT_WRITE;
+		}
+	}
+
+	return fsync_safe(fd);
+}
+
+int check_and_repair_sparse(const char *image, int fd, __u64 blocksize)
 {
 	int last;
 	int i, ret;
@@ -442,7 +480,7 @@ int ploop_check_delta(const char *image, int fd, __u64 blocksize)
 	char buf[40960] = "";
 	struct fiemap *fiemap = (struct fiemap *)buf;
 	struct fiemap_extent *fm_ext = &fiemap->fm_extents[0];
-
+	int log = 0;
 	int count = (sizeof(buf) - sizeof(*fiemap)) /
 		    sizeof(struct fiemap_extent);
 
@@ -480,33 +518,31 @@ int ploop_check_delta(const char *image, int fd, __u64 blocksize)
 		for (i = 0; i < fiemap->fm_mapped_extents; i++) {
 			if (fm_ext[i].fe_flags & FIEMAP_EXTENT_LAST)
 				last = 1;
-			if (prev_end != fm_ext[i].fe_logical) {
-				ploop_err(0, "Delta file %s is sparse; sparse "
-					"files are not currently supported by ploop", image);
-				return SYSEXIT_BAD_DELTA;
-			}
-
-			prev_end = fm_ext[i].fe_logical + fm_ext[i].fe_length;
-
 			if ((fm_ext[i].fe_flags & FIEMAP_EXTENT_UNWRITTEN) &&
 			    (fm_ext[i].fe_logical % blocksize ||
 					fm_ext[i].fe_length % blocksize)) {
-				ploop_err(0, "Delta files %s contains uninitialized blocks "
-						"which are not aligned to cluster size", image);
+				ploop_err(0, "Delta files %s contains uninitialized blocks"
+						" (offset=%llu len=%llu)"
+						" which are not aligned to cluster size",
+						image, fm_ext[i].fe_logical, fm_ext[i].fe_length);
 				return SYSEXIT_BAD_DELTA;
 			}
+
 			if (fm_ext[i].fe_flags & ~(FIEMAP_EXTENT_LAST |
 						   FIEMAP_EXTENT_UNWRITTEN))
 				ploop_log(1, "Warning: the extent with unexpected flags 0x%x",
 									fm_ext[i].fe_flags);
+			if (prev_end != fm_ext[i].fe_logical &&
+					fill_hole(image, fd, prev_end, fm_ext[i].fe_logical, &log))
+				return SYSEXIT_BAD_DELTA;
+
+			prev_end = fm_ext[i].fe_logical + fm_ext[i].fe_length;
 		}
 	}
 
-	if (st.st_size != prev_end) {
-		ploop_err(0, "Delta file %s is sparse; sparse "
-			"files are not currently supported by ploop", image);
+	if (prev_end < st.st_size &&
+			fill_hole(image, fd, prev_end, st.st_size, &log))
 		return SYSEXIT_BAD_DELTA;
-	}
 
 	return 0;
 }
@@ -519,7 +555,7 @@ int check_deltas(struct ploop_disk_images_data *di, char **images,
 
 	for (i = 0; images[i] != NULL; i++) {
 		int ro;
-		int flags = CHECK_DETAILED | (di ? CHECK_DROPINUSE : 0);
+		int flags = CHECK_DETAILED | (di ? (CHECK_DROPINUSE | CHECK_SPARSE) : 0);
 		__u32 cur_blocksize;
 
 		if (raw && i == 0)
