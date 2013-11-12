@@ -49,6 +49,7 @@ int main(int argc, char ** argv)
 {
 	int i, idx;
 	int flags = 0;
+	int raw = 0;
 	static struct option options[] = {
 		{"force", no_argument, NULL, 'f'},
 		{"hard-force", no_argument, NULL, 'F'},
@@ -56,10 +57,11 @@ int main(int argc, char ** argv)
 		{"drop-inuse", no_argument, NULL, 'd'},
 		{"ro", no_argument, NULL, 'r'},
 		{"silent", no_argument, NULL, 's'},
+		{"raw", no_argument, NULL, 'R'},
 		{ NULL, 0, NULL, 0 }
 	};
 
-	while ((i = getopt_long(argc, argv, "fFcrsd", options, &idx)) != EOF) {
+	while ((i = getopt_long(argc, argv, "fFcrsdR", options, &idx)) != EOF) {
 		switch (i) {
 		case 'f':
 			/* try to repair non-fatal conditions */
@@ -78,6 +80,9 @@ int main(int argc, char ** argv)
 			break;
 		case 'r':
 			ro = 1;
+			break;
+		case 'R':
+			raw = 1;
 			break;
 		case 's':
 			silent = 1;
@@ -98,5 +103,5 @@ int main(int argc, char ** argv)
 
 	ploop_set_verbose_level(3);
 
-	return ploop_check(argv[0], flags, ro, 0, !silent, NULL);
+	return ploop_check(argv[0], flags, ro, raw, !silent, NULL);
 }
