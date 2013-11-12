@@ -42,6 +42,7 @@ static void usage(void)
 			"	-r     - do not modify DELTA (read-only access)\n"
 			"	-s     - be silent, report only errors\n"
 			"	-d     - drop image \"in use\" flag\n"
+			"	-S     - repair sparse image\n"
 		);
 }
 
@@ -58,10 +59,11 @@ int main(int argc, char ** argv)
 		{"ro", no_argument, NULL, 'r'},
 		{"silent", no_argument, NULL, 's'},
 		{"raw", no_argument, NULL, 'R'},
+		{"repair-sparse", no_argument, NULL, 'S'},
 		{ NULL, 0, NULL, 0 }
 	};
 
-	while ((i = getopt_long(argc, argv, "fFcrsdR", options, &idx)) != EOF) {
+	while ((i = getopt_long(argc, argv, "fFcrsdRS", options, &idx)) != EOF) {
 		switch (i) {
 		case 'f':
 			/* try to repair non-fatal conditions */
@@ -86,6 +88,9 @@ int main(int argc, char ** argv)
 			break;
 		case 's':
 			silent = 1;
+			break;
+		case 'S':
+			flags |= CHECK_REPAIR_SPARSE;
 			break;
 		default:
 			usage();
