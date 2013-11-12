@@ -1337,7 +1337,6 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 {
 	int lfd = -1;
 	struct stat st;
-	int i;
 	int ret = 0;
 	__u32 blocksize = 0;
 
@@ -1375,30 +1374,9 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 	if (di && (ret = check_and_restore_fmt_version(di)))
 		goto err;
 
-	for (i = 0; images[i] != NULL; i++) {
-		int ro;
-		int flags = CHECK_DETAILED | (di ? CHECK_DROPINUSE : 0);
-		__u32 cur_blocksize;
-
-		if (raw && i == 0)
-			continue;
-
-		ro  = (images[i+1] != NULL || param->ro) ? 1 : 0;
-		ret = ploop_check(images[i], flags, ro, 0, &cur_blocksize);
-		if (ret) {
-			ploop_err(0, "%s (%s): irrecoverable errors",
-					images[i], ro ? "ro" : "rw");
-			goto err;
-		}
-		if (blocksize == 0)
-			blocksize = cur_blocksize;
-		if (cur_blocksize != blocksize) {
-			ploop_err(0, "Incorrect blocksize %s bs=%d [current bs=%d]",
-					images[i], blocksize, cur_blocksize);
-			ret = SYSEXIT_PARAM;
-			goto err;
-		}
-	}
+	ret = check_deltas(di, images, param, raw, &blocksize);
+	if (ret)
+		goto err;
 
 	ret = add_deltas(di, images, param, raw, blocksize, &lfd);
 	if (ret)

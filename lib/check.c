@@ -510,3 +510,38 @@ int ploop_check_delta(const char *image, int fd, __u64 blocksize)
 
 	return 0;
 }
+
+int check_deltas(struct ploop_disk_images_data *di, char **images,
+		struct ploop_mount_param *param, int raw, __u32 *blocksize)
+{
+	int i;
+	int ret = 0;
+
+	for (i = 0; images[i] != NULL; i++) {
+		int ro;
+		int flags = CHECK_DETAILED | (di ? CHECK_DROPINUSE : 0);
+		__u32 cur_blocksize;
+
+		if (raw && i == 0)
+			continue;
+
+		ro = (images[i+1] != NULL || param->ro) ? 1 : 0;
+		ret = ploop_check(images[i], flags, ro, 0, &cur_blocksize);
+		if (ret) {
+			ploop_err(0, "%s (%s): irrecoverable errors",
+					images[i], ro ? "ro" : "rw");
+			break;
+		}
+		if (*blocksize == 0)
+			*blocksize = cur_blocksize;
+		if (cur_blocksize != *blocksize) {
+			ploop_err(0, "Incorrect blocksize %s bs=%d [current bs=%d]",
+					images[i], *blocksize, cur_blocksize);
+			ret = SYSEXIT_PARAM;
+			break;
+		}
+	}
+
+	return ret;
+}
+
