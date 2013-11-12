@@ -88,5 +88,5 @@ int main(int argc, char ** argv)
 
 	ploop_set_verbose_level(3);
 
-	return ploop_check(argv[0], flags, ro, !silent, NULL);
+	return ploop_check(argv[0], flags, ro, 0, !silent, NULL);
 }

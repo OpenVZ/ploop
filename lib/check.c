@@ -186,7 +186,7 @@ static int check_one_slot(struct ploop_check_desc *d, __u32 clu, off_t isec,
 	return 0;
 }
 
-int ploop_check(char *img, int flags, int ro, int verbose, __u32 *blocksize_p)
+int ploop_check(char *img, int flags, int ro, int raw, int verbose, __u32 *blocksize_p)
 {
 	struct ploop_check_desc d;
 	int i, j;
@@ -223,6 +223,11 @@ int ploop_check(char *img, int flags, int ro, int verbose, __u32 *blocksize_p)
 		ploop_err(errno, "ploop_check: can't open %s",
 				img);
 		return SYSEXIT_OPEN;
+	}
+
+	if (raw) {
+		ret = 0;
+		goto done;
 	}
 
 	if (fstat(fd, &stb)) {
@@ -556,13 +561,10 @@ int check_deltas(struct ploop_disk_images_data *di, char **images,
 	for (i = 0; images[i] != NULL; i++) {
 		int ro;
 		int flags = CHECK_DETAILED | (di ? (CHECK_DROPINUSE | CHECK_SPARSE) : 0);
-		__u32 cur_blocksize;
-
-		if (raw && i == 0)
-			continue;
+		__u32 cur_blocksize = 0;
 
 		ro = (images[i+1] != NULL || param->ro) ? 1 : 0;
-		ret = ploop_check(images[i], flags, ro, 0, &cur_blocksize);
+		ret = ploop_check(images[i], flags, ro, (raw && i == 0), 0, &cur_blocksize);
 		if (ret) {
 			ploop_err(0, "%s (%s): irrecoverable errors",
 					images[i], ro ? "ro" : "rw");
