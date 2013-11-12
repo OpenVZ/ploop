@@ -25,6 +25,7 @@
 #include <getopt.h>
 #include <linux/types.h>
 #include <string.h>
+#include <getopt.h>
 
 #include "ploop.h"
 
@@ -46,10 +47,19 @@ static void usage(void)
 
 int main(int argc, char ** argv)
 {
-	int i;
+	int i, idx;
 	int flags = 0;
+	static struct option options[] = {
+		{"force", no_argument, NULL, 'f'},
+		{"hard-force", no_argument, NULL, 'F'},
+		{"check", no_argument, NULL, 'c'},
+		{"drop-inuse", no_argument, NULL, 'd'},
+		{"ro", no_argument, NULL, 'r'},
+		{"silent", no_argument, NULL, 's'},
+		{ NULL, 0, NULL, 0 }
+	};
 
-	while ((i = getopt(argc, argv, "fFcrsd")) != EOF) {
+	while ((i = getopt_long(argc, argv, "fFcrsd", options, &idx)) != EOF) {
 		switch (i) {
 		case 'f':
 			/* try to repair non-fatal conditions */
