@@ -666,7 +666,13 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 		ploop_err(0, "Error at xmlSaveFormatFile %s", tmp);
 		goto err;
 	}
-	rename(tmp, fname);
+
+	rc = rename(tmp, fname);
+	if (rc < 0) {
+		ploop_err(errno, "Can't rename %s to %s", tmp, fname);
+		goto err;
+	}
+
 	rc = 0;
 err:
 	if (writer)
