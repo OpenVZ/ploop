@@ -425,7 +425,8 @@ err:
 		memset(&b_ctl, 0, sizeof(b_ctl));
 		(void)ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
 	}
-	close(fd);
+	if (fd != -1)
+		close(fd);
 	free(pfiemap);
 	free(freemap);
 	free(rangemap);
