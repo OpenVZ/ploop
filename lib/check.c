@@ -584,4 +584,3 @@ int check_deltas(struct ploop_disk_images_data *di, char **images,
 
 	return ret;
 }
-
