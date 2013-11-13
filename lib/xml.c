@@ -679,6 +679,8 @@ err:
 		xmlFreeTextWriter(writer);
 	if (doc)
 		xmlFreeDoc(doc);
+	if (rc)
+		return SYSEXIT_DISKDESCR;
 
-	return rc;
+	return 0;
 }

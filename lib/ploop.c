@@ -586,9 +586,7 @@ static int create_image(struct ploop_disk_images_data *di,
 		goto err;
 	}
 
-	if (ploop_store_diskdescriptor(ddxml, di))
-		goto err;
-	ret = 0;
+	ret = ploop_store_diskdescriptor(ddxml, di);
 err:
 	if (ret)
 		unlink(file);
@@ -1791,7 +1789,7 @@ static int ploop_raw_discard(struct ploop_disk_images_data *di, const char *devi
 	get_disk_descriptor_fname(di, conf, sizeof(conf));
 	ret = ploop_store_diskdescriptor(conf, di);
 	if (ret)
-		return SYSEXIT_DISKDESCR;
+		return ret;
 
 	return 0;
 }
