@@ -34,16 +34,17 @@ static int silent;	/* print messages only if errors detected */
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: ploop check [-f|-F] [-c] [-r] [-s] [-d] DELTA\n"
-			"       DELTA := path to image file\n"
-			"	-f     - force check even if dirty flag is clear\n"
-			"	-F     - -f and try to fix even fatal errors (dangerous)\n"
-			"	-c     - check for duplicated blocks and holes\n"
-			"	-r     - do not modify DELTA (read-only access)\n"
-			"	-s     - be silent, report only errors\n"
-			"	-d     - drop image \"in use\" flag\n"
-			"	-S     - repair sparse image\n"
-		);
+	fprintf(stderr, "Usage: ploop check [options] DELTA\n"
+"	DELTA := path to image file\n"
+"	-f, --force         - force check even if dirty flag is clear\n"
+"	-F, --hard-force    - -f and try to fix even fatal errors (dangerous)\n"
+"	-c, --check         - check for duplicated blocks and holes\n"
+"	-r, --ro            - do not modify DELTA (read-only access)\n"
+"	-s, --silent        - be silent, report only errors\n"
+"	-d, --drop-inuse    - drop image \"in use\" flag\n"
+"	-R, --raw           - DELTA is a raw ploop image\n"
+"	-S, --repair-sparse - repair sparse image\n"
+	);
 }
 
 int main(int argc, char ** argv)
