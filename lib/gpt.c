@@ -262,7 +262,12 @@ int resize_gpt_partition(const char *devname, __u64 new_size)
 		ploop_err(errno, "Failed to store secondary GPT header %s", devname);
 		goto err;
 	}
-	fsync(fd);
+	if (fsync(fd)) {
+		ploop_err(errno, "Can't fsync %s", devname);
+		ret = SYSEXIT_FSYNC;
+		goto err;
+	}
+
 	blkpg_resize_partition(fd, pe);
 	ret = 0;
 err:
