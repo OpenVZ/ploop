@@ -98,7 +98,7 @@ static int fsync_safe(int fd)
 {
 	if (fsync(fd)) {
 		ploop_err(errno, "fsync");
-		return SYSEXIT_WRITE;
+		return SYSEXIT_FSYNC;
 	}
 	return 0;
 }
