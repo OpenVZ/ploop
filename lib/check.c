@@ -31,7 +31,7 @@
 #include <linux/fiemap.h>
 
 #include "ploop.h"
-int check_and_repair_sparse(const char *image, int fd, __u64 blocksize, int flags);
+static int check_and_repair_sparse(const char *image, int fd, __u64 blocksize, int flags);
 
 enum {
 	ZEROFIX = 0,
@@ -477,7 +477,7 @@ static int fill_hole(const char *image, int fd, off_t start, off_t end, int *log
 	return fsync_safe(fd);
 }
 
-int check_and_repair_sparse(const char *image, int fd, __u64 blocksize , int flags)
+static int check_and_repair_sparse(const char *image, int fd, __u64 blocksize , int flags)
 {
 	int last;
 	int i, ret;
