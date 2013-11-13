@@ -572,14 +572,12 @@ done:
 		(void)ioctl_device(mntfd, FITHAW, 0);
 	if (tracker_on)
 		(void)ioctl_device(devfd, PLOOP_IOC_TRACK_ABORT, 0);
-	if (iobuf)
-		free(iobuf);
+	free(iobuf);
 	if (devfd >=0)
 		close(devfd);
 	if (mntfd >=0)
 		close(mntfd);
-	if (send_from)
-		free(send_from);
+	free(send_from);
 	if (idelta.fd >= 0)
 		close_delta(&idelta);
 
