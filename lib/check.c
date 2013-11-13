@@ -434,8 +434,7 @@ done:
 	if (ret2 && !ret)
 		ret = ret2;
 
-	if (bmap)
-		free(bmap);
+	free(bmap);
 	free(buf);
 
 	return ret;
