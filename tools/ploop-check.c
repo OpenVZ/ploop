@@ -25,7 +25,6 @@
 #include <getopt.h>
 #include <linux/types.h>
 #include <string.h>
-#include <getopt.h>
 
 #include "ploop.h"
 
