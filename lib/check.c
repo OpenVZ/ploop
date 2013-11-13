@@ -226,6 +226,8 @@ int ploop_check(char *img, int flags, int ro, int raw, int verbose, __u32 *block
 	}
 
 	if (raw) {
+		/* cluster blocksize is required parameter for raw image */
+		cluster = blocksize_p ? *blocksize_p : 0;
 		ret = 0;
 		goto done;
 	}
@@ -563,10 +565,11 @@ int check_deltas(struct ploop_disk_images_data *di, char **images,
 	for (i = 0; images[i] != NULL; i++) {
 		int ro;
 		int flags = CHECK_DETAILED | (di ? (CHECK_DROPINUSE | CHECK_REPAIR_SPARSE) : 0);
-		__u32 cur_blocksize = 0;
+		int raw_delta = (raw && i == 0);
+		__u32 cur_blocksize = raw_delta ? *blocksize : 0;
 
 		ro = (images[i+1] != NULL || param->ro) ? 1 : 0;
-		ret = ploop_check(images[i], flags, ro, (raw && i == 0), 0, &cur_blocksize);
+		ret = ploop_check(images[i], flags, ro, raw_delta, 0, &cur_blocksize);
 		if (ret) {
 			ploop_err(0, "%s (%s): irrecoverable errors",
 					images[i], ro ? "ro" : "rw");
