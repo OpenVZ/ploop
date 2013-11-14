@@ -28,13 +28,14 @@
 #include <stdlib.h>
 
 #include "ploop.h"
+#include "common.h"
 
 static int ro;		/* read-only access to image file */
 static int silent;	/* print messages only if errors detected */
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: ploop check [options] DELTA\n"
+	fprintf(stderr, "Usage: ploop check [options] DELTA | DiskDescriptor.xml\n"
 "	DELTA := path to image file\n"
 "	-f, --force          - force check even if dirty flag is clear\n"
 "	-F, --hard-force     - -f and try to fix even fatal errors (dangerous)\n"
@@ -119,6 +120,33 @@ int main(int argc, char ** argv)
 	}
 
 	ploop_set_verbose_level(3);
+
+	if (is_xml_fname(argv[0])) {
+		struct ploop_disk_images_data *di;
+		int ret;
+
+		ret = read_dd(&di, argv[0]);
+		if (ret)
+			return ret;
+
+		blocksize = di->blocksize;
+		raw = (di->mode == PLOOP_RAW_MODE);
+
+		for (i = 0; i < di->nimages; i++) {
+			int delta_ro = 1; /* do read-only... */
+
+			if (!guidcmp(di->images[i]->guid, di->top_guid))
+				delta_ro = ro; /* except for top image */
+			ret = ploop_check(di->images[i]->file, flags,
+					delta_ro, raw, !silent, &blocksize);
+			if (ret)
+				goto err;
+		}
+err:
+		ploop_free_diskdescriptor(di);
+
+		return ret;
+	}
 
 	return ploop_check(argv[0], flags, ro, raw, !silent, &blocksize);
 }
