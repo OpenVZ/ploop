@@ -226,8 +226,12 @@ int ploop_check(char *img, int flags, int ro, int raw, int verbose, __u32 *block
 	}
 
 	if (raw) {
-		/* cluster blocksize is required parameter for raw image */
-		cluster = blocksize_p ? S2B(*blocksize_p) : 0;
+		if (!blocksize_p || !*blocksize_p) {
+			ploop_err(0, "Cluster blocksize required for raw image");
+			ret = SYSEXIT_PARAM;
+			goto done;
+		}
+		cluster = S2B(*blocksize_p);
 		ret = 0;
 		goto done;
 	}
