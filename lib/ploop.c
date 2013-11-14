@@ -1180,7 +1180,10 @@ static int create_ploop_dev(int minor)
 			ploop_err(errno, "mknod %s", device);
 			return SYSEXIT_MKNOD;
 		}
-		chmod(device, 0600);
+		if (chmod(device, 0600)) {
+			ploop_err(errno, "chmod %s", device);
+			return SYSEXIT_SYS;
+		}
 	}
 	snprintf(devicep1, sizeof(devicep1), "%sp1", device);
 	if (stat(devicep1, &st)) {
@@ -1188,7 +1191,10 @@ static int create_ploop_dev(int minor)
 			ploop_err(errno, "mknod %s", devicep1);
 			return SYSEXIT_MKNOD;
 		}
-		chmod(devicep1, 0600);
+		if (chmod(devicep1, 0600)) {
+			ploop_err(errno, "chmod %s", devicep1);
+			return SYSEXIT_SYS;
+		}
 	}
 	return 0;
 }
