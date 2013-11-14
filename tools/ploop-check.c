@@ -25,6 +25,7 @@
 #include <getopt.h>
 #include <linux/types.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "ploop.h"
 
@@ -51,6 +52,8 @@ int main(int argc, char ** argv)
 	int i, idx;
 	int flags = 0;
 	int raw = 0;
+	unsigned int blocksize = 0;
+	char *endptr;
 	static struct option options[] = {
 		{"force", no_argument, NULL, 'f'},
 		{"hard-force", no_argument, NULL, 'F'},
@@ -59,11 +62,12 @@ int main(int argc, char ** argv)
 		{"ro", no_argument, NULL, 'r'},
 		{"silent", no_argument, NULL, 's'},
 		{"raw", no_argument, NULL, 'R'},
+		{"blocksize", required_argument, NULL, 'b'},
 		{"repair-sparse", no_argument, NULL, 'S'},
 		{ NULL, 0, NULL, 0 }
 	};
 
-	while ((i = getopt_long(argc, argv, "fFcrsdRS", options, &idx)) != EOF) {
+	while ((i = getopt_long(argc, argv, "fFcrsdRbS", options, &idx)) != EOF) {
 		switch (i) {
 		case 'f':
 			/* try to repair non-fatal conditions */
@@ -85,6 +89,13 @@ int main(int argc, char ** argv)
 			break;
 		case 'R':
 			raw = 1;
+			break;
+		case 'b':
+			blocksize = strtoul(optarg, &endptr, 0);
+			if (*endptr != '\0') {
+				usage();
+				return SYSEXIT_PARAM;
+			}
 			break;
 		case 's':
 			silent = 1;
@@ -108,5 +119,5 @@ int main(int argc, char ** argv)
 
 	ploop_set_verbose_level(3);
 
-	return ploop_check(argv[0], flags, ro, raw, !silent, NULL);
+	return ploop_check(argv[0], flags, ro, raw, !silent, &blocksize);
 }
