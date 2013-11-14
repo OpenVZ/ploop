@@ -1737,7 +1737,7 @@ int ploop_grow_image(struct ploop_disk_images_data *di, off_t size)
 		}
 
 		fname = find_image_by_guid(di, di->top_guid);
-		if (i == -1) {
+		if (!fname) {
 			ploop_err(0, "Unable to find top delta file name");
 			ret = SYSEXIT_PARAM;
 			goto err;
