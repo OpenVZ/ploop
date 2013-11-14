@@ -31,7 +31,7 @@
 #include <linux/fiemap.h>
 
 #include "ploop.h"
-static int check_and_repair_sparse(const char *image, int fd, __u64 blocksize, int flags);
+static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int flags);
 
 enum {
 	ZEROFIX = 0,
@@ -478,7 +478,7 @@ static int fill_hole(const char *image, int fd, off_t start, off_t end, int *log
 	return fsync_safe(fd);
 }
 
-static int check_and_repair_sparse(const char *image, int fd, __u64 blocksize , int flags)
+static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int flags)
 {
 	int last;
 	int i, ret;
@@ -528,8 +528,8 @@ static int check_and_repair_sparse(const char *image, int fd, __u64 blocksize , 
 			if (fm_ext[i].fe_flags & FIEMAP_EXTENT_LAST)
 				last = 1;
 			if ((fm_ext[i].fe_flags & FIEMAP_EXTENT_UNWRITTEN) &&
-			    (fm_ext[i].fe_logical % blocksize ||
-					fm_ext[i].fe_length % blocksize)) {
+			    (fm_ext[i].fe_logical % cluster ||
+					fm_ext[i].fe_length % cluster)) {
 				ploop_err(0, "Delta files %s contains uninitialized blocks"
 						" (offset=%llu len=%llu)"
 						" which are not aligned to cluster size",
