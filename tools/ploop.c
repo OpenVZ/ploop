@@ -51,7 +51,7 @@ static void usage_summary(void)
 			"       ploop snapshot-delete -u <uuid> DiskDescriptor.xml\n"
 			"       ploop snapshot-merge [-u <uuid>] DiskDescriptor.xml\n"
 			"       ploop snapshot-switch -u <uuid> DiskDescriptor.xml\n"
-			"       ploop snapshot-list [-o field[,field...]] [--uuid <UUID>] DiskDescriptor.xml\n"
+			"       ploop snapshot-list [-o field[,field...]] [-u <UUID>] DiskDescriptor.xml\n"
 			"Also:  ploop { stat | start | stop | clear } ...\n"
 		);
 }

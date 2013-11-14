@@ -184,7 +184,7 @@ static int build_uuid_list(const char *guid)
 
 static void usage_snapshot_list(void)
 {
-	printf("ploop snapshot-list [-H] [-o field[,field...]] [--uuid <UUID>] DiskDescriptor.xml\n");
+	printf("ploop snapshot-list [-H] [-o field[,field...]] [-u <UUID>] DiskDescriptor.xml\n");
 }
 
 int plooptool_snapshot_list(int argc, char **argv)
