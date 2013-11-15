@@ -58,6 +58,19 @@ int create_gpt_partition(const char *device, off_t size, __u32 blocksize)
 	return 0;
 }
 
+static char *get_tune_prog(void)
+{
+	int i;
+	struct stat st;
+	static char *progs[] = {"/usr/libexec/tune2fs", "/sbin/tune4fs", "/sbin/tune2fs", NULL};
+
+	for (i = 0; progs[i] != NULL; i++)
+		if (stat(progs[i], &st) == 0)
+			return progs[i];
+
+	return "tune2fs";
+}
+
 int make_fs(const char *device, const char *fstype, unsigned int fsblocksize)
 {
 	char part_device[64];
@@ -86,7 +99,7 @@ int make_fs(const char *device, const char *fstype, unsigned int fsblocksize)
 	if (run_prg(argv))
 		return SYSEXIT_MKFS;
 
-	argv[0] = "tune2fs";
+	argv[0] = get_tune_prog();
 	argv[1] =  "-ouser_xattr,acl";
 	argv[2] = "-c0";
 	argv[3] = "-i0";
@@ -116,7 +129,7 @@ void tune_fs(const char *target, const char *device, unsigned long long size_sec
 				size_sec);
 		return;
 	}
-	argv[0] = "tune2fs";
+	argv[0] = get_tune_prog();
 	argv[1] = "-r";
 	snprintf(buf, sizeof(buf), "%llu", reserved_blocks);
 	argv[2] = buf;
