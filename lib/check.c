@@ -460,7 +460,9 @@ static int fill_hole(const char *image, int fd, off_t start, off_t end, int *log
 		ploop_log(0, "Reallocating sparse blocks back.");
 	}
 
-	ploop_log(1, "Filling hole at start=%lu len=%lu", start, end - start);
+	ploop_log(1, "Filling hole at start=%lu len=%lu",
+			(long unsigned)start,
+			(long unsigned)(end - start));
 
 	bzero(buf, sizeof(buf));
 	for (offset = start; offset < end; offset += sizeof(buf)) {
