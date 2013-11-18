@@ -282,6 +282,9 @@ static int check_size(unsigned long long sectors, __u32 blocksize, int version)
 		return -1;
 	}
 
+	if (max > B2S(PLOOP_MAX_FS_SIZE))
+		max = B2S(PLOOP_MAX_FS_SIZE);
+
 	if (sectors > max) {
 		ploop_err(0, "An incorrect block device size is specified: %llu sectors."
 				" The maximum allowed size is %llu sectors.",
