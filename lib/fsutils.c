@@ -91,7 +91,8 @@ int make_fs(const char *device, const char *fstype, unsigned int fsblocksize)
 			fsblocksize);
 	argv[4] = fsblock_size;
 	/* Reserve enough space so that the block group descriptor table can grow to 16T */
-	snprintf(ext_opts, sizeof(ext_opts), "-Elazy_itable_init,resize=4294967295");
+	snprintf(ext_opts, sizeof(ext_opts), "-Elazy_itable_init,resize=%llu",
+			 PLOOP_MAX_FS_SIZE / fsblocksize);
 	argv[5] = ext_opts;
 	argv[6] = part_device;
 	argv[7] = NULL;
