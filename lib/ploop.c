@@ -1177,12 +1177,11 @@ static int create_ploop_dev(int minor)
 {
 	char device[64];
 	char devicep1[64];
-	struct stat st;
 
 	strcpy(device, "/dev/");
 	make_sysfs_dev_name(minor, device + 5, sizeof(device) - 5);
 	/* Create pair /dev/ploopN & /dev/ploopNp1 */
-	if (stat(device, &st)) {
+	if (access(device, F_OK)) {
 		if (mknod(device, S_IFBLK, gnu_dev_makedev(PLOOP_DEV_MAJOR, minor))) {
 			ploop_err(errno, "mknod %s", device);
 			return SYSEXIT_MKNOD;
@@ -1193,7 +1192,7 @@ static int create_ploop_dev(int minor)
 		}
 	}
 	snprintf(devicep1, sizeof(devicep1), "%sp1", device);
-	if (stat(devicep1, &st)) {
+	if (access(devicep1, F_OK)) {
 		if (mknod(devicep1, S_IFBLK, gnu_dev_makedev(PLOOP_DEV_MAJOR, minor+1))) {
 			ploop_err(errno, "mknod %s", devicep1);
 			return SYSEXIT_MKNOD;
