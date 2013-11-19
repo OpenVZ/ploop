@@ -68,6 +68,10 @@
 #define ROUNDUP(size, blocksize) \
 	(((off_t)size + blocksize - 1) / blocksize * blocksize)
 
+/* PATH used by the library */
+#define DEF_PATH_ENV	"PATH=/sbin:/bin:/usr/sbin:/usr/bin:" \
+			"/usr/local/sbin:/usr/local/bin"
+
 struct delta_fops
 {
 	int		(*open)(char *pathname, int flags, mode_t mode);

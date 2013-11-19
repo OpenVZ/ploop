@@ -191,7 +191,7 @@ int dumpe2fs(const char *device, struct dump2fs_data *data)
 	FILE *fp;
 	int found = BLOCK_COUNT_BIT | BLOCK_FREE_BIT | BLOCK_SIZE_BIT;
 
-	snprintf(cmd, sizeof(cmd),  "LANG=C /sbin/dumpe2fs -h %s", device);
+	snprintf(cmd, sizeof(cmd), "LANG=C " DEF_PATH_ENV " dumpe2fs -h %s", device);
 	fp = popen(cmd, "r");
 	if (fp == NULL) {
 		ploop_err(0, "Failed %s", cmd);
