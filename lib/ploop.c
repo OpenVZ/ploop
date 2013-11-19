@@ -1983,13 +1983,12 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		balloonfd = -1;
 		if (!mounted && param->offline_resize) {
 			/* offline */
-			if (do_umount(mount_param.target)) {
-				ploop_err(errno, "umount %s failed", mount_param.target);
-			} else {
-				ret = e2fsck(part_device, E2FSCK_FORCE | E2FSCK_PREEN);
-				if (ret)
-					goto err;
-			}
+			ret = do_umount(mount_param.target);
+			if (ret)
+				goto err;
+			ret = e2fsck(part_device, E2FSCK_FORCE | E2FSCK_PREEN);
+			if (ret)
+				goto err;
 		}
 
 		// Update size in the DiskDescriptor.xml
