@@ -985,7 +985,6 @@ static int plooptool_list(int argc, char **argv)
 	char mnt[PATH_MAX] = "";
 	char dev[64];
 	DIR *dp;
-	struct stat st;
 	struct dirent *de;
 	char cookie[PLOOP_COOKIE_SIZE];
 	int all = 0;
@@ -1022,13 +1021,13 @@ static int plooptool_list(int argc, char **argv)
 
 		snprintf(fname, sizeof(fname), "/sys/block/%s/pdelta/0/image",
 				de->d_name);
-		if (stat(fname, &st))
+		if (access(fname, F_OK))
 			continue;
 		if (read_line(fname, image, sizeof(image)))
 			continue;
 		snprintf(fname, sizeof(fname), "/sys/block/%s/pstate/cookie",
 				de->d_name);
-		if (stat(fname, &st) == 0) {
+		if (access(fname, F_OK) == 0) {
 			if (read_line(fname, cookie, sizeof(cookie)))
 				continue;
 		}
