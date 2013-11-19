@@ -1353,7 +1353,7 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 
 	if (param->target != NULL) {
 		if (stat(param->target, &st)) {
-			ploop_err(0, "Mount point %s does not exist", param->target);
+			ploop_err(errno, "Failed to stat mount point %s", param->target);
 			return SYSEXIT_PARAM;
 		}
 		if (!S_ISDIR(st.st_mode)) {
