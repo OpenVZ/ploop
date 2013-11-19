@@ -537,7 +537,6 @@ static int create_image(struct ploop_disk_images_data *di,
 	struct ploop_pvd_header vh = {};
 	char fname[PATH_MAX];
 	char ddxml[PATH_MAX];
-	struct stat st;
 
 	if (size_sec == 0) {
 		ploop_err(0, "Incorrect block device size specified: "
@@ -549,13 +548,13 @@ static int create_image(struct ploop_disk_images_data *di,
 		return SYSEXIT_PARAM;
 	}
 
-	if (stat(file, &st) == 0) {
+	if (access(file, F_OK) == 0) {
 		ploop_err(EEXIST, "Can't create %s", file);
 		return SYSEXIT_PARAM;
 	}
 
 	get_disk_descriptor_fname_by_image(file, ddxml, sizeof(ddxml));
-	if (stat(ddxml, &st) == 0) {
+	if (access(ddxml, F_OK) == 0) {
 		ploop_err(EEXIST, "Can't create %s", ddxml);
 		return SYSEXIT_PARAM;
 	}
