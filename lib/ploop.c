@@ -233,12 +233,10 @@ int PREAD(struct delta * delta, void *buf, unsigned int size, off_t off)
 
 static int get_temp_mountpoint(const char *file, int create, char *buf, int len)
 {
-	struct stat st;
-
 	snprintf(buf, len, "%s.mnt", file);
 
 	if (create) {
-		if (stat(buf, &st) == 0)
+		if (access(buf, F_OK) == 0)
 			return 0;
 		if (mkdir(buf, 0700)) {
 			ploop_err(errno, "mkdir %s", buf);
