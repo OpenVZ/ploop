@@ -71,6 +71,8 @@
 /* PATH used by the library */
 #define DEF_PATH_ENV	"PATH=/sbin:/bin:/usr/sbin:/usr/bin:" \
 			"/usr/local/sbin:/usr/local/bin"
+#define DEF_PATH_LIST	{ "/sbin", "/bin", "/usr/sbin", "/usr/bin", \
+			"/usr/local/sbin", "/usr/bin", NULL }
 
 struct delta_fops
 {

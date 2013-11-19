@@ -220,12 +220,7 @@ static void cleanup_kill_process(void *data)
 
 static int ploop_execvp(const char *file, char *const argv[])
 {
-	char *const paths[] = {
-		"/sbin", "/bin",
-		"/usr/sbin", "/usr/bin",
-		"/usr/local/sbin", "/usr/bin",
-		NULL
-	};
+	char *const paths[] = DEF_PATH_LIST;
 	int i, ret;
 
 	if (file[0] == '/')
