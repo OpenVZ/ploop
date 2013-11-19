@@ -116,7 +116,7 @@ int get_partition_device_name(const char *device, char *out, int size)
 			p += 5;
 
 		snprintf(out, size, "/dev/%sp1", p);
-		if (stat(out, &st) == 0)
+		if (access(out, F_OK) == 0)
 			return 0;
 		if (stat(device, &st)) {
 			ploop_err(errno, "failed stat %s", device);
