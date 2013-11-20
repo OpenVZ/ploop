@@ -824,21 +824,28 @@ out:
 
 static int do_umount(const char *mnt)
 {
-	int i;
+	int i = 0;
 
-	for (i = 0; i < 6; i++) {
-		if (umount(mnt) == 0)
-			return 0;
-		if (errno != EBUSY)
-			goto err;
-		if (ploop_get_log_level() > 3)
-			print_output(3, "lsof", mnt);
-		ploop_log(3, "Retrying umount %s", mnt);
+retry:
+	if (umount(mnt) == 0)
+		return 0;
+
+	if (errno != EBUSY)
+		goto err;
+
+	if (ploop_get_log_level() > 3)
+		print_output(3, "lsof", mnt);
+
+	if (i++ < 6) {
 		sleep(1);
+		ploop_log(3, "Retrying umount %s", mnt);
+		goto retry;
 	}
+
 	print_output(-1, "lsof", mnt);
+
 err:
-	ploop_err(errno, "Can't umount %s", mnt);
+	ploop_err(errno, "Failed to umount %s", mnt);
 
 	return SYSEXIT_UMOUNT;
 }
