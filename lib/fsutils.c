@@ -76,6 +76,7 @@ int make_fs(const char *device, const char *fstype, unsigned int fsblocksize)
 	char fsblock_size[14];
 	char *argv[8];
 	char ext_opts[1024];
+	__u64 max_online_resize;
 
 	fsblocksize = fsblocksize != 0 ? fsblocksize : 4096;
 
@@ -89,9 +90,14 @@ int make_fs(const char *device, const char *fstype, unsigned int fsblocksize)
 	snprintf(fsblock_size, sizeof(fsblock_size), "-b%u",
 			fsblocksize);
 	argv[4] = fsblock_size;
-	/* Reserve enough space so that the block group descriptor table can grow to 16T */
+	/* Reserve enough space so that the block group descriptor table can grow to 16T
+	 * Note: the max_online_resize is __u32 in mkfs.ext4
+	 */
+	max_online_resize = PLOOP_MAX_FS_SIZE / fsblocksize;
+	if (max_online_resize > (__u32)~0)
+		max_online_resize = (__u32)~0;
 	snprintf(ext_opts, sizeof(ext_opts), "-Elazy_itable_init,resize=%llu",
-			 PLOOP_MAX_FS_SIZE / fsblocksize);
+			 max_online_resize);
 	argv[5] = ext_opts;
 	argv[6] = part_device;
 	argv[7] = NULL;
