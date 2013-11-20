@@ -794,7 +794,7 @@ static int print_output(int level, const char *cmd, const char *arg)
 {
 	FILE *fp;
 	char command[PATH_MAX];
-	char buffer[8192]; /* same as LOG_BUF_SIZE */
+	char buffer[LOG_BUF_SIZE/2];
 	int ret = -1;
 	int eno = errno;
 
