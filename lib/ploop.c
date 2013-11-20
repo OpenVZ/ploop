@@ -824,20 +824,23 @@ out:
 
 static int do_umount(const char *mnt)
 {
-	int i, ret;
+	int i;
 
 	for (i = 0; i < 6; i++) {
-		ret = umount(mnt);
-		if (ret == 0 || (ret == -1 && errno != EBUSY))
-			return ret;
+		if (umount(mnt) == 0)
+			return 0;
+		if (errno != EBUSY)
+			goto err;
 		if (ploop_get_log_level() > 3)
 			print_output(3, "lsof", mnt);
 		ploop_log(3, "Retrying umount %s", mnt);
 		sleep(1);
 	}
 	print_output(-1, "lsof", mnt);
+err:
 	ploop_err(errno, "Can't umount %s", mnt);
-	return -1;
+
+	return SYSEXIT_UMOUNT;
 }
 
 static int delete_deltas(int devfd, const char *devname)
@@ -1527,10 +1530,9 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 		if (di != NULL && di->runtime->component_name == NULL)
 			store_statfs_info(mnt, di->images[0]->file);
 		ploop_log(0, "Unmounting file system at %s", mnt);
-		if (do_umount(mnt)) {
-			ploop_err(errno, "umount %s failed", mnt);
-			return SYSEXIT_UMOUNT;
-		}
+		ret = do_umount(mnt);
+		if (ret)
+			return ret;
 	}
 
 	ret = ploop_stop_device(device);
@@ -2034,11 +2036,8 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			balloonfd = -1;
 
 			ret = do_umount(mount_param.target);
-			if (ret) {
-				ploop_err(errno, "umount %s failed", mount_param.target);
-				ret = SYSEXIT_UMOUNT;
+			if (ret)
 				goto err;
-			}
 
 			ret = shrink_device(di, mount_param.device, part_device, part_dev_size,
 					new_fs_size, blocksize);
