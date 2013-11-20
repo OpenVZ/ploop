@@ -833,10 +833,10 @@ retry:
 	if (errno != EBUSY)
 		goto err;
 
-	if (ploop_get_log_level() >= 3)
-		print_output(3, "lsof", mnt);
-
 	if (i++ < 6) {
+		if (ploop_get_log_level() >= 3)
+			print_output(3, "lsof", mnt);
+
 		sleep(1);
 		ploop_log(3, "Retrying umount %s", mnt);
 		goto retry;
