@@ -836,7 +836,7 @@ static int do_umount(const char *mnt)
 		sleep(1);
 	}
 	print_output(-1, "lsof", mnt);
-	ploop_err(-1, "Can't umount %s", mnt);
+	ploop_err(errno, "Can't umount %s", mnt);
 	return -1;
 }
 
