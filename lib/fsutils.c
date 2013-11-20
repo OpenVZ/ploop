@@ -228,7 +228,7 @@ int e2fsck(const char *device, int flags)
 	int i = 0;
 	int ret;
 
-	arg[i++] = "e2fsck";
+	arg[i++] = "fsck.ext4";
 	if (flags & E2FSCK_PREEN)
 		arg[i++] = "-p";
 	if (flags & E2FSCK_FORCE)
