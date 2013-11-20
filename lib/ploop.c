@@ -797,6 +797,7 @@ static int print_output(int level, const char *cmd, const char *arg)
 	char buffer[LOG_BUF_SIZE/2];
 	int ret = -1;
 	int eno = errno;
+	int i = 0;
 
 	snprintf(command, sizeof(command), "%s %s", cmd, arg);
 
@@ -809,8 +810,11 @@ static int print_output(int level, const char *cmd, const char *arg)
 		char *p = strrchr(buffer, '\n');
 		if (p != NULL)
 			*p = '\0';
-		ploop_log(level, "--- %s output follows ---\n%s",
-				command, buffer);
+		ploop_log(level, "--- %s output %s---\n%s",
+				(i == 0) ? command : cmd,
+				(i == 0) ? "" : "(continued) ",
+				buffer);
+		i++;
 	}
 	pclose(fp);
 	ploop_log(level, "--- %s finished ---", cmd);
