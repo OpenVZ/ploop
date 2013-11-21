@@ -170,12 +170,10 @@ void tune_fs(const char *target, const char *device, unsigned long long size_sec
 
 int resize_fs(const char *device, off_t size_sec)
 {
-	char *prog;
 	char *argv[5];
 	char buf[22];
 
-	prog = get_resize_prog();
-	argv[0] = prog;
+	argv[0] = get_resize_prog();
 	argv[1] = "-p";
 	argv[2] = (char *)device;
 	if (size_sec) {
