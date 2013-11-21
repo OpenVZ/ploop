@@ -32,7 +32,7 @@
 #define __stringify(x...)	__stringify_1(x)
 
 /* A macro to find out a proper version of an e2fs utility
- * (such as tune2fs or resize2fs) to use.
+ * (such as tune2fs, resize2fs or dumpe2fs) to use.
  *
  * First, look for our own version from /usr/libexec
  * Second, try a version from e4fsprogs (for RHEL5 systems)
@@ -61,6 +61,7 @@ static char *get_ ## cmd ## _prog(void)			\
 
 GEN_GET_PROG(tune)
 GEN_GET_PROG(resize)
+GEN_GET_PROG(dumpe)
 #undef GEN_GET_PROG
 
 int create_gpt_partition(const char *device, off_t size, __u32 blocksize)
@@ -207,7 +208,8 @@ int dumpe2fs(const char *device, struct dump2fs_data *data)
 	FILE *fp;
 	int found = BLOCK_COUNT_BIT | BLOCK_FREE_BIT | BLOCK_SIZE_BIT;
 
-	snprintf(cmd, sizeof(cmd), "LANG=C " DEF_PATH_ENV " dumpe2fs -h %s", device);
+	snprintf(cmd, sizeof(cmd), "LANG=C " DEF_PATH_ENV " %s -h %s",
+			get_dumpe_prog(), device);
 	fp = popen(cmd, "r");
 	if (fp == NULL) {
 		ploop_err(0, "Failed %s", cmd);
