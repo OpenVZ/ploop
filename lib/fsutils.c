@@ -28,6 +28,41 @@
 
 #include "ploop.h"
 
+#define __stringify_1(x...)	#x
+#define __stringify(x...)	__stringify_1(x)
+
+/* A macro to find out a proper version of an e2fs utility
+ * (such as tune2fs or resize2fs) to use.
+ *
+ * First, look for our own version from /usr/libexec
+ * Second, try a version from e4fsprogs (for RHEL5 systems)
+ * Third, try a standard one from /sbin.
+ *
+ * Finally, if we fail, return a generic name, letting run_prg()
+ * to look it up in all the standard locations.
+ */
+
+#define GEN_GET_PROG(cmd) \
+static char *get_ ## cmd ## _prog(void)			\
+{							\
+	int i;						\
+	static char *progs[] = {			\
+		"/usr/libexec/"	__stringify(cmd) "2fs",	\
+		"/sbin/"	__stringify(cmd) "4fs",	\
+		"/sbin/"	__stringify(cmd) "2fs",	\
+		NULL };					\
+							\
+	for (i = 0; progs[i] != NULL; i++)		\
+		if (access(progs[i], X_OK) == 0)	\
+			return progs[i];		\
+							\
+	return __stringify(cmd) "2fs";			\
+}
+
+GEN_GET_PROG(tune)
+GEN_GET_PROG(resize)
+#undef GEN_GET_PROG
+
 int create_gpt_partition(const char *device, off_t size, __u32 blocksize)
 {
 	unsigned long long start = blocksize;
@@ -55,19 +90,6 @@ int create_gpt_partition(const char *device, off_t size, __u32 blocksize)
 	}
 
 	return 0;
-}
-
-static char *get_tune_prog(void)
-{
-	int i;
-	struct stat st;
-	static char *progs[] = {"/usr/libexec/tune2fs", "/sbin/tune4fs", "/sbin/tune2fs", NULL};
-
-	for (i = 0; progs[i] != NULL; i++)
-		if (stat(progs[i], &st) == 0)
-			return progs[i];
-
-	return "tune2fs";
 }
 
 int make_fs(const char *device, const char *fstype, unsigned int fsblocksize)
@@ -143,18 +165,6 @@ void tune_fs(const char *target, const char *device, unsigned long long size_sec
 	argv[4] = NULL;
 
 	run_prg(argv);
-}
-
-static char *get_resize_prog(void)
-{
-	int i;
-	static char *progs[] = {"/usr/libexec/resize2fs", "/sbin/resize4fs", "/sbin/resize2fs", NULL};
-
-	for (i = 0; progs[i] != NULL; i++)
-		if (access(progs[i], X_OK) == 0)
-			return progs[i];
-
-	return "resize2fs";
 }
 
 int resize_fs(const char *device, off_t size_sec)
