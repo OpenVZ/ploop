@@ -41,28 +41,30 @@
  * Finally, if we fail, return a generic name, letting run_prg()
  * to look it up in all the standard locations.
  */
+#define GEN_E2FS_PROG(name) \
+static char * name ## _2fs[] = {			\
+	"/usr/libexec/"	__stringify(name) "2fs",	\
+	"/sbin/"	__stringify(name) "4fs",	\
+	"/sbin/"	__stringify(name) "2fs",	\
+	__stringify(name) "2fs",			\
+	NULL};						\
 
-#define GEN_GET_PROG(cmd) \
-static char *get_ ## cmd ## _prog(void)			\
-{							\
-	int i;						\
-	static char *progs[] = {			\
-		"/usr/libexec/"	__stringify(cmd) "2fs",	\
-		"/sbin/"	__stringify(cmd) "4fs",	\
-		"/sbin/"	__stringify(cmd) "2fs",	\
-		NULL };					\
-							\
-	for (i = 0; progs[i] != NULL; i++)		\
-		if (access(progs[i], X_OK) == 0)	\
-			return progs[i];		\
-							\
-	return __stringify(cmd) "2fs";			\
+GEN_E2FS_PROG(tune)
+GEN_E2FS_PROG(resize)
+GEN_E2FS_PROG(dumpe)
+
+#undef GEN_E2FS_PROG
+
+static char *get_e2fs_prog(char *progs[])
+{
+	int i;
+
+	for (i = 0; progs[i] != NULL; i++)
+		if (access(progs[i], X_OK) == 0)
+			return progs[i];
+	/* the last in the list is default */
+	return progs[i - 1];
 }
-
-GEN_GET_PROG(tune)
-GEN_GET_PROG(resize)
-GEN_GET_PROG(dumpe)
-#undef GEN_GET_PROG
 
 int create_gpt_partition(const char *device, off_t size, __u32 blocksize)
 {
@@ -128,7 +130,7 @@ int make_fs(const char *device, const char *fstype, unsigned int fsblocksize)
 	if (run_prg(argv))
 		return SYSEXIT_MKFS;
 
-	argv[0] = get_tune_prog();
+	argv[0] = get_e2fs_prog(tune_2fs);
 	argv[1] =  "-ouser_xattr,acl";
 	argv[2] = "-c0";
 	argv[3] = "-i0";
@@ -158,7 +160,7 @@ void tune_fs(const char *target, const char *device, unsigned long long size_sec
 				size_sec);
 		return;
 	}
-	argv[0] = get_tune_prog();
+	argv[0] = get_e2fs_prog(tune_2fs);
 	argv[1] = "-r";
 	snprintf(buf, sizeof(buf), "%llu", reserved_blocks);
 	argv[2] = buf;
@@ -173,7 +175,7 @@ int resize_fs(const char *device, off_t size_sec)
 	char *argv[5];
 	char buf[22];
 
-	argv[0] = get_resize_prog();
+	argv[0] = get_e2fs_prog(resize_2fs);
 	argv[1] = "-p";
 	argv[2] = (char *)device;
 	if (size_sec) {
@@ -207,7 +209,7 @@ int dumpe2fs(const char *device, struct dump2fs_data *data)
 	int found = BLOCK_COUNT_BIT | BLOCK_FREE_BIT | BLOCK_SIZE_BIT;
 
 	snprintf(cmd, sizeof(cmd), "LANG=C " DEF_PATH_ENV " %s -h %s",
-			get_dumpe_prog(), device);
+			get_e2fs_prog(dumpe_2fs), device);
 	fp = popen(cmd, "r");
 	if (fp == NULL) {
 		ploop_err(0, "Failed %s", cmd);
