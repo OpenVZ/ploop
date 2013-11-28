@@ -41,7 +41,7 @@
  *    to look it up in all the standard locations.
  */
 #define GEN_E2FS_PROG(name) \
-static char * name ## _2fs[] = {			\
+static char * name ## 2fs_progs[] = {			\
 	"/usr/libexec/"	__stringify(name) "2fs",	\
 	"/sbin/"	__stringify(name) "4fs",	\
 	"/sbin/"	__stringify(name) "2fs",	\
@@ -54,7 +54,7 @@ GEN_E2FS_PROG(dumpe)
 
 #undef GEN_E2FS_PROG
 
-static char *get_e2fs_prog(char *progs[])
+static char *get_prog(char *progs[])
 {
 	int i;
 
@@ -129,7 +129,7 @@ int make_fs(const char *device, const char *fstype, unsigned int fsblocksize)
 	if (run_prg(argv))
 		return SYSEXIT_MKFS;
 
-	argv[0] = get_e2fs_prog(tune_2fs);
+	argv[0] = get_prog(tune2fs_progs);
 	argv[1] =  "-ouser_xattr,acl";
 	argv[2] = "-c0";
 	argv[3] = "-i0";
@@ -159,7 +159,7 @@ void tune_fs(const char *target, const char *device, unsigned long long size_sec
 				size_sec);
 		return;
 	}
-	argv[0] = get_e2fs_prog(tune_2fs);
+	argv[0] = get_prog(tune2fs_progs);
 	argv[1] = "-r";
 	snprintf(buf, sizeof(buf), "%llu", reserved_blocks);
 	argv[2] = buf;
@@ -174,7 +174,7 @@ int resize_fs(const char *device, off_t size_sec)
 	char *argv[5];
 	char buf[22];
 
-	argv[0] = get_e2fs_prog(resize_2fs);
+	argv[0] = get_prog(resize2fs_progs);
 	argv[1] = "-p";
 	argv[2] = (char *)device;
 	if (size_sec) {
@@ -208,7 +208,7 @@ int dumpe2fs(const char *device, struct dump2fs_data *data)
 	int found = BLOCK_COUNT_BIT | BLOCK_FREE_BIT | BLOCK_SIZE_BIT;
 
 	snprintf(cmd, sizeof(cmd), "LANG=C " DEF_PATH_ENV " %s -h %s",
-			get_e2fs_prog(dumpe_2fs), device);
+			get_prog(dumpe2fs_progs), device);
 	fp = popen(cmd, "r");
 	if (fp == NULL) {
 		ploop_err(0, "Failed %s", cmd);
