@@ -31,15 +31,14 @@
 #define __stringify_1(x...)	#x
 #define __stringify(x...)	__stringify_1(x)
 
-/* A macro to find out a proper version of an e2fs utility
- * (such as tune2fs, resize2fs or dumpe2fs) to use.
- *
- * First, look for our own version from /usr/libexec
- * Second, try a version from e4fsprogs (for RHEL5 systems)
- * Third, try a standard one from /sbin.
- *
- * Finally, if we fail, return a generic name, letting run_prg()
- * to look it up in all the standard locations.
+/* A macro to create a list of versions of an e2fs utility
+ * (such as tune2fs, resize2fs or dumpe2fs) to look for,
+ * ordered by priority:
+ *  1 Our own private version from /usr/libexec
+ *  2 A version from e4fsprogs (for RHEL5 systems)
+ *  3 A standard one from /sbin
+ *  4 Just a name without a path, letting run_prg()
+ *    to look it up in all the standard locations.
  */
 #define GEN_E2FS_PROG(name) \
 static char * name ## _2fs[] = {			\
