@@ -794,7 +794,7 @@ static int print_output(int level, const char *cmd, const char *arg)
 	char buffer[LOG_BUF_SIZE/2];
 	int ret = -1;
 	int eno = errno;
-	int i = 0;
+	int i;
 
 	snprintf(command, sizeof(command), DEF_PATH_ENV " %s %s 2>&1",
 			cmd, arg);
@@ -803,15 +803,12 @@ static int print_output(int level, const char *cmd, const char *arg)
 		goto out;
 	}
 
+	ploop_log(level, "--- %s %s output ---", cmd, arg);
 	while (fgets(buffer, sizeof(buffer), fp)) {
 		char *p = strrchr(buffer, '\n');
 		if (p != NULL)
 			*p = '\0';
-		ploop_log(level, "--- %s output %s---\n%s",
-				(i == 0) ? command : cmd,
-				(i == 0) ? "" : "(continued) ",
-				buffer);
-		i++;
+		ploop_log(level, "%s", buffer);
 	}
 
 	i = pclose(fp);
