@@ -812,10 +812,26 @@ static int print_output(int level, const char *cmd, const char *arg)
 				buffer);
 		i++;
 	}
-	pclose(fp);
-	ploop_log(level, "--- %s finished ---", cmd);
 
-	ret = 0;
+	i = pclose(fp);
+	if (i == -1) {
+		ploop_err(errno, "Error in pclose() for %s", cmd);
+		goto out;
+	} else if (WIFEXITED(i)) {
+		i = WEXITSTATUS(i);
+		if (i == 0) {
+			ploop_log(level, "--- %s finished ---", cmd);
+			ret = 0;
+		}
+		else
+			ploop_err(0, "Command %s exited with status %d",
+					cmd, i);
+
+	} else if (WIFSIGNALED(i)) {
+		ploop_err(0, "Command %s received signal %d",
+				cmd, WTERMSIG(i));
+	} else
+		ploop_err(0, "Command %s died", cmd);
 
 out:
 	errno = eno;
