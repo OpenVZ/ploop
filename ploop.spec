@@ -45,6 +45,8 @@ Conflicts: vzkernel < 2.6.32-042stab061.1
 Requires: util-linux
 Requires: e2fsprogs
 Requires: e2fsprogs-resize2fs-static
+Requires: lsof
+Requires: findutils
 Conflicts: vzctl < 4.5
 
 %description lib
