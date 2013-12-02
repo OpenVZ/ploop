@@ -845,6 +845,7 @@ out:
 static int do_umount(const char *mnt)
 {
 	int i = 0;
+	int ret = 0;
 
 retry:
 	if (umount(mnt) == 0)
@@ -854,15 +855,16 @@ retry:
 		goto err;
 
 	if (i++ < 6) {
-		if (ploop_get_log_level() >= 3)
-			print_output(3, "lsof", mnt);
+		if (ploop_get_log_level() >= 3 && ret != 127)
+			ret = print_output(3, "lsof", mnt);
 
 		sleep(1);
 		ploop_log(3, "Retrying umount %s", mnt);
 		goto retry;
 	}
 
-	print_output(-1, "lsof", mnt);
+	if (ret != 127)
+		print_output(-1, "lsof", mnt);
 
 err:
 	ploop_err(errno, "Failed to umount %s", mnt);
