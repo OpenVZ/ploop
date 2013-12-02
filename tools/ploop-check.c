@@ -137,6 +137,8 @@ int main(int argc, char ** argv)
 
 			if (!guidcmp(di->images[i]->guid, di->top_guid))
 				delta_ro = ro; /* except for top image */
+			if (!silent)
+				printf("Checking %s\n", di->images[i]->file);
 			ret = ploop_check(di->images[i]->file, flags,
 					delta_ro, raw, !silent, &blocksize);
 			if (ret)
