@@ -796,7 +796,8 @@ static int print_output(int level, const char *cmd, const char *arg)
 	int eno = errno;
 	int i = 0;
 
-	snprintf(command, sizeof(command), DEF_PATH_ENV " %s %s", cmd, arg);
+	snprintf(command, sizeof(command), DEF_PATH_ENV " %s %s 2>&1",
+			cmd, arg);
 	if ((fp = popen(command, "r")) == NULL) {
 		ploop_err(errno, "Can't exec %s", command);
 		goto out;
@@ -818,15 +819,18 @@ static int print_output(int level, const char *cmd, const char *arg)
 		ploop_err(errno, "Error in pclose() for %s", cmd);
 		goto out;
 	} else if (WIFEXITED(i)) {
-		i = WEXITSTATUS(i);
-		if (i == 0) {
-			ploop_log(level, "--- %s finished ---", cmd);
-			ret = 0;
+		ret = WEXITSTATUS(i);
+		switch (ret) {
+			case 0:
+				ploop_log(level, "--- %s finished ---", cmd);
+				break;
+			case 127: /* "command not found" from shell */
+				/* error is printed by shell*/
+				break;
+			default:
+				ploop_err(0, "Command %s exited with "
+						"status %d", cmd, ret);
 		}
-		else
-			ploop_err(0, "Command %s exited with status %d",
-					cmd, i);
-
 	} else if (WIFSIGNALED(i)) {
 		ploop_err(0, "Command %s received signal %d",
 				cmd, WTERMSIG(i));
