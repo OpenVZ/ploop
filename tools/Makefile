@@ -7,8 +7,7 @@ PROGS =	ploop \
 	ploop-grow \
 	ploop-balloon
 
-SCRIPTS = ploop-fsck
-BINS    = $(PROGS) $(SCRIPTS)
+BINS	= $(PROGS)
 
 MAN8	= ploop.8
 MANS	= $(MAN8)

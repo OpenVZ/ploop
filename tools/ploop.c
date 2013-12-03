@@ -1113,6 +1113,11 @@ int main(int argc, char **argv)
 		return plooptool_list(argc, argv);
 	if (strcmp(cmd, "check") == 0)
 		return plooptool_check(argc, argv);
+	if (strcmp(cmd, "fsck") == 0) {
+		fprintf(stderr, "WARNING: ploop fsck command is obsoleted, "
+				"please use ploop check\n");
+		return plooptool_check(argc, argv);
+	}
 
 	if (cmd[0] != '-') {
 		char ** nargs;

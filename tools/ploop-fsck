@@ -1,3 +1,0 @@
-#!/bin/sh
-echo WARNING: name $(basename $0) is obsoleted, please use ploop check 1>&2
-exec $(dirname $0)/ploop check "$@"
