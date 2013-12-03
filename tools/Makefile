@@ -13,7 +13,12 @@ BINS    = $(PROGS) $(SCRIPTS)
 
 MAN8	= ploop.8
 MANS	= $(MAN8)
-OBJS	= $(addsuffix .o,$(PROGS)) common.o ploop-snapshot.o
+
+PLOOP_OBJS = \
+	  common.o \
+	  ploop-snapshot.o
+
+OBJS	= $(addsuffix .o,$(PROGS)) $(PLOOP_OBJS)
 SOURCES	= $(OBJS:.o=.c)
 CFLAGS	+= -I../lib
 LDFLAGS	+= -L../lib
@@ -28,7 +33,7 @@ $(PROGS): $(LIBPLOOP)
 	$(E) "  LD      " $@
 	$(Q) $(CC) $(CFLAGS) $(LDFLAGS) $^ $(LDLIBS) -o $@
 
-ploop: ploop-snapshot.o
+ploop: $(PLOOP_OBJS)
 
 .depend: $(SOURCES)
 -include .depend
