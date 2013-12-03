@@ -146,11 +146,10 @@ Image format. See \fBIMAGE FORMATS\fR below.
 .IP "\fB-v\fR \fIversion\fR"
 Image version, can be \fB1\fR or \fB2\fR. Default is \fB2\fR, if supported
 by the kernel.
-.IP "\fB-t\fR \fIfstype\fR"
-File system type. If this parameter is specified, a partition,
-a filesystem, and a balloon file will be created inside the image.
-Currently supported types are \fBext3\fR and \fBext4\fR.
-Using \fBext3\fR is not recommended.
+.IP "\fB-t\fR \fBnone\fR|\fBext3\fR|\fBext4\fR"
+File system type to create, default is \fBext4\fR. Unless \fBnone\fR
+is specified, a partition, a filesystem, and a balloon file will be
+created inside the image. Using \fBext3\fR is not recommended.
 .IP "\fB-b\fR \fIblocksize\fR"
 Device block size, in 512 byte sectors. Default block size is 2048 sectors,
 or 1 megabyte.

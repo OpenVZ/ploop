@@ -68,7 +68,7 @@ static void usage_init(void)
 "       SIZE        := NUMBER[KMGT]\n"
 "       FORMAT      := " USAGE_FORMATS "\n"
 "       VERSION     := " USAGE_VERSIONS "\n"
-"       FSTYPE      := { ext3 | ext4 } (create a file system)\n"
+"       FSTYPE      := { none | ext3 | ext4 } (create filesystem, default ext4)\n"
 "       BLOCKSIZE   := cluster block size, sectors\n"
 "       FSBLOCKSIZE := file system block size, bytes\n"
 "       DELTA       := path to a new image file\n"
@@ -92,6 +92,7 @@ static int plooptool_init(int argc, char **argv)
 	off_t size_sec = 0;
 	char * endptr;
 	struct ploop_create_param param = {
+		.fstype		= "ext4",
 		.mode		= PLOOP_EXPANDED_MODE,
 		.fmt_version	= PLOOP_FMT_UNDEFINED,
 	};
@@ -127,7 +128,10 @@ static int plooptool_init(int argc, char **argv)
 			param.mode = f;
 			break;
 		case 't':
-			if (!strcmp(optarg, "ext4") || !strcmp(optarg, "ext3")) {
+			if (!strcmp(optarg, "none"))
+				param.fstype = NULL;
+			else if (!strcmp(optarg, "ext4") ||
+					!strcmp(optarg, "ext3")) {
 				param.fstype = strdup(optarg);
 			} else {
 				fprintf(stderr, "Incorrect file system type specified: %s\n",
