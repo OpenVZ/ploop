@@ -28,9 +28,6 @@
 
 #define FMT "/sys/block/%s/pstat"
 
-static int clear;
-static int load;
-
 static void usage(void)
 {
 	fprintf(stderr, "Usage: ploop stat [-c | -l] -d DEVICE\n");
@@ -56,6 +53,8 @@ static DIR * open_sysfs_dir(char * devid)
 int main(int argc, char **argv)
 {
 	int i;
+	int clear = 0;
+	int load = 0;
 	DIR *dp;
 	struct dirent *de;
 	char * device = NULL;
