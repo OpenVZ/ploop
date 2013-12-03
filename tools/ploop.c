@@ -85,10 +85,11 @@ static int plooptool_init(int argc, char **argv)
 	int i, f, ret;
 	off_t size_sec = 0;
 	char * endptr;
-	struct ploop_create_param param = {};
+	struct ploop_create_param param = {
+		.mode		= PLOOP_EXPANDED_MODE,
+		.fmt_version	= PLOOP_FMT_UNDEFINED,
+	};
 
-	param.mode = PLOOP_EXPANDED_MODE;
-	param.fmt_version = PLOOP_FMT_UNDEFINED;
 	while ((i = getopt(argc, argv, "s:b:B:f:t:v:")) != EOF) {
 		switch (i) {
 		case 's':
