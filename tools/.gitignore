@@ -13,5 +13,4 @@ ploop
 ploop-stat
 ploop-merge
 ploop-copy
-ploop-grow
 ploop-balloon

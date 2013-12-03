@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2008-2012, Parallels, Inc. All rights reserved.
+ *  Copyright (C) 2008-2013, Parallels, Inc. All rights reserved.
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -40,8 +40,7 @@ static void usage(void)
 		);
 }
 
-int
-main(int argc, char ** argv)
+int plooptool_grow(int argc, char **argv)
 {
 	int i, f;
 	off_t new_size = 0; /* in sectors */
@@ -81,8 +80,6 @@ main(int argc, char ** argv)
 		usage();
 		return SYSEXIT_PARAM;
 	}
-
-	ploop_set_verbose_level(3);
 
 	if (argc == 1 && is_xml_fname(argv[0]))
 	{
