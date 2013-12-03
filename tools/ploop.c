@@ -42,20 +42,22 @@ extern int plooptool_snapshot_list(int argc, char **argv);
 static void usage_summary(void)
 {
 	fprintf(stderr, "Usage: ploop init -s SIZE [-f FORMAT] NEW_DELTA\n"
-			"       ploop mount [-r] [-m DIR] { BASE_DELTA [ ... TOP_DELTA] | DiskDescriptor.xml}\n"
-			"       ploop umount {-d DEVICE | -m DIR | DELTA | DiskDescriptor.xml}\n"
-			"       ploop { delete | rm } -d DEVICE -l LEVEL\n"
-			"       ploop merge -d DEVICE [-l LEVEL[..TOP_LEVEL]]\n"
-			"       ploop check [-fFcrsdS] [-R -b BLOCKSIZE] DELTA | DiskDescriptor.xml\n"
-			"       ploop getdev\n"
+			"       ploop mount [-r] [-m DIR] DiskDescriptor.xml\n"
+			"       ploop umount { -d DEVICE | -m DIR | DELTA | DiskDescriptor.xml }\n"
+			"       ploop check [-fFcrsdS] [-R -b BLOCKSIZE] { DELTA | DiskDescriptor.xml }\n"
+			"       ploop convert [-f FORMAT] [-v VERSION] DiskDescriptor.xml\n"
 			"       ploop resize -s SIZE DiskDescriptor.xml\n"
-			"       ploop snapshot [-F] -d DEVICE NEW_DELTA\n"
+			"       ploop balloon { show | status | clear | change | complete | check |\n"
+			"                       repair | discard } ... DiskDescriptor.xml\n"
 			"       ploop snapshot DiskDescriptor.xml\n"
 			"       ploop snapshot-delete -u <uuid> DiskDescriptor.xml\n"
 			"       ploop snapshot-merge [-u <uuid>] DiskDescriptor.xml\n"
 			"       ploop snapshot-switch -u <uuid> DiskDescriptor.xml\n"
 			"       ploop snapshot-list [-o field[,field...]] [-u <UUID>] DiskDescriptor.xml\n"
-			"Also:  ploop { stat | start | stop | clear } ...\n"
+			"Also:  ploop { start | stop | delete | clear | merge | grow | copy |\n"
+			"               stat | info | list} ...\n"
+			"\n"
+			"       ploop <command> -- to get detailed syntax for a specific command\n"
 		);
 }
 
