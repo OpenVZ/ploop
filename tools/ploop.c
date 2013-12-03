@@ -42,13 +42,13 @@ extern int plooptool_snapshot_list(int argc, char **argv);
 static void usage_summary(void)
 {
 	fprintf(stderr, "Usage: ploop init -s SIZE [-f FORMAT] NEW_DELTA\n"
-			"       ploop mount [-r] [-f raw] [-d DEVICE] BASE_DELTA [ ... TOP_DELTA]\n"
-			"       ploop umount -d DEVICE\n"
+			"       ploop mount [-r] [-m DIR] { BASE_DELTA [ ... TOP_DELTA] | DiskDescriptor.xml}\n"
+			"       ploop umount {-d DEVICE | -m DIR | DELTA | DiskDescriptor.xml}\n"
 			"       ploop { delete | rm } -d DEVICE -l LEVEL\n"
 			"       ploop merge -d DEVICE [-l LEVEL[..TOP_LEVEL]]\n"
 			"       ploop check [-fFcrsdS] [-R -b BLOCKSIZE] DELTA | DiskDescriptor.xml\n"
 			"       ploop getdev\n"
-			"       ploop resize -s SIZE BASE_DELTA\n"
+			"       ploop resize -s SIZE DiskDescriptor.xml\n"
 			"       ploop snapshot [-F] -d DEVICE NEW_DELTA\n"
 			"       ploop snapshot DiskDescriptor.xml\n"
 			"       ploop snapshot-delete -u <uuid> DiskDescriptor.xml\n"
