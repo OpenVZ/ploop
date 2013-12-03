@@ -799,7 +799,7 @@ static int print_output(int level, const char *cmd, const char *arg)
 	snprintf(command, sizeof(command), DEF_PATH_ENV " %s %s 2>&1",
 			cmd, arg);
 	if ((fp = popen(command, "r")) == NULL) {
-		ploop_err(errno, "Can't exec %s", command);
+		ploop_err(errno, "Can't exec %s %s", cmd, arg);
 		goto out;
 	}
 
