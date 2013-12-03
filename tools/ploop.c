@@ -37,6 +37,7 @@
 extern int plooptool_snapshot_list(int argc, char **argv);
 extern int plooptool_check(int argc, char **argv);
 extern int plooptool_grow(int argc, char **argv);
+extern int plooptool_merge(int argc, char ** argv);
 
 #define USAGE_FORMATS	"{ raw | ploop1 | expanded | preallocated }"
 #define USAGE_VERSIONS	"{ 1 | 2 } (default 2, if supported)"
@@ -1121,6 +1122,8 @@ int main(int argc, char **argv)
 	}
 	if (strcmp(cmd, "grow") == 0)
 		return plooptool_grow(argc, argv);
+	if (strcmp(cmd, "merge") == 0)
+		return plooptool_merge(argc, argv);
 
 	if (cmd[0] != '-') {
 		char ** nargs;

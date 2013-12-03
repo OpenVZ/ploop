@@ -11,6 +11,5 @@ ploop-balloon.o
 ploop-snapshot.o
 ploop
 ploop-stat
-ploop-merge
 ploop-copy
 ploop-balloon

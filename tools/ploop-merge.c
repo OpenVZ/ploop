@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2008-2012, Parallels, Inc. All rights reserved.
+ *  Copyright (C) 2008-2013, Parallels, Inc. All rights reserved.
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -39,7 +39,7 @@ static void usage(void)
 			"       ploop merge [-u <uuid> | -A] DiskDescriptor.xml\n");
 }
 
-int main(int argc, char ** argv)
+int plooptool_merge(int argc, char ** argv)
 {
 	int raw = 0;
 	int start_level = 0;
@@ -90,8 +90,6 @@ int main(int argc, char ** argv)
 
 	argc -= optind;
 	argv += optind;
-
-	ploop_set_verbose_level(3);
 
 	if (argc == 1 && is_xml_fname(argv[0])) {
 		struct ploop_disk_images_data *di;
