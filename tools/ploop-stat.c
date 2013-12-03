@@ -58,6 +58,7 @@ int plooptool_stat(int argc, char **argv)
 	DIR *dp;
 	struct dirent *de;
 	char * device = NULL;
+	int ret = 0;
 
 	while ((i = getopt(argc, argv, "cld:")) != EOF) {
 		switch (i) {
@@ -117,7 +118,7 @@ int plooptool_stat(int argc, char **argv)
 				perror("write");
 			close(fd);
 		}
-		return 0;
+		goto out;
 	}
 
 
@@ -132,7 +133,8 @@ int plooptool_stat(int argc, char **argv)
 		fd = open_sysfs_file(device, de->d_name, clear ? O_WRONLY : O_RDONLY);
 		if (fd < 0) {
 			perror("openat");
-			return SYSEXIT_SYSFS;
+			ret = SYSEXIT_SYSFS;
+			goto out;
 		}
 		if (clear) {
 			if (write(fd, "0\n", 2) <= 0)
@@ -141,12 +143,18 @@ int plooptool_stat(int argc, char **argv)
 			n = read(fd, buf, sizeof(buf)-1);
 			if (n < 0) {
 				perror("read");
-				return SYSEXIT_SYSFS;
+				close(fd);
+				ret = SYSEXIT_SYSFS;
+				goto out;
 			}
 			buf[n] = 0;
 			printf("%-20s\t%s", de->d_name, buf);
 		}
 		close(fd);
 	}
-	return 0;
+
+out:
+	closedir(dp);
+
+	return ret;
 }
