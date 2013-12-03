@@ -136,8 +136,8 @@ static int plooptool_init(int argc, char **argv)
 					!strcmp(optarg, "ext3")) {
 				param.fstype = strdup(optarg);
 			} else {
-				fprintf(stderr, "Incorrect file system type specified: %s\n",
-						optarg);
+				fprintf(stderr, "Incorrect file system type "
+						"specified: %s\n", optarg);
 				return SYSEXIT_PARAM;
 			}
 			break;
