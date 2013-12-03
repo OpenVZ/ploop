@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2008-2012, Parallels, Inc. All rights reserved.
+ *  Copyright (C) 2008-2013, Parallels, Inc. All rights reserved.
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -40,14 +40,12 @@ static void usage(void)
 			);
 }
 
-int main(int argc, char **argv)
+int plooptool_copy(int argc, char **argv)
 {
 	int i, ofd;
 	const char *device = NULL;
 	const char *recv_to = NULL;
 	const char *flush_cmd = NULL;
-
-	ploop_set_verbose_level(3);
 
 	while ((i = getopt(argc, argv, "F:s:d:")) != EOF) {
 		switch (i) {

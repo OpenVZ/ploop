@@ -1,7 +1,6 @@
 include ../Makefile.inc
 
 PROGS =	ploop \
-	ploop-copy \
 	ploop-balloon
 
 BINS	= $(PROGS)
@@ -15,6 +14,7 @@ PLOOP_OBJS = \
 	  ploop-grow.o \
 	  ploop-merge.o \
 	  ploop-stat.o \
+	  ploop-copy.o \
 	  ploop-snapshot.o
 
 OBJS	= $(addsuffix .o,$(PROGS)) $(PLOOP_OBJS)

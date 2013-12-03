@@ -10,5 +10,4 @@ ploop-grow.o
 ploop-balloon.o
 ploop-snapshot.o
 ploop
-ploop-copy
 ploop-balloon
