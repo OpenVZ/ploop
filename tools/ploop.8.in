@@ -280,7 +280,7 @@ Path to the DiskDescriptor.xml file with information about images.
 .P
 .SS3 convert
 .P
-Convert ploop image format or version.
+Convert either ploop image format or version (but not both at the same time).
 
 .SY ploop\ convert
 {
