@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2008-2012, Parallels, Inc. All rights reserved.
+ *  Copyright (C) 2008-2013, Parallels, Inc. All rights reserved.
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -50,7 +50,7 @@ static DIR * open_sysfs_dir(char * devid)
 	return opendir(buf);
 }
 
-int main(int argc, char **argv)
+int plooptool_stat(int argc, char **argv)
 {
 	int i;
 	int clear = 0;
