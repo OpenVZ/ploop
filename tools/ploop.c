@@ -805,7 +805,10 @@ static int plooptool_resize(int argc, char **argv)
 	int i, ret;
 	off_t new_size = 0; /* in sectors */
 	int max_balloon_size = 0; /* make balloon file of max possible size */
-	struct ploop_resize_param param = {.size = 0, .offline_resize = 1};
+	struct ploop_resize_param param = {
+		.size		= 0,
+		.offline_resize	= 1,
+	};
 	struct ploop_disk_images_data *di;
 
 	while ((i = getopt(argc, argv, "s:b")) != EOF) {
