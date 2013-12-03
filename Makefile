@@ -34,3 +34,11 @@ $(TARBALL): clean
 rpms: tar
 	rpmbuild -ta $(TARBALL) ${RPMB_ARGS}
 .PHONY: rpms
+
+cov: clean
+	rm -rf cov-int
+	cov-build --dir cov-int make
+	tar czf cov.tgz cov-int
+	rm -rf cov-int
+	git describe --tags HEAD
+.PHONY: cov
