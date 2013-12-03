@@ -36,6 +36,9 @@
 
 extern int plooptool_snapshot_list(int argc, char **argv);
 
+#define USAGE_FORMATS	"{ raw | ploop1 | expanded | preallocated }"
+#define USAGE_VERSIONS	"{ 1 | 2 } (default 2, if supported)"
+
 static void usage_summary(void)
 {
 	fprintf(stderr, "Usage: ploop init -s SIZE [-f FORMAT] NEW_DELTA\n"
@@ -58,15 +61,18 @@ static void usage_summary(void)
 
 static void usage_init(void)
 {
-	fprintf(stderr, "Usage: ploop init -s SIZE [-f FORMAT] [-v VERSION] [-t FSTYPE] [-b BLOCKSIZE]\n"
-			"		[-B FSBLOCKSIZE] DELTA\n"
-			"       SIZE := NUMBER[KMGT]\n"
-			"       FORMAT := { raw | ploop1 }\n"
-			"       VERSION := { 1 | 2 }\n"
-			"       DELTA := path to new image file\n"
-			"       FSTYPE := make file system\n"
-			"       BLOCKSIZE := cluster block size in sectors\n"
-			"       FSBLOCKSIZE := file system block size in bytes\n");
+	fprintf(stderr,
+"Usage: ploop init -s SIZE [-f FORMAT] [-v VERSION] [-t FSTYPE]\n"
+"                 [-b BLOCKSIZE] [-B FSBLOCKSIZE] DELTA\n"
+"\n"
+"       SIZE        := NUMBER[KMGT]\n"
+"       FORMAT      := " USAGE_FORMATS "\n"
+"       VERSION     := " USAGE_VERSIONS "\n"
+"       FSTYPE      := { ext3 | ext4 } (create a file system)\n"
+"       BLOCKSIZE   := cluster block size, sectors\n"
+"       FSBLOCKSIZE := file system block size, bytes\n"
+"       DELTA       := path to a new image file\n"
+	);
 }
 
 static int parse_version_opt(const char *arg)
