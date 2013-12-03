@@ -30,9 +30,6 @@
 #include "ploop.h"
 #include "common.h"
 
-static int ro;		/* read-only access to image file */
-static int silent;	/* print messages only if errors detected */
-
 static void usage(void)
 {
 	fprintf(stderr, "Usage: ploop check [options] DELTA | DiskDescriptor.xml\n"
@@ -54,6 +51,8 @@ int main(int argc, char ** argv)
 	int i, idx;
 	int flags = 0;
 	int raw = 0;
+	int ro = 0;	/* read-only access to image file */
+	int silent = 0;	/* print messages only if errors detected */
 	unsigned int blocksize = 0;
 	char *endptr;
 	static struct option options[] = {
