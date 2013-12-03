@@ -14,7 +14,7 @@ BINS    = $(PROGS) $(SCRIPTS)
 MAN8	= ploop.8
 MANS	= $(MAN8)
 OBJS	= $(addsuffix .o,$(PROGS)) common.o ploop-snapshot.o
-SOURCES	= $(addsuffix .c,$(PROGS)) common.c ploop-snapshot.c
+SOURCES	= $(OBJS:.o=.c)
 CFLAGS	+= -I../lib
 LDFLAGS	+= -L../lib
 LDLIBS	+= -lploop
