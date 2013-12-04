@@ -455,7 +455,7 @@ static int fill_hole(const char *image, int fd, off_t start, off_t end, int *log
 		ploop_err(0, "%s: ploop image '%s' is sparse.",
 				repair ? "Warning" : "Error", image);
 		if (!repair)
-			return SYSEXIT_BAD_DELTA;
+			return SYSEXIT_PLOOPFMT;
 		*log = 1;
 		ploop_log(0, "Reallocating sparse blocks back.");
 	}
@@ -540,7 +540,7 @@ static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int
 						" (offset=%llu len=%llu)"
 						" which are not aligned to cluster size",
 						image, fm_ext[i].fe_logical, fm_ext[i].fe_length);
-				return SYSEXIT_BAD_DELTA;
+				return SYSEXIT_PLOOPFMT;
 			}
 
 			if (fm_ext[i].fe_flags & ~(FIEMAP_EXTENT_LAST |
@@ -549,7 +549,7 @@ static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int
 									fm_ext[i].fe_flags);
 			if (prev_end != fm_ext[i].fe_logical &&
 					fill_hole(image, fd, prev_end, fm_ext[i].fe_logical, &log, repair))
-				return SYSEXIT_BAD_DELTA;
+				return SYSEXIT_PLOOPFMT;
 
 			prev_end = fm_ext[i].fe_logical + fm_ext[i].fe_length;
 		}
@@ -557,7 +557,7 @@ static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int
 
 	if (prev_end < st.st_size &&
 			fill_hole(image, fd, prev_end, st.st_size, &log, repair))
-		return SYSEXIT_BAD_DELTA;
+		return SYSEXIT_PLOOPFMT;
 
 	return 0;
 }
