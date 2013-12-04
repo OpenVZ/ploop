@@ -145,7 +145,7 @@ Run
 .I command
 to show synopsys and a short description for a particular \fIcommand\fR.
 
-.SS BASIC COMMANDS
+.SS Basic commands
 
 .SS3 init
 
@@ -460,7 +460,7 @@ Display only the specified \fIfield\fRs. Possible fields are:
 .br
 \(bu \fBfname\fR	- snapshot image file name.
 
-.SS ADVANCED COMMANDS
+.SS Advanced commands
 
 .SS3 shapshot
 
