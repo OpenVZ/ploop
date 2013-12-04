@@ -2412,7 +2412,7 @@ static int change_fmt_version(struct delta *d, int new_version)
 
 		off = ploop_ioff_to_sec(d->l2[l2_slot], d->blocksize, d->version);
 		if (new_version == PLOOP_FMT_V1 && check_size(off, d->blocksize, new_version)) {
-			ret = SYSEXIT_PLOOPFMT;
+			ret = SYSEXIT_PARAM;
 			goto err;
 		}
 		d->l2[l2_slot] = ploop_sec_to_ioff(off, d->blocksize, new_version);
