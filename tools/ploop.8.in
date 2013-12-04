@@ -275,8 +275,9 @@ Path to a mounted image file.
 
 .SS3 resize
 
-Resize a ploop image. Online resize is supported, and the tool can
-either grow or shrink the ploop image and the underlying file system.
+Resize a ploop image. Both online (i.e. when ploop is mounted and used)
+and offline resize is supported, and the tool can
+either grow or shrink both the ploop image and the underlying file system.
 
 .SY ploop\ resize
 .B -s
