@@ -426,5 +426,141 @@ Names '\fBploop1\fR' and '\fBexpanded\fR' are aliases.
 This is the same as '\fBploop1\fR' or '\fBexpanded\fR', the only difference is
 all the file blocks are allocated during creation.
 
+.SH EXIT STATUS
+.B ploop
+exits with status 0 in case of successful execution. Any status greater
+than 0 signifies an error.
+.TP
+.BR 1 ,\  SYSEXIT_CREAT
+Error creating a file.
+.TP
+.BR 2 ,\  SYSEXIT_DEVICE
+Error getting or opening a ploop device.
+.TP
+.BR 3 ,\  SYSEXIT_DEVIOC
+Error doing
+.BR ioctl (2)
+on ploop device.
+.TP
+.BR 4 ,\  SYSEXIT_OPEN
+Error opening a file.
+.TP
+.BR 5 ,\  SYSEXIT_MALLOC
+Not enough memory (error from
+.BR malloc (3),
+.BR realloc (3),
+.BR calloc (3),
+or
+.BR posix_memalign (3)).
+.TP
+.BR 6 ,\  SYSEXIT_READ
+Error during read.
+.TP
+.BR 7 ,\  SYSEXIT_WRITE
+Error during write.
+.TP
+.BR 9 ,\  SYSEXIT_SYSFS
+Error reading from a sysfs file (usually under \fB/sys/block/ploop...\fR).
+.TP
+.BR 11 ,\  SYSEXIT_PLOOPFMT
+Corrupted ploop image detected.
+.TP
+.BR 12 ,\  SYSEXIT_SYS
+Other system error.
+.TP
+.BR 13 ,\  SYSEXIT_PROTOCOL
+Broken protocol (unexpected value received).
+.TP
+.BR 14 ,\  SYSEXIT_LOOP
+.B pcopy
+command can't finalize copying (frozen filesystem is changing).
+.TP
+.BR 15 ,\  SYSEXIT_FSTAT
+Error from
+.BR stat (2),
+.BR fstat (2),
+or
+.BR statfs (2).
+.TP
+.BR 16 ,\  SYSEXIT_FSYNC
+Error from
+.BR fsync (2)
+or
+.BR syncfs (2).
+.TP
+.BR 17 ,\  SYSEXIT_EBUSY
+Can't continue, another operation is in progress.
+.TP
+.BR 18 ,\  SYSEXIT_FLOCK
+Error from
+.BR flock (2).
+.TP
+.BR 19 ,\  SYSEXIT_FTRUNCATE
+Error from
+.BR ftruncate (2)
+or
+.BR truncate (2).
+.TP
+.BR 20 ,\  SYSEXIT_FALLOCATE
+Error from
+.BR fallocate (2).
+.TP
+.BR 21 ,\  SYSEXIT_MOUNT
+Can't mount ploop image or file system.
+.TP
+.BR 22 ,\  SYSEXIT_UMOUNT
+Can't unmount ploop image or file system.
+.TP
+.BR 23 ,\  SYSEXIT_LOCK
+Locking failed (another operation in progress?).
+.TP
+.BR 24 ,\  SYSEXIT_MKFS
+Can't create file system.
+.TP
+.BR 26 ,\  SYSEXIT_RESIZE_FS
+Utility
+.B resizefs
+failed.
+.TP
+.BR 27 ,\  SYSEXIT_MKDIR
+Error from
+.BR mkdir (2).
+.TP
+.BR 28 ,\  SYSEXIT_RENAME
+Error from
+.BR rename (2).
+.TP
+.BR 29 ,\  SYSEXIT_ABORT
+Operation aborted.
+.TP
+.BR 30 ,\  SYSEXIT_RELOC
+Block relocation failed.
+.TP
+.BR 33 ,\  SYSEXIT_CHANGE_GPT
+Error resizing GPT partition table.
+.TP
+.BR 35 ,\  SYSEXIT_UNLINK
+Error from
+.BR unlink (2).
+.TP
+.BR 36 ,\  SYSEXIT_MKNOD
+Error from
+.BR mknod (2).
+.TP
+.BR 37 ,\  SYSEXIT_PLOOPINUSE
+Image is already in use.
+.TP
+.BR 38 ,\  SYSEXIT_PARAM
+Invalid parameter.
+.TP
+.BR 39 ,\  SYSEXIT_DISKDESCR
+Problem with DiskDescriptor.xml file.
+.TP
+.BR 40 ,\  SYSEXIT_DEV_NOT_MOUNTED
+Ploop image is not mounted.
+.TP
+.BR 41 ,\  SYSEXIT_FSCK
+Error from
+.BR fsck (8).
 .SH SEE ALSO
 .BR vzctl (8).
