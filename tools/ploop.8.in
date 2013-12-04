@@ -370,6 +370,18 @@ Image cluster block size, in sectors (for raw images).
 .IP "\fB-S\fR, \fB--repair-sparse\fR"
 Repair sparse image(s).
 
+.SS Working with snapshots
+
+Ploop snapshots is a mechanism for creating and managing instant states of a
+running file system. Creating a snapshot leads to creating a new empty ploop
+image which is layered on top of an old one, then all writes are ending up
+in the top image, and reads are falling through to a lower level. There can be
+up to 126) stacked ploop images (or snapshots). Online snapshot merging is
+also supported.
+
+Snapshots are identified by a unique UUID. A snapshot can be mounted using
+\fBploop mount -u \fIUUID\fR command, see above.
+
 .SS3 snapshot
 
 Create a ploop snapshot.
