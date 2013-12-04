@@ -154,7 +154,7 @@ int ploop_get_size(const char * device, off_t * res)
 	}
 	if (ioctl_device(fd, BLKGETSIZE64, res)) {
 		close(fd);
-		return SYSEXIT_BLKDEV;
+		return SYSEXIT_DEVIOC;
 	}
 	*res >>= 9;
 	close(fd);
