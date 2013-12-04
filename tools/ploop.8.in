@@ -10,7 +10,7 @@
 .P
 ..
 .
-.TH ploop 8 "28 June 2013" "OpenVZ" "Containers"
+.TH ploop 8 "4 December 2013" "OpenVZ" "Containers"
 .SH NAME
 ploop \- ploop device management utility
 .SH SYNOPSYS
@@ -75,6 +75,20 @@ ploop \- ploop device management utility
 .I version
 }
 .I DiskDescriptor.xml
+.YS
+.SY ploop\ check
+.OP --force
+.OP --hard-force
+.OP --check
+.OP --ro
+.OP --silent
+.OP --drop-inuse
+.OP --raw
+.OP --blocksize \fIsize\fR
+.OP --repair-sparse
+.I DiskDescriptor.xml
+|
+.I image_file
 .YS
 .SY ploop\ snapshot
 .OP -u uuid
@@ -311,6 +325,50 @@ Conversion can only be performed offline (i.e. image should not be in use).
 Image format. See \fBIMAGE FORMATS\fR below.
 .IP "\fB-v\fR \fIversion\fR"
 Image version, can be \fB1\fR or \fB2\fR.
+
+.SS3 check
+
+Check the internal consistency of (and possibly repair) a ploop image
+(or images). Note that image(s) to be tested should not be in use.
+If
+.I DiskDescriptor.xml
+is supplied, all the images one by one are checked.
+
+.SY ploop\ check
+.OP --force
+.OP --hard-force
+.OP --check
+.OP --ro
+.OP --silent
+.OP --drop-inuse
+.OP --raw
+.OP --blocksize \fIsize\fR
+.OP --repair-sparse
+.I DiskDescriptor.xml
+|
+.I image_file
+.YS
+
+.IP "\fB-f\fR, \fB--force\fR"
+Force check even if image's dirty flag is not set.
+.IP "\fB-F\fR, \fB--hard-force\fR"
+Same as \fB-f\fR, plus try to fix even fatal errors (can be dangerous).
+.IP "\fB-c\fR, \fB--check\fR"
+Check for duplicated blocks and holes.
+.IP "\fB-r\fR, \fB--ro\fR"
+Read-only access, do not modify image(s).
+.IP "\fB-s\fR, \fB--silent\fR"
+Be more silent, only report errors.
+.IP "\fB-d\fR, \fB--drop-inuse\fR"
+Drop image "in use" flag.
+.IP "\fB-R\fR, \fB--raw\fR"
+Specifies that
+.I image_file
+is a raw ploop image.
+.IP "\fB-b\fR, \fB--blocksize\fR \fIsize\fR"
+Image cluster block size, in sectors (for raw images).
+.IP "\fB-S\fR, \fB--repair-sparse\fR"
+Repair sparse image(s).
 
 .SS3 snapshot
 
