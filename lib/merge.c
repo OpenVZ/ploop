@@ -340,8 +340,7 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 		names = images;
 	}
 
-	if (init_delta_array(&da))
-		return SYSEXIT_MALLOC;
+	init_delta_array(&da);
 
 	for (i = 0; i < last_delta; i++) {
 		// FIXME: add check for blocksize

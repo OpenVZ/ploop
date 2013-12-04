@@ -27,14 +27,13 @@
 
 #include "ploop.h"
 
-int init_delta_array(struct delta_array * p)
+void init_delta_array(struct delta_array * p)
 {
 	p->delta_max = 0;
 	p->delta_arr = NULL;
 	p->data_cache_cluster = -1;
 	p->raw_fd = -1;
 	p->bd_size = 0;
-	return 0;
 }
 
 void deinit_delta_array(struct delta_array * p)

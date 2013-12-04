@@ -236,7 +236,7 @@ int get_dev_by_name(const char *name, dev_t *dev);
 int get_dev_start(const char *path, __u32 *start);
 int ploop_get_top_level(int devfd, const char *devname, int *top);
 
-int init_delta_array(struct delta_array *);
+void init_delta_array(struct delta_array *);
 void deinit_delta_array(struct delta_array * p);
 int extend_delta_array(struct delta_array * p, char * path, int rw, int od_flags);
 void close_delta(struct delta *delta);
