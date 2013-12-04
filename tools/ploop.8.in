@@ -411,7 +411,7 @@ Ploop device, e.g., \fB/dev/ploop0\fR.
 Path to a file to write a new snapshot to. If this file already exists,
 \fBploop snapshot\fR will exit with an error.
 
-.SH IMAGE FORMATS
+.SS IMAGE FORMATS
 The following image formats are currently supported.
 .TP
 .B raw
