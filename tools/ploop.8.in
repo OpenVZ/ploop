@@ -3,9 +3,10 @@
 .sp \\n[PD]u
 .ft \\*[HF]
 .ps \\n[PS-SS]u
-.in \\n[IN]u
+.in \\n[SN]u
 .ne (2v + 1u)
 .if \\n[.$] \&\\$*
+.P
 ..
 .
 .TH ploop 8 "28 June 2013" "OpenVZ" "Containers"
@@ -121,9 +122,9 @@ to use the form with DiskDescriptor.xml.
 .SH OPTIONS
 
 .SS BASIC COMMANDS
-.P
+
 .SS3 init
-.P
+
 Create and initalize a ploop image file and a corresponding
 .B DiskDescriptor.xml
 file.
@@ -159,9 +160,9 @@ or 1 megabyte.
 Filesystem block size, in bytes. Default is 4096 bytes.
 .IP \fIdelta_file\fR
 Path to a non-existent image file to be created.
-.P
+
 .SS3 mount
-.P
+
 Assemble a ploop device from one or more delta images, start it,
 and optionally mount the file system residing on the device.
 
@@ -232,9 +233,9 @@ delta and the last one being the top delta (i.e. the one that
 will be writable unless \fB-r\fR is specified).
 .IP "\fIDiskDescriptor.xml\fR"
 Path to the DiskDescriptor.xml file with information about images.
-.P
+
 .SS3 umount
-.P
+
 Unmount a ploop device. Since a mounted ploop device consists of
 an image (or multiple images), a device, and a file system mounted to a
 directory, one can refer to any of the above entities to
@@ -261,9 +262,9 @@ Mount point of a ploop device to unmount.
 Path to the DiskDescriptor.xml file with information about images.
 .IP \fIimage_file\fR
 Path to a mounted image file.
-.P
+
 .SS3 resize
-.P
+
 Resize a ploop image. Online resize is supported, and the tool can
 either grow or shrink the ploop image and the underlying file system.
 
@@ -279,9 +280,9 @@ Image size. If no suffix is specified, \fIsize\fR is in sector units
 \fBG\fR or \fBT\fR suffix to set the size in kilo-, mega-, giga- or terabytes.
 .IP \fIDiskDescriptor.xml\fR
 Path to the DiskDescriptor.xml file with information about images.
-.P
+
 .SS3 convert
-.P
+
 Convert either ploop image format or version (but not both at the same time).
 
 .SY ploop\ convert
@@ -299,9 +300,9 @@ Image format. See \fBIMAGE FORMATS\fR below.
 .IP "\fB-v\fR \fIversion\fR"
 Image version, can be \fB1\fR or \fB2\fR. Only offline image version
 conversion is supported.
-.P
+
 .SS3 snapshot
-.P
+
 Create a ploop snapshot.
 
 .SY ploop\ snapshot
@@ -314,9 +315,9 @@ Specify a \fIuuid\fR for a new snapshot. If option is not given,
 uuid is generated automatically. To generate uuid manually, one can use
 the \fBuuidgen\fR(1) utility. Note that UUID must be enclosed in
 curly brackets.
-.P
+
 .SS3 snapshot-merge
-.P
+
 Merge a snapshot with its parent.
 
 .SY ploop\ snapshot-merge
@@ -330,9 +331,9 @@ If this option is not specified, the top delta will be used.
 .IP \fB-A\fR
 Merge all snapshots down to base delta. If some snapshots have more than
 a single child, they will be impossible to merge.
-.P
+
 .SS3 snapshot-switch
-.P
+
 Switch to the specified snapshot. This operation can only be performed while
 ploop is not running (i.e. is unmounted). The current top delta image will be
 removed.
@@ -345,9 +346,9 @@ removed.
 
 .IP "\fB-u\fR \fIuuid\fR"
 Specify a snapshot \fIuuid\fR to switch to.
-.P
+
 .SS3 snapshot-delete
-.P
+
 Delete the specifed snapshot. This operation can only be performed if the
 specified snapshot is not active. In case snapshot doesn't have any
 children, it will simply be removed. In case snapshot has a single child,
@@ -363,9 +364,9 @@ fashion).
 
 .IP "\fB-u\fR \fIuuid\fR"
 Specify a snapshot \fIuuid\fR to be deleted.
-.P
+
 .SS3 snapshot-list
-.P
+
 List available snapshots.
 
 .SY ploop\ snapshot-list
@@ -391,9 +392,9 @@ Display only the specified \fIfield\fRs. Possible fields are:
 \(bu \fBfname\fR	- snapshot image file name.
 
 .SS ADVANCED COMMANDS
-.P
+
 .SS3 shapshot
-.P
+
 .SY ploop\ snapshot
 .OP -F
 .OP -d device
