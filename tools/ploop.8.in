@@ -122,6 +122,15 @@ to use the form with DiskDescriptor.xml.
 
 .SH OPTIONS
 
+Run
+.B ploop
+without any options to show a short synopsys, including a list of commands.
+
+Run
+.B ploop
+.I command
+to show synopsys and a short description for a particular \fIcommand\fR.
+
 .SS BASIC COMMANDS
 
 .SS3 init
