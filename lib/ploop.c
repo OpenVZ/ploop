@@ -1606,7 +1606,7 @@ static int get_image_param_online(const char *device, off_t *size,
 		__u32 *blocksize, int *version)
 {
 	if (ploop_get_attr(device, "block_size",  (int *)blocksize))
-		return SYSEXIT_SYS;
+		return SYSEXIT_SYSFS;
 
 	*version = PLOOP_FMT_V1;
 	if (ploop_is_large_disk_supported() &&
@@ -1698,11 +1698,11 @@ int ploop_grow_device(const char *device, off_t new_size)
 		return ret;
 
 	if (ploop_get_attr(device, "block_size", (int*) &blocksize))
-		return SYSEXIT_SYS;
+		return SYSEXIT_SYSFS;
 
 	if (ploop_is_large_disk_supported() &&
 			ploop_get_attr(device, "fmt_version", &version))
-		return SYSEXIT_SYS;
+		return SYSEXIT_SYSFS;
 
 	if (new_size == size)
 		return 0;
