@@ -290,7 +290,7 @@ int ploop_check(char *img, int flags, int ro, int raw, int verbose, __u32 *block
 	if (vh->m_DiskInUse && (vh->m_Flags & CIF_FmtVersionConvert)) {
 		ploop_err(0, "Image %s is in the changing version state",
 				img);
-		ret = SYSEXIT_PLOOPFMT;
+		ret = SYSEXIT_EBUSY;
 		goto done;
 	}
 
@@ -422,7 +422,7 @@ int ploop_check(char *img, int flags, int ro, int raw, int verbose, __u32 *block
 	/* header needs fix but we can't */
 	if (ro) {
 		ploop_err(0, "Image is clean but unable to fix the header on ro image");
-		ret = SYSEXIT_PLOOPFMT;
+		ret = SYSEXIT_WRITE;
 		goto done;
 	}
 
