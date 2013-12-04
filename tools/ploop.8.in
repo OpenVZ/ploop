@@ -1,5 +1,6 @@
 .
 .de SS3
+.vs 2v
 .sp \\n[PD]u
 .ft \\*[HF]
 .ps \\n[PS-SS]u
