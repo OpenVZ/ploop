@@ -118,6 +118,8 @@ snapshot information, etc. If a particular command can be used both
 with and without the DiskDescriptor.xml argument, it is strongly advised
 to use the form with DiskDescriptor.xml.
 
+.SH OPTIONS
+
 .SS BASIC COMMANDS
 .P
 .SS3 init
