@@ -472,27 +472,6 @@ Display only the specified \fIfield\fRs. Possible fields are:
 .br
 \(bu \fBfname\fR	- snapshot image file name.
 
-.SS Advanced commands
-
-.SS3 shapshot
-
-.SY ploop\ snapshot
-.OP -F
-.OP -d device
-.I image_file
-.YS
-
-.IP \fB-F\fR
-Freeze filesystem before making a snapshot. If the option is not given,
-the file system will not be frozen and snapshot will have an inconsistent file
-system. If you need a quick snapshot, do not use this option. Journal will be
-replayed when you mount the snapshot.
-.IP "\fB-d\fR \fIdevice\fR"
-Ploop device, e.g., \fB/dev/ploop0\fR.
-.IP \fIimage_file\fR
-Path to a file to write a new snapshot to. If this file already exists,
-\fBploop snapshot\fR will exit with an error.
-
 .SS IMAGE FORMATS
 The following image formats are currently supported.
 .TP
