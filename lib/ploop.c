@@ -582,7 +582,7 @@ static int create_image(struct ploop_disk_images_data *di,
 	}
 
 	if (ploop_di_add_image(di, fname, TOPDELTA_UUID, NONE_UUID)) {
-		ret = SYSEXIT_NOMEM;
+		ret = SYSEXIT_MALLOC;
 		goto err;
 	}
 
@@ -726,7 +726,7 @@ int ploop_create_image(struct ploop_create_param *param)
 
 	di = alloc_diskdescriptor();
 	if (di == NULL)
-		return SYSEXIT_NOMEM;
+		return SYSEXIT_MALLOC;
 	di->blocksize = blocksize;
 	ret = create_image(di, param->image, di->blocksize,
 			round_bdsize(param->size, di->blocksize, version),
@@ -1461,7 +1461,7 @@ static int mount_image(struct ploop_disk_images_data *di, struct ploop_mount_par
 
 	images = make_images_list(di, guid, 0);
 	if (images == NULL)
-		return SYSEXIT_NOMEM;
+		return SYSEXIT_MALLOC;
 
 	ret = ploop_mount(di, images, param, (di->mode == PLOOP_RAW_MODE));
 

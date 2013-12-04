@@ -55,7 +55,7 @@ int extend_delta_array(struct delta_array * p, char * path, int rw, int od_flags
 	da = realloc(p->delta_arr, (p->delta_max + 1)*sizeof(struct delta));
 	if (da == NULL) {
 		ploop_err(errno, "realloc");
-		return SYSEXIT_NOMEM;
+		return SYSEXIT_MALLOC;
 	}
 	p->delta_arr = da;
 
@@ -661,7 +661,7 @@ int ploop_grow_delta_offline(const char *image, off_t new_size)
 	}
 
 	if (p_memalign(&buf, 4096, S2B(delta.blocksize))) {
-		ret = SYSEXIT_NOMEM;
+		ret = SYSEXIT_MALLOC;
 		goto out;
 	}
 

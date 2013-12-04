@@ -55,14 +55,14 @@ int ploop_add_image_entry(struct ploop_disk_images_data *di, const char *fname, 
 	image = calloc(1, sizeof(struct ploop_image_data));
 	if (image == NULL) {
 		ploop_err(0, "calloc failed");
-		return SYSEXIT_NOMEM;
+		return SYSEXIT_MALLOC;
 	}
 
 	tmp = realloc(di->images, sizeof(struct ploop_image_data *) * (di->nimages+1));
 	if (tmp == NULL) {
 		ploop_err(0, "realloc failed");
 		free(image);
-		return SYSEXIT_NOMEM;
+		return SYSEXIT_MALLOC;
 	}
 	di->images = tmp;
 	image->guid = strdup(guid);
@@ -71,7 +71,7 @@ int ploop_add_image_entry(struct ploop_disk_images_data *di, const char *fname, 
 	if (image->guid == NULL || image->file == NULL) {
 		ploop_err(ENOMEM, "strdup failed");
 		free_image_data(image);
-		return SYSEXIT_NOMEM;
+		return SYSEXIT_MALLOC;
 	}
 
 	di->images[di->nimages] = image;
@@ -109,14 +109,14 @@ int ploop_add_snapshot_entry(struct ploop_disk_images_data *di, const char *guid
 	data = calloc(1, sizeof(struct ploop_snapshot_data));
 	if (data == NULL) {
 		ploop_err(ENOMEM, "calloc failed");
-		return SYSEXIT_NOMEM;
+		return SYSEXIT_MALLOC;
 	}
 
 	tmp = realloc(di->snapshots, sizeof(struct ploop_snapshot_data *) * (di->nsnapshots+1));
 	if (tmp == NULL) {
 		ploop_err(ENOMEM, "realloc failed");
 		free(data);
-		return SYSEXIT_NOMEM;
+		return SYSEXIT_MALLOC;
 	}
 	di->snapshots = tmp;
 	data->guid = strdup(guid);
@@ -125,7 +125,7 @@ int ploop_add_snapshot_entry(struct ploop_disk_images_data *di, const char *guid
 	if (data->guid == NULL || data->parent_guid == NULL) {
 		ploop_err(ENOMEM, "strdup failed");
 		free_snapshot_data(data);
-		return SYSEXIT_NOMEM;
+		return SYSEXIT_MALLOC;
 	}
 
 	di->snapshots[di->nsnapshots] = data;
@@ -142,7 +142,7 @@ int ploop_di_add_image(struct ploop_disk_images_data *di, const char *fname,
 
 	top_guid = strdup(guid);
 	if (top_guid == NULL)
-		return SYSEXIT_NOMEM;
+		return SYSEXIT_MALLOC;
 
 	ret = ploop_add_image_entry(di, fname, guid);
 	if (ret) {
@@ -341,7 +341,7 @@ int ploop_di_remove_image(struct ploop_disk_images_data *di, const char *guid,
 	if (fname != NULL) {
 		*fname = strdup(image->file);
 		if (*fname == NULL)
-			return SYSEXIT_NOMEM;
+			return SYSEXIT_MALLOC;
 	}
 
 	ploop_log(3, "del snapshot %s", guid);
@@ -396,7 +396,7 @@ int ploop_di_merge_image(struct ploop_disk_images_data *di, const char *guid, ch
 	if (fname != NULL) {
 		*fname = strdup(image->file);
 		if (*fname == NULL)
-			return SYSEXIT_NOMEM;
+			return SYSEXIT_MALLOC;
 	}
 
 	ploop_log(3, "merge snapshot %s -> %s",

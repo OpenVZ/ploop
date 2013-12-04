@@ -192,7 +192,7 @@ int ploop_set_component_name(struct ploop_disk_images_data *di,
 	free(di->runtime->component_name);
 	di->runtime->component_name = strdup(component_name);
 	if (di->runtime->component_name == NULL)
-		return SYSEXIT_NOMEM;
+		return SYSEXIT_MALLOC;
 	return 0;
 }
 

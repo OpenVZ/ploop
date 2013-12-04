@@ -272,7 +272,7 @@ int ploop_check(char *img, int flags, int ro, int raw, int verbose, __u32 *block
 		*blocksize_p = vh->m_Sectors;
 	cluster = S2B(vh->m_Sectors);
 	if (p_memalign(&buf, 4096, cluster)) {
-		ret = SYSEXIT_NOMEM;
+		ret = SYSEXIT_MALLOC;
 		goto done;
 	}
 	l2_ptr = (__u32*)buf;

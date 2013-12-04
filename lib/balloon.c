@@ -507,7 +507,7 @@ static int ploop_balloon_relocation(int fd, struct ploop_balloon_ctl *b_ctl, con
 	rangemap = freemap_alloc(128);
 	relocmap = relocmap_alloc(128);
 	if (freemap == NULL || rangemap == NULL || relocmap == NULL) {
-		ret = SYSEXIT_NOMEM;
+		ret = SYSEXIT_MALLOC;
 		goto err;
 	}
 

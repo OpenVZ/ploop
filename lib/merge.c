@@ -341,7 +341,7 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 	}
 
 	if (init_delta_array(&da))
-		return SYSEXIT_NOMEM;
+		return SYSEXIT_MALLOC;
 
 	for (i = 0; i < last_delta; i++) {
 		// FIXME: add check for blocksize
@@ -392,7 +392,7 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 		}
 	}
 	if (p_memalign(&data_cache, 4096, cluster)) {
-		ret = SYSEXIT_NOMEM;
+		ret = SYSEXIT_MALLOC;
 		goto merge_done2;
 	}
 
@@ -735,12 +735,12 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 
 	names[0] = strdup(child_fname);
 	if (names[0] == NULL) {
-		ret = SYSEXIT_NOMEM;
+		ret = SYSEXIT_MALLOC;
 		goto err;
 	}
 	names[1] = strdup(parent_fname);
 	if (names[1] == NULL) {
-		ret = SYSEXIT_NOMEM;
+		ret = SYSEXIT_MALLOC;
 		goto err;
 	}
 	names[2] = NULL;
