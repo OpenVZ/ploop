@@ -169,7 +169,7 @@ Image size. If no suffix is specified, the \fIsize\fR is in sector units
 (one sector is 512 bytes). One can specify optional \fBK\fR, \fBM\fR,
 \fBG\fR or \fBT\fR suffix to set the size in kilo-, mega-, giga- or terabytes.
 .IP "\fB-f\fR \fIformat\fR"
-Image format. See \fBIMAGE FORMATS\fR below.
+Image format. See \fBImage formats\fR below.
 .IP "\fB-v\fR \fIversion\fR"
 Image version, can be \fB1\fR or \fB2\fR. Default is \fB2\fR, if supported
 by the kernel.
@@ -322,7 +322,7 @@ Conversion can only be performed offline (i.e. image should not be in use).
 .I DiskDescriptor.xml
 .YS
 .IP "\fB-f\fR \fIformat\fR"
-Image format. See \fBIMAGE FORMATS\fR below.
+Image format. See \fBImage formats\fR below.
 .IP "\fB-v\fR \fIversion\fR"
 Image version, can be \fB1\fR or \fB2\fR.
 
@@ -472,7 +472,7 @@ Display only the specified \fIfield\fRs. Possible fields are:
 .br
 \(bu \fBfname\fR	- snapshot image file name.
 
-.SS IMAGE FORMATS
+.SS Image formats
 The following image formats are currently supported.
 .TP
 .B raw
