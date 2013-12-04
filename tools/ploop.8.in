@@ -247,8 +247,8 @@ Path to the DiskDescriptor.xml file with information about images.
 .SS3 umount
 
 Unmount a ploop device. Since a mounted ploop device consists of
-an image (or multiple images), a device, and a file system mounted to a
-directory, one can refer to any of the above entities to
+an image (or multiple images), a device, and (optionally) a file system
+mounted to a directory, one can refer to any of the above entities to
 specify what to unmount. The recommended way is to use DiskDescriptor.xml.
 
 .SY ploop\ umount
