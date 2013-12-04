@@ -98,7 +98,7 @@ int make_fs(const char *device, const char *fstype, unsigned int fsblocksize)
 {
 	char part_device[64];
 	char fsblock_size[14];
-	char *argv[8];
+	char *argv[9];
 	char ext_opts[1024];
 	__u64 max_online_resize;
 
@@ -123,8 +123,12 @@ int make_fs(const char *device, const char *fstype, unsigned int fsblocksize)
 	snprintf(ext_opts, sizeof(ext_opts), "-Elazy_itable_init,resize=%llu",
 			 max_online_resize);
 	argv[5] = ext_opts;
-	argv[6] = part_device;
-	argv[7] = NULL;
+	/* Set the journal size to 128M to allow online resize up to 16T
+	 * independly on the initial image size
+	*/
+	argv[6] = "-Jsize=128";
+	argv[7] = part_device;
+	argv[8] = NULL;
 
 	if (run_prg(argv))
 		return SYSEXIT_MKFS;
