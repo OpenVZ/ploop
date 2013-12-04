@@ -222,7 +222,7 @@ Device block size, in 512 byte sectors.
 Ignored if DiskDescriptor.xml is specified. Otherwise,
 required for raw images.
 .IP "\fB-d\fR \fIdevice\fR"
-Ploop device to use, e.g.i, \fB/dev/ploop0\fR. If not specified,
+Ploop device to use, e.g. \fB/dev/ploop0\fR. If not specified,
 a randomly numbered ploop device will be used.
 .IP "\fB-m \fImount_point\fR
 If this option is specified, ploop goes on to mount the file system to
