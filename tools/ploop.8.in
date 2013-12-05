@@ -778,4 +778,6 @@ Ploop image is not mounted.
 Error from
 .BR fsck (8).
 .SH SEE ALSO
-.BR vzctl (8).
+.BR vzctl (8),
+.BR vzmigrate (8),
+.BR http://openvz.org/Ploop .
