@@ -114,6 +114,12 @@ ploop \- ploop device management utility
 .OP -o field\fR[,\fIfield\fR...]
 .I DiskDescriptor.xml
 .YS
+.SY ploop\ balloon\ discard
+.OP --automount
+.OP --to-free size
+.OP --min-block min_size
+.I DiskDescriptor.xml
+.YS
 
 .SH DESCRIPTION
 
@@ -471,6 +477,66 @@ Display only the specified \fIfield\fRs. Possible fields are:
 \(bu \fBcurrent\fR	- if this snapshot is the current one;
 .br
 \(bu \fBfname\fR	- snapshot image file name.
+
+.SS Ballooning
+
+Since there is no online shrink support in \fBext4\fR file system, ploop
+internally uses a technique called "ballooning" as a work around to shrink
+its images.
+
+Ballooning operation consists of inflating a special balloon file
+(invisible for ordinary users), loading fiemap info of the inflated
+balloon to the kernel, relocating blocks of the image file
+from the tail to the space specified by fiemap info, and truncating
+the tail of the image file. Result is the image file of a smaller size.
+
+However, it is quite possible that inflated balloon file will only span
+blocks that were never touched before. Those will look like "not allocated"
+space from the kernel ploop point of view. In this case nothing will be
+relocated and nothing truncated.
+
+So, if balloon operation succeeded, it's only guaranteed that a user
+of ploop device won't be able to consume more space than the initial
+block device size minus the size of the inflated balloon.
+On the other hand, if a user of block device used a lot of space on it,
+then freed the significant part of used space, balloon operation
+will result in significant truncate of image file.
+
+All the ploop ballooning logic is hidden from the end user, so while
+a number of low-level commands exist for working with ploop ballooning,
+those are not needed and therefore are not documented here, except for
+a single command.
+
+.SS3 balloon discard
+
+In a situation when a lot of disk space were freed on an in-ploop
+filesystem, use \fBploop balloon discard\fR to optimize the ploop
+image size.
+
+.SY ploop\ balloon\ discard
+.OP --automount
+.OP --to-free size
+.OP --min-block min_size
+.I DiskDescriptor.xml
+.YS
+
+Iteratively try to relocate and discard unused blocks from a ploop image,
+reducing its size.
+
+Note that ploop device and its inner file system should be mounted.
+If not, one can use
+.B --automount
+option to automatically mount ploop for the duration of the operation.
+
+Option \fB--to-free\fR can be used to specify a maximum disk space to
+be freed. In other words, stop the process once freed space exceeded
+requested \fIsize\fR. Default is 0, meaning to try to free as much
+space as possible.
+
+Option \fB--min-block\fR can be used to specify a minimum size of
+an extent to free. The smallest possible extent is 1 cluster
+(currently 1 MB), one can specify higher value to speed up the
+whole discarding operation.
 
 .SS Image formats
 The following image formats are currently supported.
