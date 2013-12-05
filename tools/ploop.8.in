@@ -90,6 +90,13 @@ ploop \- ploop device management utility
 |
 .I image_file
 .YS
+.SY ploop\ info
+.OP -s
+.I DiskDescriptor.xml
+.YS
+.SY ploop\ list
+.OP -a
+.YS
 .SY ploop\ snapshot
 .OP -u uuid
 .I DiskDescriptor.xml
@@ -375,6 +382,38 @@ is a raw ploop image.
 Image cluster block size, in sectors (for raw images).
 .IP "\fB-S\fR, \fB--repair-sparse\fR"
 Repair sparse image(s).
+
+.SS Miscellaneous commands
+
+.SS3 info
+
+.SY ploop\ info
+.I DiskDescriptor.xml
+.YS
+Show information about disk space and inodes usage and limits on the
+inner ploop filesystem, somewhat similar to
+.BR vzquota (8)
+.B stat
+or
+.B show
+commands.
+
+.SY ploop\ info
+.B -s
+.I DiskDescriptor.xml
+.YS
+Show information about ploop device size, block size, and format version.
+
+.SS3 list
+
+.SY ploop\ list
+.OP -a
+.YS
+
+Shows a list of running ploop devices (first column) and
+their corresponding base images. With option
+.B -a
+it also shows a mount point (third column).
 
 .SS Working with snapshots
 
