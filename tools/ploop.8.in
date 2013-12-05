@@ -121,6 +121,16 @@ ploop \- ploop device management utility
 .OP -o field\fR[,\fIfield\fR...]
 .I DiskDescriptor.xml
 .YS
+.SY ploop\ copy
+.B -s
+.I device
+.OP -F stop_command
+.OP -d file
+.YS
+.SY ploop\ copy
+.B -d
+.I file
+.YS
 .SY ploop\ balloon\ discard
 .OP --automount
 .OP --to-free size
@@ -516,6 +526,45 @@ Display only the specified \fIfield\fRs. Possible fields are:
 \(bu \fBcurrent\fR	- if this snapshot is the current one;
 .br
 \(bu \fBfname\fR	- snapshot image file name.
+
+.SS Image copying
+
+\fBploop copy\fR is a mechanism of effective copying of a top ploop image
+with the help of build-in ploop kernel driver feature called write tracker.
+Write tracker is a feature that lets \fBploop copy\fR to iteratively
+obtain a list of modified image blocks from the kernel. Two \fBploop copy\fR
+processes are required for iterative top delta transfer. These are used by
+.BR vzmigrate(8).
+
+.SS3 copy (sending)
+
+.SY ploop\ copy
+.B -s
+.I device
+.OP -F stop_command
+.OP -d file
+.YS
+
+This command enables the in-kernel write tracker for the specified ploop
+.IR device,
+then sends all the data blocks from the top delta image to stdout
+(supposedly read by destination \fBploop copy\fR) or a \fIfile\fR.
+After that, it iteratively gets the list of the modified data blocks
+from the kernel and sends those blocks again. After a number of iterations
+(or when the list is empty), it executes the \fIstop_command\fR
+(this could be \fBvzctl stop\fR or \fBvzctl chkpnt\fR) and does the last
+iteration of sending the modified data blocks. Finally, it checks that the
+data were not modified, error is returned otherwise.
+
+.SS3 copy (receiving)
+
+.SY ploop\ copy
+.B -d
+.I file
+.YS
+
+Reads the data block (provided by the source \fBploop copy\fR)
+from the \fBstdin\fR and writes them to the \fIfile\fR.
 
 .SS Ballooning
 
