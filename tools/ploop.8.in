@@ -626,6 +626,9 @@ an extent to free. The smallest possible extent is 1 cluster
 (currently 1 MB), one can specify higher value to speed up the
 whole discarding operation.
 
+Note that the same functionality is available by means of \fBvzctl compact\fR
+command.
+
 .SS Image formats
 The following image formats are currently supported.
 .TP
