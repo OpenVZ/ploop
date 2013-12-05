@@ -95,7 +95,7 @@ ploop \- ploop device management utility
 .I DiskDescriptor.xml
 .YS
 .SY ploop\ snapshot-merge
-.OP -u uuid\fR | \fB-A
+.OP -u uuid\fR\ |\ \fB-A
 .I DiskDescriptor.xml
 .YS
 .SY ploop\ snapshot-switch
@@ -408,7 +408,7 @@ curly brackets.
 Merge a snapshot with its parent.
 
 .SY ploop\ snapshot-merge
-.OP -u uuid\fR | \fB-A
+.OP -u uuid\fR\ |\ \fB-A
 .I DiskDescriptor.xml
 .YS
 
