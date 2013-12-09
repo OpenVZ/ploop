@@ -540,7 +540,10 @@ static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int
 						" (offset=%llu len=%llu)"
 						" which are not aligned to cluster size",
 						image, fm_ext[i].fe_logical, fm_ext[i].fe_length);
-				return SYSEXIT_PLOOPFMT;
+
+				if (fill_hole(image, fd, fm_ext[i].fe_logical,
+						fm_ext[i].fe_logical + fm_ext[i].fe_length, &log, repair))
+					return SYSEXIT_PLOOPFMT;
 			}
 
 			if (fm_ext[i].fe_flags & ~(FIEMAP_EXTENT_LAST |
