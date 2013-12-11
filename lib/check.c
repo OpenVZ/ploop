@@ -501,7 +501,7 @@ static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int
 
 	ret = fstatfs(fd, &sfs);
 	if (ret < 0) {
-		ploop_err(errno, "Unable to statfs the delta file %s", image);
+		ploop_err(errno, "Unable to statfs delta file %s", image);
 		return SYSEXIT_FSTAT;
 	}
 
@@ -510,7 +510,7 @@ static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int
 
 	ret = fstat(fd, &st);
 	if (ret < 0) {
-		ploop_err(errno, "Unalble to stat the delta file %s", image);
+		ploop_err(errno, "Unable to stat delta file %s", image);
 		return SYSEXIT_FSTAT;
 	}
 
@@ -548,7 +548,7 @@ static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int
 
 			if (fm_ext[i].fe_flags & ~(FIEMAP_EXTENT_LAST |
 						   FIEMAP_EXTENT_UNWRITTEN))
-				ploop_log(1, "Warning: the extent with unexpected flags 0x%x",
+				ploop_log(1, "Warning: extent with unexpected flags 0x%x",
 									fm_ext[i].fe_flags);
 			if (prev_end != fm_ext[i].fe_logical &&
 					fill_hole(image, fd, prev_end, fm_ext[i].fe_logical, &log, repair))
