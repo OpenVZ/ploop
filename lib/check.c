@@ -536,7 +536,7 @@ static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int
 			if ((fm_ext[i].fe_flags & FIEMAP_EXTENT_UNWRITTEN) &&
 			    (fm_ext[i].fe_logical % cluster ||
 					fm_ext[i].fe_length % cluster)) {
-				ploop_err(0, "Delta files %s contains uninitialized blocks"
+				ploop_err(0, "Delta file %s contains uninitialized blocks"
 						" (offset=%llu len=%llu)"
 						" which are not aligned to cluster size",
 						image, fm_ext[i].fe_logical, fm_ext[i].fe_length);
