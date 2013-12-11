@@ -285,7 +285,7 @@ static int check_size(unsigned long long sectors, __u32 blocksize, int version)
 
 	if (sectors > max) {
 		ploop_err(0, "An incorrect block device size is specified: %llu sectors."
-				" The maximum allowed size is %llu sectors.",
+				" The maximum allowed size is %llu sectors",
 				sectors, max);
 		return -1;
 	}
@@ -299,7 +299,7 @@ int check_blockdev_size(unsigned long long sectors, __u32 blocksize, int version
 
 	if (sectors % blocksize) {
 		ploop_err(0, "An incorrect block device size is specified: %llu sectors."
-				" The block device size must be aligned to the cluster block size %d.",
+				" The block device size must be aligned to the cluster block size %d",
 				sectors, blocksize);
 		return -1;
 	}
@@ -1355,7 +1355,7 @@ static int check_mount_restrictions(struct ploop_mount_param *param, const char 
 
 		if (!(flags & EXT4_EXTENTS_FL)) {
 			ploop_err(0, "The ploop image can not be used on ext3 or ext4 file"
-					" system without extents.");
+					" system without extents");
 			return 1;
 		}
 	}
@@ -2891,7 +2891,7 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 		 */
 		ret = SYSEXIT_PARAM;
 		ploop_err(errno, "Unable to create a snapshot."
-			" The maximum number of snapshots (%d) has been reached.",
+			" The maximum number of snapshots (%d) has been reached",
 			n-1);
 		goto err_cleanup1;
 	}

@@ -150,7 +150,7 @@ static int parse_xml(const char *basedir, xmlNode *root_node, struct ploop_disk_
 
 		if (n > 0) {
 			ploop_err(0, "Invalid disk descriptor file format:"
-				" splitted disk is not supported.");
+				" splitted disk is not supported");
 			return -1;
 		}
 

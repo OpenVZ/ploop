@@ -452,12 +452,12 @@ static int fill_hole(const char *image, int fd, off_t start, off_t end, int *log
 	off_t offset;
 
 	if (!*log) {
-		ploop_err(0, "%s: ploop image '%s' is sparse.",
+		ploop_err(0, "%s: ploop image '%s' is sparse",
 				repair ? "Warning" : "Error", image);
 		if (!repair)
 			return SYSEXIT_PLOOPFMT;
 		*log = 1;
-		ploop_log(0, "Reallocating sparse blocks back.");
+		ploop_log(0, "Reallocating sparse blocks back");
 	}
 
 	ploop_log(1, "Filling hole at start=%lu len=%lu",
