@@ -2684,7 +2684,7 @@ int check_and_restore_fmt_version(struct ploop_disk_images_data *di)
 
 	close_delta(&d);
 
-	ploop_log(0, "Image remains in converting fmt version state, restore...");
+	ploop_log(0, "Image remains in converting fmt version state, restoring...");
 	for (i = 0; i < di->nimages; i++) {
 		if (i == base_id)
 			continue;

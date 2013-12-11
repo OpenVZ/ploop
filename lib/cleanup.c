@@ -64,7 +64,7 @@ void ploop_cancel_operation(void)
 	struct ploop_cancel_handle *handle = ploop_get_cancel_handle();
 	list_head_t *head = &handle->head;
 
-	ploop_log(0, "Cancel operation...");
+	ploop_log(0, "Cancelling...");
 	handle->flags = 1;
 
 	if (head->next != NULL) {
