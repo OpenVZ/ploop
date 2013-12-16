@@ -70,6 +70,7 @@ struct ploop_functions {
 	/* 1.9 */
 	int (*get_devs)(struct ploop_disk_images_data *di, char **out[]);
 	void (*free_array)(char *array[]);
+	/* 1.10: no new functions */
 	/* padding for up to 64 pointers */
 	void *padding[22];
 }; /* struct ploop_functions */
