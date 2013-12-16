@@ -1,7 +1,7 @@
 %define _incdir /usr/include/ploop
 Summary: ploop tools
 Name: ploop
-Version: 1.9
+Version: 1.10
 %define rel 1
 Release: %{rel}%{?dist}
 Group: Applications/System
@@ -92,6 +92,93 @@ Headers and a static version of ploop library
 %attr(644,root,root) %{_incdir}/dynload.h
 
 %changelog
+* Mon Dec 16 2013 Kir Kolyshkin <kir@openvz.org> 1.10-1
+- New functionality:
+--  Added check for and repair of sparse images
+--  ploop check: long options support
+--  ploop check: add --raw, --repair-sparse
+--  ploop-check: add -b BLOCKSIZE argument
+--  ploop-check: accept DiskDescriptor.xml argument
+--  ploop umount -d: allow to specify partition device (#2788)
+--  mount.ploop: implement -v and -f options, as per mount(8)
+--  umount.ploop: add -n option (ignored)
+--  mount.ploop: add -s (ignored) and -* (reported as error)
+--  Added ploop info -s
+--  ploop init: use v2 format by default
+--  ploop init: create ext4 by default
+- Fixes:
+--  ploop_get_devs(): fix snprintf usage
+--  ploop_global_lock(): create lockdir if not exist (#2767)
+--  ploop_grow_delta_offline(): Fix uninitialized struct
+--  ploop_ioff_to_sec(): fix for v2
+--  lib/ploop.h: include sys/syscall.h (Debian #728173)
+--  umount.ploop: fixed (#2788)
+--  get_image_param(): added online (from sysfs) and offline (from image) cases
+--  make_fs(): turn off periodic fs checks (#2769)
+--  ploop_store_diskdescriptor(): check rename()
+--  ploop_store_diskdescriptor(): don't return -1
+--  resize_gpt_partition(): check fsync()
+--  ploop_balloon_change_size(): don't pass -1 to close()
+--  ploop_grow_image(): fix an error check
+--  Don't ignore chmod() failures
+--  print_output(): fix output
+--  make_fs(): fix max_online_resize type overflow
+--  do_umount(): fix diagnostic lsof verbose level
+--  plooptool_stat(): close file descriptors
+--  ploop convert -f: do not return SYSEXIT_PLOOPFMT
+--  ploop check: fix exit codes
+--  make_fs(): create ext4 fs with 128M journal
+- Improvements:
+--  Support RHEL5/e4fsutils (tune4fs, dumpe4fs) (#2812)
+--  do_lock(): open file in read/write mode (#2730)
+--  ploop_send: use ioctl_device for PLOOP_IOC_SYNC
+--  use access() not stat() where possible
+--  umount.ploop: improve mtab handling
+--  mount.ploop: use case in option parsing
+--  {mount,umount}.ploop: don't hardcore ploop path
+--  ploop-check.c: rename uppercased functions
+--  ploop snapshot-list usage: fit to 80 cols
+--  fsck: use fsck.ext4 not e2fsck (#2812)
+--  check_size(): limit max ploop size to 16T
+--  ploop_resize_image(): fail if umount failed
+--  print_output(): improve output
+--  ploop_mount(): fix/improve error message
+--  dumpe2fs(): don't hardcode path to dumpe2fs
+--  print_output(): use our own default PATH
+--  do_umount(): refactor and improve
+--  do_umount(): eliminate extra 'lsof' call on EBUSY
+--  do_umount(): don't call lsof again if not found
+--  print_output(): check return from pclose()
+--  print_output(): return exit code from command
+--  Fix some wrongly used exit codes
+--  Remove unused exit codes
+- Documentation:
+--  ploop(8): document check, balloon discard, info, list, copy commands
+--  ploop(8): describe exit codes
+--  ploop(8): better resize description
+--  ploop(8): fix ploop umount -d description
+--  ploop(8): fix ploop mount -d description
+--  ploop(8): improve convert description
+--  ploop(8): add missing OPTIONS section
+--  ploop(8): make IMAGE FORMATS a subheader
+--  ploop(8): other small fixes and improvements
+--  ploop usage: improve
+--  ploop usage: update ploop check synopsys
+--  ploop init: fix/improve usage
+--  ploop usage: fix mount/umount/resize
+- Build system:
+--  ploop.spec: require -lib of the same release
+--  ploop.spec: require lsof and findutils
+--  Makefile.inc: add -Wformat-security
+--  Makefile.inc: proper LIBDIR for Debian case
+--  Makefile.inc: add CPPFLAGS to CFLAGS
+--  Makefile.inc: prepend, not append, debug CFLAGS
+--  tools/Makefile: simplify SOURCES define
+--  setver.sh: introduce build id
+--  setver.sh: use getopt
+--  Remove stand-alone binaries: ploop-check, ploop-grow, ploop-merge, ploop-stat, ploop-copy
+--  Makefile: add Coverity generation logic
+
 * Wed Aug 28 2013 Kir Kolyshkin <kir@openvz.org> 1.9-1
 - New functionality:
 -- libploop.so: implement SONAME and versioning
