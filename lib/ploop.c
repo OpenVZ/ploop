@@ -261,7 +261,8 @@ static int default_fmt_version(void)
 	return ploop_is_large_disk_supported() ? PLOOP_FMT_V2 : PLOOP_FMT_V1;
 }
 
-static int check_size(unsigned long long sectors, __u32 blocksize, int version)
+static int do_check_size(unsigned long long sectors, __u32 blocksize, int version,
+		__u64 max_fs_size)
 {
 	__u64 max;
 
@@ -280,8 +281,8 @@ static int check_size(unsigned long long sectors, __u32 blocksize, int version)
 		return -1;
 	}
 
-	if (max > B2S(PLOOP_MAX_FS_SIZE))
-		max = B2S(PLOOP_MAX_FS_SIZE);
+	if (max_fs_size != 0 && max > B2S(max_fs_size))
+		max = B2S(max_fs_size);
 
 	if (sectors > max) {
 		ploop_err(0, "An incorrect block device size is specified: %llu sectors."
@@ -290,6 +291,11 @@ static int check_size(unsigned long long sectors, __u32 blocksize, int version)
 		return -1;
 	}
 	return 0;
+}
+
+static int check_size(unsigned long long sectors, __u32 blocksize, int version)
+{
+	return do_check_size(sectors, blocksize, version, PLOOP_MAX_FS_SIZE);
 }
 
 int check_blockdev_size(unsigned long long sectors, __u32 blocksize, int version)
@@ -307,8 +313,7 @@ int check_blockdev_size(unsigned long long sectors, __u32 blocksize, int version
 	return 0;
 }
 
-static int create_empty_delta(const char *path, __u32 blocksize, off_t bdsize,
-		int version)
+static int do_create_delta(const char *path, __u32 blocksize, off_t bdsize, int version)
 {
 	int fd;
 	void * buf = NULL;
@@ -323,12 +328,6 @@ static int create_empty_delta(const char *path, __u32 blocksize, off_t bdsize,
 				version);
 		return -1;
 	}
-
-	if (version == PLOOP_FMT_UNDEFINED)
-		version = default_fmt_version();
-
-	if (check_blockdev_size(bdsize, blocksize, version))
-		return -1;
 
 	if (p_memalign(&buf, 4096, cluster))
 		return -1;
@@ -372,6 +371,27 @@ out_close:
 	unlink(path);
 	free(buf);
 	return -1;
+}
+
+static int create_empty_delta(const char *path, __u32 blocksize, off_t bdsize, int version)
+{
+	if (check_blockdev_size(bdsize, blocksize, version))
+		return -1;
+
+	return do_create_delta(path, blocksize, bdsize, version);
+}
+
+static int create_snapshot_delta(const char *path, __u32 blocksize, off_t bdsize,
+		int version)
+{
+	/* select version for new delta on top of RAW image */
+	if (version == PLOOP_FMT_UNDEFINED)
+		version = default_fmt_version();
+
+	if (do_check_size(bdsize, blocksize, version, 0))
+		return -1;
+
+	return do_create_delta(path, blocksize, bdsize, version);
 }
 
 static int create_empty_preallocated_delta(const char *path, __u32 blocksize,
@@ -2794,7 +2814,7 @@ int create_snapshot(const char *device, const char *delta, int syncfs)
 		return SYSEXIT_DEVICE;
 	}
 
-	fd = create_empty_delta(delta, blocksize, bdsize, version);
+	fd = create_snapshot_delta(delta, blocksize, bdsize, version);
 	if (fd < 0) {
 		ret = SYSEXIT_OPEN;
 		goto err;
@@ -2923,7 +2943,7 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 		if (ret)
 			goto err_cleanup2;
 
-		fd = create_empty_delta(fname, blocksize, size, version);
+		fd = create_snapshot_delta(fname, blocksize, size, version);
 		if (fd < 0) {
 			ret = SYSEXIT_CREAT;
 			goto err_cleanup2;
@@ -3057,7 +3077,7 @@ int ploop_switch_snapshot_ex(struct ploop_disk_images_data *di,
 
 	// offline snapshot
 	if (!(flags & PLOOP_SNAP_SKIP_TOPDELTA_CREATE)) {
-		fd = create_empty_delta(new_top_delta_fname, blocksize, size, version);
+		fd = create_snapshot_delta(new_top_delta_fname, blocksize, size, version);
 		if (fd == -1) {
 			ret = SYSEXIT_CREAT;
 			goto err_cleanup2;
