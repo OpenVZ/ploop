@@ -58,7 +58,7 @@ static int fill_opts(void)
 		int ret;
 		struct ploop_disk_images_data *di;
 
-		ret = read_dd(&di, disk_descriptor);
+		ret = ploop_open_dd(&di, disk_descriptor);
 		if (ret)
 			return ret;
 
@@ -487,7 +487,7 @@ static int pb_discard(int argc, char **argv)
 	argv += optind;
 
 	if (argc == 1 && is_xml_fname(argv[0])) {
-		ret = read_dd(&di, argv[0]);
+		ret = ploop_open_dd(&di, argv[0]);
 		if (ret)
 			return ret;
 

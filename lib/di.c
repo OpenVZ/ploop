@@ -243,6 +243,11 @@ void ploop_free_diskdescriptor(struct ploop_disk_images_data *di)
 	return ploop_close_dd(di);
 }
 
+int ploop_read_dd(struct ploop_disk_images_data *di)
+{
+	return read_diskdescriptor(di->runtime->xml_fname, di);
+}
+
 /* Lock and read DiskDescriptor.xml
  * The ploop_open_dd() should be used to get ploop_disk_images_data
  */

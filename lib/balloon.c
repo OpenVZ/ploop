@@ -1126,22 +1126,22 @@ int ploop_blk_discard(const char* device, __u32 blocksize, off_t start, off_t en
 static int ploop_get_dev_and_mnt(struct ploop_disk_images_data *di,
 		char *dev, int dev_len, char *mnt, int mnt_len)
 {
-	if (ploop_lock_di(di))
+	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
 	if (ploop_find_dev(di->runtime->component_name,
 			di->images[0]->file, dev, dev_len))
 	{
-		ploop_unlock_di(di);
+		ploop_unlock_dd(di);
 		return SYSEXIT_PARAM;
 	}
 
 	if (ploop_get_mnt_by_dev(dev, mnt, mnt_len)) {
 		ploop_err(0, "Unable to find mount point for %s", dev);
-		ploop_unlock_di(di);
+		ploop_unlock_dd(di);
 		return SYSEXIT_PARAM;
 	}
-	ploop_unlock_di(di);
+	ploop_unlock_dd(di);
 
 	return 0;
 }
@@ -1160,18 +1160,18 @@ int ploop_discard(struct ploop_disk_images_data *di,
 	char mnt[PATH_MAX];
 	int mounted = 0;
 
-	if (ploop_lock_di(di))
+	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
 	ret = ploop_find_dev(di->runtime->component_name,
 			di->images[0]->file, dev, sizeof(dev));
 	if (ret == -1) {
-		ploop_unlock_di(di);
+		ploop_unlock_dd(di);
 		return SYSEXIT_LOCK;
 	} else if (ret == 0) {
 		if (ploop_get_mnt_by_dev(dev, mnt, sizeof(mnt))) {
 			ploop_err(0, "Unable to find mount point for %s", dev);
-			ploop_unlock_di(di);
+			ploop_unlock_dd(di);
 			return SYSEXIT_PARAM;
 		}
 	} else {
@@ -1179,12 +1179,12 @@ int ploop_discard(struct ploop_disk_images_data *di,
 
 		if (!param->automount) {
 			ploop_err(0, "Unable to discard: image is not mounted");
-			ploop_unlock_di(di);
+			ploop_unlock_dd(di);
 			return SYSEXIT_PARAM;
 		}
 		ret = auto_mount_image(di, &mount_param);
 		if (ret) {
-			ploop_unlock_di(di);
+			ploop_unlock_dd(di);
 			return ret;
 		}
 		mounted = 1;
@@ -1193,14 +1193,14 @@ int ploop_discard(struct ploop_disk_images_data *di,
 
 		free_mount_param(&mount_param);
 	}
-	ploop_unlock_di(di);
+	ploop_unlock_dd(di);
 
 	ret = do_ploop_discard(di, dev, mnt, param->minlen_b,
 			param->to_free, param->stop);
 
-	if (mounted && ploop_lock_di(di) == 0) {
+	if (mounted && ploop_lock_dd(di) == 0) {
 		ploop_umount(dev, di);
-		ploop_unlock_di(di);
+		ploop_unlock_dd(di);
 	}
 
 	return ret;

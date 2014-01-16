@@ -781,7 +781,7 @@ int ploop_merge_snapshot(struct ploop_disk_images_data *di, struct ploop_merge_p
 	int ret = SYSEXIT_PARAM;
 	const char *guid = NULL;
 
-	if (ploop_lock_di(di))
+	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
 	if (param->guid != NULL)
@@ -798,7 +798,7 @@ int ploop_merge_snapshot(struct ploop_disk_images_data *di, struct ploop_merge_p
 				break;
 		}
 	}
-	ploop_unlock_di(di);
+	ploop_unlock_dd(di);
 
 	return ret;
 }

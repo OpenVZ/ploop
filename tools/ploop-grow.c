@@ -86,7 +86,7 @@ int plooptool_grow(int argc, char **argv)
 		int ret;
 
 		struct ploop_disk_images_data *di;
-		ret = read_dd(&di, argv[0]);
+		ret = ploop_open_dd(&di, argv[0]);
 		if (ret)
 			return ret;
 

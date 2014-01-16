@@ -1097,12 +1097,12 @@ int ploop_get_dev(struct ploop_disk_images_data *di, char *out, int len)
 {
 	int ret;
 
-	if (ploop_lock_di(di))
+	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
 	ret = ploop_find_dev(di->runtime->component_name, di->images[0]->file, out, len);
 
-	ploop_unlock_di(di);
+	ploop_unlock_dd(di);
 
 	return ret;
 }
@@ -1280,7 +1280,7 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 	char conf[PATH_MAX], conf_tmp[PATH_MAX] = "";
 	int ret, level;
 
-	if (ploop_lock_di(di))
+	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
 	ret = SYSEXIT_PARAM;
@@ -1359,7 +1359,7 @@ err:
 		free(file);
 	if (conf_tmp[0])
 		unlink(conf_tmp);
-	ploop_unlock_di(di);
+	ploop_unlock_dd(di);
 
 	return ret;
 }
@@ -1655,12 +1655,12 @@ int ploop_mount_image(struct ploop_disk_images_data *di, struct ploop_mount_para
 	int ret;
 	char dev[64];
 
-	if (ploop_lock_di(di))
+	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
 	ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
 	if (ret == -1) {
-		ploop_unlock_di(di);
+		ploop_unlock_dd(di);
 		return SYSEXIT_SYS;
 	}
 	if (ret == 0) {
@@ -1673,7 +1673,7 @@ int ploop_mount_image(struct ploop_disk_images_data *di, struct ploop_mount_para
 
 	ret = mount_image(di, param, 0);
 err:
-	ploop_unlock_di(di);
+	ploop_unlock_dd(di);
 
 	return ret;
 }
@@ -1736,29 +1736,29 @@ int ploop_umount_image(struct ploop_disk_images_data *di)
 	int ret;
 	char dev[PATH_MAX];
 
-	if (ploop_lock_di(di))
+	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
 	ret = ploop_find_dev_by_uuid(di, 0, dev, sizeof(dev));
 	if (ret == -1) {
-		ploop_unlock_di(di);
+		ploop_unlock_dd(di);
 		return SYSEXIT_SYS;
 	}
 	if (ret != 0) {
-		ploop_unlock_di(di);
+		ploop_unlock_dd(di);
 		ploop_err(0, "Image %s is not mounted", di->images[0]->file);
 		return SYSEXIT_DEV_NOT_MOUNTED;
 	}
 
 	ret = ploop_complete_running_operation(dev);
 	if (ret) {
-		ploop_unlock_di(di);
+		ploop_unlock_dd(di);
 		return ret;
 	}
 
 	ret = ploop_umount(dev, di);
 
-	ploop_unlock_di(di);
+	ploop_unlock_dd(di);
 
 	return ret;
 }
@@ -1912,7 +1912,7 @@ int ploop_grow_image(struct ploop_disk_images_data *di, off_t size)
 	int ret;
 	char device[64];
 
-	if (ploop_lock_di(di))
+	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
 	ret = ploop_find_dev_by_uuid(di, 1, device, sizeof(device));
@@ -1948,7 +1948,7 @@ int ploop_grow_image(struct ploop_disk_images_data *di, off_t size)
 	}
 
 err:
-	ploop_unlock_di(di);
+	ploop_unlock_dd(di);
 
 	return ret;
 }
@@ -2066,7 +2066,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 	int version;
 	off_t new_fs_size = 0;
 
-	if (ploop_lock_di(di))
+	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
 	ret = ploop_find_dev_by_uuid(di, 1, buf, sizeof(buf));
@@ -2279,7 +2279,7 @@ err:
 		close(balloonfd);
 	if (mounted == 0)
 		ploop_umount(mount_param.device, di);
-	ploop_unlock_di(di);
+	ploop_unlock_dd(di);
 	free_mount_param(&mount_param);
 
 	return ret;
@@ -2443,13 +2443,15 @@ int ploop_convert_image(struct ploop_disk_images_data *di, int mode, int flags)
 	char conf[PATH_MAX];
 	int ret = -1;
 
+
+	if (ploop_lock_dd(di))
+		return SYSEXIT_LOCK;
+
 	if (di->mode == PLOOP_RAW_MODE) {
 		ploop_err(0, "Converting raw image is not supported");
-		return SYSEXIT_PARAM;
+		ret =  SYSEXIT_PARAM;
+		goto err;
 	}
-
-	if (ploop_lock_di(di))
-		return SYSEXIT_LOCK;
 
 	di->mode = mode;
 	get_disk_descriptor_fname(di, conf, sizeof(conf));
@@ -2477,7 +2479,7 @@ int ploop_convert_image(struct ploop_disk_images_data *di, int mode, int flags)
 	}
 
 err:
-	ploop_unlock_di(di);
+	ploop_unlock_dd(di);
 
 	return ret;
 }
@@ -2601,7 +2603,7 @@ int ploop_change_fmt_version(struct ploop_disk_images_data *di, int new_version,
 		return SYSEXIT_PARAM;
 	}
 
-	if (ploop_lock_di(di))
+	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
 	if (di->mode == PLOOP_RAW_MODE) {
@@ -2700,7 +2702,7 @@ err_rm:
 
 err:
 	deinit_delta_array(&da);
-	ploop_unlock_di(di);
+	ploop_unlock_dd(di);
 
 	if (ret == 0)
 		ploop_log(0, "ploop image has been successfully converted");
@@ -2858,7 +2860,7 @@ static int ploop_get_info(struct ploop_disk_images_data *di, struct ploop_info *
 	char dev[64];
 	int ret = -1;
 
-	if (ploop_lock_di(di))
+	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
 	ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
@@ -2885,7 +2887,7 @@ static int ploop_get_info(struct ploop_disk_images_data *di, struct ploop_info *
 	}
 
 err:
-	ploop_unlock_di(di);
+	ploop_unlock_dd(di);
 
 	return ret;
 }
@@ -2979,13 +2981,13 @@ int ploop_get_spec(struct ploop_disk_images_data *di, struct ploop_spec *spec)
 {
 	int ret;
 
-	if (ploop_lock_di(di))
+	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
 	ret = get_image_param(di, di->top_guid, &spec->size, &spec->blocksize,
 			&spec->fmt_version);
 
-	ploop_unlock_di(di);
+	ploop_unlock_dd(di);
 
 	return ret;
 }
@@ -3011,7 +3013,7 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 		return SYSEXIT_PARAM;
 	}
 
-	if (ploop_lock_di(di))
+	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
 	ret = gen_uuid_pair(snap_guid, sizeof(snap_guid),
@@ -3102,7 +3104,7 @@ err_cleanup2:
 		ploop_err(errno, "Can't unlink %s", conf_tmp);
 
 err_cleanup1:
-	ploop_unlock_di(di);
+	ploop_unlock_dd(di);
 
 	return ret;
 }
@@ -3130,7 +3132,7 @@ int ploop_switch_snapshot_ex(struct ploop_disk_images_data *di,
 		return SYSEXIT_PARAM;
 	}
 
-	if (ploop_lock_di(di))
+	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
 	ret = SYSEXIT_PARAM;
@@ -3241,7 +3243,7 @@ err_cleanup2:
 		ploop_err(errno, "Can't unlink %s",
 				conf_tmp);
 err_cleanup1:
-	ploop_unlock_di(di);
+	ploop_unlock_dd(di);
 	free(old_top_delta_fname);
 
 	return ret;
@@ -3275,7 +3277,7 @@ int ploop_delete_snapshot(struct ploop_disk_images_data *di, const char *guid)
 	char dev[64];
 	int snap_id;
 
-	if (ploop_lock_di(di))
+	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
 	ret = SYSEXIT_PARAM;
@@ -3331,7 +3333,7 @@ int ploop_delete_snapshot(struct ploop_disk_images_data *di, const char *guid)
 
 err:
 	free(fname);
-	ploop_unlock_di(di);
+	ploop_unlock_dd(di);
 
 	return ret;
 }

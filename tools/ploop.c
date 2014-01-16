@@ -266,7 +266,7 @@ static int plooptool_mount(int argc, char **argv)
 	if (argc == 1 && is_xml_fname(argv[0]))
 	{
 		struct ploop_disk_images_data *di;
-		ret = read_dd(&di, argv[0]);
+		ret = ploop_open_dd(&di, argv[0]);
 		if (ret)
 			return ret;
 
@@ -506,7 +506,7 @@ static int plooptool_umount(int argc, char **argv)
 		ret = ploop_umount(device, NULL);
 	} else if (is_xml_fname(argv[0])) {
 		struct ploop_disk_images_data *di;
-		ret = read_dd(&di, argv[0]);
+		ret = ploop_open_dd(&di, argv[0]);
 		if (ret)
 			return ret;
 
@@ -628,7 +628,7 @@ static int plooptool_snapshot(int argc, char **argv)
 
 	if (is_xml_fname(argv[0])) {
 		struct ploop_disk_images_data *di;
-		ret = read_dd(&di, argv[0]);
+		ret = ploop_open_dd(&di, argv[0]);
 		if (ret)
 			return ret;
 
@@ -682,7 +682,7 @@ static int plooptool_snapshot_switch(int argc, char **argv)
 		return SYSEXIT_PARAM;
 	}
 
-	ret = read_dd(&di, argv[0]);
+	ret = ploop_open_dd(&di, argv[0]);
 	if (ret)
 		return ret;
 
@@ -724,7 +724,7 @@ static int plooptool_snapshot_delete(int argc, char **argv)
 		return SYSEXIT_PARAM;
 	}
 
-	ret = read_dd(&di, argv[0]);
+	ret = ploop_open_dd(&di, argv[0]);
 	if (ret)
 		return ret;
 
@@ -771,7 +771,7 @@ static int plooptool_snapshot_merge(int argc, char ** argv)
 
 	if (argc == 1 && is_xml_fname(argv[0])) {
 		struct ploop_disk_images_data *di;
-		ret = read_dd(&di, argv[0]);
+		ret = ploop_open_dd(&di, argv[0]);
 		if (ret)
 			return ret;
 
@@ -857,7 +857,7 @@ static int plooptool_resize(int argc, char **argv)
 		return SYSEXIT_PARAM;
 	}
 
-	ret = read_dd(&di, argv[0]);
+	ret = ploop_open_dd(&di, argv[0]);
 	if (ret)
 		return ret;
 
@@ -912,7 +912,7 @@ static int plooptool_convert(int argc, char **argv)
 		return SYSEXIT_PARAM;
 	}
 
-	ret = read_dd(&di, argv[0]);
+	ret = ploop_open_dd(&di, argv[0]);
 	if (ret)
 		return ret;
 	if (mode != -1)
@@ -1144,12 +1144,12 @@ static int plooptool_replace(int argc, char **argv)
 			return SYSEXIT_PARAM;
 		}
 
-		ret = read_dd(&di, argv[0]);
+		ret = ploop_open_dd(&di, argv[0]);
 		if (ret)
 			return ret;
 
 		ret = ploop_replace_image(di, &param);
-		ploop_free_diskdescriptor(di);
+		ploop_close_dd(di);
 
 		return ret;
 	}

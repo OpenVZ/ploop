@@ -100,7 +100,7 @@ int plooptool_merge(int argc, char ** argv)
 			return SYSEXIT_PARAM;
 		}
 
-		ret = read_dd(&di, argv[0]);
+		ret = ploop_open_dd(&di, argv[0]);
 		if (ret)
 			return ret;
 		ret = ploop_merge_snapshot(di, &param);
