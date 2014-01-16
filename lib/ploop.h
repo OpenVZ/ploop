@@ -324,6 +324,7 @@ int PWRITE(struct delta * delta, void * buf, unsigned int size, off_t off);
 int PREAD(struct delta * delta, void *buf, unsigned int size, off_t off);
 PL_EXT int ploop_getdevice(int *minor);
 struct ploop_disk_images_data *alloc_diskdescriptor(void);
+int read_diskdescriptor(const char *fname, struct ploop_disk_images_data *di);
 void get_disk_descriptor_fname(struct ploop_disk_images_data *di, char *buf, int size);
 void get_disk_descriptor_lock_fname(struct ploop_disk_images_data *di, char *out, int size);
 int find_image_idx_by_guid(struct ploop_disk_images_data *di, const char *guid);
@@ -360,6 +361,8 @@ PL_EXT int ploop_discard_by_dev(const char *device, const char *mount_point,
 int ploop_blk_discard(const char* device, __u32 blocksize, off_t start, off_t end);
 
 /* lock */
+int ploop_lock_dd(struct ploop_disk_images_data *di);
+void ploop_unlock_dd(struct ploop_disk_images_data *di);
 int ploop_lock_di(struct ploop_disk_images_data *di);
 void ploop_unlock_di(struct ploop_disk_images_data *di);
 int ploop_global_lock(void);
