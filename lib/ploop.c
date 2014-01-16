@@ -2200,7 +2200,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			goto err;
 
 		/* resize up to the end of device */
-		ret = resize_fs(part_device, new_fs_size);
+		ret = resize_fs(part_device, 0);
 		if (ret)
 			goto err;
 	} else {
