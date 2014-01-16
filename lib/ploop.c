@@ -1590,11 +1590,6 @@ int ploop_umount_image(struct ploop_disk_images_data *di)
 	int ret;
 	char dev[PATH_MAX];
 
-	if (di->nimages == 0) {
-		ploop_err(0, "No images specified");
-		return SYSEXIT_PARAM;
-	}
-
 	if (ploop_lock_di(di))
 		return SYSEXIT_LOCK;
 
@@ -1924,11 +1919,6 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 	__u32 blocksize = 0;
 	int version;
 	off_t new_fs_size = 0;
-
-	if (di->nimages == 0) {
-		ploop_err(0, "No images in DiskDescriptor");
-		return SYSEXIT_DISKDESCR;
-	}
 
 	if (ploop_lock_di(di))
 		return SYSEXIT_LOCK;
@@ -2311,10 +2301,7 @@ int ploop_convert_image(struct ploop_disk_images_data *di, int mode, int flags)
 		ploop_err(0, "Converting raw image is not supported");
 		return SYSEXIT_PARAM;
 	}
-	if (di->nimages == 0) {
-		ploop_err(0, "No images specified");
-		return SYSEXIT_PARAM;
-	}
+
 	if (ploop_lock_di(di))
 		return SYSEXIT_LOCK;
 
@@ -2873,10 +2860,6 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 	__u32 blocksize;
 	int version;
 
-	if (di->nimages == 0) {
-		ploop_err(0, "No images");
-		return SYSEXIT_PARAM;
-	}
 	if (param->guid != NULL && !is_valid_guid(param->guid)) {
 		ploop_err(0, "Incorrect guid %s", param->guid);
 		return SYSEXIT_PARAM;
