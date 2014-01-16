@@ -185,6 +185,11 @@ void ploop_unlock_di(struct ploop_disk_images_data *di)
 		ploop_unlock(&di->runtime->lckfd);
 }
 
+void ploop_unlock_dd(struct ploop_disk_images_data *di)
+{
+	return ploop_unlock_di(di);
+}
+
 int ploop_global_lock(void)
 {
 	if (access(PLOOP_GLOBAL_LOCK_FILE, F_OK)) {

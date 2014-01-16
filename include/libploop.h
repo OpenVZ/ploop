@@ -155,7 +155,6 @@ extern "C" {
 int ploop_read_disk_descr(struct ploop_disk_images_data **di, const char *file);
 int ploop_set_component_name(struct ploop_disk_images_data *di,
 		const char *component_name);
-void ploop_free_diskdescriptor(struct ploop_disk_images_data *di);
 char *ploop_get_base_delta_uuid(struct ploop_disk_images_data *di);
 int ploop_get_top_delta_fname(struct ploop_disk_images_data *di, char *out, int len);
 int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data *di);
@@ -211,6 +210,12 @@ int ploop_discard_get_stat(struct ploop_disk_images_data *di,
 		struct ploop_discard_stat *pd_stat);
 int ploop_discard(struct ploop_disk_images_data *di,
 			struct ploop_discard_param *param);
+
+int ploop_open_dd(struct ploop_disk_images_data **di, const char *fname);
+void ploop_close_dd(struct ploop_disk_images_data *di);
+
+/* deprecated */
+void ploop_free_diskdescriptor(struct ploop_disk_images_data *di);
 
 #ifdef __cplusplus
 }
