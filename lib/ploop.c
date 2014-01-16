@@ -3261,7 +3261,17 @@ int ploop_switch_snapshot(struct ploop_disk_images_data *di, const char *guid, i
 
 int ploop_delete_top_delta(struct ploop_disk_images_data *di)
 {
-	return ploop_delete_snapshot(di, di->top_guid);
+	int output = SYSEXIT_PLOOPFMT;
+	if (NULL != di->top_guid)
+	{
+		/* NB. ploop_lock_di inside ploop_delete_snapshot
+		 * resets the di content thus the second argument
+		 * becomes invalid. backup it and pass that backup
+		 * value.
+		 * */
+		output = ploop_delete_snapshot(di, strdupa(di->top_guid));
+	}
+	return output;
 }
 
 /* delete snapshot by guid
