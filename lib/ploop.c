@@ -807,7 +807,7 @@ static int do_ioctl(int fd, int req)
 	return ret;
 }
 
-static int print_output(int level, const char *cmd, const char *arg)
+int print_output(int level, const char *cmd, const char *arg)
 {
 	FILE *fp;
 	char command[PATH_MAX];

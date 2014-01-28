@@ -457,6 +457,7 @@ static int fill_hole(const char *image, int fd, off_t start, off_t end, int *log
 		if (!repair)
 			return SYSEXIT_PLOOPFMT;
 		*log = 1;
+		print_output(0, "filefrag -vs", image);
 		ploop_log(0, "Reallocating sparse blocks back");
 	}
 
@@ -561,6 +562,9 @@ static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int
 	if (prev_end < st.st_size &&
 			fill_hole(image, fd, prev_end, st.st_size, &log, repair))
 		return SYSEXIT_PLOOPFMT;
+
+	if (log)
+		print_output(0, "filefrag -vs", image);
 
 	return 0;
 }
