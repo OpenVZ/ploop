@@ -38,6 +38,8 @@ static int g_last_field;
 static LIST_HEAD(g_field_order_head);
 static LIST_HEAD(g_uuid_list_head);
 static struct ploop_disk_images_data *g_di;
+static int g_snapshot_mode;
+static char *g_current_snap_guid;
 
 static const char *FMT(const char *fmt)
 {
@@ -56,7 +58,12 @@ static void print_parent_uuid(struct ploop_snapshot_data *p)
 
 static void print_current(struct ploop_snapshot_data *p)
 {
-	printf(FMT("%1s "), !guidcmp(p->guid, g_di->top_guid) ? "*" : "");
+	if (g_snapshot_mode) {
+		if (g_current_snap_guid == NULL)
+			g_current_snap_guid = ploop_find_parent_by_guid(g_di, g_di->top_guid);
+		printf(FMT("%1s "), !guidcmp(p->guid, g_current_snap_guid ?: "") ? "*" : "");
+	} else
+		printf(FMT("%1s "), !guidcmp(p->guid, g_di->top_guid) ? "*" : "");
 }
 
 static void print_fname(struct ploop_snapshot_data *p)
@@ -202,12 +209,13 @@ int plooptool_snapshot_list(int argc, char **argv)
 		{"help",	no_argument, NULL, 'h'},
 		{"uuid",	required_argument, NULL, 'u'},
 			{"id",	required_argument, NULL, 'u'},
+		{"snapshot",  required_argument, NULL, 's'},
 		{ NULL, 0, NULL, 0 }
 	};
 
 	while (1) {
 		int option_index = -1;
-		c = getopt_long(argc, argv, "Hho:u:",
+		c = getopt_long(argc, argv, "Hho:u:s",
 				list_options, &option_index);
 		if (c == -1)
 			break;
@@ -226,6 +234,9 @@ int plooptool_snapshot_list(int argc, char **argv)
 				return 1;
 			}
 			guid = optarg;
+			break;
+		case 's':
+			g_snapshot_mode = 1;
 			break;
 		case 'h':
 			usage_snapshot_list();
@@ -264,6 +275,10 @@ int plooptool_snapshot_list(int argc, char **argv)
 	}
 
 	list_for_each(uuid_entry, &g_uuid_list_head, list) {
+		if (g_snapshot_mode &&
+				guidcmp(g_di->snapshots[uuid_entry->id]->guid, g_di->top_guid) == 0)
+			continue;
+
 		list_for_each(field_entry, &g_field_order_head, list) {
 			g_last_field = ((void *)g_field_order_head.prev == (void *)field_entry);
 			field_tbl[field_entry->id].print_fn(g_di->snapshots[uuid_entry->id]);
