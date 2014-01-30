@@ -1067,10 +1067,12 @@ static int plooptool_list(int argc, char **argv)
 
 static void usage_replace(void)
 {
-	fprintf(stderr, "Usage: ploop replace {-d DEVICE | -m MOUNT_POINT} -l LEVEL DELTA\n"
+	fprintf(stderr, "Usage: ploop replace {-d DEVICE | -m MOUNT_POINT} -l LEVEL -i DELTA\n"
+			"       ploop replace {-u UUID | -l LEVEL } -i DELTA DiskDescriptor.xml\n"
 			"       DEVICE := ploop device, e.g. /dev/ploop0\n"
 			"       MOUNT_POINT := directory where ploop is mounted to\n"
 			"       LEVEL := NUMBER, distance from base delta\n"
+			"       UUID := UUID of image to be replaced\n"
 			"       DELTA := path to new image file\n"
 	       );
 }
@@ -1080,26 +1082,23 @@ static int plooptool_replace(int argc, char **argv)
 {
 	int i;
 	char dev[PATH_MAX];
-	const char *delta;
-	struct ploop_replace_param {
-		char *device;
-		int level;
-	} param = {
+	char *device = NULL;
+	struct ploop_replace_param param = {
 		.level = -1,
 	};
 
-	while ((i = getopt(argc, argv, "d:m:l:")) != EOF) {
+	while ((i = getopt(argc, argv, "d:m:l:i:u:")) != EOF) {
 		switch (i) {
 		case 'd':
-			if (param.device) {
+			if (device) {
 				fprintf(stderr, "Options -m and -d are exclusive\n");
 				usage_replace();
 				return SYSEXIT_PARAM;
 			}
-			param.device = optarg;
+			device = optarg;
 			break;
 		case 'm':
-			if (param.device) {
+			if (device) {
 				fprintf(stderr, "Options -m and -d are exclusive\n");
 				usage_replace();
 				return SYSEXIT_PARAM;
@@ -1109,10 +1108,16 @@ static int plooptool_replace(int argc, char **argv)
 						optarg);
 				return SYSEXIT_PARAM;
 			}
-			param.device = dev;
+			device = dev;
 			break;
 		case 'l':
 			param.level = atoi(optarg);
+			break;
+		case 'u':
+			param.guid = strdup(optarg);
+			break;
+		case 'i':
+			param.file = strdup(optarg);
 			break;
 		default:
 			usage_replace();
@@ -1123,14 +1128,38 @@ static int plooptool_replace(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if (argc != 1 || !param.device || param.level < 0 || param.level > 127) {
+	if (!param.file) {
+		fprintf(stderr, "Error: image file not specified (use -i)\n");
 		usage_replace();
 		return SYSEXIT_PARAM;
 	}
 
-	delta = argv[0];
+	if ((argc == 1) && is_xml_fname(argv[0])) {
+		int ret;
+		struct ploop_disk_images_data *di;
 
-	return replace_delta(param.device, param.level, delta);
+		if (!param.guid && param.level == -1) {
+			fprintf(stderr, "Error: either uuid or level must be specified\n");
+			usage_replace();
+			return SYSEXIT_PARAM;
+		}
+
+		ret = read_dd(&di, argv[0]);
+		if (ret)
+			return ret;
+
+		ret = ploop_replace_image(di, &param);
+		ploop_free_diskdescriptor(di);
+
+		return ret;
+	}
+	else {
+		if (argc > 0 || !device || param.level < 0 || param.level > 127) {
+			usage_replace();
+			return SYSEXIT_PARAM;
+		}
+		return replace_delta(device, param.level, param.file);
+	}
 }
 
 int main(int argc, char **argv)

@@ -61,6 +61,14 @@ struct ploop_create_param {
 	char dummy[32];
 };
 
+struct ploop_replace_param {
+	char *file;	/* A new image file name */
+	/* Image to be replaced, specified by either guid or level */
+	char *guid;
+	int  level;
+	char dummy[32];
+};
+
 struct ploop_image_data {
 	char *guid;
 	char *file;
@@ -171,6 +179,7 @@ int ploop_mount_image(struct ploop_disk_images_data *di, struct ploop_mount_para
 int ploop_mount_snapshot(struct ploop_disk_images_data *di, struct ploop_mount_param *param);
 int ploop_umount(const char *device, struct ploop_disk_images_data *di);
 int ploop_umount_image(struct ploop_disk_images_data *di);
+int ploop_replace_image(struct ploop_disk_images_data *di, struct ploop_replace_param *param);
 int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_param *param);
 int ploop_convert_image(struct ploop_disk_images_data *di, int mode, int flags);
 int ploop_get_info_by_descr(const char *descr, struct ploop_info *info);

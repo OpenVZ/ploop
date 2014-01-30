@@ -71,8 +71,10 @@ struct ploop_functions {
 	int (*get_devs)(struct ploop_disk_images_data *di, char **out[]);
 	void (*free_array)(char *array[]);
 	/* 1.10: no new functions */
+	/* 1.11 */
+	int (*replace_image)(struct ploop_disk_images_data *di, struct ploop_replace_param *param);
 	/* padding for up to 64 pointers */
-	void *padding[22];
+	void *padding[21];
 }; /* struct ploop_functions */
 
 __attribute__ ((visibility("default")))

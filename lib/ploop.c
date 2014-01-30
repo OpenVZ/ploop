@@ -1272,6 +1272,98 @@ out:
 	return ret;
 }
 
+int ploop_replace_image(struct ploop_disk_images_data *di,
+		struct ploop_replace_param *param)
+{
+	char dev[PATH_MAX];
+	char *file = NULL, *oldfile;
+	char conf[PATH_MAX], conf_tmp[PATH_MAX] = "";
+	int ret, level;
+
+	if (ploop_lock_di(di))
+		return SYSEXIT_LOCK;
+
+	ret = SYSEXIT_PARAM;
+
+	if (!param || !param->file) {
+		ploop_err(0, "New image file not specified");
+		goto err;
+	}
+
+	file = realpath(param->file, NULL);
+	if (file == NULL) {
+		ploop_err(errno, "Error in realpath(%s)", param->file);
+		goto err;
+	}
+
+	/* Image to be replaced is specified by either guid or level
+	 */
+	if (param->guid) {
+		if (!is_valid_guid(param->guid)) {
+			ploop_err(0, "Invalid guid specified: %s", param->guid);
+			goto err;
+		}
+
+		level = find_image_idx_by_guid(di, param->guid);
+		if (level == -1) {
+			ploop_err(0, "Can't find image by guid %s", param->guid);
+			goto err;
+		}
+	}
+	else {
+		level = param->level;
+		if (level < 0 || level >= di->nimages) {
+			ploop_err(0, "Invalid level specified: %d", level);
+			goto err;
+		}
+	}
+
+	if (ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev))) {
+		ploop_err(0, "Can't find running ploop device");
+		goto err;
+	}
+
+	/* Write new dd.xml with changed image file */
+	get_disk_descriptor_fname(di, conf, sizeof(conf));
+	snprintf(conf_tmp, sizeof(conf_tmp), "%s.tmp", conf);
+	oldfile = di->images[level]->file;
+	di->images[level]->file = file;
+	ret = ploop_store_diskdescriptor(conf_tmp, di);
+	di->images[level]->file = oldfile;
+	if (ret)
+		goto err;
+
+	/* Do replace */
+	ploop_log(0, "Replacing %s with %s", di->images[level]->file, file);
+	ret = replace_delta(dev, level, file);
+	if (ret)
+		goto err;
+
+	/* Put a new dd.xml */
+	if (rename(conf_tmp, conf)) {
+		ploop_err(errno, "Can't rename %s to %s", conf_tmp, conf);
+		ret = SYSEXIT_RENAME;
+		/* FIXME: how to rollback now? */
+		goto err;
+	}
+	conf_tmp[0] = '\0'; /* prevent unlink() below */
+
+	/* Change image in di */
+	free(di->images[level]->file);
+	di->images[level]->file = file; /* malloc()ed by realpath */
+	file = NULL; /* prevent free(file) below */
+
+	ret = 0;
+err:
+	if (file)
+		free(file);
+	if (conf_tmp[0])
+		unlink(conf_tmp);
+	ploop_unlock_di(di);
+
+	return ret;
+}
+
 static int create_ploop_dev(int minor)
 {
 	char device[64];
