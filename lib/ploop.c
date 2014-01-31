@@ -1218,6 +1218,60 @@ out:
 	return ret;
 }
 
+int replace_delta(const char *device, int level, const char *image)
+{
+	int fd = -1, lfd = -1;
+	int ret;
+	__u32 blocksize = 0;
+	struct ploop_ctl_delta req = {};
+
+	if (ploop_get_attr(device, "block_size", (int*) &blocksize))
+		return SYSEXIT_SYSFS;
+
+	fd = open(image, O_DIRECT | O_RDONLY);
+	if (fd < 0) {
+		ploop_err(errno, "Can't open file %s", image);
+		return SYSEXIT_OPEN;
+	}
+
+	lfd = open(device, O_RDONLY);
+	if (lfd < 0) {
+		ploop_err(errno, "Can't open device %s", device);
+		ret = SYSEXIT_DEVICE;
+		goto out;
+	}
+
+	req.c.pctl_cluster_log = ffs(blocksize) - 1;
+	req.c.pctl_level = level;
+	req.c.pctl_chunks = 1;
+	req.c.pctl_format = PLOOP_FMT_PLOOP1;
+	req.c.pctl_flags = PLOOP_FMT_RDONLY;
+
+	req.f.pctl_type = PLOOP_IO_AUTO;
+	req.f.pctl_fd = fd;
+
+	if (ioctl(lfd, PLOOP_IOC_REPLACE_DELTA, &req) < 0) {
+		if (errno == EBUSY)
+			print_output(-1, "find",
+					"/sys/block/ploop[0-9]*/ -type f "
+					"-not -name '*event' "
+					"-exec echo {} \\; -exec cat {} \\;");
+
+		ploop_err(errno, "Can't replace image %s", image);
+		ret = SYSEXIT_DEVIOC;
+		goto out;
+	}
+	ret = 0;
+
+out:
+	if (lfd >= 0)
+		close(lfd);
+	if (fd >= 0)
+		close(fd);
+
+	return ret;
+}
+
 static int create_ploop_dev(int minor)
 {
 	char device[64];

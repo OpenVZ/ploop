@@ -1065,6 +1065,74 @@ static int plooptool_list(int argc, char **argv)
 	return 0;
 }
 
+static void usage_replace(void)
+{
+	fprintf(stderr, "Usage: ploop replace {-d DEVICE | -m MOUNT_POINT} -l LEVEL DELTA\n"
+			"       DEVICE := ploop device, e.g. /dev/ploop0\n"
+			"       MOUNT_POINT := directory where ploop is mounted to\n"
+			"       LEVEL := NUMBER, distance from base delta\n"
+			"       DELTA := path to new image file\n"
+	       );
+}
+
+
+static int plooptool_replace(int argc, char **argv)
+{
+	int i;
+	char dev[PATH_MAX];
+	const char *delta;
+	struct ploop_replace_param {
+		char *device;
+		int level;
+	} param = {
+		.level = -1,
+	};
+
+	while ((i = getopt(argc, argv, "d:m:l:")) != EOF) {
+		switch (i) {
+		case 'd':
+			if (param.device) {
+				fprintf(stderr, "Options -m and -d are exclusive\n");
+				usage_replace();
+				return SYSEXIT_PARAM;
+			}
+			param.device = optarg;
+			break;
+		case 'm':
+			if (param.device) {
+				fprintf(stderr, "Options -m and -d are exclusive\n");
+				usage_replace();
+				return SYSEXIT_PARAM;
+			}
+			if (ploop_get_dev_by_mnt(optarg, dev, sizeof(dev))) {
+				fprintf(stderr, "Unable to find ploop device by %s\n",
+						optarg);
+				return SYSEXIT_PARAM;
+			}
+			param.device = dev;
+			break;
+		case 'l':
+			param.level = atoi(optarg);
+			break;
+		default:
+			usage_replace();
+			return SYSEXIT_PARAM;
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc != 1 || !param.device || param.level < 0 || param.level > 127) {
+		usage_replace();
+		return SYSEXIT_PARAM;
+	}
+
+	delta = argv[0];
+
+	return replace_delta(param.device, param.level, delta);
+}
+
 int main(int argc, char **argv)
 {
 	char * cmd;
@@ -1130,6 +1198,8 @@ int main(int argc, char **argv)
 		return plooptool_stat(argc, argv);
 	if (strcmp(cmd, "copy") == 0)
 		return plooptool_copy(argc, argv);
+	if (strcmp(cmd, "replace") == 0)
+		return plooptool_replace(argc, argv);
 
 	if (cmd[0] != '-') {
 		char ** nargs;

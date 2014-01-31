@@ -316,6 +316,7 @@ void __ploop_err(int err_no, const char *format, ...)
 char *make_sysfs_dev_name(int minor, char *buf, int len);
 PL_EXT int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		struct ploop_mount_param *param, int raw);
+PL_EXT int replace_delta(const char *device, int level, const char *image);
 PL_EXT int create_snapshot(const char *device, const char *delta, int syncfs);
 int get_list_size(char **list);
 void free_images_list(char **images);
