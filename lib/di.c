@@ -202,98 +202,25 @@ struct ploop_disk_images_data *alloc_diskdescriptor(void)
 	return p;
 }
 
-static void ploop_clear_dd(struct ploop_disk_images_data *di)
+void ploop_free_diskdescriptor(struct ploop_disk_images_data *di)
 {
 	int i;
 
-	for (i = 0; i < di->nimages; i++)
-		free_image_data(di->images[i]);
-
-	free(di->images);
-	di->images = NULL;
-	di->nimages = 0;
-
-	for (i = 0; i < di->nsnapshots; i++)
-		free_snapshot_data(di->snapshots[i]);
-
-	free(di->snapshots);
-	di->snapshots = NULL;
-	di->nsnapshots = 0;
-
-	free(di->top_guid);
-	di->top_guid = NULL;
-}
-
-void ploop_close_dd(struct ploop_disk_images_data *di)
-{
 	if (di == NULL)
 		return;
 
-	ploop_clear_dd(di);
+	for (i = 0; i < di->nimages; i++)
+		free_image_data(di->images[i]);
+	for (i = 0; i < di->nsnapshots; i++)
+		free_snapshot_data(di->snapshots[i]);
 
+	free(di->images);
+	free(di->snapshots);
+	free(di->top_guid);
 	free(di->runtime->xml_fname);
 	free(di->runtime->component_name);
 	free(di->runtime);
-
 	free(di);
-}
-
-void ploop_free_diskdescriptor(struct ploop_disk_images_data *di)
-{
-	return ploop_close_dd(di);
-}
-
-/* Lock and read DiskDescriptor.xml
- * The ploop_open_dd() should be used to get ploop_disk_images_data
- */
-int ploop_lock_dd(struct ploop_disk_images_data *di)
-{
-	int ret;
-	char fname[PATH_MAX];
-
-	if (di->runtime->xml_fname == NULL) {
-		ploop_err(0, "Unable to lock: DiskDescriptor.xml is not opened");
-		return -1;
-	}
-
-	ret = ploop_lock_di(di);
-	if (ret)
-		return ret;
-
-	/* Update the DiskDescriptor.xml representation after lock */
-	snprintf(fname, sizeof(fname), "%s", di->runtime->xml_fname);
-	ploop_clear_dd(di);
-	if (read_diskdescriptor(fname, di)) {
-		ploop_unlock_di(di);
-		return -1;
-	}
-
-	return 0;
-}
-
-int ploop_open_dd(struct ploop_disk_images_data **di, const char *fname)
-{
-	char path[PATH_MAX];
-	struct ploop_disk_images_data *p;
-
-	if (realpath(fname, path) == NULL) {
-		ploop_err(errno, "Can't resolve %s", fname);
-		return -1;
-	}
-
-	p = alloc_diskdescriptor();
-	if (p == NULL)
-		return SYSEXIT_MALLOC;
-
-	p->runtime->xml_fname = strdup(path);
-	if (p->runtime->xml_fname == NULL) {
-		ploop_close_dd(p);
-		return SYSEXIT_MALLOC;
-	}
-
-	*di = p;
-
-	return 0;
 }
 
 int find_image_idx_by_guid(struct ploop_disk_images_data *di, const char *guid)

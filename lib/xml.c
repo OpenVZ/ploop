@@ -339,7 +339,7 @@ static int validate_disk_descriptor(struct ploop_disk_images_data *di)
 	return 0;
 }
 
-int read_diskdescriptor(const char *fname, struct ploop_disk_images_data *di)
+static int read_diskdescriptor(const char *fname, struct ploop_disk_images_data *di)
 {
 	int ret;
 	char path[PATH_MAX];
@@ -369,7 +369,6 @@ int read_diskdescriptor(const char *fname, struct ploop_disk_images_data *di)
 		return -1;
 	}
 
-	free(di->runtime->xml_fname);
 	di->runtime->xml_fname = strdup(path);
 
 	doc = xmlReadFile(fname, NULL, 0);
@@ -431,9 +430,6 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 
 	if (convert_disk_descriptor(di))
 		return -1;
-
-	if (di->runtime->xml_fname == NULL)
-		di->runtime->xml_fname = strdup(fname);
 
 	get_basedir(fname, tmp, sizeof(tmp));
 	if (tmp[0] == '\0')
