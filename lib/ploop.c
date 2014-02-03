@@ -2134,23 +2134,27 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 	balloon_size = bytes2sec(st.st_size);
 
 	if (param->size == 0) {
-		int delta = 1024 * 1024;
+		__u64 delta = di->blocksize ?: 2048;
+		__u64 free_space;
 
-		/* Inflate balloon up to max free space */
+		/* Iteratively inflate balloon up to max free space */
 		if (statfs(mount_param.target, &fs) != 0) {
 			ploop_err(errno, "statfs(%s)", mount_param.target);
 			ret = SYSEXIT_FSTAT;
 			goto err;
 		}
-		if (fs.f_bfree <= delta / fs.f_bsize) {
-			ret = 0; // no free space
-			goto err;
-		}
 
-		new_balloon_size = balloon_size + B2S(fs.f_bfree * fs.f_bsize);
-		new_balloon_size -= B2S(delta);
-		ret = ploop_balloon_change_size(mount_param.device,
-				balloonfd, new_balloon_size);
+		free_space = B2S(fs.f_bfree * fs.f_bsize);
+
+		for (new_balloon_size = balloon_size + free_space;
+				delta < free_space && new_balloon_size > balloon_size;
+				delta *= 2)
+		{
+			ret = ploop_balloon_change_size(mount_param.device,
+					balloonfd, new_balloon_size - delta);
+			if (ret != SYSEXIT_FALLOCATE)
+				break;
+		}
 	} else if (new_size > dev_size) {
 		char conf[PATH_MAX];
 		char conf_tmp[PATH_MAX];
