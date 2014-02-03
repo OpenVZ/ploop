@@ -283,7 +283,7 @@ int ploop_open_dd(struct ploop_disk_images_data **di, const char *fname)
 
 	if (realpath(fname, path) == NULL) {
 		ploop_err(errno, "Can't resolve %s", fname);
-		return -1;
+		return SYSEXIT_DISKDESCR;
 	}
 
 	p = alloc_diskdescriptor();
