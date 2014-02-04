@@ -973,7 +973,7 @@ static int plooptool_info(int argc, char **argv)
 		struct ploop_disk_images_data *di;
 		struct ploop_spec spec = {};
 
-		ret = read_dd(&di, argv[0]);
+		ret = ploop_open_dd(&di, argv[0]);
 		if (ret)
 			return ret;
 
@@ -984,7 +984,7 @@ static int plooptool_info(int argc, char **argv)
 				spec.blocksize,
 				spec.fmt_version);
 
-		ploop_free_diskdescriptor(di);
+		ploop_close_dd(di);
 	} else {
 		ret = ploop_get_info_by_descr(argv[0], &info);
 		if (ret == 0)
