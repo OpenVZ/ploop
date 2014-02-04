@@ -118,6 +118,7 @@ ploop \- ploop device management utility
 .SY ploop\ snapshot-list
 .OP -H
 .OP -u uuid
+.OP -s
 .OP -o field\fR[,\fIfield\fR...]
 .I DiskDescriptor.xml
 .YS
@@ -508,6 +509,7 @@ List available snapshots.
 .SY ploop\ snapshot-list
 .OP -H
 .OP -u uuid
+.OP -s
 .OP -o field\fR[,\fIfield\fR...]
 .I DiskDescriptor.xml
 .YS
@@ -516,6 +518,11 @@ List available snapshots.
 Suppress displaying the header row. Usable for scripts.
 .IP "\fB-u\fR, \fB--uuid\fR, \fB--id\fR \fIuuid\fR"
 Filter the output to a specified \fIuuid\fR.
+.IP "\fB-s\fR, \fB--snapshot\fR"
+List in terms of snapshots. By default (i.e. without this option)
+the command lists all deltas, and top delta is marked as current.
+When this option is used, top delta is not listed, and the snapshot
+which is the parent of top delta is marked as current.
 .IP "\fB-o\fR, \fB--output\fR \fIfield\fR[,\fIfield\fR...]"
 Display only the specified \fIfield\fRs. Possible fields are:
 .br
