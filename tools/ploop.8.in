@@ -61,6 +61,18 @@ ploop \- ploop device management utility
 .I image_file
 }
 .YS
+.SY ploop\ replace
+{
+.B -u
+.I uuid
+|
+.B -l
+.I level
+}
+.B -i
+.I image_file
+.I DiskDescriptor.xml
+.YS
 .SY ploop\ resize
 .B -s
 .I size
@@ -310,6 +322,40 @@ Mount point of a ploop device to unmount.
 Path to the DiskDescriptor.xml file with information about images.
 .IP \fIimage_file\fR
 Path to a mounted image file.
+
+.SS3 replace
+
+Replaces a ploop image by a different (but identical) one, on a running
+ploop device. Only a read-only image (e.g. a non-top one in a stacked
+configuration) can be replaced. An image to be replaced is specified
+by either UUID or it's level, but not both.
+
+If a new image is not identical to the old one (i.e. its content differs)
+or not suitable for ploop in any other way (e.g. it is sparse, or resides
+on a file system not supported by ploop), the result is undefined.
+
+.SY ploop\ replace
+{
+.B -u
+.I uuid
+|
+.B -l
+.I level
+}
+.B -i
+.I image_file
+.I DiskDescriptor.xml
+.YS
+
+.IP "\fB-u\fR \fIuuid\fR"
+A \fIuuid\fR of an image to be replaced.
+.IP "\fB-l\fR \fIlevel\fR"
+A level of image to be replaced. A level is a distance of an image
+from the base delta.
+.IP "\fB-i\fR \fIimage_file\fR"
+A new replacement image.
+.IP \fIDiskDescriptor.xml\fR
+Path to the DiskDescriptor.xml file with information about images.
 
 .SS3 resize
 
