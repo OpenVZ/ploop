@@ -278,10 +278,11 @@ int ploop_lock_dd(struct ploop_disk_images_data *di)
 
 int ploop_open_dd(struct ploop_disk_images_data **di, const char *fname)
 {
-	char path[PATH_MAX];
+	char *path;
 	struct ploop_disk_images_data *p;
 
-	if (realpath(fname, path) == NULL) {
+	path = realpath(fname, NULL);
+	if (path == NULL) {
 		ploop_err(errno, "Can't resolve %s", fname);
 		return SYSEXIT_DISKDESCR;
 	}
@@ -290,12 +291,7 @@ int ploop_open_dd(struct ploop_disk_images_data **di, const char *fname)
 	if (p == NULL)
 		return SYSEXIT_MALLOC;
 
-	p->runtime->xml_fname = strdup(path);
-	if (p->runtime->xml_fname == NULL) {
-		ploop_close_dd(p);
-		return SYSEXIT_MALLOC;
-	}
-
+	p->runtime->xml_fname = path;
 	*di = p;
 
 	return 0;
