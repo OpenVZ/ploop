@@ -288,8 +288,10 @@ int ploop_open_dd(struct ploop_disk_images_data **di, const char *fname)
 	}
 
 	p = alloc_diskdescriptor();
-	if (p == NULL)
+	if (p == NULL) {
+		free(path);
 		return SYSEXIT_MALLOC;
+	}
 
 	p->runtime->xml_fname = path;
 	*di = p;
