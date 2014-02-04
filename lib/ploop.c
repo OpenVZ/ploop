@@ -1323,6 +1323,11 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 		goto err;
 	}
 
+	/* check a new image */
+	ret = ploop_check(file, CHECK_DETAILED, 1, 0, 0, NULL);
+	if (ret)
+		return ret;
+
 	/* Write new dd.xml with changed image file */
 	get_disk_descriptor_fname(di, conf, sizeof(conf));
 	snprintf(conf_tmp, sizeof(conf_tmp), "%s.tmp", conf);
