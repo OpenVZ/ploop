@@ -256,7 +256,7 @@ int ploop_lock_dd(struct ploop_disk_images_data *di)
 	int ret;
 	char fname[PATH_MAX];
 
-	if (di->runtime->xml_fname == NULL) {
+	if (!di || !di->runtime || !di->runtime->xml_fname) {
 		ploop_err(0, "Unable to lock: DiskDescriptor.xml is not opened");
 		return -1;
 	}
