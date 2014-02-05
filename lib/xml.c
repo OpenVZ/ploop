@@ -379,7 +379,7 @@ int read_diskdescriptor(const char *fname, struct ploop_disk_images_data *di)
 	}
 	root_element = xmlDocGetRootElement(doc);
 
-	get_basedir(path, basedir, sizeof(path));
+	get_basedir(path, basedir, sizeof(basedir));
 	ret = parse_xml(basedir, root_element, di);
 	if (ret == 0)
 		ret = validate_disk_descriptor(di);
