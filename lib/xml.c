@@ -350,7 +350,7 @@ int read_diskdescriptor(const char *fname, struct ploop_disk_images_data *di)
 
 	LIBXML_TEST_VERSION
 
-	if (di == NULL)
+	if (!di || !di->runtime)
 		return -1;
 
 	if (stat(fname, &st)) {
