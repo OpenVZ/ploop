@@ -401,17 +401,13 @@ int read_diskdescriptor(const char *fname,
 
 int ploop_read_disk_descr(struct ploop_disk_images_data **di, const char *file)
 {
-	*di = alloc_diskdescriptor();
-	if (*di == NULL)
-		return SYSEXIT_MALLOC;
+	int ret;
 
-	if (read_diskdescriptor(file, *di)) {
-		ploop_free_diskdescriptor(*di);
-		*di = NULL;
-		return SYSEXIT_DISKDESCR;
-	}
+	ret = ploop_open_dd(di, file);
+	if (ret)
+		return ret;
 
-	return 0;
+	return ploop_read_dd(*di);
 }
 
 static int normalize_image_name(const char *basedir, const char *image, char *out, int len)
