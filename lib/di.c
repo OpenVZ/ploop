@@ -249,7 +249,6 @@ void ploop_free_diskdescriptor(struct ploop_disk_images_data *di)
 int ploop_lock_dd(struct ploop_disk_images_data *di)
 {
 	int ret;
-	char fname[PATH_MAX];
 
 	if (!di || !di->runtime || !di->runtime->xml_fname) {
 		ploop_err(0, "Unable to lock: DiskDescriptor.xml is not opened");
@@ -261,9 +260,8 @@ int ploop_lock_dd(struct ploop_disk_images_data *di)
 		return ret;
 
 	/* Update the DiskDescriptor.xml representation after lock */
-	snprintf(fname, sizeof(fname), "%s", di->runtime->xml_fname);
 	ploop_clear_dd(di);
-	if (read_diskdescriptor(fname, di)) {
+	if (ploop_read_dd(di)) {
 		ploop_unlock_di(di);
 		return -1;
 	}

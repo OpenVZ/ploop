@@ -339,20 +339,21 @@ static int validate_disk_descriptor(struct ploop_disk_images_data *di)
 	return 0;
 }
 
-int read_diskdescriptor(const char *fname, struct ploop_disk_images_data *di)
+int ploop_read_dd(struct ploop_disk_images_data *di)
 {
 	int ret;
-	char path[PATH_MAX];
 	char basedir[PATH_MAX];
+	const char *fname;
 	struct stat st;
 	xmlDoc *doc = NULL;
 	xmlNode *root_element = NULL;
 
 	LIBXML_TEST_VERSION
 
-	if (!di || !di->runtime)
+	if (!di || !di->runtime || !di->runtime->xml_fname)
 		return -1;
 
+	fname = di->runtime->xml_fname;
 	if (stat(fname, &st)) {
 		ploop_err(errno, "Can't stat %s", fname);
 		return -1;
@@ -364,14 +365,6 @@ int read_diskdescriptor(const char *fname, struct ploop_disk_images_data *di)
 		return -1;
 	}
 
-	if (realpath(fname, path) == NULL) {
-		ploop_err(errno, "Can't resolve %s", fname);
-		return -1;
-	}
-
-	free(di->runtime->xml_fname);
-	di->runtime->xml_fname = strdup(path);
-
 	doc = xmlReadFile(fname, NULL, 0);
 	if (doc == NULL) {
 		ploop_err(0, "Can't parse %s", fname);
@@ -379,7 +372,7 @@ int read_diskdescriptor(const char *fname, struct ploop_disk_images_data *di)
 	}
 	root_element = xmlDocGetRootElement(doc);
 
-	get_basedir(path, basedir, sizeof(basedir));
+	get_basedir(fname, basedir, sizeof(basedir));
 	ret = parse_xml(basedir, root_element, di);
 	if (ret == 0)
 		ret = validate_disk_descriptor(di);
@@ -387,6 +380,23 @@ int read_diskdescriptor(const char *fname, struct ploop_disk_images_data *di)
 	xmlFreeDoc(doc);
 
 	return ret;
+}
+
+int read_diskdescriptor(const char *fname,
+		struct ploop_disk_images_data *di)
+{
+	char *path;
+
+	path = realpath(fname, NULL);
+	if (!path) {
+		ploop_err(errno, "Can't resolve %s", fname);
+		return -1;
+	}
+
+	free(di->runtime->xml_fname);
+	di->runtime->xml_fname = path;
+
+	return ploop_read_dd(di);
 }
 
 int ploop_read_disk_descr(struct ploop_disk_images_data **di, const char *file)
