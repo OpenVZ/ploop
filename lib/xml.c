@@ -350,8 +350,10 @@ int ploop_read_dd(struct ploop_disk_images_data *di)
 
 	LIBXML_TEST_VERSION
 
-	if (!di || !di->runtime || !di->runtime->xml_fname)
+	if (!di || !di->runtime || !di->runtime->xml_fname) {
+		ploop_err(0, "DiskDescriptor.xml is not opened");
 		return -1;
+	}
 
 	fname = di->runtime->xml_fname;
 	if (stat(fname, &st)) {
