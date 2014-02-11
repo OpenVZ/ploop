@@ -63,7 +63,7 @@ static int fill_opts(void)
 			return ret;
 
 		ret = ploop_get_dev(di, _device, sizeof(_device));
-		ploop_free_diskdescriptor(di);
+		ploop_close_dd(di);
 		if (ret < 0)
 			return SYSEXIT_PARAM;
 
@@ -500,7 +500,7 @@ static int pb_discard(int argc, char **argv)
 		usage_discard();
 
 		if (di)
-			ploop_free_diskdescriptor(di);
+			ploop_close_dd(di);
 
 		return 1;
 	}
@@ -524,7 +524,7 @@ static int pb_discard(int argc, char **argv)
 	}
 
 	if (di)
-		ploop_free_diskdescriptor(di);
+		ploop_close_dd(di);
 
 	return ret;
 }

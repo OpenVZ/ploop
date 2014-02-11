@@ -282,7 +282,7 @@ static int plooptool_mount(int argc, char **argv)
 		}
 		ret = ploop_mount_image(di, &mountopts);
 err:
-		ploop_free_diskdescriptor(di);
+		ploop_close_dd(di);
 	}
 	else
 		ret = ploop_mount(NULL, argv, &mountopts, raw);
@@ -515,7 +515,7 @@ static int plooptool_umount(int argc, char **argv)
 
 		ret = ploop_umount_image(di);
 
-		ploop_free_diskdescriptor(di);
+		ploop_close_dd(di);
 	} else {
 		if (ploop_find_dev(component_name, argv[0], device, sizeof(device)) != 0) {
 			fprintf(stderr, "Image %s is not mounted\n", argv[0]);
@@ -634,7 +634,7 @@ static int plooptool_snapshot(int argc, char **argv)
 
 		ret = ploop_create_snapshot(di, &param);
 
-		ploop_free_diskdescriptor(di);
+		ploop_close_dd(di);
 	} else {
 		if (!device) {
 			usage_snapshot();
@@ -688,7 +688,7 @@ static int plooptool_snapshot_switch(int argc, char **argv)
 
 	ret = ploop_switch_snapshot(di, uuid, flags);
 
-	ploop_free_diskdescriptor(di);
+	ploop_close_dd(di);
 
 	return ret;
 }
@@ -730,7 +730,7 @@ static int plooptool_snapshot_delete(int argc, char **argv)
 
 	ret = ploop_delete_snapshot(di, uuid);
 
-	ploop_free_diskdescriptor(di);
+	ploop_close_dd(di);
 
 	return ret;
 }
@@ -777,7 +777,7 @@ static int plooptool_snapshot_merge(int argc, char ** argv)
 
 		ret = ploop_merge_snapshot(di, &param);
 
-		ploop_free_diskdescriptor(di);
+		ploop_close_dd(di);
 	} else {
 		usage_snapshot_merge();
 		return SYSEXIT_PARAM;
@@ -863,7 +863,7 @@ static int plooptool_resize(int argc, char **argv)
 
 	ret = ploop_resize_image(di, &param);
 
-	ploop_free_diskdescriptor(di);
+	ploop_close_dd(di);
 
 	return ret;
 }
@@ -920,7 +920,7 @@ static int plooptool_convert(int argc, char **argv)
 	else if (version != -1)
 		ret = ploop_change_fmt_version(di, version, 0);
 
-	ploop_free_diskdescriptor(di);
+	ploop_close_dd(di);
 
 	return ret;
 }

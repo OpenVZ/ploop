@@ -104,7 +104,7 @@ int plooptool_merge(int argc, char ** argv)
 		if (ret)
 			return ret;
 		ret = ploop_merge_snapshot(di, &param);
-		ploop_free_diskdescriptor(di);
+		ploop_close_dd(di);
 	} else {
 		if (device == NULL) {
 			if (argc < 2) {
