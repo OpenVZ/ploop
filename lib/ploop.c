@@ -2910,13 +2910,13 @@ int ploop_get_info_by_descr(const char *descr, struct ploop_info *info)
 	if (read_statfs_info(descr, info) == 0)
 		return 0;
 
-	ret = ploop_read_disk_descr(&di, descr);
+	ret = ploop_open_dd(&di, descr);
 	if (ret)
 		return ret;
 
 	ret = ploop_get_info(di, info);
 
-	ploop_free_diskdescriptor(di);
+	ploop_close_dd(di);
 
 	return ret;
 }
