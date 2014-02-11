@@ -354,6 +354,7 @@ int ploop_read_dd(struct ploop_disk_images_data *di)
 		ploop_err(0, "DiskDescriptor.xml is not opened");
 		return -1;
 	}
+	ploop_clear_dd(di);
 
 	fname = di->runtime->xml_fname;
 	if (stat(fname, &st)) {

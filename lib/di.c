@@ -202,7 +202,7 @@ struct ploop_disk_images_data *alloc_diskdescriptor(void)
 	return p;
 }
 
-static void ploop_clear_dd(struct ploop_disk_images_data *di)
+void ploop_clear_dd(struct ploop_disk_images_data *di)
 {
 	int i;
 
@@ -260,7 +260,6 @@ int ploop_lock_dd(struct ploop_disk_images_data *di)
 		return ret;
 
 	/* Update the DiskDescriptor.xml representation after lock */
-	ploop_clear_dd(di);
 	if (ploop_read_dd(di)) {
 		ploop_unlock_di(di);
 		return -1;

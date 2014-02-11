@@ -364,6 +364,7 @@ int ploop_blk_discard(const char* device, __u32 blocksize, off_t start, off_t en
 int ploop_lock_dd(struct ploop_disk_images_data *di);
 void ploop_unlock_dd(struct ploop_disk_images_data *di);
 int ploop_read_dd(struct ploop_disk_images_data *di);
+void ploop_clear_dd(struct ploop_disk_images_data *di);
 int ploop_lock_di(struct ploop_disk_images_data *di);
 void ploop_unlock_di(struct ploop_disk_images_data *di);
 int ploop_global_lock(void);
