@@ -540,8 +540,8 @@ int ploop_send(const char *device, int ofd, const char *flush_cmd,
 		int n;
 		struct ploop_pvd_header *vh = (void*)iobuf;
 
-		n = idelta.fops->pread(idelta.fd, iobuf, SECTOR_SIZE, 0);
-		if (n != SECTOR_SIZE) {
+		n = idelta.fops->pread(idelta.fd, iobuf, 4096, 0);
+		if (n != 4096) {
 			ploop_err(errno, "Error reading 1st sector of %s", send_from);
 			ret = SYSEXIT_READ;
 			goto done;

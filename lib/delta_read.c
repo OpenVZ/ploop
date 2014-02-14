@@ -156,13 +156,13 @@ int open_delta(struct delta * delta, const char * path, int rw, int od_flags)
 	delta->l2_cache = -1;
 	delta->dirtied = 0;
 
-	if ((err = p_memalign(&p, 4096, SECTOR_SIZE)))
+	if ((err = p_memalign(&p, 4096, 4096)))
 		goto error;
 	vh = p;
 	delta->hdr0 = p;
 	/* read header */
-	res = delta->fops->pread(delta->fd, delta->hdr0, SECTOR_SIZE, 0);
-	if (res != SECTOR_SIZE) {
+	res = delta->fops->pread(delta->fd, delta->hdr0, 4096, 0);
+	if (res != 4096) {
 		err = (res >= 0) ? EIO : errno;
 		ploop_err(errno, "read 1st sector of %s", path);
 		goto error;
