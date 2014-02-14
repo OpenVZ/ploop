@@ -68,11 +68,11 @@ static char *get_prog(char *progs[])
 int create_gpt_partition(const char *device, off_t size, __u32 blocksize)
 {
 	unsigned long long start = blocksize;
-	unsigned long long end = size - start - GPT_DATA_SIZE;
+	unsigned long long end = (size - blocksize) / blocksize * blocksize;
 	char *argv[7];
 	char s1[22], s2[22];
 
-	if (size <= start + GPT_DATA_SIZE) {
+	if (size <= start + blocksize) {
 		ploop_err(0, "Image size should be greater than %llu", start);
 		return -1;
 	}
@@ -80,9 +80,9 @@ int create_gpt_partition(const char *device, off_t size, __u32 blocksize)
 	argv[1] = "-s";
 	argv[2] = (char *)device;
 	argv[3] = "mklabel gpt mkpart primary";
-	snprintf(s1, sizeof(s1), "%llus", (start >> 3) << 3);
+	snprintf(s1, sizeof(s1), "%llub", start << PLOOP1_SECTOR_LOG);
 	argv[4] = s1;
-	snprintf(s2, sizeof(s2), "%llus", ((end >> 3) << 3) - 1);
+	snprintf(s2, sizeof(s2), "%llub", end << PLOOP1_SECTOR_LOG);
 	argv[5] = s2;
 	argv[6] = NULL;
 
