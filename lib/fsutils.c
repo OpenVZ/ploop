@@ -157,7 +157,7 @@ void tune_fs(const char *target, const char *device, unsigned long long size_sec
 		ploop_err(errno, "tune_fs: can't statfs %s", target);
 		return;
 	}
-	reserved_blocks = size_sec / 100 * 5 * 512 / fs.f_bsize;
+	reserved_blocks = size_sec / 100 * 5 * SECTOR_SIZE / fs.f_bsize;
 	if (reserved_blocks == 0) {
 		ploop_err(0, "Can't set reserved blocks for size %llu",
 				size_sec);

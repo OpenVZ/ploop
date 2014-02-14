@@ -497,9 +497,9 @@ static int create_raw_delta(const char * path, off_t bdsize)
 		if (is_operation_cancelled())
 			goto out_close;
 		off_t copy = bdsize - pos;
-		if (copy > DEF_CLUSTER/512)
-			copy = DEF_CLUSTER/512;
-		if (WRITE(fd, buf, copy*512))
+		if (copy > DEF_CLUSTER/SECTOR_SIZE)
+			copy = DEF_CLUSTER/SECTOR_SIZE;
+		if (WRITE(fd, buf, copy*SECTOR_SIZE))
 			goto out_close;
 		pos += copy;
 	}

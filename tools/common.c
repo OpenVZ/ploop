@@ -41,27 +41,27 @@ int parse_size(const char *opt, off_t *sz, const char *name)
 
 	switch (*endptr) {
 	case 'T': case 't':
-		if (val >= ~0ULL/(1024ULL*1024*1024*1024/512))
+		if (val >= ~0ULL/(1024ULL*1024*1024*1024/SECTOR_SIZE))
 			goto large;
-		val *= 1024ULL*1024*1024*1024/512;
+		val *= 1024ULL*1024*1024*1024/SECTOR_SIZE;
 		*sz = val;
 		break;
 	case 'G': case 'g':
-		if (val >= ~0ULL/(1024*1024*1024/512))
+		if (val >= ~0ULL/(1024*1024*1024/SECTOR_SIZE))
 			goto large;
-		val *= 1024*1024*1024/512;
+		val *= 1024*1024*1024/SECTOR_SIZE;
 		*sz = val;
 		break;
 	case 'M': case 'm':
-		if (val >= ~0ULL/(1024*1024/512))
+		if (val >= ~0ULL/(1024*1024/SECTOR_SIZE))
 			goto large;
-		val *= 1024*1024/512;
+		val *= 1024*1024/SECTOR_SIZE;
 		*sz = val;
 		break;
 	case 'K': case 'k':
-		if (val >= ~0ULL/(1024/512))
+		if (val >= ~0ULL/(1024/SECTOR_SIZE))
 			goto large;
-		val *= 1024/512;
+		val *= 1024/SECTOR_SIZE;
 		*sz = val;
 		break;
 	case 0:

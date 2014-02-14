@@ -156,7 +156,7 @@ int ploop_get_size(const char * device, off_t * res)
 		close(fd);
 		return SYSEXIT_DEVIOC;
 	}
-	*res >>= 9;
+	*res >>= PLOOP1_SECTOR_LOG;
 	close(fd);
 
 	return 0;

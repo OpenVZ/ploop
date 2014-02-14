@@ -320,7 +320,7 @@ int read_size_from_image(const char *img_name, int raw, off_t * res)
 			return SYSEXIT_READ;
 		}
 
-		*res = (stat.st_size + 512 - 1) / 512;
+		*res = (stat.st_size + SECTOR_SIZE - 1) / SECTOR_SIZE;
 	}
 
 	close_delta(&delta);
@@ -602,7 +602,8 @@ int ploop_grow_raw_delta_offline(const char *image, off_t new_size)
 	if (ret)
 		return ret;
 
-	new_size = (new_size + (4096 >> 9) - 1) & ~((4096 >> 9) - 1);
+	new_size = (new_size + (4096 >> PLOOP1_SECTOR_LOG) - 1) &
+				~((4096 >> PLOOP1_SECTOR_LOG) - 1);
 
 	if (new_size == old_size)
 		return 0;
@@ -616,7 +617,7 @@ int ploop_grow_raw_delta_offline(const char *image, off_t new_size)
 		return SYSEXIT_PARAM;
 	}
 
-	return grow_raw_delta(image, (new_size - old_size) << 9);
+	return grow_raw_delta(image, (new_size - old_size) << PLOOP1_SECTOR_LOG);
 }
 
 int ploop_grow_delta_offline(const char *image, off_t new_size)

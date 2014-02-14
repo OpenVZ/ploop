@@ -83,7 +83,7 @@ static int has_partition(const char *device, int *res)
 		ploop_err(errno, "Can't open %s", device);
 		return SYSEXIT_OPEN;
 	}
-	ret = pread(fd, &signature, sizeof(signature), 512);
+	ret = pread(fd, &signature, sizeof(signature), SECTOR_SIZE);
 	if (ret != sizeof(signature)) {
 		if (ret == -1)
 			ploop_err(errno, "Can't read %s", device);
