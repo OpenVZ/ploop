@@ -1470,6 +1470,10 @@ static int add_deltas(struct ploop_disk_images_data *di,
 		goto err1;
 	}
 
+	ret = check_and_repair_gpt(param->device);
+	if (ret)
+		goto err1;
+
 err1:
 	if (ret) {
 		int err = 0;
@@ -1965,8 +1969,7 @@ static int ploop_raw_discard(struct ploop_disk_images_data *di, const char *devi
 	char conf[PATH_MAX];
 	off_t new_end;
 
-	new_end = start + GPT_DATA_SIZE;
-	new_end = ROUNDUP(new_end, blocksize);
+	new_end = ROUNDUP(start, blocksize);
 
 	if (new_end >= end)
 		return 0;

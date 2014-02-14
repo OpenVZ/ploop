@@ -61,7 +61,7 @@ struct ploop_check_desc {
 	__u32 *alloc_head;
 };
 
-static int read_safe(int fd, void * buf, unsigned int size, off_t pos, char *msg)
+int read_safe(int fd, void * buf, unsigned int size, off_t pos, char *msg)
 {
 	ssize_t res;
 
@@ -78,7 +78,7 @@ static int read_safe(int fd, void * buf, unsigned int size, off_t pos, char *msg
 	return SYSEXIT_READ;
 }
 
-static int write_safe(int fd, void * buf, unsigned int size, off_t pos, char *msg)
+int write_safe(int fd, void * buf, unsigned int size, off_t pos, char *msg)
 {
 	ssize_t res;
 

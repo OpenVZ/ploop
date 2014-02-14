@@ -58,11 +58,6 @@
 #define CHECK_DETAILED	0x08
 #define CHECK_REPAIR_SPARSE	0x10
 
-/* GPT */
-#define GPT_HEADER_SIZE		1
-#define GPT_PT_ENTRY_SIZE	32
-#define GPT_DATA_SIZE		(GPT_HEADER_SIZE + GPT_PT_ENTRY_SIZE)
-
 #define S2B(sec) ((off_t)(sec) << PLOOP1_SECTOR_LOG)
 #define B2S(sec) ((sec) >> PLOOP1_SECTOR_LOG)
 #define ROUNDUP(size, blocksize) \
@@ -379,6 +374,7 @@ int dumpe2fs(const char *device, struct dump2fs_data *data);
 int e2fsck(const char *device, int flags);
 int create_gpt_partition(const char *dev, off_t size, __u32 blocksize);
 int resize_gpt_partition(const char *devname, __u64 new_size);
+int check_and_repair_gpt(const char *device);
 
 // misc
 void get_basedir(const char *fname, char *out, int len);
@@ -404,6 +400,8 @@ void free_mount_param(struct ploop_mount_param *param);
 int check_and_restore_fmt_version(struct ploop_disk_images_data *di);
 int check_blockdev_size(unsigned long long sectors, __u32 blocksize, int version);
 int print_output(int level, const char *cmd, const char *arg);
+int read_safe(int fd, void * buf, unsigned int size, off_t pos, char *msg);
+int write_safe(int fd, void * buf, unsigned int size, off_t pos, char *msg);
 
 // merge
 PL_EXT int get_delta_info(const char *device, struct merge_info *info);

@@ -27,6 +27,7 @@
 #include <sys/ioctl.h>
 #include <sys/mount.h>
 #include <linux/blkpg.h>
+#include <linux/fs.h>
 
 #include "ploop.h"
 
@@ -34,7 +35,12 @@
 #define BLKPG_RESIZE_PARTITION	3
 #endif
 
+/* GPT */
+#define GPT_PT_ENTRY_SIZE       16384
+
 #define GPT_SIGNATURE 0x5452415020494645LL // EFI PART
+#define XXX_SIGNATURE 0x5452415020585858LL // XXX PART
+
 typedef struct
 {
 	__u32 time_low;
@@ -72,32 +78,50 @@ struct GptEntry
 	__u64 ending_lba;
 };
 
+struct MbrPartEntry
+{
+	char active;
+	char start_head;
+	char start_sector;
+	char start_sylinder;
+	char type;
+	char end_head;
+	char end_sector;
+	char end_cylinder;
+	__u32 start_lba;
+	__u32 count;
+};
+
+static int get_sector_size(int fd, int *sector_size)
+{
+	return ioctl_device(fd, BLKSSZGET, sector_size);
+}
+
 static int has_partition(const char *device, int *res)
 {
-	int ret;
-	unsigned long long signature;
-	int fd;
+	int fd, sector_size, ret;
+	__u64 signature;
 
 	fd = open(device, O_RDONLY);
 	if (fd == -1) {
 		ploop_err(errno, "Can't open %s", device);
 		return SYSEXIT_OPEN;
 	}
-	ret = pread(fd, &signature, sizeof(signature), SECTOR_SIZE);
-	if (ret != sizeof(signature)) {
-		if (ret == -1)
-			ploop_err(errno, "Can't read %s", device);
-		else
-			ploop_err(0, "short read from %s %d != %u",
-					device, ret,
-					(unsigned)sizeof(signature));
-		close(fd);
-		return SYSEXIT_READ;
-	}
-	*res = (signature == GPT_SIGNATURE) ? 1 : 0;
 
+	ret = get_sector_size(fd, &sector_size);
+	if (ret)
+		goto err;
+
+	ret = read_safe(fd, &signature, sizeof(signature), sector_size,
+			"Failed to read the GPT signaturer");
+	if (ret)
+		goto err;
+
+	*res = (signature == GPT_SIGNATURE) ? 1 : 0;
+err:
 	close(fd);
-	return 0;
+
+	return ret;
 }
 
 int get_partition_device_name(const char *device, char *out, int size)
@@ -126,25 +150,22 @@ int get_partition_device_name(const char *device, char *out, int size)
 			ploop_err(errno, "failed mknod %s", out);
 			return -1;
 		}
-		if (chmod(device, 0600)) {
-			ploop_err(errno, "failed chmod %s", device);
-			return -1;
-		}
+		chmod(device, 0600);
 	} else
 		snprintf(out, size, "%s", device);
 
 	return 0;
 }
 
-static int blkpg_resize_partition(int fd, struct GptEntry *pe)
+static int blkpg_resize_partition(int fd, struct GptEntry *pe, int sector_size)
 {
 	struct blkpg_ioctl_arg ioctl_arg;
 	struct blkpg_partition part;
 
 	bzero(&part, sizeof(part));
 	part.pno = 1;
-	part.start = S2B(pe->starting_lba);
-	part.length = S2B(pe->ending_lba - pe->starting_lba + 1);
+	part.start = pe->starting_lba * sector_size;
+	part.length = (pe->ending_lba - pe->starting_lba + 1) * sector_size;
 
 	ploop_log(3, "update partition table start=%llu length=%llu",
 			part.start, part.length);
@@ -156,125 +177,269 @@ static int blkpg_resize_partition(int fd, struct GptEntry *pe)
 	return ioctl_device(fd, BLKPG, &ioctl_arg);
 }
 
-int resize_gpt_partition(const char *devname, __u64 new_size)
+static void update_protective_mbr(int fd, __u64 new_size)
 {
-	unsigned char buf[SECTOR_SIZE*GPT_DATA_SIZE]; // LBA1 header, LBA2-34 partition entry
-	int fd;
-	int part, ret;
-	struct GptHeader *pt;
+	char buf[SECTOR_SIZE];
+	struct MbrPartEntry *part1;
+
+	// skip LBA0 Protective MBR
+	if (pread(fd, buf, sizeof(buf), 0) != sizeof(buf)) {
+		ploop_err(errno, "Failed to read MBR");
+		return;
+	}
+
+	part1 = (struct MbrPartEntry *)(buf + 0x1be);
+
+	part1->end_head = 0xfe;
+	part1->end_sector = 0xff;
+	part1->end_cylinder = 0xff;
+	part1->count = (new_size - part1->start_lba) > (__u32)~0 ?
+				(__u32)~0 : new_size - part1->start_lba;
+
+	write_safe(fd, buf, sizeof(buf), 0,
+			"Failed to update protective MBR");
+}
+
+static int update_gpt_partition(int fd, const char *devname, __u64 new_size512,
+		int sector_size, int image_sector_size)
+{
+	unsigned char buf[GPT_PT_ENTRY_SIZE];
+	int ret;
+	struct GptHeader hdr;
 	struct GptEntry *pe;
 	__u32 pt_crc32, pe_crc32, orig_crc;
-	off_t size;
+	off_t size, new_size, gpt_size_bytes;
 	__u64 tmp;
-
-	ret = has_partition(devname, &part);
-	if (ret)
-		return ret;
-
-	if (!part)
-		return 0;
+	int convert = (sector_size != image_sector_size);
 
 	ret = ploop_get_size(devname, &size);
 	if (ret)
 		return ret;
 
 	// Resize up to max available space
-	if (new_size == 0)
-		new_size = size;
+	if (new_size512 == 0)
+		new_size512 = size;
 
-	if (new_size > size) {
+	if (new_size512 > size) {
 		ploop_err(0, "Unable to resize GPT partition:"
 				" incorrect parameter new_size=%llu size=%lu",
-				new_size, (long)size);
+				new_size512, (long)size);
 		return SYSEXIT_PARAM;
 	}
 
-	ploop_log(1, "Resizing GPT partition to %ld", (long)new_size);
-	fd = open(devname, O_RDWR);
-	if (fd == -1) {
-		ploop_err(errno, "open %s", devname);
-		return SYSEXIT_OPEN;
-	}
-	// skip LBA0 Protective MBR
-	ret = pread(fd, buf, sizeof(buf), SECTOR_SIZE);
-	if (ret == -1) {
-		ploop_err(errno, "pread %s", devname);
-		goto err;
-	}
-	pt = (struct GptHeader *)buf;
-	pe = (struct GptEntry *)(&buf[SECTOR_SIZE * GPT_HEADER_SIZE]);
+	/* convert from 512 to logical sector size */
+	new_size = new_size512 * SECTOR_SIZE / sector_size;
+	/* GPT header (1sec) + partition entries (16K) alligned to sector size */
+	gpt_size_bytes = sector_size + ROUNDUP(GPT_PT_ENTRY_SIZE, sector_size);
 
-	// Validate crc
-	orig_crc = pt->header_crc32;
-	pt->header_crc32 = 0;
-	pt_crc32 = ploop_crc32((unsigned char *)pt, pt->header_size);
+	ploop_log(1, "Update GPT partition to %ldsec (%d)",
+			(long)new_size, sector_size);
+
+	/* 1'st sector */
+	ret = read_safe(fd, &hdr, sizeof(hdr), image_sector_size,
+			"Failed to read the GPT header");
+	if (ret)
+		return ret;
+
+	/* 2'nd sector */
+	ret = read_safe(fd, buf, sizeof(buf), image_sector_size * 2,
+			"Failed to read the GPT partition entries");
+	if (ret)
+		return ret;
+	pe = (struct GptEntry *)buf;
+
+	/* Validate crc */
+	orig_crc = hdr.header_crc32;
+	hdr.header_crc32 = 0;
+	pt_crc32 = ploop_crc32((unsigned char *)&hdr, hdr.header_size);
 	if (pt_crc32 != orig_crc) {
 		ploop_err(0, "GPT validation failed orig crc %x != %x",
 				orig_crc, pt_crc32);
-		ret = -1;
-		goto err;
+		return SYSEXIT_PARAM;
 	}
-	// change GPT header
-	pt->alternate_lba = new_size - 1;
-	pt->last_usable_lba = new_size - GPT_DATA_SIZE - 1;
-	pe->ending_lba = (pt->last_usable_lba >> 3 << 3) - 1;
+	/* change GPT header */
+	hdr.alternate_lba = new_size - 1;
+	hdr.last_usable_lba = new_size - (gpt_size_bytes / sector_size) - 1;
 
-	// Recalculate crc32
-	pe_crc32 = ploop_crc32((unsigned char *)pe, SECTOR_SIZE * GPT_PT_ENTRY_SIZE);
-	pt->partition_entry_array_crc32 = pe_crc32;
+	pe->ending_lba = hdr.last_usable_lba - 1;
 
-	pt->header_crc32 = 0;
-	pt_crc32 = ploop_crc32((unsigned char *)pt, pt->header_size);
-	pt->header_crc32 = pt_crc32;
+	if (convert) {
+		hdr.my_lba = 1;
+		hdr.partition_entry_lba = 2;
+		hdr.first_usable_lba = (sector_size + gpt_size_bytes) / sector_size;
+		pe->starting_lba = (pe->starting_lba * image_sector_size) / sector_size;
 
-	ploop_log(0, "Storing GPT");
-	ret = pwrite(fd, pt, SECTOR_SIZE * GPT_DATA_SIZE, SECTOR_SIZE);
-	if (ret == -1) {
-		ploop_err(errno, "Failed to store primary GPT %s", devname);
-		goto err;
-	}
-	ret = fsync(fd);
-	if (ret) {
-		ploop_err(errno, "Can't fsync %s", devname);
-		ret = SYSEXIT_FSYNC;
-		goto err;
+		/*TODO:
+		 * Store GPT is not atomic, it needed to implement
+		 * backup/restore original GPT (or recreate)
+		 */
+		/* Invalidate old GPT */
+		__u64 signature = XXX_SIGNATURE;
+		ret = write_safe(fd, &signature, sizeof(signature), image_sector_size,
+				"Failed to clear the GPT signature");
+		if (ret)
+			return ret;
 	}
 
-	// Store secondary GPT entries
-	tmp = pt->my_lba;
-	pt->my_lba = pt->alternate_lba;
-	pt->alternate_lba = tmp;
-	pt->partition_entry_lba = pt->last_usable_lba + 1;
+	/* Recalculate crc32 */
+	pe_crc32 = ploop_crc32((unsigned char *)pe, GPT_PT_ENTRY_SIZE);
+	hdr.partition_entry_array_crc32 = pe_crc32;
 
-	// Recalculate crc32
-	pt->header_crc32 = 0;
-	pt_crc32 = ploop_crc32((unsigned char *)pt, pt->header_size);
-	pt->header_crc32 = pt_crc32;
+	hdr.header_crc32 = 0;
+	pt_crc32 = ploop_crc32((unsigned char *)&hdr, hdr.header_size);
+	hdr.header_crc32 = pt_crc32;
 
-	ret = pwrite(fd, pe, SECTOR_SIZE * GPT_PT_ENTRY_SIZE,
-			(new_size - GPT_DATA_SIZE)*SECTOR_SIZE);
-	if (ret == -1) {
-		ploop_err(errno, "Failed to store secondary GPT %s", devname);
-		goto err;
-	}
+	/* Store GPT header */
+	ret = write_safe(fd, &hdr, sizeof(hdr), sector_size,
+			"Failed to write the GPT header");
+	if (ret)
+		return ret;
 
-	// Store Secondary GPT header
-	ret = pwrite(fd, pt, SECTOR_SIZE, (new_size - GPT_HEADER_SIZE)*SECTOR_SIZE);
-	if (ret == -1) {
-		ploop_err(errno, "Failed to store secondary GPT header %s", devname);
-		goto err;
-	}
+	/* Store partition entries */
+	ret = write_safe(fd, buf, sizeof(buf), sector_size * 2,
+			"Failed to write the GPT partition entries");
+	if (ret)
+		return ret;
+
 	if (fsync(fd)) {
 		ploop_err(errno, "Can't fsync %s", devname);
-		ret = SYSEXIT_FSYNC;
-		goto err;
+		return SYSEXIT_FSYNC;
 	}
 
-	blkpg_resize_partition(fd, pe);
-	ret = 0;
+	/* Store secondary GPT entries */
+	tmp = hdr.my_lba;
+	hdr.my_lba = hdr.alternate_lba;
+	hdr.alternate_lba = tmp;
+	hdr.partition_entry_lba = hdr.last_usable_lba + 1;
+
+	/* Recalculate crc32 */
+	hdr.header_crc32 = 0;
+	pt_crc32 = ploop_crc32((unsigned char *)&hdr, hdr.header_size);
+	hdr.header_crc32 = pt_crc32;
+
+	/* Store secondary partition entries */
+	ret = write_safe(fd, buf, sizeof(buf), (hdr.last_usable_lba + 1) * sector_size,
+			"Failed to write secondary GPT partition entries");
+	if (ret)
+		return ret;
+
+	/* Store secondary GPT header LBA-1*/
+	ret = write_safe(fd, &hdr, sizeof(hdr), (new_size - 1) * sector_size,
+			"Failed to write secondary GPT header");
+	if (ret)
+		return ret;
+
+	update_protective_mbr(fd, new_size);
+	fsync(fd);
+	blkpg_resize_partition(fd, pe, sector_size);
+
+	return 0;
+}
+
+int resize_gpt_partition(const char *device, __u64 new_size512)
+{
+	int fd, ret, part, sector_size;
+
+	ret = has_partition(device, &part);
+	if (ret)
+		return ret;
+
+	if (!part)
+		return 0;
+
+	fd = open(device, O_RDWR);
+	if (fd == -1) {
+		ploop_err(errno, "Failed to open %s", device);
+		return SYSEXIT_OPEN;
+	}
+
+	ret = get_sector_size(fd, &sector_size);
+	if (ret)
+		goto err;
+	/* resize is performed only on mounted fs so sectors are equals */
+	ret = update_gpt_partition(fd, device, new_size512, sector_size, sector_size);
+
 err:
 	close(fd);
-	if (ret < 0)
-		ret = SYSEXIT_CHANGE_GPT;
+	return ret;
+}
+
+/* Detect image sector size by GPT signature mark
+ * support up to 4K sector size.
+ */
+#define MAX_SECTOR_SIZE	4096
+static int detect_image_sector_size(int fd, int *sector_size)
+{
+	int ret, i;
+	char buf[MAX_SECTOR_SIZE * 2];
+	int xxx_sector_size = 0;
+
+	ret = read_safe(fd, buf, sizeof(buf), 0, "Failed to read");
+	if (ret) {
+		ploop_err(0, "Unable to detect device sector size");
+		return ret;
+	}
+
+	/* Find signature in the 1'st sector */
+	*sector_size = 0;
+	xxx_sector_size = 0;
+	for (i = SECTOR_SIZE; i <= MAX_SECTOR_SIZE; i *= 2) {
+		struct GptHeader *hdr = (struct GptHeader *)&buf[i];
+
+		if (hdr->signature == GPT_SIGNATURE) {
+			if (*sector_size) {
+				ploop_err(0, "Unable to detect the device sector size:"
+					" multiple GPT signature found");
+				return SYSEXIT_PARAM;
+			}
+			*sector_size = i;
+		}
+	}
+
+	return 0;
+}
+
+int check_and_repair_gpt(const char *device)
+{
+	int ret, fd;
+	int image_sector_size, sector_size;
+	__u64 signature;
+
+	fd = open(device, O_RDWR);
+	if (fd == -1) {
+		ploop_err(errno, "Failed to open %s", device);
+		return SYSEXIT_OPEN;
+	}
+
+	ret = get_sector_size(fd, &sector_size);
+	if (ret)
+		goto err;
+
+	ret = read_safe(fd, &signature, sizeof(signature), sector_size,
+			"Failed to read the GPT signaturer");
+	if (ret)
+		goto err;
+
+	if (signature == GPT_SIGNATURE) {
+		close(fd);
+		return 0;
+	}
+
+	ret = detect_image_sector_size(fd, &image_sector_size);
+	if (ret)
+		goto err;
+
+	if (image_sector_size == 0 ||
+			(image_sector_size == sector_size)) {
+		close(fd);
+		return 0;
+	}
+
+	ploop_log(0, "GPT sector size incompatibility detected %d/%d",
+			image_sector_size, sector_size);
+	ret = update_gpt_partition(fd, device, 0, sector_size, image_sector_size);
+
+err:
+	close(fd);
 	return ret;
 }
