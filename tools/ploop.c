@@ -198,7 +198,6 @@ static int plooptool_mount(int argc, char **argv)
 {
 	int i, f, ret = 0;
 	int raw = 0;
-	int base = 0;
 	struct ploop_mount_param mountopts = {};
 	const char *component_name = NULL;
 
@@ -228,10 +227,7 @@ static int plooptool_mount(int argc, char **argv)
 			mountopts.fstype = strdup(optarg);
 			break;
 		case 'u':
-			if (!strcmp(optarg, "base"))
-				base = 1;
-			else
-				mountopts.guid = strdup(optarg);
+			mountopts.guid = strdup(optarg);
 			break;
 		case 'o':
 			mountopts.mount_data = strdup(optarg);
@@ -272,16 +268,9 @@ static int plooptool_mount(int argc, char **argv)
 
 		if (component_name != NULL)
 			ploop_set_component_name(di, component_name);
-		if (base) {
-			mountopts.guid = ploop_get_base_delta_uuid(di);
-			if (mountopts.guid == NULL) {
-				ret = SYSEXIT_DISKDESCR;
-				fprintf(stderr, "Unable to find base delta uuid\n");
-				goto err;
-			}
-		}
+
 		ret = ploop_mount_image(di, &mountopts);
-err:
+
 		ploop_close_dd(di);
 	}
 	else
