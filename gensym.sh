@@ -66,6 +66,13 @@ case $1 in
 	*.c)
 		gen_c > $1
 		;;
+	run)
+		# Run any function -- for debug/testing
+		if test -z "$2"; then
+			echo "Usage: $SELF <infile> run <funcname>"
+		fi
+		$2
+		;;
 	*)
 		usage
 		;;
