@@ -27,7 +27,6 @@
 #include <sys/ioctl.h>
 #include <sys/mount.h>
 #include <linux/blkpg.h>
-#include <linux/fs.h>
 
 #include "ploop.h"
 
