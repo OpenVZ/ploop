@@ -28,6 +28,10 @@
 #define PLOOP_SNAP_SKIP_TOPDELTA_DESTROY	0x01
 #define PLOOP_SNAP_SKIP_TOPDELTA_CREATE		0x02
 
+#ifndef PLOOP_DEPRECATED
+#define PLOOP_DEPRECATED __attribute__ ((deprecated))
+#endif
+
 enum ploop_image_mode {
 	PLOOP_EXPANDED_MODE = 0,
 	PLOOP_EXPANDED_PREALLOCATED_MODE = 1,
@@ -162,7 +166,6 @@ extern "C" {
 
 int ploop_set_component_name(struct ploop_disk_images_data *di,
 		const char *component_name);
-char *ploop_get_base_delta_uuid(struct ploop_disk_images_data *di);
 int ploop_get_top_delta_fname(struct ploop_disk_images_data *di, char *out, int len);
 int ploop_find_dev(const char *component_name, const char *delta, char *buf, int size);
 int ploop_get_dev_by_mnt(const char *path, char *buf, int size);
@@ -225,6 +228,7 @@ void ploop_close_dd(struct ploop_disk_images_data *di);
 int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data *di);
 void ploop_free_diskdescriptor(struct ploop_disk_images_data *di);
 int ploop_read_disk_descr(struct ploop_disk_images_data **di, const char *file);
+PLOOP_DEPRECATED char *ploop_get_base_delta_uuid(struct ploop_disk_images_data *di);
 
 #ifdef __cplusplus
 }

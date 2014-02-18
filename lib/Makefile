@@ -29,6 +29,7 @@ LIBOBJS=uuid.o \
 	pcopy.o \
 	di.o \
 	cleanup.o \
+	deprecated.o \
 	symbols.o
 
 SOURCES=$(LIBOBJS:.o=.c)

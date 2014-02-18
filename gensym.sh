@@ -20,13 +20,15 @@ shift
 # 2 Remove 'extern "C"' and the #ifdef/#endif
 # 3 Remove empty lines and lines with /* comments
 # 4 Remove extra spaces and tabs
-# 5 Remove newlines, only add newlines after ;
+# 5 Remove PLOOP_DEPRECATED mark
+# 6 Remove newlines, only add newlines after ;
 extract_functions() {
 	cat $INPUT | \
 	  sed -n -e '/^extern "C" {$/,/^}$/p' | \
 	  sed -n -e '3,$p' | head -n-2 | \
 	  grep -v '^$' | grep -v '^\/\*' | \
 	  sed 's/[ \t][ \t]*/ /g' | \
+	  sed 's/[ \t]*PLOOP_DEPRECATED[ \t]*//' | \
 	  tr -d '\n' | sed 's/;/;\n/g'
 }
 
@@ -45,6 +47,8 @@ gen_h() {
 gen_c() {
 	disclaimer
 	echo
+	echo "/* avoid -Werror=deprecated-declarations linker error */"
+	echo "#define PLOOP_DEPRECATED"
 	echo "#include <libploop.h>"
 	echo "#include <dynload.h>"
 	echo

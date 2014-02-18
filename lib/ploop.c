@@ -1033,7 +1033,7 @@ int ploop_get_dev_by_mnt(const char *path, char *buf, int size)
 	return get_dev_by_mnt(path, 1, buf, size);
 }
 
-char *ploop_get_base_delta_uuid(struct ploop_disk_images_data *di)
+static char *get_base_delta_uuid(struct ploop_disk_images_data *di)
 {
 	int i;
 
@@ -2831,7 +2831,7 @@ int check_and_restore_fmt_version(struct ploop_disk_images_data *di)
 	if (di->mode == PLOOP_RAW_MODE)
 		return 0;
 
-	if ((guid = ploop_get_base_delta_uuid(di)) == NULL ||
+	if ((guid = get_base_delta_uuid(di)) == NULL ||
 		 (base_id = find_image_idx_by_guid(di, guid)) == -1)
 	{
 		ploop_log(-1, "Unable to find base image");
