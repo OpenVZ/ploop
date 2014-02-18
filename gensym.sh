@@ -2,14 +2,17 @@
 
 SELF=$(basename $0)
 usage() {
-	echo "Usage: $SELF infile outfile" 1>&2
-	echo "       $SELF libploop.h dynload.h" 1>&2
-	echo "       $SELF libploop.h symbols.c" 1>&2
+	echo "Usage: $SELF <infile> <outfile>" 1>&2
+	echo "       $SELF include/libploop.h dynload.h" 1>&2
+	echo "       $SELF include/libploop.h symbols.c" 1>&2
 	exit 1
 }
 
 INPUT=$1
-test -f $INPUT || usage
+if ! test -r $INPUT; then
+	echo "$SELF: can't read input file $INPUT" 1>&2
+	usage
+fi
 shift
 
 # Extract only function prototypes from libploop.h
