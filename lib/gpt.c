@@ -372,7 +372,6 @@ static int detect_image_sector_size(int fd, int *sector_size)
 {
 	int ret, i;
 	char buf[MAX_SECTOR_SIZE * 2];
-	int xxx_sector_size = 0;
 
 	ret = read_safe(fd, buf, sizeof(buf), 0, "Failed to read");
 	if (ret) {
@@ -382,7 +381,6 @@ static int detect_image_sector_size(int fd, int *sector_size)
 
 	/* Find signature in the 1'st sector */
 	*sector_size = 0;
-	xxx_sector_size = 0;
 	for (i = SECTOR_SIZE; i <= MAX_SECTOR_SIZE; i *= 2) {
 		struct GptHeader *hdr = (struct GptHeader *)&buf[i];
 
