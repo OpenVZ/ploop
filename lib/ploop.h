@@ -415,7 +415,7 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 
 PL_EXT int ploop_change_fmt_version(struct ploop_disk_images_data *di,
 		int new_version, int flags);
-int ploop_get_dev_by_delta(const char *delta, const char *component_name,
-		char **out[]);
+int ploop_get_dev_by_delta(const char *delta, const char *topdelta,
+		const char *component_name, char **out[]);
 
 #endif

@@ -296,7 +296,7 @@ close_dir:
 	return -1;
 }
 
-/* Find device(s) by base delta and return name(s)
+/* Find device(s) by base ( & top ) delta and return name(s)
  * in a NULL-terminated array pointed to by 'out'.
  * Note that
  *  - if 0 is returned, 'out' should be free'd using
@@ -308,8 +308,8 @@ close_dir:
  *   0 found
  *   1 not found
  */
-int ploop_get_dev_by_delta(const char *delta, const char *component_name,
-		char **out[])
+int ploop_get_dev_by_delta(const char *delta, const char *topdelta,
+		const char *component_name, char **out[])
 {
 	char fname[PATH_MAX];
 	char delta_r[PATH_MAX];
@@ -360,6 +360,13 @@ int ploop_get_dev_by_delta(const char *delta, const char *component_name,
 
 		if (strcmp(image, delta_r))
 			continue;
+
+		if (topdelta != NULL) {
+			if (!(ploop_find_top_delta_name_and_format(
+					de->d_name, image, sizeof(image), NULL, 0) == 0 &&
+					strcmp(image, topdelta) == 0))
+				continue;
+		}
 
 		snprintf(fname, sizeof(fname), "/sys/block/%s/pstate/cookie",
 				de->d_name);
@@ -432,7 +439,7 @@ int ploop_find_dev(const char *component_name, const char *delta,
 	int ret;
 	char **devs;
 
-	ret = ploop_get_dev_by_delta(delta,
+	ret = ploop_get_dev_by_delta(delta, NULL,
 			/* We only need one device, so
 			 * always set component_name */
 			component_name ? component_name : "",
