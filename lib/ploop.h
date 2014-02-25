@@ -313,6 +313,8 @@ PL_EXT int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		struct ploop_mount_param *param, int raw);
 PL_EXT int replace_delta(const char *device, int level, const char *image);
 PL_EXT int create_snapshot(const char *device, const char *delta, int syncfs);
+int do_create_snapshot(struct ploop_disk_images_data *di,
+		struct ploop_snapshot_param *param, int temporary);
 int get_list_size(char **list);
 void free_images_list(char **images);
 int PWRITE(struct delta * delta, void * buf, unsigned int size, off_t off);

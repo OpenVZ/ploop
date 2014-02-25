@@ -30,6 +30,7 @@ LIBOBJS=uuid.o \
 	di.o \
 	cleanup.o \
 	deprecated.o \
+	snapshot.o \
 	symbols.o
 
 SOURCES=$(LIBOBJS:.o=.c)

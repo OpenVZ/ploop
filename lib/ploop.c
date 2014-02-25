@@ -3036,7 +3036,8 @@ int ploop_get_spec(struct ploop_disk_images_data *di, struct ploop_spec *spec)
 	return ret;
 }
 
-int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapshot_param *param)
+int do_create_snapshot(struct ploop_disk_images_data *di,
+		struct ploop_snapshot_param *param, int temporary)
 {
 	int ret;
 	int fd;
@@ -3057,38 +3058,32 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 		return SYSEXIT_PARAM;
 	}
 
-	if (ploop_lock_dd(di))
-		return SYSEXIT_LOCK;
-
 	ret = gen_uuid_pair(snap_guid, sizeof(snap_guid),
 			file_guid, sizeof(file_guid));
 	if (ret) {
 		ploop_err(errno, "Can't generate uuid");
-		goto err_cleanup1;
+		return ret;
 	}
 
 	if (param->guid != NULL) {
 		if (find_snapshot_by_guid(di, param->guid) != -1) {
 			ploop_err(0, "The snapshot %s already exist",
 				param->guid);
-			ret = SYSEXIT_PARAM;
-			goto err_cleanup1;
+			return SYSEXIT_PARAM;
 		}
 		strcpy(snap_guid, param->guid);
 	}
 	n = get_snapshot_count(di);
 	if (n == -1) {
-		ret = SYSEXIT_PARAM;
-		goto err_cleanup1;
+		return SYSEXIT_PARAM;
 	} else if (n > 128-2) {
 		/* The number of images limited by 128
 		   so the snapshot limit 128 - base_image - one_reserverd
 		 */
-		ret = SYSEXIT_PARAM;
 		ploop_err(errno, "Unable to create a snapshot."
 			" The maximum number of snapshots (%d) has been reached",
 			n-1);
-		goto err_cleanup1;
+		return SYSEXIT_PARAM;
 	}
 
 	snprintf(fname, sizeof(fname), "%s.%s",
@@ -3096,18 +3091,18 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 	ploop_di_change_guid(di, di->top_guid, snap_guid);
 	ret = ploop_di_add_image(di, fname, TOPDELTA_UUID, snap_guid);
 	if (ret)
-		goto err_cleanup1;
+		return ret;
 
 	get_disk_descriptor_fname(di, conf, sizeof(conf));
 	snprintf(conf_tmp, sizeof(conf_tmp), "%s.tmp", conf);
 	ret = ploop_store_diskdescriptor(conf_tmp, di);
 	if (ret)
-		goto err_cleanup1;
+		return ret;
 
 	ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
 	if (ret == -1) {
 		ret = SYSEXIT_SYS;
-		goto err_cleanup2;
+		goto err;
 	}
 	else if (ret == 0)
 		online = 1;
@@ -3116,19 +3111,19 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 		// offline snapshot
 		ret = get_image_param_offline(di, snap_guid, &size, &blocksize, &version);
 		if (ret)
-			goto err_cleanup2;
+			goto err;
 
 		fd = create_snapshot_delta(fname, blocksize, size, version);
 		if (fd < 0) {
 			ret = SYSEXIT_CREAT;
-			goto err_cleanup2;
+			goto err;
 		}
 		close(fd);
 	} else {
 		// Always sync fs
 		ret = create_snapshot(dev, fname, 1);
 		if (ret)
-			goto err_cleanup2;
+			goto err;
 	}
 
 	if (rename(conf_tmp, conf)) {
@@ -3143,12 +3138,9 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapsh
 
 	ploop_log(0, "ploop snapshot %s has been successfully created",
 			snap_guid);
-err_cleanup2:
+err:
 	if (ret && !online && unlink(conf_tmp))
 		ploop_err(errno, "Can't unlink %s", conf_tmp);
-
-err_cleanup1:
-	ploop_unlock_dd(di);
 
 	return ret;
 }
