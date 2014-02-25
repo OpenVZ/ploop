@@ -635,6 +635,54 @@ static int plooptool_snapshot(int argc, char **argv)
 	return ret;
 }
 
+static void usage_tsnapshot(void)
+{
+	fprintf(stderr, "Usage: ploop tsnapshot -u <uuid> -c <component_name>\n"
+			"	DiskDescriptor.xml\n"
+		);
+}
+
+static int plooptool_tsnapshot(int argc, char **argv)
+{
+	int i, ret;
+	struct ploop_disk_images_data *di;
+	struct ploop_tsnapshot_param param = {};
+
+	while ((i = getopt(argc, argv, "u:m:c:")) != EOF) {
+		switch (i) {
+		case 'u':
+			param.guid = optarg;
+			break;
+		case 'c':
+			param.component_name = optarg;
+			break;
+		default:
+			usage_snapshot();
+			return SYSEXIT_PARAM;
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc != 1 || !is_xml_fname(argv[0]) ||
+			param.guid == NULL ||
+			param.component_name == NULL) {
+		usage_tsnapshot();
+		return SYSEXIT_PARAM;
+	}
+
+	ret = ploop_open_dd(&di, argv[0]);
+	if (ret)
+		return ret;
+
+	ret = ploop_create_temporary_snapshot(di, &param, NULL);
+
+	ploop_close_dd(di);
+
+	return ret;
+}
+
 static void usage_snapshot_switch(void)
 {
 	fprintf(stderr, "Usage: ploop snapshot-switch -u <uuid> DiskDescriptor.xml\n"
@@ -1245,6 +1293,8 @@ int main(int argc, char **argv)
 		return plooptool_rm(argc, argv);
 	if (strcmp(cmd, "snapshot") == 0)
 		return plooptool_snapshot(argc, argv);
+	if (strcmp(cmd, "tsnapshot") == 0)
+		return plooptool_tsnapshot(argc, argv);
 	if (strcmp(cmd, "snapshot-switch") == 0)
 		return plooptool_snapshot_switch(argc, argv);
 	if (strcmp(cmd, "snapshot-delete") == 0)
