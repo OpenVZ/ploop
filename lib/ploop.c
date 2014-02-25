@@ -3093,19 +3093,17 @@ int do_create_snapshot(struct ploop_disk_images_data *di,
 	if (ret)
 		return ret;
 
+	ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
+	if (ret == -1)
+		return SYSEXIT_SYS;
+	else if (ret == 0)
+		online = 1;
+
 	get_disk_descriptor_fname(di, conf, sizeof(conf));
 	snprintf(conf_tmp, sizeof(conf_tmp), "%s.tmp", conf);
 	ret = ploop_store_diskdescriptor(conf_tmp, di);
 	if (ret)
 		return ret;
-
-	ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
-	if (ret == -1) {
-		ret = SYSEXIT_SYS;
-		goto err;
-	}
-	else if (ret == 0)
-		online = 1;
 
 	if (!online) {
 		// offline snapshot
@@ -3139,7 +3137,7 @@ int do_create_snapshot(struct ploop_disk_images_data *di,
 	ploop_log(0, "ploop snapshot %s has been successfully created",
 			snap_guid);
 err:
-	if (ret && !online && unlink(conf_tmp))
+	if (ret && unlink(conf_tmp))
 		ploop_err(errno, "Can't unlink %s", conf_tmp);
 
 	return ret;
