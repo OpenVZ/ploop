@@ -643,6 +643,9 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 				guid);
 		return ret;
 	}
+
+	temporary = di->snapshots[snap_idx]->temporary;
+
 	fname = find_image_by_guid(di, guid);
 	if (fname == NULL) {
 		ploop_err(0, "Can't find image by uuid %s",
@@ -799,8 +802,8 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 		ret = SYSEXIT_UNLINK;
 	}
 	if (ret == 0)
-		ploop_log(0, "ploop snapshot %s has been successfully merged",
-				guid);
+		ploop_log(0, "ploop %s %s has been successfully merged",
+				get_snap_str(temporary), guid);
 
 err:
 	for (i = 0; names[i] != NULL; i++)

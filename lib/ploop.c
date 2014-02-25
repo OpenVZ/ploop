@@ -3143,8 +3143,8 @@ int do_create_snapshot(struct ploop_disk_images_data *di,
 		ploop_err(errno, "Can't unlink %s",
 				fname);
 
-	ploop_log(0, "ploop snapshot %s has been successfully created",
-			snap_guid);
+	ploop_log(0, "ploop %s %s has been successfully created",
+			get_snap_str(temporary), snap_guid);
 err:
 	if (ret && unlink(conf_tmp))
 		ploop_err(errno, "Can't unlink %s", conf_tmp);

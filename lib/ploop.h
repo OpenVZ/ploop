@@ -406,6 +406,7 @@ int check_blockdev_size(unsigned long long sectors, __u32 blocksize, int version
 int print_output(int level, const char *cmd, const char *arg);
 int read_safe(int fd, void * buf, unsigned int size, off_t pos, char *msg);
 int write_safe(int fd, void * buf, unsigned int size, off_t pos, char *msg);
+const char *get_snap_str(int temporary);
 
 // merge
 PL_EXT int get_delta_info(const char *device, struct merge_info *info);

@@ -306,3 +306,8 @@ int p_memalign(void **memptr, size_t alignment, size_t size)
 
 	return ret;
 }
+
+const char *get_snap_str(int temporary)
+{
+	return temporary ? "temporary snapshot" : "snapshot";
+}
