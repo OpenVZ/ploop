@@ -3169,6 +3169,7 @@ int ploop_switch_snapshot_ex(struct ploop_disk_images_data *di,
 	int flags = param->flags;
 	__u32 blocksize;
 	int version;
+	int snap_id;
 
 	if (!is_valid_guid(guid)) {
 		ploop_err(0, "Incorrect guid %s", guid);
@@ -3185,9 +3186,15 @@ int ploop_switch_snapshot_ex(struct ploop_disk_images_data *di,
 		goto err_cleanup1;
 	}
 
-	if (find_snapshot_by_guid(di, guid) == -1) {
+	snap_id = find_snapshot_by_guid(di, guid);
+	if (snap_id== -1) {
 		ploop_err(0, "Can't find snapshot by uuid %s",
 				guid);
+		goto err_cleanup1;
+	}
+
+	if (di->snapshots[snap_id]->temporary) {
+		ploop_err(0, "Snapshot %s is temporary", guid);
 		goto err_cleanup1;
 	}
 
