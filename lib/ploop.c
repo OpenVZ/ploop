@@ -1713,6 +1713,8 @@ int ploop_mount_image(struct ploop_disk_images_data *di, struct ploop_mount_para
 	}
 
 	ret = mount_image(di, param, 0);
+	if (ret == 0)
+		merge_temporary_snapshots(di);
 err:
 	ploop_unlock_dd(di);
 
@@ -3057,6 +3059,10 @@ int do_create_snapshot(struct ploop_disk_images_data *di,
 		ploop_err(0, "Incorrect guid %s", param->guid);
 		return SYSEXIT_PARAM;
 	}
+
+	ret = merge_temporary_snapshots(di);
+	if (ret)
+		return ret;
 
 	ret = gen_uuid_pair(snap_guid, sizeof(snap_guid),
 			file_guid, sizeof(file_guid));
