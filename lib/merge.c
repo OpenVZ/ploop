@@ -632,6 +632,7 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 	int raw = (di->mode == PLOOP_RAW_MODE);
 	int online = 0;
 	int snap_idx;
+	int temporary = 0;
 	struct merge_info info = {};
 	int i, nelem;
 
@@ -663,6 +664,7 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 					child_guid);
 			goto err;
 		}
+		temporary = di->snapshots[snap_idx]->temporary;
 	} else if (merge_mode == PLOOP_MERGE_WITH_PARENT) {
 		parent_guid = di->snapshots[snap_idx]->parent_guid;
 		child_guid = (char *)guid;
@@ -677,6 +679,14 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 					 parent_guid);
 			goto err;
 		}
+		snap_idx = find_snapshot_by_guid(di, parent_guid);
+		if (snap_idx == -1) {
+			ploop_err(0, "Can't find snapshot by uuid %s",
+					parent_guid);
+
+			goto err;
+		}
+		temporary = di->snapshots[snap_idx]->temporary;
 	} else
 		assert(0);
 
@@ -755,6 +765,25 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 	ret = ploop_di_merge_image(di, child_guid, &delete_fname);
 	if (ret)
 		goto err;
+
+	/* Unmount temporary snapshots */
+	if (temporary) {
+		char **devs;
+		ret = ploop_get_dev_by_delta(di->images[0]->file, parent_fname, NULL, &devs);
+		if (ret == 0) {
+			char **p;
+
+			for (p = devs; *p != NULL; p++) {
+				ret = ploop_umount(*p, NULL);
+				if (ret)
+					break;
+			}
+
+			ploop_free_array(devs);
+			if (ret)
+				goto err;
+		}
+	}
 
 	ret = merge_image(device, start_level, end_level, raw, merge_top, names);
 	if (ret)
