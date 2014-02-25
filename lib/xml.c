@@ -332,11 +332,27 @@ static int validate_disk_descriptor(struct ploop_disk_images_data *di)
 		 */
 		di->top_guid = strdup(TOPDELTA_UUID);
 	}
+
+
 	if (!is_valid_guid(di->top_guid)) {
 		ploop_err(0, "Validation of %s failed: invalid top delta %s",
 				di->runtime->xml_fname, di->top_guid);
 		return -1;
 	}
+
+	int i = find_snapshot_by_guid(di, di->top_guid);
+	if (i == -1) {
+		ploop_err(0, "Validation of %s failed: top delta %s is not found",
+				di->runtime->xml_fname, di->top_guid);
+		return -1;
+	}
+
+	if (di->snapshots[i]->temporary) {
+		ploop_err(0, "Validation of %s failed: top delta %s is temporary",
+				di->runtime->xml_fname, di->top_guid);
+		return -1;
+	}
+
 	if (di->nimages != di->nsnapshots) {
 		ploop_err(0, "Validation of %s failed: images(%d) != snapshots(%d)",
 				di->runtime->xml_fname, di->nimages, di->nsnapshots);
