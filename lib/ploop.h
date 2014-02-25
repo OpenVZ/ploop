@@ -412,10 +412,13 @@ PL_EXT int get_delta_info(const char *device, struct merge_info *info);
 PL_EXT int merge_image(const char *device, int start_level, int end_level, int raw, int merge_top,
 		char **images);
 int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *guid, int merge_mode);
+int merge_temporary_snapshots(struct ploop_disk_images_data *di);
 
 PL_EXT int ploop_change_fmt_version(struct ploop_disk_images_data *di,
 		int new_version, int flags);
 int ploop_get_dev_by_delta(const char *delta, const char *topdelta,
 		const char *component_name, char **out[]);
+
+int do_delete_snapshot(struct ploop_disk_images_data *di, const char *guid);
 
 #endif

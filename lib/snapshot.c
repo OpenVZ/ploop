@@ -113,3 +113,50 @@ err_unlock:
 
 	return ret;
 }
+
+int is_snapshot_in_use(struct ploop_disk_images_data *di,
+		const char *guid)
+{
+	char *fname;
+	char **devs;
+	int ret;
+
+	fname = find_image_by_guid(di, guid);
+	if (fname == NULL)
+		return 1;
+
+	if (ploop_get_dev_by_delta(di->images[0]->file,
+				fname, NULL, &devs) == 0)
+	{
+		ret = (devs != NULL);
+		ploop_free_array(devs);
+		return ret;
+	}
+
+	return 0;
+}
+
+int merge_temporary_snapshots(struct ploop_disk_images_data *di)
+{
+	int i, ret;
+
+	for (i = 0; i < di->nsnapshots; ) {
+		const char *guid = di->snapshots[i]->guid;
+
+		if (di->snapshots[i]->temporary &&
+				!is_snapshot_in_use(di, guid)) {
+
+			ret = do_delete_snapshot(di, guid);
+			if (ret)
+				return ret;
+
+			/* di has modified, start from beginning */
+			i = 0;
+			continue;
+		}
+		i++;
+	}
+
+	return 0;
+}
+

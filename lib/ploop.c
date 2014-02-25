@@ -3315,7 +3315,7 @@ int ploop_delete_top_delta(struct ploop_disk_images_data *di)
  * 1) if guid is not active and last -> delete guid
  * 2) if guid is not last merge with child -> delete child
  */
-int ploop_delete_snapshot(struct ploop_disk_images_data *di, const char *guid)
+int do_delete_snapshot(struct ploop_disk_images_data *di, const char *guid)
 {
 	int ret;
 	char conf[PATH_MAX];
@@ -3324,48 +3324,45 @@ int ploop_delete_snapshot(struct ploop_disk_images_data *di, const char *guid)
 	char dev[64];
 	int snap_id;
 
-	if (ploop_lock_dd(di))
-		return SYSEXIT_LOCK;
-
-	ret = SYSEXIT_PARAM;
 	snap_id = find_snapshot_by_guid(di, guid);
 	if (snap_id == -1) {
 		ploop_err(0, "Can't find snapshot by uuid %s",
 				guid);
-		goto err;
+		return SYSEXIT_PARAM;
 	}
 	ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
 	if (ret == -1) {
-		ret = SYSEXIT_SYS;
-		goto err;
+		return SYSEXIT_SYS;
 	}
 	else if (ret == 0 && strcmp(di->top_guid, guid) == 0) {
-		ret = SYSEXIT_PARAM;
 		ploop_err(0, "Unable to delete active snapshot %s",
 				guid);
-		goto err;
+		return SYSEXIT_PARAM;
 	}
 
 	nelem = ploop_get_child_count_by_uuid(di, guid);
 	if (nelem == 0) {
 		if (strcmp(di->snapshots[snap_id]->parent_guid, NONE_UUID) == 0) {
-			ret = SYSEXIT_PARAM;
 			ploop_err(0, "Unable to delete base image");
-			goto err;
+			return SYSEXIT_PARAM;
 		}
 		/* snapshot is not active and last -> delete */
 		ret = ploop_di_remove_image(di, guid, 1, &fname);
 		if (ret)
-			goto err;
+			return ret;
 		get_disk_descriptor_fname(di, conf, sizeof(conf));
 		ret = ploop_store_diskdescriptor(conf, di);
-		if (ret)
-			goto err;
+		if (ret) {
+			free(fname);
+			return ret;
+		}
 		ploop_log(0, "Removing %s", fname);
 		if (fname != NULL && unlink(fname)) {
 			ploop_err(errno, "unlink %s", fname);
-			ret = SYSEXIT_UNLINK;
+			free(fname);
+			return SYSEXIT_UNLINK;
 		}
+		free(fname);
 		if (ret == 0)
 			ploop_log(0, "ploop snapshot %s has been successfully deleted",
 				guid);
@@ -3378,8 +3375,19 @@ int ploop_delete_snapshot(struct ploop_disk_images_data *di, const char *guid)
 				nelem, guid);
 	}
 
-err:
-	free(fname);
+
+	return ret;
+}
+
+int ploop_delete_snapshot(struct ploop_disk_images_data *di, const char *guid)
+{
+	int ret;
+
+	if (ploop_lock_dd(di))
+		return SYSEXIT_LOCK;
+
+	ret = do_delete_snapshot(di, guid);
+
 	ploop_unlock_dd(di);
 
 	return ret;
