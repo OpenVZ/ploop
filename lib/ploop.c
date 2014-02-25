@@ -1641,7 +1641,7 @@ err:
 	return ret;
 }
 
-static int mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *param, int flags)
+int mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *param, int flags)
 {
 	int ret;
 	char **images;
@@ -3089,6 +3089,9 @@ int do_create_snapshot(struct ploop_disk_images_data *di,
 	snprintf(fname, sizeof(fname), "%s.%s",
 			di->images[0]->file, file_guid);
 	ploop_di_change_guid(di, di->top_guid, snap_guid);
+	if (temporary)
+		ploop_di_set_temporary(di, snap_guid);
+
 	ret = ploop_di_add_image(di, fname, TOPDELTA_UUID, snap_guid);
 	if (ret)
 		return ret;

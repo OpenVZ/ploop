@@ -115,6 +115,13 @@ struct ploop_snapshot_param {
 	char dummy[32];
 };
 
+struct ploop_tsnapshot_param {
+	char *guid;
+	char *component_name;
+	char device[64];	/* out: assigned device */
+	char dummy[32];
+};
+
 struct ploop_snapshot_switch_param {
 	const char *guid;
 	const char *guid_old;	/* guid for old top delta */
@@ -188,10 +195,13 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 int ploop_convert_image(struct ploop_disk_images_data *di, int mode, int flags);
 int ploop_get_info_by_descr(const char *descr, struct ploop_info *info);
 int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapshot_param *param);
+int ploop_create_temporary_snapshot(struct ploop_disk_images_data *di,
+		struct ploop_tsnapshot_param *param, int *holder_fd);
 int ploop_merge_snapshot(struct ploop_disk_images_data *di, struct ploop_merge_param *param);
 int ploop_switch_snapshot_ex(struct ploop_disk_images_data *di, struct ploop_snapshot_switch_param *param);
 int ploop_switch_snapshot(struct ploop_disk_images_data *di, const char *uuid, int flags);
 int ploop_delete_snapshot(struct ploop_disk_images_data *di, const char *guid);
+
 int ploop_delete_top_delta(struct ploop_disk_images_data *di);
 int ploop_find_top_delta_name_and_format(
 		const char *device,

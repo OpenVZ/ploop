@@ -309,6 +309,7 @@ void __ploop_err(int err_no, const char *format, ...)
 	 })
 
 char *make_sysfs_dev_name(int minor, char *buf, int len);
+int mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *param, int flags);
 PL_EXT int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		struct ploop_mount_param *param, int raw);
 PL_EXT int replace_delta(const char *device, int level, const char *image);
@@ -332,6 +333,7 @@ int sys_syncfs(int fd);
 // manage struct ploop_disk_images_data
 int ploop_di_add_image(struct ploop_disk_images_data *di, const char *fname,
 		const char *guid, const char *parent_guid);
+void ploop_di_set_temporary(struct ploop_disk_images_data *di, const char *guid);
 int ploop_di_remove_image(struct ploop_disk_images_data *di, const char *guid,
 		int renew_top_uuid, char **fname);
 int ploop_di_merge_image(struct ploop_disk_images_data *di, const char *guid, char **fname);

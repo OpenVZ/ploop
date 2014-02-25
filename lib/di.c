@@ -182,6 +182,15 @@ void ploop_di_change_guid(struct ploop_disk_images_data *di, const char *guid, c
 		strcpy(di->top_guid, new_guid);
 }
 
+void ploop_di_set_temporary(struct ploop_disk_images_data *di, const char *guid)
+{
+	int i;
+
+	i = find_snapshot_by_guid(di, guid);
+	if (i != -1)
+		di->snapshots[i]->temporary = 1;
+}
+
 struct ploop_disk_images_data *alloc_diskdescriptor(void)
 {
 	struct ploop_disk_images_data *p;

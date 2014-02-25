@@ -75,8 +75,9 @@ struct ploop_functions {
 	int (*replace_image)(struct ploop_disk_images_data *di, struct ploop_replace_param *param);
 	int (*open_dd)(struct ploop_disk_images_data **di, const char *fname);
 	void (*close_dd)(struct ploop_disk_images_data *di);
+	int (*create_temporary_snapshot)(struct ploop_disk_images_data *di, struct ploop_tsnapshot_param *param, int *holder_fd);
 	/* padding for up to 64 pointers */
-	void *padding[19];
+	void *padding[18];
 }; /* struct ploop_functions */
 
 __attribute__ ((visibility("default")))
