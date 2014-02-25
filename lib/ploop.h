@@ -314,8 +314,6 @@ PL_EXT int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		struct ploop_mount_param *param, int raw);
 PL_EXT int replace_delta(const char *device, int level, const char *image);
 PL_EXT int create_snapshot(const char *device, const char *delta, int syncfs);
-int do_create_snapshot(struct ploop_disk_images_data *di,
-		struct ploop_snapshot_param *param, int temporary);
 int get_list_size(char **list);
 void free_images_list(char **images);
 int PWRITE(struct delta * delta, void * buf, unsigned int size, off_t off);
@@ -329,6 +327,15 @@ int find_image_idx_by_guid(struct ploop_disk_images_data *di, const char *guid);
 int ploop_find_dev_by_uuid(struct ploop_disk_images_data *di, int check_state, char *out, int len);
 int sys_fallocate(int fd, int mode, off_t offset, off_t len);
 int sys_syncfs(int fd);
+int create_snapshot_delta(const char *path, __u32 blocksize, off_t bdsize,
+		int version);
+int get_image_param_online(const char *device, off_t *size,
+		__u32 *blocksize, int *version);
+int get_image_param(struct ploop_disk_images_data *di, const char *guid,
+		off_t *size, __u32 *blocksize, int *version);
+int get_image_param_offline(struct ploop_disk_images_data *di, const char *guid,
+                off_t *size, __u32 *blocksize, int *version);
+char **make_images_list(struct ploop_disk_images_data *di, const char *guid, int reverse);
 
 // manage struct ploop_disk_images_data
 int ploop_di_add_image(struct ploop_disk_images_data *di, const char *fname,
@@ -407,7 +414,6 @@ int print_output(int level, const char *cmd, const char *arg);
 int read_safe(int fd, void * buf, unsigned int size, off_t pos, char *msg);
 int write_safe(int fd, void * buf, unsigned int size, off_t pos, char *msg);
 const char *get_snap_str(int temporary);
-
 // merge
 PL_EXT int get_delta_info(const char *device, struct merge_info *info);
 PL_EXT int merge_image(const char *device, int start_level, int end_level, int raw, int merge_top,
@@ -419,7 +425,5 @@ PL_EXT int ploop_change_fmt_version(struct ploop_disk_images_data *di,
 		int new_version, int flags);
 int ploop_get_dev_by_delta(const char *delta, const char *topdelta,
 		const char *component_name, char **out[]);
-
-int do_delete_snapshot(struct ploop_disk_images_data *di, const char *guid);
 
 #endif
