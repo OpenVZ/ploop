@@ -83,6 +83,7 @@ struct ploop_image_data {
 struct ploop_snapshot_data {
 	char *guid;
 	char *parent_guid;
+	int temporary;
 };
 
 struct ploop_disk_images_runtime_data;

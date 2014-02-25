@@ -236,6 +236,8 @@ static int parse_xml(const char *basedir, xmlNode *root_node, struct ploop_disk_
 	cur_node = seek(root_node, "/Snapshots/Shot");
 	if (cur_node != NULL) {
 		for (; cur_node; cur_node = cur_node->next) {
+			int temporary = 0;
+
 			if (cur_node->type != XML_ELEMENT_NODE)
 				continue;
 
@@ -252,7 +254,11 @@ static int parse_xml(const char *basedir, xmlNode *root_node, struct ploop_disk_
 
 			ERR(parent_guid, "ParentGUID");
 
-			if (ploop_add_snapshot_entry(di, guid, parent_guid))
+			node = seek(cur_node, "Temporary");
+			if (node != NULL)
+				temporary = 1;
+
+			if (ploop_add_snapshot_entry(di, guid, parent_guid, temporary))
 				return -1;
 		}
 	}
@@ -314,7 +320,7 @@ static int validate_disk_descriptor(struct ploop_disk_images_data *di)
 	if (di->nimages != di->nsnapshots) {
 		int ret;
 
-		ret = ploop_add_snapshot_entry(di, TOPDELTA_UUID, NONE_UUID);
+		ret = ploop_add_snapshot_entry(di, TOPDELTA_UUID, NONE_UUID, 0);
 		if (ret)
 			return ret;
 		if (di->top_guid == NULL)
@@ -649,6 +655,14 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 		if (rc < 0) {
 			ploop_err(0, "Error at xmlTextWriter ParentGUID");
 			goto err;
+		}
+
+		if (di->snapshots[i]->temporary) {
+			rc = xmlTextWriterWriteElement(writer, BAD_CAST "Temporary",  BAD_CAST "");
+			if (rc < 0) {
+				ploop_err(0, "Error at xmlTextWriter Temporary");
+				goto err;
+			}
 		}
 
 		/*  Close Shot */

@@ -338,7 +338,7 @@ PL_EXT char *find_image_by_guid(struct ploop_disk_images_data *di, const char *g
 PL_EXT int find_snapshot_by_guid(struct ploop_disk_images_data *di, const char *guid);
 int ploop_add_image_entry(struct ploop_disk_images_data *di, const char *fname, const char *guid);
 int ploop_add_snapshot_entry(struct ploop_disk_images_data *di, const char *guid,
-		const char *parent_guid);
+		const char *parent_guid, int temporary);
 int ploop_find_dev(const char *module, const char *image, char *out, int size);
 
 //balloon

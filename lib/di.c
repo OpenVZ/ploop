@@ -90,7 +90,7 @@ static void free_snapshot_data(struct ploop_snapshot_data *data)
 }
 
 int ploop_add_snapshot_entry(struct ploop_disk_images_data *di, const char *guid,
-		const char *parent_guid)
+		const char *parent_guid, int temporary)
 {
 	struct ploop_snapshot_data **tmp;
 	struct ploop_snapshot_data *data;
@@ -121,6 +121,7 @@ int ploop_add_snapshot_entry(struct ploop_disk_images_data *di, const char *guid
 	di->snapshots = tmp;
 	data->guid = strdup(guid);
 	data->parent_guid = strdup(parent_guid);
+	data->temporary = temporary;
 
 	if (data->guid == NULL || data->parent_guid == NULL) {
 		ploop_err(ENOMEM, "strdup failed");
@@ -150,7 +151,7 @@ int ploop_di_add_image(struct ploop_disk_images_data *di, const char *fname,
 		return ret;
 	}
 
-	ret = ploop_add_snapshot_entry(di, guid, parent_guid);
+	ret = ploop_add_snapshot_entry(di, guid, parent_guid, 0);
 	if (ret) {
 		free(top_guid);
 		return ret;
