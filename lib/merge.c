@@ -119,37 +119,42 @@ static int grow_lower_delta(const char *device, int top, int start_level, int en
 		if (find_delta_names(device, end_level, end_level,
 				     &src_image, &fmt)) {
 			ploop_err(errno, "find_delta_names");
-			return(SYSEXIT_SYSFS);
+			ret = SYSEXIT_SYSFS;
+			goto done;
 		}
 
 		if ((ret = read_size_from_image(src_image, 0, &src_size)))
-			return ret;
+			goto done;
 	}
 
 	if (find_delta_names(device, start_level, start_level,
 			     &dst_image, &fmt)) {
 		ploop_err(errno, "find_delta_names");
-		return(SYSEXIT_SYSFS);
+		ret = SYSEXIT_SYSFS;
+		goto done;
 	}
 
 	if (strcmp(fmt, "raw") == 0)
 		dst_is_raw = 1;
 
 	if ((ret = read_size_from_image(dst_image, dst_is_raw, &dst_size)))
-		return ret;
+		goto done;
 
-	if (src_size <= dst_size)
-		return 0;
+	if (src_size <= dst_size) {
+		ret = 0;
+		goto done;
+	}
 
 	if (dst_is_raw) {
-		return grow_raw_delta(dst_image, S2B(src_size - dst_size));
+		ret = grow_raw_delta(dst_image, S2B(src_size - dst_size));
+		goto done;
 	}
 
 	/* Here we know for sure that destination delta is in ploop1 format */
-
 	if (open_delta(&odelta, dst_image, O_RDWR, OD_NOFLAGS)) {
 		ploop_err(errno, "open_delta");
-		return(SYSEXIT_OPEN);
+		ret = SYSEXIT_OPEN;
+		goto done;
 	}
 
 	if (dirty_delta(&odelta)) {
@@ -220,6 +225,8 @@ static int grow_lower_delta(const char *device, int top, int start_level, int en
 	}
 
 done:
+	free(src_image);
+	free(dst_image);
 	close_delta(&odelta);
 	return ret;
 }
