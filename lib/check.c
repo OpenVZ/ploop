@@ -534,6 +534,12 @@ static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int
 		for (i = 0; i < fiemap->fm_mapped_extents; i++) {
 			if (fm_ext[i].fe_flags & FIEMAP_EXTENT_LAST)
 				last = 1;
+
+			if (fm_ext[i].fe_logical >= st.st_size) {
+				last = 1;
+				break;
+			}
+
 			if ((fm_ext[i].fe_flags & FIEMAP_EXTENT_UNWRITTEN) &&
 			    (fm_ext[i].fe_logical % cluster ||
 					fm_ext[i].fe_length % cluster)) {
