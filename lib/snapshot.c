@@ -411,22 +411,39 @@ err_unlock:
 static int is_snapshot_in_use(struct ploop_disk_images_data *di,
 		const char *guid)
 {
+	char device[64];
 	char *fname;
-	char **devs;
-	int ret;
+	char **devs, **dev;
+	int ret, count, inuse;
 
 	fname = find_image_by_guid(di, guid);
 	if (fname == NULL)
 		return 1;
 
 	ret = ploop_get_dev_by_delta(di->images[0]->file,
-				fname, NULL, &devs);
-	if (ret == -1) /* busy in case error */
+			fname, NULL, &devs);
+	if (ret == -1)  /* return inuse on error */
 		return 1;
+	else if (ret == 1) /* no device found */
+		return 0;
+
+	inuse = 0;
+	for (dev = devs; *dev != NULL; dev++)
+		/* process 'open_count'
+		 *	count >= 2 ? locked
+		 *	count == 1 && !mounted ? locked
+		 */
+		if (ploop_get_attr(*dev, "open_count", &count) != 0 ||
+			(count >= 2 ||
+			(count == 1 && ploop_get_mnt_by_dev(*dev, device, sizeof(device)) == 1)))
+		{
+			inuse = 1;
+			break;
+		}
 
 	ploop_free_array(devs);
 
-	return (ret == 0);
+	return inuse;
 }
 
 int merge_temporary_snapshots(struct ploop_disk_images_data *di)
