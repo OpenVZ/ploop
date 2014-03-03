@@ -118,6 +118,7 @@ struct ploop_snapshot_param {
 struct ploop_tsnapshot_param {
 	char *guid;
 	char *component_name;
+	char *target;
 	char device[64];	/* out: assigned device */
 	char dummy[32];
 };

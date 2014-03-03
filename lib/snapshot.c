@@ -355,7 +355,8 @@ int ploop_create_temporary_snapshot(struct ploop_disk_images_data *di,
 	};
 	struct ploop_mount_param mount_param = {
 		.ro = 1,
-		.guid = param->guid
+		.guid = param->guid,
+		.target = param->target
 	};
 
 	if (di == NULL || param == NULL)

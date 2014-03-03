@@ -638,7 +638,7 @@ static int plooptool_snapshot(int argc, char **argv)
 static void usage_tsnapshot(void)
 {
 	fprintf(stderr, "Usage: ploop tsnapshot -u <uuid> -c <component_name>\n"
-			"	DiskDescriptor.xml\n"
+			"	[-m MOUNT_POINT] DiskDescriptor.xml\n"
 		);
 }
 
@@ -648,13 +648,16 @@ static int plooptool_tsnapshot(int argc, char **argv)
 	struct ploop_disk_images_data *di;
 	struct ploop_tsnapshot_param param = {};
 
-	while ((i = getopt(argc, argv, "u:m:c:")) != EOF) {
+	while ((i = getopt(argc, argv, "u:c:m:")) != EOF) {
 		switch (i) {
 		case 'u':
 			param.guid = optarg;
 			break;
 		case 'c':
 			param.component_name = optarg;
+			break;
+		case 'm':
+			param.target = optarg;
 			break;
 		default:
 			usage_snapshot();
