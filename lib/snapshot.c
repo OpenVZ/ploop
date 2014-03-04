@@ -28,6 +28,9 @@
 
 #include "ploop.h"
 
+/* lock temporary snapshot by mount */
+#define TSNAPSHOT_MOUNT_LOCK_MARK	"~"
+
 static int is_old_snapshot_format(struct ploop_disk_images_data *di)
 {
 	if (di->top_guid != NULL && !guidcmp(di->top_guid, TOPDELTA_UUID))
@@ -358,12 +361,18 @@ int ploop_create_temporary_snapshot(struct ploop_disk_images_data *di,
 		.guid = param->guid,
 		.target = param->target
 	};
+	char component_name[PLOOP_COOKIE_SIZE];
 
 	if (di == NULL || param == NULL)
 		return SYSEXIT_PARAM;
 
 	if (param->guid == NULL) {
 		ploop_err(0, "Snapshot guid is not specified");
+		return SYSEXIT_PARAM;
+	}
+
+	if (param->component_name == NULL) {
+		ploop_err(0, "component name is not specified");
 		return SYSEXIT_PARAM;
 	}
 
@@ -376,7 +385,10 @@ int ploop_create_temporary_snapshot(struct ploop_disk_images_data *di,
 
 	/* FIXME: should be processed from 'struct ploop_mount_param' only ?? */
 	char *t = di->runtime->component_name;
-	di->runtime->component_name = param->component_name;
+	snprintf(component_name, sizeof(component_name), "%s%s",
+			holder_fd == NULL ? TSNAPSHOT_MOUNT_LOCK_MARK : "",
+			param->component_name);
+	di->runtime->component_name = component_name;
 
 	ret = mount_image(di, &mount_param, 0);
 	di->runtime->component_name = t;
@@ -409,13 +421,42 @@ err_unlock:
 	return ret;
 }
 
+static int is_device_inuse(const char *dev)
+{
+	int count;
+	char fname[PATH_MAX];
+	char cookie[PLOOP_COOKIE_SIZE] = "";
+
+	if (ploop_get_attr(dev, "open_count", &count))
+		return 1;
+
+	/* detect if snapshot locked by ploop mount */
+	snprintf(fname, sizeof(fname), "/sys/block/%s/pstate/cookie",
+			memcmp(dev, "/dev/", 5) == 0 ? dev + 5 : dev);
+	if (read_line_quiet(fname, cookie, sizeof(cookie)))
+		return 1;
+
+	if (!strncmp(cookie, TSNAPSHOT_MOUNT_LOCK_MARK,
+				sizeof(TSNAPSHOT_MOUNT_LOCK_MARK)-1))
+		return 1;
+
+	/* snap holder + mount */
+	if (count >= 2)
+		return 1;
+
+	/* if there single reference we should detect is holder is alive */
+	if (count == 1 && ploop_get_mnt_by_dev(dev, fname, sizeof(fname)) != 0)
+		return 1;
+
+	return 0;
+}
+
 static int is_snapshot_in_use(struct ploop_disk_images_data *di,
 		const char *guid)
 {
-	char device[64];
 	char *fname;
 	char **devs, **dev;
-	int ret, count, inuse;
+	int ret, inuse;
 
 	fname = find_image_by_guid(di, guid);
 	if (fname == NULL)
@@ -430,15 +471,7 @@ static int is_snapshot_in_use(struct ploop_disk_images_data *di,
 
 	inuse = 0;
 	for (dev = devs; *dev != NULL; dev++)
-		/* process 'open_count'
-		 *	count >= 2 ? locked
-		 *	count == 1 && !mounted ? locked
-		 */
-		if (ploop_get_attr(*dev, "open_count", &count) != 0 ||
-			(count >= 2 ||
-			(count == 1 && ploop_get_mnt_by_dev(*dev, device, sizeof(device)) == 1)))
-		{
-			inuse = 1;
+		if (is_device_inuse(*dev)) {
 			break;
 		}
 
