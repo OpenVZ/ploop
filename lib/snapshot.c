@@ -472,6 +472,7 @@ static int is_snapshot_in_use(struct ploop_disk_images_data *di,
 	inuse = 0;
 	for (dev = devs; *dev != NULL; dev++)
 		if (is_device_inuse(*dev)) {
+			inuse = 1;
 			break;
 		}
 
