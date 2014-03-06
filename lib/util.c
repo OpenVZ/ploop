@@ -175,6 +175,39 @@ int is_valid_guid(const char *guid)
 	return 1;
 }
 
+int ploop_find_dev_by_cn(struct ploop_disk_images_data *di,
+		const char *component_name, int check_state, char *out, int len)
+{
+	int ret;
+	int running = 0;
+
+	if (di->nimages <= 0) {
+		ploop_err(0, "No images found in " DISKDESCRIPTOR_XML);
+		return -1;
+	}
+	ret = ploop_find_dev(component_name, di->images[0]->file, out, len);
+	if (ret == 0 && check_state) {
+		if (ploop_get_attr(out, "running", &running)) {
+			ploop_err(0, "Can't get running attr for %s",
+					out);
+			return -1;
+		}
+		if (!running) {
+			ploop_err(0, "Unexpectedly found stopped ploop device %s",
+					out);
+			return -1;
+		}
+	}
+
+	return ret;
+}
+
+int ploop_find_dev_by_dd(struct ploop_disk_images_data *di,
+		char *out, int len)
+{
+	return ploop_find_dev_by_cn(di, NULL, 1, out, len);
+}
+
 int is_valid_blocksize(__u32 blocksize)
 {
 	/* 32K <= blocksize <= 64M */

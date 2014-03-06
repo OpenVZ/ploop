@@ -324,7 +324,11 @@ int read_diskdescriptor(const char *fname, struct ploop_disk_images_data *di);
 void get_disk_descriptor_fname(struct ploop_disk_images_data *di, char *buf, int size);
 void get_disk_descriptor_lock_fname(struct ploop_disk_images_data *di, char *out, int size);
 int find_image_idx_by_guid(struct ploop_disk_images_data *di, const char *guid);
-int ploop_find_dev_by_uuid(struct ploop_disk_images_data *di, int check_state, char *out, int len);
+int ploop_find_dev(const char *component_name, const char *image, char *out, int size);
+int ploop_find_dev_by_cn(struct ploop_disk_images_data *di, const char *component_name,
+		int check_state, char *out, int len);
+int ploop_find_dev_by_dd(struct ploop_disk_images_data *di,
+		char *out, int len);
 int sys_fallocate(int fd, int mode, off_t offset, off_t len);
 int sys_syncfs(int fd);
 int create_snapshot_delta(const char *path, __u32 blocksize, off_t bdsize,
@@ -350,7 +354,6 @@ PL_EXT int find_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 int ploop_add_image_entry(struct ploop_disk_images_data *di, const char *fname, const char *guid);
 int ploop_add_snapshot_entry(struct ploop_disk_images_data *di, const char *guid,
 		const char *parent_guid, int temporary);
-int ploop_find_dev(const char *module, const char *image, char *out, int size);
 
 //balloon
 PL_EXT char *mntn2str(int mntn_type);

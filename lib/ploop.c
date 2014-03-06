@@ -1051,34 +1051,6 @@ int ploop_get_top_delta_fname(struct ploop_disk_images_data *di, char *out, int 
 	return 0;
 }
 
-int ploop_find_dev_by_uuid(struct ploop_disk_images_data *di,
-		int check_state, char *out, int len)
-{
-	int ret;
-	int running = 0;
-
-	if (di->nimages <= 0) {
-		ploop_err(0, "No images found in " DISKDESCRIPTOR_XML);
-		return -1;
-	}
-	ret = ploop_find_dev(di->runtime->component_name, di->images[0]->file,
-			out, len);
-	if (ret == 0 && check_state) {
-		if (ploop_get_attr(out, "running", &running)) {
-			ploop_err(0, "Can't get running attr for %s",
-					out);
-			return -1;
-		}
-		if (!running) {
-			ploop_err(0, "Unexpectedly found stopped ploop device %s",
-					out);
-			return -1;
-		}
-	}
-
-	return ret;
-}
-
 int ploop_get_dev(struct ploop_disk_images_data *di, char *out, int len)
 {
 	int ret;
@@ -1086,7 +1058,7 @@ int ploop_get_dev(struct ploop_disk_images_data *di, char *out, int len)
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	ret = ploop_find_dev(di->runtime->component_name, di->images[0]->file, out, len);
+	ret = ploop_find_dev_by_dd(di, out, len);
 
 	ploop_unlock_dd(di);
 
@@ -1297,7 +1269,7 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 		goto err;
 	}
 
-	if (ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev))) {
+	if (ploop_find_dev_by_dd(di, dev, sizeof(dev))) {
 		ploop_err(0, "Can't find running ploop device");
 		goto err;
 	}
@@ -1685,7 +1657,7 @@ int ploop_mount_image(struct ploop_disk_images_data *di, struct ploop_mount_para
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
+	ret = ploop_find_dev_by_cn(di, di->runtime->component_name, 1, dev, sizeof(dev));
 	if (ret == -1) {
 		ploop_unlock_dd(di);
 		return SYSEXIT_SYS;
@@ -1768,7 +1740,7 @@ int ploop_umount_image(struct ploop_disk_images_data *di)
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	ret = ploop_find_dev_by_uuid(di, 0, dev, sizeof(dev));
+	ret = ploop_find_dev_by_cn(di, di->runtime->component_name, 0, dev, sizeof(dev));
 	if (ret == -1) {
 		ploop_unlock_dd(di);
 		return SYSEXIT_SYS;
@@ -1866,7 +1838,7 @@ int get_image_param(struct ploop_disk_images_data *di, const char *guid,
 	 * get offline for non top delta.
 	 */
 	if (strcmp(di->top_guid, guid) == 0) {
-		ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
+		ret = ploop_find_dev_by_dd(di, dev, sizeof(dev));
 		if (ret == -1)
 			return SYSEXIT_SYS;
 		if (ret == 0)
@@ -1944,7 +1916,7 @@ int ploop_grow_image(struct ploop_disk_images_data *di, off_t size)
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	ret = ploop_find_dev_by_uuid(di, 1, device, sizeof(device));
+	ret = ploop_find_dev_by_dd(di, device, sizeof(device));
 	if (ret == -1) {
 		ret = SYSEXIT_SYS;
 		goto err;
@@ -2097,7 +2069,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	ret = ploop_find_dev_by_uuid(di, 1, buf, sizeof(buf));
+	ret = ploop_find_dev_by_dd(di, buf, sizeof(buf));
 	if (ret == -1) {
 		ret = SYSEXIT_SYS;
 		goto err;
@@ -2644,7 +2616,7 @@ int ploop_change_fmt_version(struct ploop_disk_images_data *di, int new_version,
 		goto err;
 	}
 
-	rc = ploop_find_dev_by_uuid(di, 1, fname, sizeof(fname));
+	rc = ploop_find_dev_by_dd(di, fname, sizeof(fname));
 	if (rc == -1) {
 		ret = SYSEXIT_SYS;
 		goto err;
@@ -2690,7 +2662,7 @@ int ploop_change_fmt_version(struct ploop_disk_images_data *di, int new_version,
 	}
 
 	/* Recheck ploop state after locking */
-	rc = ploop_find_dev_by_uuid(di, 1, fname, sizeof(fname));
+	rc = ploop_find_dev_by_dd(di, fname, sizeof(fname));
 	if (rc == -1) {
 		ret = SYSEXIT_SYS;
 		goto err;
@@ -2895,7 +2867,7 @@ static int ploop_get_info(struct ploop_disk_images_data *di, struct ploop_info *
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
+	ret = ploop_find_dev_by_dd(di, dev, sizeof(dev));
 	if (ret == -1) {
 		ret = SYSEXIT_SYS;
 		goto err;

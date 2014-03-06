@@ -62,7 +62,7 @@ static int do_delete_snapshot(struct ploop_disk_images_data *di, const char *gui
 				guid);
 		return SYSEXIT_PARAM;
 	}
-	ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
+	ret = ploop_find_dev_by_dd(di, dev, sizeof(dev));
 	if (ret == -1)
 		return SYSEXIT_SYS;
 	else if (ret == 0 && strcmp(di->top_guid, guid) == 0) {
@@ -272,7 +272,7 @@ static int do_create_snapshot(struct ploop_disk_images_data *di,
 	if (ret)
 		return ret;
 
-	ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
+	ret = ploop_find_dev_by_dd(di, dev, sizeof(dev));
 	if (ret == -1)
 		return SYSEXIT_SYS;
 	else if (ret == 0)
@@ -570,7 +570,7 @@ int ploop_switch_snapshot_ex(struct ploop_disk_images_data *di,
 
 	if (!(flags & PLOOP_SNAP_SKIP_TOPDELTA_DESTROY)) {
 		// device should be stopped
-		ret = ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev));
+		ret = ploop_find_dev_by_dd(di, dev, sizeof(dev));
 		if (ret == -1) {
 			ret = SYSEXIT_SYS;
 			goto err_cleanup1;
