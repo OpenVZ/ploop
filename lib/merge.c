@@ -613,6 +613,66 @@ merge_done2:
 	return ret;
 }
 
+static const char *get_devs_str(char **devs, char *buf, int size)
+{
+	char **p;
+	char *sp = buf;
+	char *ep = buf + size;
+
+	for (p = devs; *p != NULL; p++) {
+		sp += snprintf(sp, ep - sp, "%s ", *p);
+		if (sp >= ep)
+			break;
+	}
+	return buf;
+}
+
+static int check_snapshot_mount(struct ploop_disk_images_data *di,
+		int temporary, const char *parent_fname,
+		const char *child_fname, const char *child_guid)
+{
+	int ret;
+	char **devs, **p;
+	char buf[512];
+
+	/* Check if upper(child) delta that will be merged and
+	 * destoyed is mounted
+	 */
+	if (guidcmp(child_guid, di->top_guid) != 0 &&
+			ploop_get_dev_by_delta(di->images[0]->file,
+				child_fname, NULL, &devs) == 0)
+	{
+		ploop_err(0, "Snapshot is busy by devise(s): %s",
+				get_devs_str(devs, buf, sizeof(buf)));
+		ploop_free_array(devs);
+		return SYSEXIT_EBUSY;
+	}
+
+	/* check if snapshot (parent) delta is mounted */
+	ret = 0;
+	if (ploop_get_dev_by_delta(di->images[0]->file,
+			parent_fname, NULL, &devs) == 0)
+	{
+		/* unmount temporary smapshot */
+		if (temporary) {
+			for (p = devs; *p != NULL; p++) {
+				ret = ploop_umount(*p, NULL);
+				if (ret)
+					break;
+			}
+		} else {
+			ploop_err(0, "Snapshot is busy by device(s): %s",
+					get_devs_str(devs, buf, sizeof(buf)));
+			ret = SYSEXIT_EBUSY;
+		}
+	}
+	ploop_free_array(devs);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
 int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *guid, int merge_mode)
 {
 	char conf[PATH_MAX];
@@ -764,29 +824,15 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 	}
 	names[2] = NULL;
 
+	ret = check_snapshot_mount(di, temporary, parent_fname,
+			child_fname, child_guid);
+	if (ret)
+		goto err;
+
 	/* make validation before real merge */
 	ret = ploop_di_merge_image(di, child_guid, &delete_fname);
 	if (ret)
 		goto err;
-
-	/* Unmount temporary snapshots */
-	if (temporary) {
-		char **devs;
-		ret = ploop_get_dev_by_delta(di->images[0]->file, parent_fname, NULL, &devs);
-		if (ret == 0) {
-			char **p;
-
-			for (p = devs; *p != NULL; p++) {
-				ret = ploop_umount(*p, NULL);
-				if (ret)
-					break;
-			}
-
-			ploop_free_array(devs);
-			if (ret)
-				goto err;
-		}
-	}
 
 	ret = merge_image(device, start_level, end_level, raw, merge_top, names);
 	if (ret)
