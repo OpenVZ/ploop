@@ -1671,7 +1671,7 @@ int ploop_mount_image(struct ploop_disk_images_data *di, struct ploop_mount_para
 	}
 
 	ret = mount_image(di, param, 0);
-	if (ret == 0)
+	if (ret == 0 && di->runtime->component_name == NULL)
 		merge_temporary_snapshots(di);
 err:
 	ploop_unlock_dd(di);
