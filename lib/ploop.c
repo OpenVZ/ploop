@@ -1183,6 +1183,14 @@ static int ploop_mount_fs(struct ploop_mount_param *param)
 	return 0;
 }
 
+static void print_sys_block_ploop(void)
+{
+	print_output(-1, "find",
+			"/sys/block/ploop[0-9]*/ -type f "
+			"-not -name '*event' "
+			"-exec echo {} \\; -exec cat {} \\;");
+}
+
 static int add_delta(int lfd, const char *image, struct ploop_ctl_delta *req)
 {
 	int fd;
@@ -1199,11 +1207,7 @@ static int add_delta(int lfd, const char *image, struct ploop_ctl_delta *req)
 
 	if (ioctl(lfd, PLOOP_IOC_ADD_DELTA, req) < 0) {
 		if (errno == EBUSY)
-			print_output(-1, "find",
-					"/sys/block/ploop[0-9]*/ -type f "
-					"-not -name '*event' "
-					"-exec echo {} \\; -exec cat {} \\;");
-
+			print_sys_block_ploop();
 		ploop_err(0, "Can't add image %s: %s", image,
 				(errno == ENOTSUP) ?
 					"unsupported underlying filesystem"
@@ -1252,11 +1256,7 @@ int replace_delta(const char *device, int level, const char *image)
 
 	if (ioctl(lfd, PLOOP_IOC_REPLACE_DELTA, &req) < 0) {
 		if (errno == EBUSY)
-			print_output(-1, "find",
-					"/sys/block/ploop[0-9]*/ -type f "
-					"-not -name '*event' "
-					"-exec echo {} \\; -exec cat {} \\;");
-
+			print_sys_block_ploop();
 		ploop_err(errno, "Can't replace image %s", image);
 		ret = SYSEXIT_DEVIOC;
 		goto out;
