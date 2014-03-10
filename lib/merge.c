@@ -635,14 +635,14 @@ static int check_snapshot_mount(struct ploop_disk_images_data *di,
 	char **devs, **p;
 	char buf[512];
 
-	/* Check if upper(child) delta that will be merged and
-	 * destoyed is mounted
+	/* Check if upper (child) delta that will be merged and
+	 * destroyed is mounted
 	 */
 	if (guidcmp(child_guid, di->top_guid) != 0 &&
 			ploop_get_dev_by_delta(di->images[0]->file,
 				child_fname, NULL, &devs) == 0)
 	{
-		ploop_err(0, "Snapshot is busy by devise(s): %s",
+		ploop_err(0, "Snapshot is busy by device(s): %s",
 				get_devs_str(devs, buf, sizeof(buf)));
 		ploop_free_array(devs);
 		return SYSEXIT_EBUSY;
@@ -653,7 +653,7 @@ static int check_snapshot_mount(struct ploop_disk_images_data *di,
 	if (ploop_get_dev_by_delta(di->images[0]->file,
 			parent_fname, NULL, &devs) == 0)
 	{
-		/* unmount temporary smapshot */
+		/* unmount temporary snapshot */
 		if (temporary) {
 			for (p = devs; *p != NULL; p++) {
 				ret = ploop_umount(*p, NULL);
