@@ -194,11 +194,13 @@ int ploop_receive(const char *dst)
 		}
 	}
 
+/* fsync() is slow and time is critical for live migration, so skip it
 	if (fsync(ofd)) {
 		ploop_err(errno, "Error in fsync");
 		ret = SYSEXIT_WRITE;
 		goto out;
 	}
+*/
 	ret = 0;
 
 out:
