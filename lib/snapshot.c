@@ -372,7 +372,7 @@ int ploop_create_temporary_snapshot(struct ploop_disk_images_data *di,
 	}
 
 	if (param->component_name == NULL) {
-		ploop_err(0, "component name is not specified");
+		ploop_err(0, "Component name is not specified");
 		return SYSEXIT_PARAM;
 	}
 
