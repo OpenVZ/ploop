@@ -631,7 +631,7 @@ static int check_snapshot_mount(struct ploop_disk_images_data *di,
 		int temporary, const char *parent_fname,
 		const char *child_fname, const char *child_guid)
 {
-	int ret;
+	int ret = 0;
 	char **devs, **p;
 	char buf[512];
 
@@ -644,12 +644,11 @@ static int check_snapshot_mount(struct ploop_disk_images_data *di,
 	{
 		ploop_err(0, "Snapshot is busy by device(s): %s",
 				get_devs_str(devs, buf, sizeof(buf)));
-		ploop_free_array(devs);
-		return SYSEXIT_EBUSY;
+		ret = SYSEXIT_EBUSY;
+		goto out;
 	}
 
 	/* check if snapshot (parent) delta is mounted */
-	ret = 0;
 	if (ploop_get_dev_by_delta(di->images[0]->file,
 			parent_fname, NULL, &devs) == 0)
 	{
@@ -666,11 +665,9 @@ static int check_snapshot_mount(struct ploop_disk_images_data *di,
 			ret = SYSEXIT_EBUSY;
 		}
 	}
+out:
 	ploop_free_array(devs);
-	if (ret)
-		return ret;
-
-	return 0;
+	return ret;
 }
 
 int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *guid, int merge_mode)
