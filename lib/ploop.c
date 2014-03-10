@@ -1188,7 +1188,7 @@ static void print_sys_block_ploop(void)
 	print_output(-1, "find",
 			"/sys/block/ploop[0-9]*/ -type f "
 			"-not -name '*event' "
-			"-exec echo {} \\; -exec cat {} \\;");
+			"| xargs tail | grep -v '^$'");
 }
 
 static int add_delta(int lfd, const char *image, struct ploop_ctl_delta *req)
