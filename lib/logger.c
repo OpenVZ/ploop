@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <time.h>
+#include <sys/time.h>
 
 #include "ploop.h"
 
@@ -30,6 +31,7 @@ static int _s_log_enable = 1;
 static int _s_log_level = 3;
 static int _s_log_verbose_level = PLOOP_LOG_NOCONSOLE; // disable stdout/stderr
 static FILE *_s_log_file = NULL;
+static struct timeval start = { };
 
 /* Thread Local Storage */
 static __thread char _g_log_buf[LOG_BUF_SIZE];
@@ -49,6 +51,30 @@ static inline void get_date(char *buf, int len)
 	strftime(buf, len, "%Y-%m-%dT%T%z", p_tm_time);
 }
 
+static void timediff(struct timeval *from, struct timeval *to)
+{
+	to->tv_sec -= from->tv_sec;
+	if (to->tv_usec >= from->tv_usec)
+		to->tv_usec -= from->tv_usec;
+	else {
+		to->tv_sec--;
+		to->tv_usec += 1000000 - from->tv_usec;
+	}
+}
+
+static char* get_ts(void)
+{
+	static char buf[16];
+	struct timeval t;
+
+	gettimeofday(&t, NULL);
+	timediff(&start, &t);
+	snprintf(buf, sizeof(buf), "[%2u.%06u] ",
+			(unsigned)t.tv_sec, (unsigned)t.tv_usec);
+
+	return buf;
+}
+
 static void logger_ap(int level, int err_no, const char *format, va_list ap)
 {
 	char buf[LOG_BUF_SIZE];
@@ -66,7 +92,7 @@ static void logger_ap(int level, int err_no, const char *format, va_list ap)
 	if (_s_log_enable) {
 		if (_s_log_verbose_level != PLOOP_LOG_NOCONSOLE &&
 				_s_log_verbose_level >= level) {
-			fprintf(std, "%s\n", buf);
+			fprintf(std, "%s%s\n", get_ts(), buf);
 			fflush(std);
 		}
 
@@ -106,8 +132,14 @@ const char *ploop_get_last_error(void)
 	return get_buffer();
 }
 
+void time_init(void) {
+	if (start.tv_sec == 0 && start.tv_usec == 0)
+		gettimeofday(&start, NULL);
+}
+
 void ploop_set_log_level(int level)
 {
+	time_init();
 	_s_log_level = level;
 }
 
@@ -118,12 +150,15 @@ int ploop_get_log_level(void)
 
 void ploop_set_verbose_level(int level)
 {
+	time_init();
 	_s_log_verbose_level = level;
 }
 
 int ploop_set_log_file(const char *fname)
 {
 	FILE *fp = NULL;
+
+	time_init();
 
 	if (fname != NULL) {
 		fp = fopen(fname, "a");
