@@ -31,8 +31,8 @@
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: ploop-copy -s DEVICE [-F STOPCOMMAND] [-d FILE]\n"
-			"       ploop-copy -d FILE\n"
+	fprintf(stderr, "Usage: ploop copy -s DEVICE [-F STOPCOMMAND] [-d FILE]\n"
+			"       ploop copy -d FILE\n"
 			"       DEVICE      := source ploop device, e.g. /dev/ploop0\n"
 			"       STOPCOMMAND := a command to stop disk activity, e.g. \"vzctl chkpnt\"\n"
 			"       FILE        := destination file name\n"
