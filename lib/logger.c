@@ -62,10 +62,14 @@ static void timediff(struct timeval *from, struct timeval *to)
 	}
 }
 
-static char* get_ts(void)
+const static char* get_ts(void)
 {
 	static char buf[16];
+	const static char empty[] = "";
 	struct timeval t;
+
+	if (_s_log_verbose_level < PLOOP_LOG_TIMESTAMPS)
+		return empty;
 
 	gettimeofday(&t, NULL);
 	timediff(&start, &t);

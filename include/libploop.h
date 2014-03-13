@@ -159,6 +159,7 @@ struct ploop_discard_stat {
 /* Constants for ploop_set_verbose_level(): */
 #define PLOOP_LOG_NOCONSOLE	-2	/* disable all console logging */
 #define PLOOP_LOG_NOSTDOUT	-1	/* disable all but errors to stderr */
+#define PLOOP_LOG_TIMESTAMPS	 4	/* enable sub-second timestamps */
 
 #ifdef __cplusplus
 extern "C" {
