@@ -184,6 +184,7 @@ int ploop_get_dev_by_mnt(const char *path, char *buf, int size);
 int ploop_get_mnt_by_dev(const char *dev, char *buf, int size);
 int ploop_get_dev(struct ploop_disk_images_data *di, char *out, int len);
 int ploop_get_devs(struct ploop_disk_images_data *di, char **out[]);
+int ploop_is_mounted(struct ploop_disk_images_data *di);
 void ploop_free_array(char *array[]);
 int ploop_get_partition_by_mnt(const char *path, char *buf, int size);
 int ploop_create_image(struct ploop_create_param *param);

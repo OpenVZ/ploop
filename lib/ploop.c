@@ -1065,6 +1065,19 @@ int ploop_get_dev(struct ploop_disk_images_data *di, char *out, int len)
 	return ret;
 }
 
+int ploop_is_mounted(struct ploop_disk_images_data *di)
+{
+	int ret;
+	char device[64];
+
+	if (di->nimages == 0 && ploop_read_dd(di))
+		return -1;
+
+	ret = ploop_find_dev_by_dd(di, device, sizeof(device));
+
+	return (ret == -1 ? -1 : !ret);
+}
+
 int ploop_get_devs(struct ploop_disk_images_data *di, char ***out)
 {
 	return ploop_get_dev_by_delta(di->images[0]->file, NULL, NULL, out);
