@@ -36,6 +36,8 @@
 
 #include "ploop.h"
 
+#define SYNC_MARK	4
+
 static int nwrite(int fd, const void *buf, int len)
 {
 	while (len) {
@@ -183,6 +185,17 @@ int ploop_receive(const char *dst)
 			ret = SYSEXIT_READ;
 			goto out;
 		}
+		if (desc.size == SYNC_MARK) {
+			/* ignore received data, instead do sync */
+			ploop_log(4, "%s: fdatasync()", __func__);
+			if (fdatasync(ofd)) {
+				ploop_err(errno, "Error in fdatasync()");
+				ret = SYSEXIT_WRITE;
+				goto out;
+			}
+			ploop_log(4, "%s: fdatasync() complete", __func__);
+			continue;
+		}
 		n = pwrite(ofd, iobuf, desc.size, desc.pos);
 		if (n != desc.size) {
 			if (n < 0)
@@ -194,13 +207,12 @@ int ploop_receive(const char *dst)
 		}
 	}
 
-/* fsync() is slow and time is critical for live migration, so skip it
-	if (fsync(ofd)) {
-		ploop_err(errno, "Error in fsync");
+	if (fdatasync(ofd)) {
+		ploop_err(errno, "Error in fdatasync");
 		ret = SYSEXIT_WRITE;
 		goto out;
 	}
-*/
+
 	ret = 0;
 
 out:
@@ -451,6 +463,33 @@ int ploop_send(const char *device, int ofd, const char *flush_cmd,
 	 * and suspend VE with subsequent fsyncing FS.
 	 */
 
+	/* Send the sync command to receiving side. Since older ploop
+	 * might be present on the other side, we need to not break the
+	 * backward compatibility, so just send the first few (SYNC_MARK)
+	 * bytes of delta file contents. New ploop_receive() interprets
+	 * this as "sync me" command, while the old one just writes those
+	 * bytes which is useless but harmless.
+	 */
+	ret = idelta.fops->pread(idelta.fd, iobuf, 4096, 0);
+	if (ret != 4096) {
+		ploop_err(errno, "pread");
+		ret = SYSEXIT_READ;
+		goto done;
+	}
+	ret = send_buf(ofd, iobuf, SYNC_MARK, 0, is_pipe);
+	if (ret) {
+		ploop_err(errno, "write");
+		goto done;
+	}
+	/* Now we should wait for the other side to finish syncing
+	 * before freezing the container. This is done in order to
+	 * optimize CT frozen time. Unfortunately the protocol is
+	 * one-way so there is no way to receive anything from the
+	 * other side. As ugly as it is, let's just sleep for some time.
+	 */
+	sleep(5);
+
+	/* Freeze the container */
 	ret = run_cmd(flush_cmd);
 	if (ret)
 		goto done;
