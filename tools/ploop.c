@@ -1154,6 +1154,33 @@ static int plooptool_replace(int argc, char **argv)
 int main(int argc, char **argv)
 {
 	char * cmd;
+	int v = 3;
+
+	/* global options */
+	while (argc > 1 && argv[1][0] == '-') {
+		switch (argv[1][1]) {
+			case 'v':
+				switch (argv[1][2]) {
+				    case '\0':
+					v++;
+					break;
+				    case 'v': /* -vvv... */
+					v += strlen(&argv[1][1]);
+					break;
+				    default: /* -vNN */
+					v = atoi(&argv[1][2]);
+				}
+				break;
+			case '-': /* long option */
+				/* fall through */
+			default:
+				fprintf(stderr, "Bad option %s\n", argv[1]);
+				usage_summary();
+				return SYSEXIT_PARAM;
+		}
+		argc--;
+		argv++;
+	}
 
 	if (argc < 2) {
 		usage_summary();
@@ -1164,7 +1191,7 @@ int main(int argc, char **argv)
 	argc--;
 	argv++;
 
-	ploop_set_verbose_level(3);
+	ploop_set_verbose_level(v);
 	init_signals();
 
 	if (strcmp(cmd, "init") == 0)
