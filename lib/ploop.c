@@ -1226,9 +1226,19 @@ out:
 int replace_delta(const char *device, int level, const char *image)
 {
 	int fd = -1, lfd = -1;
+	int top_level = 0;
 	int ret;
 	__u32 blocksize = 0;
 	struct ploop_ctl_delta req = {};
+
+	if (ploop_get_attr(device, "top", &top_level))
+		return SYSEXIT_SYSFS;
+
+	if (level < 0 || level >= top_level) {
+		ploop_err(0, "Invalid level %d specified, allowed values "
+				"are 0 to %d", level, top_level);
+		return SYSEXIT_PARAM;
+	}
 
 	if (ploop_get_attr(device, "block_size", (int*) &blocksize))
 		return SYSEXIT_SYSFS;
