@@ -1341,11 +1341,11 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 	else {
 		level = param->level;
 	}
-
+	/* Proper level check (against top_level) is to be done later
+	 * in replace_delta(). Here is just some basic sanity check.
+	 * */
 	if (level < 0 || level >= di->nimages) {
-		ploop_err(0, "Invalid level %d specified, "
-				"allowed values are 0 to %d",
-				level, di->nimages - 1);
+		ploop_err(0, "Invalid level %d", level);
 		goto err;
 	}
 
