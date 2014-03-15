@@ -1323,12 +1323,13 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 	}
 	else {
 		level = param->level;
-		if (level < 0 || level >= di->nimages) {
-			ploop_err(0, "Invalid level %d specified, "
-					"allowed values are 0 to %d",
-					level, di->nimages - 1);
-			goto err;
-		}
+	}
+
+	if (level < 0 || level >= di->nimages) {
+		ploop_err(0, "Invalid level %d specified, "
+				"allowed values are 0 to %d",
+				level, di->nimages - 1);
+		goto err;
 	}
 
 	if (ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev))) {
