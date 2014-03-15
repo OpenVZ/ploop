@@ -1134,9 +1134,9 @@ static int plooptool_replace(int argc, char **argv)
 			return SYSEXIT_PARAM;
 		}
 		if ((!!device) + (!!mnt) != 1) {
-			fprintf(stderr, "Error: either device, mount point "
-					"or DiskDescriptor.xml should be "
-					"specified\n");
+			fprintf(stderr, "Error: either device (-d), mount "
+					"point (-m) or DiskDescriptor.xml "
+					"must be specified\n");
 			usage_replace();
 			return SYSEXIT_PARAM;
 		}
