@@ -1307,6 +1307,11 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 		goto err;
 	}
 
+	if (ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev))) {
+		ploop_err(0, "Can't find running ploop device");
+		goto err;
+	}
+
 	/* Image to be replaced is specified by either guid or level
 	 */
 	if (param->guid) {
@@ -1329,11 +1334,6 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 		ploop_err(0, "Invalid level %d specified, "
 				"allowed values are 0 to %d",
 				level, di->nimages - 1);
-		goto err;
-	}
-
-	if (ploop_find_dev_by_uuid(di, 1, dev, sizeof(dev))) {
-		ploop_err(0, "Can't find running ploop device");
 		goto err;
 	}
 
