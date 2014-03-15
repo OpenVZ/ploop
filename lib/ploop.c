@@ -1350,8 +1350,7 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 	}
 
 	/* check a new image */
-	ret = ploop_check(file, CHECK_DETAILED | CHECK_IGNORE_INUSE,
-			1, 0, 0, NULL);
+	ret = ploop_check(file, CHECK_DETAILED, 1, 0, 0, NULL);
 	if (ret)
 		return ret;
 

@@ -247,9 +247,6 @@ int ploop_check(char *img, int flags, int ro, int raw, int verbose, __u32 *block
 	if (ret)
 		goto done;
 
-	if (flags & CHECK_IGNORE_INUSE)
-		vh->m_DiskInUse = 0;
-
 	ret = SYSEXIT_PLOOPFMT;
 	version = ploop1_version(vh);
 	if (version == PLOOP_FMT_ERROR) {
