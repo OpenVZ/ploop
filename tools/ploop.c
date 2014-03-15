@@ -1056,12 +1056,13 @@ static int plooptool_list(int argc, char **argv)
 
 static void usage_replace(void)
 {
-	fprintf(stderr, "Usage: ploop replace {-d DEVICE | -m MOUNT_POINT} -l LEVEL -i DELTA\n"
-			"       ploop replace {-u UUID | -l LEVEL } -i DELTA DiskDescriptor.xml\n"
+	fprintf(stderr, "Usage: ploop replace {-d DEVICE | -m MNT} {-l LVL | -o СDELTA} -i DELTA\n"
+			"       ploop replace {-u UUID | -l LVL | -o CDELTA} -i DELTA DiskDescriptor.xml\n"
 			"       DEVICE := ploop device, e.g. /dev/ploop0\n"
-			"       MOUNT_POINT := directory where ploop is mounted to\n"
-			"       LEVEL := NUMBER, distance from base delta\n"
+			"       MNT := directory where ploop is mounted to\n"
+			"       LVL := NUMBER, distance from base delta\n"
 			"       UUID := UUID of image to be replaced\n"
+			"       CDELTA := path to currently used image file\n"
 			"       DELTA := path to new image file\n"
 	       );
 }
@@ -1077,7 +1078,7 @@ static int plooptool_replace(int argc, char **argv)
 		.level = -1,
 	};
 
-	while ((i = getopt(argc, argv, "d:m:l:i:u:")) != EOF) {
+	while ((i = getopt(argc, argv, "d:m:l:i:u:o:")) != EOF) {
 		switch (i) {
 		case 'd':
 			device = optarg;
@@ -1093,6 +1094,9 @@ static int plooptool_replace(int argc, char **argv)
 			break;
 		case 'i':
 			param.file = strdup(optarg);
+			break;
+		case 'o':
+			param.cur_file = strdup(optarg);
 			break;
 		default:
 			usage_replace();
@@ -1113,8 +1117,12 @@ static int plooptool_replace(int argc, char **argv)
 		int ret;
 		struct ploop_disk_images_data *di;
 
-		if (!param.guid && param.level == -1) {
-			fprintf(stderr, "Error: either uuid or level must be specified\n");
+		/* only one way of choosing delta to replace */
+		if ( (!!param.guid) + (param.level != -1) +
+				(!!param.cur_file) != 1)  {
+			fprintf(stderr, "Error: either one of uuid (-u), "
+					"level (-l) or current file (-o) "
+					"must be specified\n");
 			usage_replace();
 			return SYSEXIT_PARAM;
 		}
@@ -1129,6 +1137,8 @@ static int plooptool_replace(int argc, char **argv)
 		return ret;
 	}
 	else {
+		int level = param.level;
+
 		if (argc > 0) {
 			usage_replace();
 			return SYSEXIT_PARAM;
@@ -1148,7 +1158,25 @@ static int plooptool_replace(int argc, char **argv)
 			}
 			device = dev;
 		}
-		return replace_delta(device, param.level, param.file);
+		/* Either level or current delta must be specified */
+		if ((level != -1) + (!!param.cur_file) != 1) {
+			fprintf(stderr, "Error: either one of level (-l) or "
+					"current delta file (-o) must be "
+					"specified\n");
+			usage_replace();
+			return SYSEXIT_PARAM;
+		}
+		if (param.cur_file) {
+			level = find_level_by_delta(device, param.cur_file);
+			if (level < 0) {
+				fprintf(stderr, "Can't find level by "
+						"delta file name %s",
+						param.cur_file);
+				return SYSEXIT_PARAM;
+			}
+		}
+
+		return replace_delta(device, level, param.file);
 	}
 }
 

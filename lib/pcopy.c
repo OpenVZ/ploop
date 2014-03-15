@@ -443,7 +443,7 @@ int ploop_send(const char *device, int ofd, const char *flush_cmd,
 				pos += n;
 			}
 		} else {
-			if (errno == EAGAIN)
+			if (errno == EAGAIN) /* no more dirty blocks */
 				break;
 			ploop_err(errno, "PLOOP_IOC_TRACK_READ");
 			ret = SYSEXIT_DEVIOC;
