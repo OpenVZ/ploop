@@ -56,6 +56,7 @@
 #define CHECK_DROPINUSE	0x04
 #define CHECK_DETAILED	0x08
 #define CHECK_REPAIR_SPARSE	0x10
+#define CHECK_IGNORE_INUSE	0x20
 
 #define S2B(sec) ((off_t)(sec) << PLOOP1_SECTOR_LOG)
 #define B2S(sec) ((sec) >> PLOOP1_SECTOR_LOG)
