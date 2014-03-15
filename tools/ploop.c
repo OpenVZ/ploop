@@ -1143,7 +1143,7 @@ static int plooptool_replace(int argc, char **argv)
 		return ret;
 	}
 	else {
-		if (argc > 0 || !device || param.level < 0 || param.level > 127) {
+		if (argc > 0 || !device) {
 			usage_replace();
 			return SYSEXIT_PARAM;
 		}
