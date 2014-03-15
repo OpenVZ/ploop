@@ -124,7 +124,7 @@ int find_level_by_delta(const char *device, const char *delta)
 
 		if (read_line(path, nbuf, sizeof(nbuf)))
 			return -1;
-		if (strcmp(nbuf, delta) == 0)
+		if (strcmp(nbuf, delta_r) == 0)
 			return i;
 	}
 
