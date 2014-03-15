@@ -1072,6 +1072,7 @@ static int plooptool_replace(int argc, char **argv)
 	int i;
 	char dev[PATH_MAX];
 	char *device = NULL;
+	char *mnt = NULL;
 	struct ploop_replace_param param = {
 		.level = -1,
 	};
@@ -1079,25 +1080,10 @@ static int plooptool_replace(int argc, char **argv)
 	while ((i = getopt(argc, argv, "d:m:l:i:u:")) != EOF) {
 		switch (i) {
 		case 'd':
-			if (device) {
-				fprintf(stderr, "Options -m and -d are exclusive\n");
-				usage_replace();
-				return SYSEXIT_PARAM;
-			}
 			device = optarg;
 			break;
 		case 'm':
-			if (device) {
-				fprintf(stderr, "Options -m and -d are exclusive\n");
-				usage_replace();
-				return SYSEXIT_PARAM;
-			}
-			if (ploop_get_dev_by_mnt(optarg, dev, sizeof(dev))) {
-				fprintf(stderr, "Unable to find ploop device by %s\n",
-						optarg);
-				return SYSEXIT_PARAM;
-			}
-			device = dev;
+			mnt = optarg;
 			break;
 		case 'l':
 			param.level = atoi(optarg);
@@ -1143,9 +1129,24 @@ static int plooptool_replace(int argc, char **argv)
 		return ret;
 	}
 	else {
-		if (argc > 0 || !device) {
+		if (argc > 0) {
 			usage_replace();
 			return SYSEXIT_PARAM;
+		}
+		if ((!!device) + (!!mnt) != 1) {
+			fprintf(stderr, "Error: either device, mount point "
+					"or DiskDescriptor.xml should be "
+					"specified\n");
+			usage_replace();
+			return SYSEXIT_PARAM;
+		}
+		if (mnt) {
+			if (ploop_get_dev_by_mnt(mnt, dev, sizeof(dev))) {
+				fprintf(stderr, "Unable to find ploop device "
+						"by mount point %s\n", mnt);
+				return SYSEXIT_PARAM;
+			}
+			device = dev;
 		}
 		return replace_delta(device, param.level, param.file);
 	}
