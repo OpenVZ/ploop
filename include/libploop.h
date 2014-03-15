@@ -67,9 +67,11 @@ struct ploop_create_param {
 
 struct ploop_replace_param {
 	char *file;	/* A new image file name */
-	/* Image to be replaced, specified by either guid or level */
+	/* Image to be replaced is specified by
+	 * either guid, level, or current delta file */
 	char *guid;
 	int  level;
+	char *cur_file;
 	char dummy[32];
 };
 

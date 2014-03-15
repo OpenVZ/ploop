@@ -1326,6 +1326,14 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 			goto err;
 		}
 	}
+	else if (param->cur_file) {
+		level = find_level_by_delta(dev, param->cur_file);
+		if (level < 0) {
+			ploop_err(0, "Can't find level by delta file name %s",
+					param->cur_file);
+			goto err;
+		}
+	}
 	else {
 		level = param->level;
 	}

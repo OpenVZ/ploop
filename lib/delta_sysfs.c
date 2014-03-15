@@ -101,6 +101,35 @@ int find_delta_names(const char * device, int start_level, int end_level,
 	return 0;
 }
 
+int find_level_by_delta(const char *device, const char *delta)
+{
+	int i, top_level;
+	char path[PATH_MAX];
+	char nbuf[PATH_MAX];
+	char delta_r[PATH_MAX];
+
+	if (memcmp(device, "/dev/", 5) == 0)
+		device += 5;
+
+	if (realpath(delta, delta_r) == NULL) {
+		ploop_err(errno, "Can't resolve %s", delta);
+		return -1;
+	}
+	if (ploop_get_attr(device, "top", &top_level))
+		return -1;
+
+	for (i = 0; i <= top_level; i++) {
+		snprintf(path, sizeof(path), "/sys/block/%s/pdelta/%d/image",
+			 device, i);
+
+		if (read_line(path, nbuf, sizeof(nbuf)))
+			return -1;
+		if (strcmp(nbuf, delta) == 0)
+			return i;
+	}
+
+	return -1;
+}
 int ploop_get_attr(const char * device, const char * attr, int * res)
 {
 	char path[PATH_MAX];
