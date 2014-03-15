@@ -1354,6 +1354,12 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 	if (ret)
 		return ret;
 
+	/* check that images are identical */
+	oldfile = param->cur_file ? : di->images[level]->file;
+	ret = check_deltas_same(file, oldfile);
+	if (ret)
+		return ret;
+
 	/* Write new dd.xml with changed image file */
 	get_disk_descriptor_fname(di, conf, sizeof(conf));
 	snprintf(conf_tmp, sizeof(conf_tmp), "%s.tmp", conf);
