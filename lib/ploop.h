@@ -280,7 +280,6 @@ PL_EXT int ploop_check(char *img, int flags, int ro, int raw, int verbose,
 		__u32 *blocksize_p);
 int check_deltas(struct ploop_disk_images_data *di, char **images,
                 struct ploop_mount_param *param, int raw, __u32 *blocksize);
-int ploop_check_delta(const char *image, int fd, __u64 blocksize);
 /* Logging */
 #define LOG_BUF_SIZE	8192
 int ploop_get_log_level(void);
