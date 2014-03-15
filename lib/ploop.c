@@ -1231,18 +1231,6 @@ int replace_delta(const char *device, int level, const char *image)
 	__u32 blocksize = 0;
 	struct ploop_ctl_delta req = {};
 
-	if (ploop_get_attr(device, "top", &top_level))
-		return SYSEXIT_SYSFS;
-
-	if (level < 0 || level >= top_level) {
-		ploop_err(0, "Invalid level %d specified, allowed values "
-				"are 0 to %d", level, top_level - 1);
-		return SYSEXIT_PARAM;
-	}
-
-	if (ploop_get_attr(device, "block_size", (int*) &blocksize))
-		return SYSEXIT_SYSFS;
-
 	fd = open(image, O_DIRECT | O_RDONLY);
 	if (fd < 0) {
 		ploop_err(errno, "Can't open file %s", image);
@@ -1253,6 +1241,22 @@ int replace_delta(const char *device, int level, const char *image)
 	if (lfd < 0) {
 		ploop_err(errno, "Can't open device %s", device);
 		ret = SYSEXIT_DEVICE;
+		goto out;
+	}
+	if (ploop_get_attr(device, "top", &top_level)) {
+		ret = SYSEXIT_SYSFS;
+		goto out;
+	}
+
+	if (level < 0 || level >= top_level) {
+		ploop_err(0, "Invalid level %d specified, allowed values "
+				"are 0 to %d", level, top_level - 1);
+		ret = SYSEXIT_PARAM;
+		goto out;
+	}
+
+	if (ploop_get_attr(device, "block_size", (int*) &blocksize)) {
+		ret = SYSEXIT_SYSFS;
 		goto out;
 	}
 
