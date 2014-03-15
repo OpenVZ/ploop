@@ -1236,7 +1236,7 @@ int replace_delta(const char *device, int level, const char *image)
 
 	if (level < 0 || level >= top_level) {
 		ploop_err(0, "Invalid level %d specified, allowed values "
-				"are 0 to %d", level, top_level);
+				"are 0 to %d", level, top_level - 1);
 		return SYSEXIT_PARAM;
 	}
 
