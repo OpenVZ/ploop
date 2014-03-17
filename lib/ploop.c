@@ -1118,7 +1118,7 @@ static int ploop_mount_fs(struct ploop_mount_param *param)
 		return SYSEXIT_MOUNT;
 
 	if (param->fsck && (strncmp(fstype, "ext", 3) == 0))
-		if (e2fsck(part_device, E2FSCK_PREEN))
+		if (e2fsck(part_device, E2FSCK_PREEN, &param->fsck_rc))
 			return SYSEXIT_FSCK;
 
 	/* Two step mount
@@ -2034,7 +2034,7 @@ static int shrink_device(struct ploop_disk_images_data *di,
 	ploop_log(0, "Offline shrink %s dev=%s size=%lu new_size=%lu, start=%u",
 			(raw) ? "raw" : "",
 			part_device, (long)part_dev_size, (long)new_size, part_start);
-	ret = e2fsck(part_device, E2FSCK_FORCE | E2FSCK_PREEN);
+	ret = e2fsck(part_device, E2FSCK_FORCE | E2FSCK_PREEN, NULL);
 	if (ret)
 		return ret;
 
@@ -2186,7 +2186,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			ret = do_umount(mount_param.target);
 			if (ret)
 				goto err;
-			ret = e2fsck(part_device, E2FSCK_FORCE | E2FSCK_PREEN);
+			ret = e2fsck(part_device, E2FSCK_FORCE | E2FSCK_PREEN, NULL);
 			if (ret)
 				goto err;
 		}

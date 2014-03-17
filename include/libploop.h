@@ -50,6 +50,7 @@ struct ploop_mount_param {
 	char *mount_data;
 	unsigned int blocksize; /* blocksize for raw image */
 	int fsck;
+	int fsck_rc;		/* out: fsck return code */
 	char dummy[32];
 };
 

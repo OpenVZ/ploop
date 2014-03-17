@@ -385,7 +385,7 @@ int make_fs(const char *device, const char *fstype, unsigned int fsblocksize);
 void tune_fs(const char *target, const char *device, unsigned long long size);
 int resize_fs(const char *device, off_t blocks);
 int dumpe2fs(const char *device, struct dump2fs_data *data);
-int e2fsck(const char *device, int flags);
+int e2fsck(const char *device, int flags, int *rc);
 int create_gpt_partition(const char *dev, off_t size, __u32 blocksize);
 int resize_gpt_partition(const char *devname, __u64 new_size);
 int check_and_repair_gpt(const char *device);

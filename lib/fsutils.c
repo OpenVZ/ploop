@@ -243,7 +243,7 @@ int dumpe2fs(const char *device, struct dump2fs_data *data)
 	return 0;
 }
 
-int e2fsck(const char *device, int flags)
+int e2fsck(const char *device, int flags, int *rc)
 {
 	char *arg[5];
 	int i = 0;
@@ -259,6 +259,9 @@ int e2fsck(const char *device, int flags)
 
 	if (run_prg_rc(arg, &ret))
 		return SYSEXIT_FSCK;
+
+	if (rc)
+		*rc = ret;
 
 	/* exit code < 4 is OK, see man e2fsck */
 	if (ret >= 4) {
