@@ -72,7 +72,7 @@ int plooptool_check(int argc, char ** argv)
 		{ NULL, 0, NULL, 0 }
 	};
 
-	while ((i = getopt_long(argc, argv, "fFcrsdRbSu:", options, &idx)) != EOF) {
+	while ((i = getopt_long(argc, argv, "fFcrsdRb:Su:", options, &idx)) != EOF) {
 		switch (i) {
 		case 'f':
 			/* try to repair non-fatal conditions */
