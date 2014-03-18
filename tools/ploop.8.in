@@ -92,6 +92,7 @@ ploop \- ploop device management utility
 .I DiskDescriptor.xml
 .YS
 .SY ploop\ check
+.OP -u UUID
 .I DiskDescriptor.xml
 .YS
 .SY ploop\ check
@@ -411,12 +412,14 @@ Check the internal consistency of (and possibly repair) a ploop image
 (or images). Note that image(s) to be tested should not be in use.
 
 .SY ploop\ check
+.OP -u UUID
 .I DiskDescriptor.xml
 .YS
 
 Check all the images in \fIDiskDescriptor.xml\fR up to the one
-denoted by top delta UUID. Default built-in check options are used,
-and the ones specified on the command line, if any, are ignored.
+denoted by the \fIUUID\fR (or default top delta, if UUID is not
+specified). Default built-in check options are used, and the ones
+specified on the command line, if any, are ignored.
 
 .SY ploop\ check
 .OP --force

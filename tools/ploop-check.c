@@ -32,7 +32,8 @@
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: ploop check DiskDescriptor.xml\n"
+	fprintf(stderr, "Usage: ploop check [-u UUID] DiskDescriptor.xml\n"
+"	UUID := check all deltas up to top image with this UUID\n"
 "       ploop check [options] DELTA\n"
 "	DELTA := path to image file\n"
 "	-f, --force          - force check even if dirty flag is clear\n"
@@ -56,6 +57,7 @@ int plooptool_check(int argc, char ** argv)
 	int silent = 0;	/* print messages only if errors detected */
 	unsigned int blocksize = 0;
 	char *endptr;
+	char *uuid = NULL;
 	static struct option options[] = {
 		{"force", no_argument, NULL, 'f'},
 		{"hard-force", no_argument, NULL, 'F'},
@@ -66,10 +68,11 @@ int plooptool_check(int argc, char ** argv)
 		{"raw", no_argument, NULL, 'R'},
 		{"blocksize", required_argument, NULL, 'b'},
 		{"repair-sparse", no_argument, NULL, 'S'},
+		{"uuid", required_argument, NULL, 'u'},
 		{ NULL, 0, NULL, 0 }
 	};
 
-	while ((i = getopt_long(argc, argv, "fFcrsdRbS", options, &idx)) != EOF) {
+	while ((i = getopt_long(argc, argv, "fFcrsdRbSu:", options, &idx)) != EOF) {
 		switch (i) {
 		case 'f':
 			/* try to repair non-fatal conditions */
@@ -105,6 +108,14 @@ int plooptool_check(int argc, char ** argv)
 		case 'S':
 			flags |= CHECK_REPAIR_SPARSE;
 			break;
+		case 'u':
+			if (!is_valid_guid(optarg)) {
+				fprintf(stderr, "Incorrect guid '%s' "
+						"specified.\n", optarg);
+				return SYSEXIT_PARAM;
+			}
+			uuid = optarg;
+			break;
 		default:
 			usage();
 			return SYSEXIT_PARAM;
@@ -132,7 +143,9 @@ int plooptool_check(int argc, char ** argv)
 		if (ret)
 			return ret;
 
-		images = make_images_list(di, di->top_guid, 0);
+		if (!uuid)
+			uuid = di->top_guid;
+		images = make_images_list(di, uuid, 0);
 		if (!images) {
 			ploop_free_diskdescriptor(di);
 			/* this might fail for a number of reasons, so
@@ -150,6 +163,13 @@ int plooptool_check(int argc, char ** argv)
 		free_images_list(images);
 
 		return ret;
+	}
+
+	/* non-ddxml form */
+	if (uuid) {
+		fprintf(stderr, "Option -u is only applicable to "
+				"DiskDescriptor.xml syntax\n");
+		return SYSEXIT_PARAM;
 	}
 
 	return ploop_check(argv[0], flags, ro, raw, !silent, &blocksize);
