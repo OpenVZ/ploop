@@ -32,7 +32,8 @@
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: ploop check [options] DELTA | DiskDescriptor.xml\n"
+	fprintf(stderr, "Usage: ploop check DiskDescriptor.xml\n"
+"       ploop check [options] DELTA\n"
 "	DELTA := path to image file\n"
 "	-f, --force          - force check even if dirty flag is clear\n"
 "	-F, --hard-force     - -f and try to fix even fatal errors (dangerous)\n"
@@ -120,29 +121,33 @@ int plooptool_check(int argc, char ** argv)
 
 	if (is_xml_fname(argv[0])) {
 		struct ploop_disk_images_data *di;
+		char **images;
 		int ret;
+
+		if (flags | raw | ro | silent | blocksize)
+			fprintf(stderr, "WARNING: options are ignored "
+					"for DiskDescriptor.xml form\n");
 
 		ret = read_dd(&di, argv[0]);
 		if (ret)
 			return ret;
 
+		images = make_images_list(di, di->top_guid, 0);
+		if (!images) {
+			ploop_free_diskdescriptor(di);
+			/* this might fail for a number of reasons, so
+			 * let's return something more or less generic.
+			 */
+			return SYSEXIT_DISKDESCR;
+		}
+
 		blocksize = di->blocksize;
 		raw = (di->mode == PLOOP_RAW_MODE);
 
-		for (i = 0; i < di->nimages; i++) {
-			int delta_ro = 1; /* do read-only... */
+		ret = check_deltas(di, images, raw, &blocksize);
 
-			if (!guidcmp(di->images[i]->guid, di->top_guid))
-				delta_ro = ro; /* except for top image */
-			if (!silent)
-				printf("Checking %s\n", di->images[i]->file);
-			ret = ploop_check(di->images[i]->file, flags,
-					delta_ro, raw, !silent, &blocksize);
-			if (ret)
-				goto err;
-		}
-err:
 		ploop_free_diskdescriptor(di);
+		free_images_list(images);
 
 		return ret;
 	}

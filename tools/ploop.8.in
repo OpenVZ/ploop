@@ -92,6 +92,9 @@ ploop \- ploop device management utility
 .I DiskDescriptor.xml
 .YS
 .SY ploop\ check
+.I DiskDescriptor.xml
+.YS
+.SY ploop\ check
 .OP --force
 .OP --hard-force
 .OP --check
@@ -101,8 +104,6 @@ ploop \- ploop device management utility
 .OP --raw
 .OP --blocksize \fIsize\fR
 .OP --repair-sparse
-.I DiskDescriptor.xml
-|
 .I image_file
 .YS
 .SY ploop\ info
@@ -408,9 +409,14 @@ Image version, can be \fB1\fR or \fB2\fR.
 
 Check the internal consistency of (and possibly repair) a ploop image
 (or images). Note that image(s) to be tested should not be in use.
-If
+
+.SY ploop\ check
 .I DiskDescriptor.xml
-is supplied, all the images one by one are checked.
+.YS
+
+Check all the images in \fIDiskDescriptor.xml\fR up to the one
+denoted by top delta UUID. Default built-in check options are used,
+and the ones specified on the command line, if any, are ignored.
 
 .SY ploop\ check
 .OP --force

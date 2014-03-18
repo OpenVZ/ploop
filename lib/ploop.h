@@ -278,7 +278,7 @@ int relocmap2relocblks(struct relocmap *relocmap, int lvl, __u32 a_h, __u32 n_sc
 			struct ploop_relocblks_ctl **relocblks_pp);
 PL_EXT int ploop_check(char *img, int flags, int ro, int raw, int verbose,
 		__u32 *blocksize_p);
-int check_deltas(struct ploop_disk_images_data *di, char **images,
+PL_EXT int check_deltas(struct ploop_disk_images_data *di, char **images,
 		int raw, __u32 *blocksize);
 PL_EXT int check_deltas_same(const char *img1, const char *img2);
 /* Logging */
@@ -315,7 +315,7 @@ PL_EXT int ploop_mount(struct ploop_disk_images_data *di, char **images,
 PL_EXT int replace_delta(const char *device, int level, const char *image);
 PL_EXT int create_snapshot(const char *device, const char *delta, int syncfs);
 int get_list_size(char **list);
-void free_images_list(char **images);
+PL_EXT void free_images_list(char **images);
 int PWRITE(struct delta * delta, void * buf, unsigned int size, off_t off);
 int PREAD(struct delta * delta, void *buf, unsigned int size, off_t off);
 PL_EXT int ploop_getdevice(int *minor);
@@ -339,7 +339,7 @@ int get_image_param(struct ploop_disk_images_data *di, const char *guid,
 		off_t *size, __u32 *blocksize, int *version);
 int get_image_param_offline(struct ploop_disk_images_data *di, const char *guid,
                 off_t *size, __u32 *blocksize, int *version);
-char **make_images_list(struct ploop_disk_images_data *di, const char *guid, int reverse);
+PL_EXT char **make_images_list(struct ploop_disk_images_data *di, const char *guid, int reverse);
 
 // manage struct ploop_disk_images_data
 int ploop_di_add_image(struct ploop_disk_images_data *di, const char *fname,
