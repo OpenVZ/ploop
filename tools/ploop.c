@@ -227,7 +227,10 @@ static int plooptool_mount(int argc, char **argv)
 			mountopts.fstype = strdup(optarg);
 			break;
 		case 'u':
-			mountopts.guid = strdup(optarg);
+			mountopts.guid = parse_uuid(optarg);
+			if (!mountopts.guid)
+				return SYSEXIT_PARAM;
+
 			break;
 		case 'o':
 			mountopts.mount_data = strdup(optarg);
@@ -599,7 +602,9 @@ static int plooptool_snapshot(int argc, char **argv)
 			syncfs = 1;
 			break;
 		case 'u':
-			param.guid = optarg;
+			param.guid = parse_uuid(optarg);
+			if (!param.guid)
+				return SYSEXIT_PARAM;
 			break;
 		default:
 			usage_snapshot();
@@ -651,7 +656,9 @@ static int plooptool_tsnapshot(int argc, char **argv)
 	while ((i = getopt(argc, argv, "u:c:m:")) != EOF) {
 		switch (i) {
 		case 'u':
-			param.guid = optarg;
+			param.guid = parse_uuid(optarg);
+			if (!param.guid)
+				return SYSEXIT_PARAM;
 			break;
 		case 'c':
 			param.component_name = optarg;
@@ -702,7 +709,9 @@ static int plooptool_snapshot_switch(int argc, char **argv)
 	while ((i = getopt(argc, argv, "u:D")) != EOF) {
 		switch (i) {
 		case 'u':
-			uuid = optarg;
+			uuid = parse_uuid(optarg);
+			if (!uuid)
+				return SYSEXIT_PARAM;
 			break;
 		case 'D':
 			/* for test purposes */
@@ -748,7 +757,9 @@ static int plooptool_snapshot_delete(int argc, char **argv)
 	while ((i = getopt(argc, argv, "u:")) != EOF) {
 		switch (i) {
 		case 'u':
-			uuid = optarg;
+			uuid = parse_uuid(optarg);
+			if (!uuid)
+				return SYSEXIT_PARAM;
 			break;
 		default:
 			usage_snapshot_delete();
@@ -789,7 +800,9 @@ static int plooptool_snapshot_merge(int argc, char ** argv)
 	while ((i = getopt(argc, argv, "u:A")) != EOF) {
 		switch (i) {
 		case 'u':
-			param.guid = optarg;
+			param.guid = parse_uuid(optarg);
+			if (!param.guid)
+				return SYSEXIT_PARAM;
 			break;
 		case 'A':
 			param.merge_all = 1;
@@ -1141,7 +1154,9 @@ static int plooptool_replace(int argc, char **argv)
 			param.level = atoi(optarg);
 			break;
 		case 'u':
-			param.guid = strdup(optarg);
+			param.guid = parse_uuid(optarg);
+			if (!param.guid)
+				return SYSEXIT_PARAM;
 			break;
 		case 'i':
 			param.file = strdup(optarg);

@@ -77,7 +77,9 @@ int plooptool_merge(int argc, char ** argv)
 			}
 			break;
 		case 'u':
-			param.guid = optarg;
+			param.guid = parse_uuid(optarg);
+			if (!param.guid)
+				return SYSEXIT_PARAM;
 			break;
 		case 'A':
 			param.merge_all = 1;

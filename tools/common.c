@@ -97,14 +97,14 @@ int parse_format_opt(const char *opt)
 	return -1;
 }
 
-const char *parse_uuid(const char *opt)
+char *parse_uuid(const char *opt)
 {
 	if (!is_valid_guid(opt)) {
 		fprintf(stderr, "Incorrect uuid specified: %s\n", opt);
 		return NULL;
 	}
 
-	return opt;
+	return strdup(opt);
 }
 
 int is_xml_fname(const char *fname)
