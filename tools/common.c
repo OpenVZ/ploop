@@ -99,12 +99,25 @@ int parse_format_opt(const char *opt)
 
 char *parse_uuid(const char *opt)
 {
-	if (!is_valid_guid(opt)) {
-		fprintf(stderr, "Incorrect uuid specified: %s\n", opt);
-		return NULL;
-	}
+	char buf[] = "{fbcdf284-5345-416b-a589-7b5fcaa87673}";
+	const char *id = opt;
 
-	return strdup(opt);
+	if (!id)
+		goto err;
+	if (id[0] != '{' && strlen(id) == 36) {
+		/* as a courtesy, add missing brackets */
+		memcpy(buf+1, id, 36);
+		id = buf;
+	}
+	if (!is_valid_guid(id))
+		goto err;
+
+	return strdup(id);
+
+err:
+	fprintf(stderr, "Incorrect uuid specified: %s\n", opt);
+	return NULL;
+
 }
 
 int is_xml_fname(const char *fname)
