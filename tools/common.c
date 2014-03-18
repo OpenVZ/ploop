@@ -22,9 +22,7 @@
 #include <stdio.h>
 #include <signal.h>
 
-#include "ploop_if.h"
-#include "ploop1_image.h"
-#include "libploop.h"
+#include "ploop.h"
 
 int parse_size(const char *opt, off_t *sz, const char *name)
 {
@@ -97,6 +95,16 @@ int parse_format_opt(const char *opt)
 
 	fprintf(stderr, "Bad -f argument: %s\n", opt);
 	return -1;
+}
+
+const char *parse_uuid(const char *opt)
+{
+	if (!is_valid_guid(opt)) {
+		fprintf(stderr, "Incorrect uuid specified: %s\n", opt);
+		return NULL;
+	}
+
+	return opt;
 }
 
 int is_xml_fname(const char *fname)

@@ -229,12 +229,9 @@ int plooptool_snapshot_list(int argc, char **argv)
 			output = optarg;
 			break;
 		case 'u':
-			if (!is_valid_guid(optarg)) {
-				fprintf(stderr, "Incorrect guid '%s' is specified.\n",
-						optarg);
-				return 1;
-			}
-			guid = optarg;
+			guid = parse_uuid(optarg);
+			if (!guid)
+				return SYSEXIT_PARAM;
 			break;
 		case 's':
 			g_snapshot_mode = 1;

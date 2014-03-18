@@ -57,7 +57,7 @@ int plooptool_check(int argc, char ** argv)
 	int silent = 0;	/* print messages only if errors detected */
 	unsigned int blocksize = 0;
 	char *endptr;
-	char *uuid = NULL;
+	const char *uuid = NULL;
 	static struct option options[] = {
 		{"force", no_argument, NULL, 'f'},
 		{"hard-force", no_argument, NULL, 'F'},
@@ -109,12 +109,9 @@ int plooptool_check(int argc, char ** argv)
 			flags |= CHECK_REPAIR_SPARSE;
 			break;
 		case 'u':
-			if (!is_valid_guid(optarg)) {
-				fprintf(stderr, "Incorrect guid '%s' "
-						"specified.\n", optarg);
+			uuid = parse_uuid(optarg);
+			if (!uuid)
 				return SYSEXIT_PARAM;
-			}
-			uuid = optarg;
 			break;
 		default:
 			usage();
