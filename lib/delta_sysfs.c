@@ -308,7 +308,7 @@ close_dir:
  *   0 found
  *   1 not found
  */
-int ploop_get_dev_by_delta(const char *component_name, const char *delta,
+int ploop_get_dev_by_delta(const char *delta, const char *component_name,
 		char **out[])
 {
 	char fname[PATH_MAX];
@@ -426,7 +426,7 @@ void ploop_free_array(char *array[])
 	free(array);
 }
 
-int ploop_find_dev(const char *delta, const char *component_name,
+int ploop_find_dev(const char *component_name, const char *delta,
 		char *out, int size)
 {
 	int ret;
