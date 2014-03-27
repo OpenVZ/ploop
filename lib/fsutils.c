@@ -127,8 +127,9 @@ int make_fs(const char *device, const char *fstype, unsigned int fsblocksize)
 	 * independly on the initial image size
 	*/
 	argv[6] = "-Jsize=128";
-	argv[7] = part_device;
-	argv[8] = NULL;
+	argv[7] = "-i16384"; /* 1 inode per 16K disk space */
+	argv[8] = part_device;
+	argv[9] = NULL;
 
 	if (run_prg(argv))
 		return SYSEXIT_MKFS;
