@@ -1058,7 +1058,7 @@ int ploop_get_dev(struct ploop_disk_images_data *di, char *out, int len)
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	ret = ploop_find_dev_by_dd(di, out, len);
+	ret = ploop_find_dev_by_cn(di, di->runtime->component_name, 1, out, len);
 
 	ploop_unlock_dd(di);
 
