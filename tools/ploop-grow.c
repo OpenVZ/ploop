@@ -91,7 +91,7 @@ int plooptool_grow(int argc, char **argv)
 			return ret;
 
 		ret = ploop_grow_image(di, new_size);
-		ploop_free_diskdescriptor(di);
+		ploop_close_dd(di);
 
 		return ret;
 	}
