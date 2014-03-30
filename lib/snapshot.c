@@ -353,14 +353,8 @@ int ploop_create_temporary_snapshot(struct ploop_disk_images_data *di,
 		struct ploop_tsnapshot_param *param, int *holder_fd)
 {
 	int ret;
-	struct ploop_snapshot_param snap_param = {
-		.guid = param->guid
-	};
-	struct ploop_mount_param mount_param = {
-		.ro = 1,
-		.guid = param->guid,
-		.target = param->target
-	};
+	struct ploop_snapshot_param snap_param = {};
+	struct ploop_mount_param mount_param = { .ro = 1, };
 	char component_name[PLOOP_COOKIE_SIZE];
 
 	if (di == NULL || param == NULL)
@@ -379,6 +373,7 @@ int ploop_create_temporary_snapshot(struct ploop_disk_images_data *di,
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
+	snap_param.guid = param->guid;
 	ret = do_create_snapshot(di, &snap_param, 1);
 	if (ret)
 		goto err_unlock;
@@ -390,6 +385,8 @@ int ploop_create_temporary_snapshot(struct ploop_disk_images_data *di,
 			param->component_name);
 	di->runtime->component_name = component_name;
 
+	mount_param.guid = param->guid;
+	mount_param.target = param->target;
 	ret = mount_image(di, &mount_param, 0);
 	di->runtime->component_name = t;
 
