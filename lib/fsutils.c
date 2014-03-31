@@ -98,7 +98,7 @@ int make_fs(const char *device, const char *fstype, unsigned int fsblocksize)
 {
 	char part_device[64];
 	char fsblock_size[14];
-	char *argv[9];
+	char *argv[10];
 	char ext_opts[1024];
 	__u64 max_online_resize;
 
