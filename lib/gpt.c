@@ -149,7 +149,10 @@ int get_partition_device_name(const char *device, char *out, int size)
 			ploop_err(errno, "failed mknod %s", out);
 			return -1;
 		}
-		chmod(device, 0600);
+		if (chmod(device, 0600)) {
+			ploop_err(errno, "failed chmod %s", device);
+			return -1;
+		}
 	} else
 		snprintf(out, size, "%s", device);
 
