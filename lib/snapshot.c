@@ -206,7 +206,7 @@ static int get_snapshot_count(struct ploop_disk_images_data *di)
 }
 
 static int do_create_snapshot(struct ploop_disk_images_data *di,
-		struct ploop_snapshot_param *param, int temporary)
+		const char *guid, int temporary)
 {
 	int ret;
 	int fd;
@@ -222,8 +222,8 @@ static int do_create_snapshot(struct ploop_disk_images_data *di,
 	__u32 blocksize;
 	int version;
 
-	if (param->guid != NULL && !is_valid_guid(param->guid)) {
-		ploop_err(0, "Incorrect guid %s", param->guid);
+	if (guid != NULL && !is_valid_guid(guid)) {
+		ploop_err(0, "Incorrect guid %s", guid);
 		return SYSEXIT_PARAM;
 	}
 
@@ -241,13 +241,13 @@ static int do_create_snapshot(struct ploop_disk_images_data *di,
 		return ret;
 	}
 
-	if (param->guid != NULL) {
-		if (find_snapshot_by_guid(di, param->guid) != -1) {
+	if (guid != NULL) {
+		if (find_snapshot_by_guid(di, guid) != -1) {
 			ploop_err(0, "The snapshot %s already exist",
-				param->guid);
+				guid);
 			return SYSEXIT_PARAM;
 		}
-		strcpy(snap_guid, param->guid);
+		strcpy(snap_guid, guid);
 	}
 	n = get_snapshot_count(di);
 	if (n == -1) {
@@ -331,7 +331,7 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di,
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	ret = do_create_snapshot(di, param, 0);
+	ret = do_create_snapshot(di, param->guid, 0);
 
 	ploop_unlock_dd(di);
 
@@ -353,7 +353,6 @@ int ploop_create_temporary_snapshot(struct ploop_disk_images_data *di,
 		struct ploop_tsnapshot_param *param, int *holder_fd)
 {
 	int ret;
-	struct ploop_snapshot_param snap_param = {};
 	struct ploop_mount_param mount_param = { .ro = 1, };
 	char component_name[PLOOP_COOKIE_SIZE];
 
@@ -373,8 +372,7 @@ int ploop_create_temporary_snapshot(struct ploop_disk_images_data *di,
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	snap_param.guid = param->guid;
-	ret = do_create_snapshot(di, &snap_param, 1);
+	ret = do_create_snapshot(di, param->guid, 1);
 	if (ret)
 		goto err_unlock;
 
