@@ -211,8 +211,8 @@ static int do_create_snapshot(struct ploop_disk_images_data *di,
 	int ret;
 	int fd;
 	char dev[64];
-	char snap_guid[61];
-	char file_guid[61];
+	char snap_guid[UUID_SIZE];
+	char file_guid[UUID_SIZE];
 	char fname[PATH_MAX];
 	char conf[PATH_MAX];
 	char conf_tmp[PATH_MAX];
@@ -506,8 +506,8 @@ int ploop_switch_snapshot_ex(struct ploop_disk_images_data *di,
 	int ret;
 	int fd;
 	char dev[64];
-	char uuid[61];
-	char file_uuid[61];
+	char uuid[UUID_SIZE];
+	char file_uuid[UUID_SIZE];
 	char new_top_delta_fname[PATH_MAX] = "";
 	char *old_top_delta_fname = NULL;
 	char conf[PATH_MAX];

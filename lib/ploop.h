@@ -42,6 +42,7 @@
 /* Compatibility: Parallels use this UUID to mark top delta */
 #define TOPDELTA_UUID		"{5fbaabe3-6958-40ff-92a7-860e329aab41}"
 #define NONE_UUID		"{00000000-0000-0000-0000-000000000000}"
+#define UUID_SIZE		39	/* sizeof(TOPDELTA_UUID) for example */
 #define DEFAULT_FSTYPE		"ext4"
 #define BALLOON_FNAME		".balloon-c3a5ae3d-ce7f-43c4-a1ea-c61e2b4504e8"
 
