@@ -42,3 +42,6 @@ cov: clean
 	rm -rf cov-int
 	git describe --tags HEAD
 .PHONY: cov
+
+# Add optional local rules
+-include Makefile.local
