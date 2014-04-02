@@ -1473,7 +1473,7 @@ static int add_deltas(struct ploop_disk_images_data *di,
 		goto err1;
 	}
 
-	ret = check_and_repair_gpt(param->device);
+	ret = check_and_repair_gpt(param->device, blocksize);
 	if (ret)
 		goto err1;
 
@@ -1979,7 +1979,7 @@ static int ploop_raw_discard(struct ploop_disk_images_data *di, const char *devi
 	if (new_end >= end)
 		return 0;
 
-	ret = resize_gpt_partition(device, new_end);
+	ret = resize_gpt_partition(device, new_end, blocksize);
 	if (ret)
 		return ret;
 
@@ -2212,7 +2212,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			goto err;
 		}
 
-		ret = resize_gpt_partition(mount_param.device, 0);
+		ret = resize_gpt_partition(mount_param.device, 0, blocksize);
 		if (ret)
 			goto err;
 
@@ -2224,7 +2224,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		/* Grow or shrink fs but do not change block device size */
 		if (part_dev_size < new_fs_size) {
 			/* sync gpt with new_size */
-			ret = resize_gpt_partition(mount_param.device, new_size);
+			ret = resize_gpt_partition(mount_param.device, new_size, blocksize);
 			if (ret)
 				goto err;
 		}

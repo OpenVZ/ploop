@@ -203,13 +203,14 @@ static void update_protective_mbr(int fd, __u64 new_size)
 }
 
 static int update_gpt_partition(int fd, const char *devname, __u64 new_size512,
-		int sector_size, int image_sector_size)
+		int sector_size, int image_sector_size, __u32 blocksize512)
 {
 	unsigned char buf[GPT_PT_ENTRY_SIZE];
 	int ret;
 	struct GptHeader hdr;
 	struct GptEntry *pe;
 	__u32 pt_crc32, pe_crc32, orig_crc;
+	__u32 blocksize;
 	off_t size, new_size, gpt_size_bytes;
 	__u64 tmp;
 	int convert = (sector_size != image_sector_size);
@@ -229,8 +230,12 @@ static int update_gpt_partition(int fd, const char *devname, __u64 new_size512,
 		return SYSEXIT_PARAM;
 	}
 
-	/* convert from 512 to logical sector size */
+	/* convert size from 512 to logical sector size */
 	new_size = new_size512 * SECTOR_SIZE / sector_size;
+	/* convert blocksize from 512 to logical sector size
+	 * use blocksize == 1Mbytes if not specified
+	 */
+	blocksize = (blocksize512 ?: DEF_CLUSTER) * SECTOR_SIZE / sector_size;
 	/* GPT header (1sec) + partition entries (16K) alligned to sector size */
 	gpt_size_bytes = sector_size + ROUNDUP(GPT_PT_ENTRY_SIZE, sector_size);
 
@@ -262,8 +267,8 @@ static int update_gpt_partition(int fd, const char *devname, __u64 new_size512,
 	/* change GPT header */
 	hdr.alternate_lba = new_size - 1;
 	hdr.last_usable_lba = new_size - (gpt_size_bytes / sector_size) - 1;
-
-	pe->ending_lba = hdr.last_usable_lba - 1;
+	/* allign partition to blocksize */
+	pe->ending_lba = (hdr.last_usable_lba / blocksize * blocksize) - 1;
 
 	if (convert) {
 		hdr.my_lba = 1;
@@ -338,7 +343,7 @@ static int update_gpt_partition(int fd, const char *devname, __u64 new_size512,
 	return 0;
 }
 
-int resize_gpt_partition(const char *device, __u64 new_size512)
+int resize_gpt_partition(const char *device, __u64 new_size512, __u32 blocksize512)
 {
 	int fd, ret, part, sector_size;
 
@@ -359,7 +364,8 @@ int resize_gpt_partition(const char *device, __u64 new_size512)
 	if (ret)
 		goto err;
 	/* resize is performed only on mounted fs so sectors are equals */
-	ret = update_gpt_partition(fd, device, new_size512, sector_size, sector_size);
+	ret = update_gpt_partition(fd, device, new_size512, sector_size,
+			sector_size, blocksize512);
 
 err:
 	close(fd);
@@ -399,7 +405,7 @@ static int detect_image_sector_size(int fd, int *sector_size)
 	return 0;
 }
 
-int check_and_repair_gpt(const char *device)
+int check_and_repair_gpt(const char *device, __u32 blocksize512)
 {
 	int ret, fd;
 	int image_sector_size, sector_size;
@@ -437,7 +443,8 @@ int check_and_repair_gpt(const char *device)
 
 	ploop_log(0, "GPT sector size incompatibility detected %d/%d",
 			image_sector_size, sector_size);
-	ret = update_gpt_partition(fd, device, 0, sector_size, image_sector_size);
+	ret = update_gpt_partition(fd, device, 0, sector_size,
+			image_sector_size, blocksize512);
 
 err:
 	close(fd);

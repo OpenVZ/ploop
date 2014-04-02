@@ -388,8 +388,8 @@ int resize_fs(const char *device, off_t blocks);
 int dumpe2fs(const char *device, struct dump2fs_data *data);
 int e2fsck(const char *device, int flags, int *rc);
 int create_gpt_partition(const char *dev, off_t size, __u32 blocksize);
-int resize_gpt_partition(const char *devname, __u64 new_size);
-int check_and_repair_gpt(const char *device);
+int resize_gpt_partition(const char *devname, __u64 new_size512, __u32 blocksize512);
+int check_and_repair_gpt(const char *device, __u32 blocksize512);
 
 // misc
 void get_basedir(const char *fname, char *out, int len);
