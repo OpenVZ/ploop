@@ -82,7 +82,7 @@ int create_gpt_partition(const char *device, off_t size, __u32 blocksize)
 	argv[3] = "mklabel gpt mkpart primary";
 	snprintf(s1, sizeof(s1), "%llub", start << PLOOP1_SECTOR_LOG);
 	argv[4] = s1;
-	snprintf(s2, sizeof(s2), "%llub", end << PLOOP1_SECTOR_LOG);
+	snprintf(s2, sizeof(s2), "%llub", (end << PLOOP1_SECTOR_LOG)-1);
 	argv[5] = s2;
 	argv[6] = NULL;
 
