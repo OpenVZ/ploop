@@ -1,7 +1,7 @@
 %define _incdir /usr/include/ploop
 Summary: ploop tools
 Name: ploop
-Version: 1.10
+Version: 1.11
 %define rel 1
 Release: %{rel}%{?dist}
 Group: Applications/System
@@ -92,6 +92,55 @@ Headers and a static version of ploop library
 %attr(644,root,root) %{_incdir}/dynload.h
 
 %changelog
+* Thu Apr  3 2014 Kir Kolyshkin <kir@openvz.org> 1.11-1
+- New functionality and important changes:
+-- support for 4K sector size (including GPT conversion)
+-- ploop replace
+-- temp snapshots support (ploop tsnapshot, ploop_create_temporary_snapshot())
+-- ploop copy: implement fdatasync before freeze (improves CT frozen time)
+-- New DiskDescriptor.xml read API (ploop_*_dd())
+-- Obsolete *_diskdescriptor() calls
+-- Obsolete ploop_get_base_delta_uuid()
+-- ploop_log(): implement subsecond timestamps (with verbosity >= 4)
+-- add ploop_is_mounted()
+-- ploop snapshot-list: add snapshot mode (-s)
+-- ploop check dd.xml: add -u UUID option
+-- ploop mount: remove -u base feature
+-- ploop tool: add -v option to set verbosity
+- Fixes:
+-- skip max fs size check on snapshot delta creation
+-- ploop_resize_image: resize up to end of device
+-- ploop_delete_top_delta(): fix wrt top_guid
+-- ploop_read_diskdescriptor(): fix get_basedir() len argument
+-- check_and_repair_sparse: handle EOF properly (#2897)
+-- ploop_resize_image: add missing gpt size sync
+-- ploop snapshot-merge/delete: deny snapshot deleting if mounted (#2887)
+-- grow_lower_delta(): fix a memory leak
+-- ploop check: fix -b option parsing
+-- get_partition_device_name(): fix chmod argument
+-- fix alignment on GPT partition resize
+-- fix GPT partition alignment on ploop init
+- Improvements:
+-- ploop_resize_image: enhanced inflate balloon to max size logic
+-- tools: add {} to specified UUID if necessary
+-- check_and_repair_sparse(): log filefrag output
+-- print_sys_block_ploop(): speed up
+-- ploop check: try to repair non-top deltas if they can be opened r/w
+-- e2fsck: return fsck exit code to caller
+-- make_fs(): add -i to mkfs
+-- fsync_safe(): use SYSEXIT_FSYNC
+-- Fix uuid strings size, use define
+- Documentation:
+-- ploop snapshot-list: fix and update usage
+-- ploop copy: fix usage
+-- ploop(8): document snapshot-list -s option
+-- ploop(8): document ploop replace
+- Build system:
+-- Makefile.inc: fix dpkg-architecture handling (#2877)
+-- Makefile: add ability to add local rules
+-- gensym.sh: better usage and error diag
+-- gensym.sh: add run mode
+
 * Mon Dec 16 2013 Kir Kolyshkin <kir@openvz.org> 1.10-1
 - New functionality:
 --  Added check for and repair of sparse images
