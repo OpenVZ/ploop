@@ -275,7 +275,8 @@ int e2fsck(const char *device, int flags, int *rc)
 	arg[i++] = (char *)device;
 	arg[i++] = NULL;
 
-	if (run_prg_rc(arg, &ret))
+	/* there no quiet option for fsck, so close stdout */
+	if (run_prg_rc(arg, 0x1, &ret))
 		return SYSEXIT_FSCK;
 
 	if (rc)

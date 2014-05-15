@@ -406,7 +406,7 @@ PL_EXT int read_line(const char *path, char *nbuf, int len);
 int read_line_quiet(const char *path, char *nbuf, int len);
 int is_valid_blocksize(__u32 blocksize);
 int run_prg(char *const argv[]);
-int run_prg_rc(char *const argv[], int *rc);
+int run_prg_rc(char *const argv[], int close_std_mask, int *rc);
 int p_memalign(void **memptr, size_t alignment, size_t size);
 PL_EXT int guidcmp(const char *p1, const char *p2);
 int auto_mount_image(struct ploop_disk_images_data *di,

@@ -269,7 +269,7 @@ static int ploop_execvp(const char *file, char *const argv[])
 	return ret;
 }
 
-int run_prg_rc(char *const argv[], int *rc)
+int run_prg_rc(char *const argv[], int close_std_mask, int *rc)
 {
 	int pid, ret, status;
 	char cmd[512];
@@ -283,9 +283,15 @@ int run_prg_rc(char *const argv[], int *rc)
 		int fd = open("/dev/null", O_RDONLY);
 		if (fd >= 0) {
 			dup2(fd, STDIN_FILENO);
+
+			if (close_std_mask & 0x1)
+				 dup2(fd, STDOUT_FILENO);
+
+			if (close_std_mask & 0x2)
+				 dup2(fd, STDERR_FILENO);
+
 			close(fd);
-		}
-		else {
+		} else {
 			ploop_err(errno, "Can't open /dev/null");
 			return -1;
 		}
@@ -326,7 +332,7 @@ int run_prg_rc(char *const argv[], int *rc)
 
 int run_prg(char *const argv[])
 {
-	return run_prg_rc(argv, NULL);
+	return run_prg_rc(argv, 0, NULL);
 }
 
 int p_memalign(void **memptr, size_t alignment, size_t size)
