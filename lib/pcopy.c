@@ -482,25 +482,30 @@ int ploop_send(const char *device, int ofd, const char *flush_cmd,
 	 * this as "sync me" command, while the old one just writes those
 	 * bytes which is useless but harmless.
 	 */
-	TS("SEND 0 %d (sync)", SYNC_MARK);
-	ret = idelta.fops->pread(idelta.fd, iobuf, 4096, 0);
-	if (ret != 4096) {
-		ploop_err(errno, "pread");
-		ret = SYSEXIT_READ;
-		goto done;
+	if (is_pipe) {
+		ret = idelta.fops->pread(idelta.fd, iobuf, 4096, 0);
+		if (ret != 4096) {
+			ploop_err(errno, "pread");
+			ret = SYSEXIT_READ;
+			goto done;
+		}
+		TS("SEND 0 %d (sync)", SYNC_MARK);
+		ret = send_buf(ofd, iobuf, SYNC_MARK, 0, is_pipe);
+		if (ret) {
+			ploop_err(errno, "write");
+			goto done;
+		}
+		/* Now we should wait for the other side to finish syncing
+		 * before freezing the container. This is done in order to
+		 * optimize CT frozen time. Unfortunately the protocol is
+		 * one-way so there is no way to receive anything from the
+		 * other side. As ugly as it is, let's just sleep for some time.
+		 */
+		sleep(5);
+	} else {
+		/* Writing to local file */
+		fdatasync(ofd);
 	}
-	ret = send_buf(ofd, iobuf, SYNC_MARK, 0, is_pipe);
-	if (ret) {
-		ploop_err(errno, "write");
-		goto done;
-	}
-	/* Now we should wait for the other side to finish syncing
-	 * before freezing the container. This is done in order to
-	 * optimize CT frozen time. Unfortunately the protocol is
-	 * one-way so there is no way to receive anything from the
-	 * other side. As ugly as it is, let's just sleep for some time.
-	 */
-	sleep(5);
 
 	/* Freeze the container */
 	TS("FLUSH");
