@@ -159,7 +159,7 @@ int ploop_receive(const char *dst)
 		struct xfer_desc desc;
 
 		if (nread(0, &desc, sizeof(desc)) < 0) {
-			ploop_err(0, "Error in nread(desc)");
+			ploop_err(errno, "Error in nread(desc)");
 			ret = SYSEXIT_READ;
 			goto out;
 		}
