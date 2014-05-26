@@ -143,7 +143,11 @@ ploop \- ploop device management utility
 .B -s
 .I device
 .OP -F stop_command
+{
 .OP -d file
+|
+.OP -o output_fd
+}
 .YS
 .SY ploop\ copy
 .B -d
@@ -612,13 +616,19 @@ processes are required for iterative top delta transfer. These are used by
 .B -s
 .I device
 .OP -F stop_command
+{
 .OP -d file
+|
+.OP -o output_fd
+}
 .YS
 
 This command enables the in-kernel write tracker for the specified ploop
 .IR device,
-then sends all the data blocks from the top delta image to stdout
-(supposedly read by destination \fBploop copy\fR) or a \fIfile\fR.
+then sends all the data blocks from the top delta image to a pipe
+specified by the \fIoutput_fd\fR argument (\fBstdout\fR, i.e.
+\fB1\fR by default), supposedly read by destination \fBploop copy\fR,
+or a \fIfile\fR.
 After that, it iteratively gets the list of the modified data blocks
 from the kernel and sends those blocks again. After a number of iterations
 (or when the list is empty), it executes the \fIstop_command\fR

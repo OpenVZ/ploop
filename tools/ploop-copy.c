@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2008-2013, Parallels, Inc. All rights reserved.
+ *  Copyright (C) 2008-2014, Parallels, Inc. All rights reserved.
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -26,28 +26,30 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <signal.h>
+#include <stdlib.h>
 #include <sys/stat.h>
 #include "libploop.h"
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: ploop copy -s DEVICE [-F STOPCOMMAND] [-d FILE]\n"
+	fprintf(stderr, "Usage: ploop copy -s DEVICE [-F STOPCMD] { [-d FILE] | [-o OFD] }\n"
 			"       ploop copy -d FILE\n"
-			"       DEVICE      := source ploop device, e.g. /dev/ploop0\n"
-			"       STOPCOMMAND := a command to stop disk activity, e.g. \"vzctl chkpnt\"\n"
-			"       FILE        := destination file name\n"
+			"       DEVICE  := source ploop device, e.g. /dev/ploop0\n"
+			"       STOPCMD := a command to stop disk activity, e.g. \"vzctl chkpnt\"\n"
+			"       FILE    := destination file name\n"
+			"       OFD     := output file descriptor\n"
 			"Action: effectively copy top ploop delta with write tracker\n"
 			);
 }
 
 int plooptool_copy(int argc, char **argv)
 {
-	int i, ofd;
+	int i, ofd = -1;
 	const char *device = NULL;
 	const char *recv_to = NULL;
 	const char *flush_cmd = NULL;
 
-	while ((i = getopt(argc, argv, "F:s:d:")) != EOF) {
+	while ((i = getopt(argc, argv, "F:s:d:o:")) != EOF) {
 		switch (i) {
 		case 'd':
 			recv_to = optarg;
@@ -57,6 +59,9 @@ int plooptool_copy(int argc, char **argv)
 			break;
 		case 'F':
 			flush_cmd = optarg;
+			break;
+		case 'o':
+			ofd = atoi(optarg);
 			break;
 		default:
 			usage();
@@ -91,12 +96,13 @@ int plooptool_copy(int argc, char **argv)
 		}
 	}
 	else {
-		if (isatty(1) || errno == EBADF) {
+		if (ofd == -1)
+			ofd = 1; /* default: write to stdout */
+		if (isatty(ofd) || errno == EBADF) {
 			fprintf(stderr, "Invalid output stream: must be "
 					"pipelined to a pipe or socket\n");
 			return SYSEXIT_PARAM;
 		}
-		ofd = 1;
 	}
 
 	return ploop_send(device, ofd, flush_cmd, (recv_to == NULL));
