@@ -141,7 +141,7 @@ int ploop_copy_receive(struct ploop_copy_receive_param *arg)
 	__u64 cluster = 0;
 	void *iobuf = NULL;
 
-	if (isatty(0) || errno == EBADF) {
+	if (arg->ifd < 0 || isatty(arg->ifd) || errno == EBADF) {
 		ploop_err(errno, "Invalid input stream: must be pipelined "
 				"to a pipe or a socket");
 		return SYSEXIT_PARAM;
@@ -158,7 +158,7 @@ int ploop_copy_receive(struct ploop_copy_receive_param *arg)
 		int n;
 		struct xfer_desc desc;
 
-		if (nread(0, &desc, sizeof(desc)) < 0) {
+		if (nread(arg->ifd, &desc, sizeof(desc)) < 0) {
 			ploop_err(errno, "Error in nread(desc)");
 			ret = SYSEXIT_READ;
 			goto out;
@@ -180,7 +180,7 @@ int ploop_copy_receive(struct ploop_copy_receive_param *arg)
 		if (desc.size == 0)
 			break;
 
-		if (nread(0, iobuf, desc.size)) {
+		if (nread(arg->ifd, iobuf, desc.size)) {
 			ploop_err(errno, "Error in nread data");
 			ret = SYSEXIT_READ;
 			goto out;

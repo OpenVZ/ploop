@@ -178,6 +178,7 @@ struct ploop_copy_send_param {
 
 struct ploop_copy_receive_param {
 	const char *file;	/* File name to write to */
+	int ifd;		/* File descriptor to read from */
 	char dummy[32];
 };
 
