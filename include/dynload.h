@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2008-2012, Parallels, Inc. All rights reserved.
+ *  Copyright (C) 2008-2014, Parallels, Inc. All rights reserved.
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -77,8 +77,11 @@ struct ploop_functions {
 	void (*close_dd)(struct ploop_disk_images_data *di);
 	int (*create_temporary_snapshot)(struct ploop_disk_images_data *di, struct ploop_tsnapshot_param *param, int *holder_fd);
 	int (*is_mounted)(struct ploop_disk_images_data *di);
+	/* 1.12 */
+	int (*copy_send)(struct ploop_copy_send_param *arg);
+	int (*copy_receive)(struct ploop_copy_receive_param *arg);
 	/* padding for up to 64 pointers */
-	void *padding[17];
+	void *padding[15];
 }; /* struct ploop_functions */
 
 __attribute__ ((visibility("default")))

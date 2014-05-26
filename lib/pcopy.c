@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2008-2012, Parallels, Inc. All rights reserved.
+ *  Copyright (C) 2008-2014, Parallels, Inc. All rights reserved.
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -135,7 +135,7 @@ static int nread(int fd, void * buf, int len)
 	return -1;
 }
 
-int ploop_receive(const char *dst)
+int ploop_copy_receive(struct ploop_copy_receive_param *arg)
 {
 	int ofd, ret;
 	__u64 cluster = 0;
@@ -147,9 +147,9 @@ int ploop_receive(const char *dst)
 		return SYSEXIT_PARAM;
 	}
 
-	ofd = open(dst, O_WRONLY|O_CREAT|O_EXCL, 0600);
+	ofd = open(arg->file, O_WRONLY|O_CREAT|O_EXCL, 0600);
 	if (ofd < 0) {
-		ploop_err(errno, "Can't open %s", dst);
+		ploop_err(errno, "Can't open %s", arg->file);
 		return SYSEXIT_CREAT;
 	}
 
@@ -222,10 +222,19 @@ out:
 			ret = SYSEXIT_WRITE;
 	}
 	if (ret)
-		unlink(dst);
+		unlink(arg->file);
 	free(iobuf);
 
 	return ret;
+}
+
+/* Deprecated, use ploop_copy_receive() instead */
+int ploop_receive(const char *dst) {
+	struct ploop_copy_receive_param r = {
+		.file = dst,
+	};
+
+	return ploop_copy_receive(&r);
 }
 
 static int get_image_info(const char *device, char **send_from_p,
@@ -308,9 +317,11 @@ static int open_mount_point(const char *device)
 #define TS(...)
 #endif
 
-int ploop_send(const char *device, int ofd, const char *flush_cmd,
-		int is_pipe)
+int ploop_copy_send(struct ploop_copy_send_param *arg)
 {
+	const char *device = arg->device;
+	int ofd = arg->ofd;
+	int is_pipe = arg->ofd_is_pipe;
 	struct delta idelta = { .fd = -1 };
 	int tracker_on = 0;
 	int fs_frozen = 0;
@@ -509,7 +520,7 @@ int ploop_send(const char *device, int ofd, const char *flush_cmd,
 
 	/* Freeze the container */
 	TS("FLUSH");
-	ret = run_cmd(flush_cmd);
+	ret = run_cmd(arg->flush_cmd);
 	if (ret)
 		goto done;
 
@@ -652,4 +663,18 @@ done:
 
 	TS("DONE");
 	return ret;
+}
+
+/* Deprecated, please use ploop_copy_send() instead */
+int ploop_send(const char *device, int ofd, const char *flush_cmd,
+		int is_pipe)
+{
+	struct ploop_copy_send_param s = {
+		.device		= device,
+		.ofd		= ofd,
+		.flush_cmd	= flush_cmd,
+		.ofd_is_pipe	= is_pipe,
+	};
+
+	return ploop_copy_send(&s);
 }

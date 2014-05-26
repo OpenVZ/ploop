@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2008-2012, Parallels, Inc. All rights reserved.
+ *  Copyright (C) 2008-2014, Parallels, Inc. All rights reserved.
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -168,6 +168,19 @@ struct ploop_discard_stat {
 	off_t balloon_size;
 };
 
+struct ploop_copy_send_param {
+	const char *device;	/* ploop device ("/dev/ploopNNNN") to read */
+	int ofd;		/* File descriptor to write to */
+	int ofd_is_pipe;	/* 1 if ofd is a pipe, 0 otherwise */
+	const char *flush_cmd;	/* command to run to stop disk activity */
+	char dummy[32];
+};
+
+struct ploop_copy_receive_param {
+	const char *file;	/* File name to write to */
+	char dummy[32];
+};
+
 /* Constants for ploop_set_verbose_level(): */
 #define PLOOP_LOG_NOCONSOLE	-2	/* disable all console logging */
 #define PLOOP_LOG_NOSTDOUT	-1	/* disable all but errors to stderr */
@@ -229,9 +242,8 @@ void ploop_cancel_operation(void);
 int ploop_complete_running_operation(const char *device);
 
 /* pcopy routines */
-int ploop_send(const char *device, int ofd, const char *flush_cmd,
-		int is_pipe);
-int ploop_receive(const char *dst);
+int ploop_copy_send(struct ploop_copy_send_param *arg);
+int ploop_copy_receive(struct ploop_copy_receive_param *arg);
 
 int ploop_discard_get_stat(struct ploop_disk_images_data *di,
 		struct ploop_discard_stat *pd_stat);
@@ -246,6 +258,8 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 void ploop_free_diskdescriptor(struct ploop_disk_images_data *di);
 int ploop_read_disk_descr(struct ploop_disk_images_data **di, const char *file);
 PLOOP_DEPRECATED char *ploop_get_base_delta_uuid(struct ploop_disk_images_data *di);
+int ploop_send(const char *device, int ofd, const char *flush_cmd, int is_pipe);
+int ploop_receive(const char *dst);
 
 #ifdef __cplusplus
 }
