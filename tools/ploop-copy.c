@@ -44,24 +44,25 @@ static void usage(void)
 
 int plooptool_copy(int argc, char **argv)
 {
-	int i, ofd = -1;
-	const char *device = NULL;
-	const char *recv_to = NULL;
-	const char *flush_cmd = NULL;
+	int i;
+	struct ploop_copy_send_param s = {
+		.ofd = 1,	/* write to stdout by default */
+	};
+	struct ploop_copy_receive_param r = {};
 
 	while ((i = getopt(argc, argv, "F:s:d:o:")) != EOF) {
 		switch (i) {
 		case 'd':
-			recv_to = optarg;
+			r.file = optarg;
 			break;
 		case 's':
-			device = optarg;
+			s.device = optarg;
 			break;
 		case 'F':
-			flush_cmd = optarg;
+			s.flush_cmd = optarg;
 			break;
 		case 'o':
-			ofd = atoi(optarg);
+			s.ofd = atoi(optarg);
 			break;
 		default:
 			usage();
@@ -77,7 +78,7 @@ int plooptool_copy(int argc, char **argv)
 		return SYSEXIT_PARAM;
 	}
 
-	if (!device && !recv_to) {
+	if (!s.device && !r.file) {
 		fprintf(stderr, "Either -s or -d is required\n");
 		usage();
 		return SYSEXIT_PARAM;
@@ -85,25 +86,26 @@ int plooptool_copy(int argc, char **argv)
 
 	signal(SIGPIPE, SIG_IGN);
 
-	if (!device)
-		return ploop_receive(recv_to);
+	if (!s.device)
+		return ploop_copy_receive(&r);
 
-	if (recv_to) {
-		ofd = open(recv_to, O_WRONLY|O_CREAT|O_EXCL, 0600);
-		if (ofd < 0) {
+	if (r.file) {
+		/* Write to a file, not pipe */
+		s.ofd_is_pipe = 0;
+		s.ofd = open(r.file, O_WRONLY|O_CREAT|O_EXCL, 0600);
+		if (s.ofd < 0) {
 			perror("open destination");
 			return SYSEXIT_CREAT;
 		}
 	}
 	else {
-		if (ofd == -1)
-			ofd = 1; /* default: write to stdout */
-		if (isatty(ofd) || errno == EBADF) {
+		s.ofd_is_pipe = 1;
+		if (isatty(s.ofd) || errno == EBADF) {
 			fprintf(stderr, "Invalid output stream: must be "
 					"pipelined to a pipe or socket\n");
 			return SYSEXIT_PARAM;
 		}
 	}
 
-	return ploop_send(device, ofd, flush_cmd, (recv_to == NULL));
+	return ploop_copy_send(&s);
 }

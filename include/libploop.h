@@ -258,8 +258,8 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 void ploop_free_diskdescriptor(struct ploop_disk_images_data *di);
 int ploop_read_disk_descr(struct ploop_disk_images_data **di, const char *file);
 PLOOP_DEPRECATED char *ploop_get_base_delta_uuid(struct ploop_disk_images_data *di);
-int ploop_send(const char *device, int ofd, const char *flush_cmd, int is_pipe);
-int ploop_receive(const char *dst);
+PLOOP_DEPRECATED int ploop_send(const char *device, int ofd, const char *flush_cmd, int is_pipe);
+PLOOP_DEPRECATED int ploop_receive(const char *dst);
 
 #ifdef __cplusplus
 }
