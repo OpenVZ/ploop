@@ -342,7 +342,7 @@ int ploop_copy_send(struct ploop_copy_send_param *arg)
 	struct ploop_track_extent e;
 
 	// Do not print anything on stdout, since we use it to send delta
-	if (is_pipe && ofd == STDOUT_FILENO)
+	if (ofd == STDOUT_FILENO)
 		ploop_set_verbose_level(PLOOP_LOG_NOSTDOUT);
 
 	devfd = open(device, O_RDONLY);
