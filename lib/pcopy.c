@@ -296,6 +296,18 @@ static int open_mount_point(const char *device)
 	return fd;
 }
 
+/* If you want to see critical ploop_send() timings:
+ *
+ * 1) Compile with DEBUG_TIMES defined
+ * 2) Use "ploop -vvvv copy" to set verbosity to (at least) 4
+ * 3) Use either -d FILE or -o OUTFD (to keep stdout free for logging)
+ */
+#ifdef DEBUG_TIMES
+#define TS(...) ploop_log(4, "psend: " __VA_ARGS__)
+#else
+#define TS(...)
+#endif
+
 int ploop_send(const char *device, int ofd, const char *flush_cmd,
 		int is_pipe)
 {
@@ -470,6 +482,7 @@ int ploop_send(const char *device, int ofd, const char *flush_cmd,
 	 * this as "sync me" command, while the old one just writes those
 	 * bytes which is useless but harmless.
 	 */
+	TS("SEND 0 %d (sync)", SYNC_MARK);
 	ret = idelta.fops->pread(idelta.fd, iobuf, 4096, 0);
 	if (ret != 4096) {
 		ploop_err(errno, "pread");
@@ -490,11 +503,13 @@ int ploop_send(const char *device, int ofd, const char *flush_cmd,
 	sleep(5);
 
 	/* Freeze the container */
+	TS("FLUSH");
 	ret = run_cmd(flush_cmd);
 	if (ret)
 		goto done;
 
 	/* Sync fs */
+	TS("SYNCFS");
 	if (sys_syncfs(mntfd)) {
 		ploop_err(errno, "syncfs() failed");
 		ret = SYSEXIT_FSYNC;
@@ -502,11 +517,13 @@ int ploop_send(const char *device, int ofd, const char *flush_cmd,
 	}
 
 	/* Flush journal and freeze fs (this also clears the fs dirty bit) */
+	TS("FIFREEZE");
 	ret = ioctl_device(mntfd, FIFREEZE, 0);
 	if (ret)
 		goto done;
 	fs_frozen = 1;
 
+	TS("IOC_SYNC");
 	ret = ioctl_device(devfd, PLOOP_IOC_SYNC, 0);
 	if (ret)
 		goto done;
@@ -542,6 +559,7 @@ int ploop_send(const char *device, int ofd, const char *flush_cmd,
 					if (ret)
 						goto done;
 				}
+				TS("READ %llu %d", pos, copy);
 				n = idelta.fops->pread(idelta.fd, iobuf, copy, pos);
 				if (n < 0) {
 					ploop_err(errno, "read3");
@@ -553,6 +571,7 @@ int ploop_send(const char *device, int ofd, const char *flush_cmd,
 					ret = SYSEXIT_READ;
 					goto done;
 				}
+				TS("SEND %llu %d", pos, n);
 				ret = send_buf(ofd, iobuf, n, pos, is_pipe);
 				if (ret) {
 					ploop_err(errno, "write3");
@@ -581,6 +600,7 @@ int ploop_send(const char *device, int ofd, const char *flush_cmd,
 		int n;
 		struct ploop_pvd_header *vh = (void*)iobuf;
 
+		TS("READ 0 4096");
 		n = idelta.fops->pread(idelta.fd, iobuf, 4096, 0);
 		if (n != 4096) {
 			ploop_err(errno, "Error reading 1st sector of %s", send_from);
@@ -590,6 +610,7 @@ int ploop_send(const char *device, int ofd, const char *flush_cmd,
 
 		vh->m_DiskInUse = 0;
 
+		TS("SEND 0 %d (1st sector)", SECTOR_SIZE);
 		ret = send_buf(ofd, vh, SECTOR_SIZE, 0, is_pipe);
 		if (ret) {
 			ploop_err(errno, "write3");
@@ -597,11 +618,13 @@ int ploop_send(const char *device, int ofd, const char *flush_cmd,
 		}
 	}
 
+	TS("IOCTL TRACK_STOP");
 	ret = ioctl(devfd, PLOOP_IOC_TRACK_STOP, 0);
 	if (ret)
 		goto done;
 	tracker_on = 0;
 
+	TS("SEND 0 0 (close)");
 	ret = send_buf(ofd, iobuf, 0, 0, is_pipe);
 	if (ret) {
 		ploop_err(errno, "write4");
@@ -622,5 +645,6 @@ done:
 	if (idelta.fd >= 0)
 		close_delta(&idelta);
 
+	TS("DONE");
 	return ret;
 }
