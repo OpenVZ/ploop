@@ -33,11 +33,12 @@
 static void usage(void)
 {
 	fprintf(stderr, "Usage: ploop copy -s DEVICE [-F STOPCMD] { [-d FILE] | [-o OFD] }\n"
-			"       ploop copy -d FILE\n"
+			"       ploop copy -d FILE [-i IFD]\n"
 			"       DEVICE  := source ploop device, e.g. /dev/ploop0\n"
 			"       STOPCMD := a command to stop disk activity, e.g. \"vzctl chkpnt\"\n"
 			"       FILE    := destination file name\n"
 			"       OFD     := output file descriptor\n"
+			"       IFD     := input file descriptor\n"
 			"Action: effectively copy top ploop delta with write tracker\n"
 			);
 }
@@ -48,9 +49,11 @@ int plooptool_copy(int argc, char **argv)
 	struct ploop_copy_send_param s = {
 		.ofd = 1,	/* write to stdout by default */
 	};
-	struct ploop_copy_receive_param r = {};
+	struct ploop_copy_receive_param r = {
+		.ifd = 0,	/* read from stdin by default */
+	};
 
-	while ((i = getopt(argc, argv, "F:s:d:o:")) != EOF) {
+	while ((i = getopt(argc, argv, "F:s:d:o:i:")) != EOF) {
 		switch (i) {
 		case 'd':
 			r.file = optarg;
@@ -63,6 +66,9 @@ int plooptool_copy(int argc, char **argv)
 			break;
 		case 'o':
 			s.ofd = atoi(optarg);
+			break;
+		case 'i':
+			r.ifd = atoi(optarg);
 			break;
 		default:
 			usage();

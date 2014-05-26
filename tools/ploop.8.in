@@ -10,7 +10,7 @@
 .P
 ..
 .
-.TH ploop 8 "4 December 2013" "OpenVZ" "Containers"
+.TH ploop 8 "26 May 2014" "OpenVZ" "Containers"
 .SH NAME
 ploop \- ploop device management utility
 .SH SYNOPSYS
@@ -152,6 +152,7 @@ ploop \- ploop device management utility
 .SY ploop\ copy
 .B -d
 .I file
+.OP -i input_fd
 .YS
 .SY ploop\ balloon\ discard
 .OP --automount
@@ -641,10 +642,12 @@ data were not modified, error is returned otherwise.
 .SY ploop\ copy
 .B -d
 .I file
+.OP -i input_fd
 .YS
 
-Reads the data block (provided by the source \fBploop copy\fR)
-from the \fBstdin\fR and writes them to the \fIfile\fR.
+Reads the data blocks (provided by the source \fBploop copy\fR)
+from the file descriptor \fIinput_fd\fR (\fBstdin\fR, i.e. \fB0\fR
+by default) and writes them to the \fIfile\fR.
 
 .SS Ballooning
 
