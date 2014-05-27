@@ -147,12 +147,14 @@ ploop \- ploop device management utility
 .OP -d file
 |
 .OP -o output_fd
+.OP -f feedback_fd
 }
 .YS
 .SY ploop\ copy
 .B -d
 .I file
 .OP -i input_fd
+.OP -f feedback_fd
 .YS
 .SY ploop\ balloon\ discard
 .OP --automount
@@ -621,6 +623,7 @@ processes are required for iterative top delta transfer. These are used by
 .OP -d file
 |
 .OP -o output_fd
+.OP -f feedback_fd
 }
 .YS
 
@@ -637,17 +640,27 @@ from the kernel and sends those blocks again. After a number of iterations
 iteration of sending the modified data blocks. Finally, it checks that the
 data were not modified, error is returned otherwise.
 
+If \fIfeedback_fd\fR is specified, it is used to read back from
+the ploop copy receiving side. The feedback channel is currently used
+to wait for
+.BR fdatasync (2)
+completion.
+
 .SS3 copy (receiving)
 
 .SY ploop\ copy
 .B -d
 .I file
 .OP -i input_fd
+.OP -f feedback_fd
 .YS
 
 Reads the data blocks (provided by the source \fBploop copy\fR)
 from the file descriptor \fIinput_fd\fR (\fBstdin\fR, i.e. \fB0\fR
 by default) and writes them to the \fIfile\fR.
+
+If \fIfeedback_fd\fR is specified, it is used to send status back to
+the ploop copy sending side.
 
 .SS Ballooning
 
