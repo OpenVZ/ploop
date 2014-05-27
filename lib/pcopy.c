@@ -16,11 +16,6 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-/* _XXX_ We should use AIO. ploopcopy cannot use cached reads and
- * has to use O_DIRECT, which introduces large read latencies.
- * AIO is necessary to transfer with maximal speed.
- */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -33,6 +28,7 @@
 #include <linux/types.h>
 #include <linux/fs.h>
 #include <string.h>
+#include <pthread.h>
 
 #include "ploop.h"
 
@@ -354,11 +350,62 @@ static int open_mount_point(const char *device)
 #define TS(...)
 #endif
 
+struct send_data {
+	int fd;
+	void *buf;
+	int len;
+	off_t pos;
+	int is_pipe;
+	int ret;
+	int err_no;
+	pthread_mutex_t mutex;
+	pthread_cond_t cond;
+	int has_data;
+};
+
+void *send_thread(void *data) {
+	struct send_data *sd = data;
+	int done;
+
+	do {
+		pthread_mutex_lock(&sd->mutex);
+		if (!sd->has_data) {
+			pthread_cond_wait(&sd->cond, &sd->mutex);
+		}
+		sd->ret = send_buf(sd->fd, sd->buf,
+				sd->len, sd->pos, sd->is_pipe);
+		if (sd->ret)
+			sd->err_no = errno;
+		done = (sd->len == 0 && sd->pos == 0);
+		sd->has_data = 0;
+		pthread_mutex_unlock(&sd->mutex);
+	} while (!done);
+
+	return NULL;
+}
+
+#define async_send(length, position)			\
+do {							\
+	pthread_mutex_lock(&sd.mutex);			\
+	if (sd.ret) {					\
+		ploop_err(sd.err_no, "write error");	\
+		ret = sd.ret;				\
+		goto done;				\
+	}						\
+	sd.buf = iobuf[i];				\
+	sd.len = (length);				\
+	sd.pos = (position);				\
+	sd.has_data = 1;				\
+	pthread_mutex_unlock(&sd.mutex);		\
+	pthread_cond_signal(&sd.cond);			\
+} while (0)
+
 #define do_pread(length, position)			\
 ({							\
 	int __ret;					\
 							\
-	__ret = idelta.fops->pread(idelta.fd, iobuf,	\
+	i = !i;						\
+	__ret = idelta.fops->pread(idelta.fd, iobuf[i],	\
 			(length), (position));		\
 	if (__ret < 0) {				\
 		ploop_err(errno, "Error from read");	\
@@ -382,7 +429,7 @@ int ploop_copy_send(struct ploop_copy_send_param *arg)
 	int ret = 0;
 	char *send_from = NULL;
 	char *format = NULL;
-	void *iobuf = NULL;
+	void *iobuf[2] = {};
 	int blocksize;
 	__u64 cluster;
 	__u64 pos;
@@ -392,6 +439,14 @@ int ploop_copy_send(struct ploop_copy_send_param *arg)
 	__u64 xferred;
 	int iter;
 	struct ploop_track_extent e;
+	int i;
+	pthread_t send_th = 0;
+	struct send_data sd = {
+		.fd = arg->ofd,
+		.is_pipe = arg->ofd_is_pipe,
+		.mutex = PTHREAD_MUTEX_INITIALIZER,
+		.cond = PTHREAD_COND_INITIALIZER,
+	};
 
 	/* If data is to be send to stdout or stderr,
 	 * we have to disable logging to appropriate fd.
@@ -423,10 +478,10 @@ int ploop_copy_send(struct ploop_copy_send_param *arg)
 		goto done;
 	cluster = S2B(blocksize);
 
-	if (p_memalign(&iobuf, 4096, cluster)) {
-		ret = SYSEXIT_MALLOC;
-		goto done;
-	}
+	ret = SYSEXIT_MALLOC;
+	for (i = 0; i < 2; i++)
+		if (p_memalign(&iobuf[i], 4096, cluster))
+			goto done;
 
 	ret = ploop_complete_running_operation(device);
 	if (ret)
@@ -439,6 +494,13 @@ int ploop_copy_send(struct ploop_copy_send_param *arg)
 
 	if (open_delta_simple(&idelta, send_from, O_RDONLY|O_DIRECT, OD_NOFLAGS)) {
 		ret = SYSEXIT_OPEN;
+		goto done;
+	}
+
+	ret = pthread_create(&send_th, NULL, send_thread, &sd);
+	if (ret) {
+		ploop_err(ret, "Can't create send thread");
+		ret = SYSEXIT_SYS;
 		goto done;
 	}
 
@@ -457,12 +519,7 @@ int ploop_copy_send(struct ploop_copy_send_param *arg)
 		if (n == 0) /* EOF */
 			break;
 
-		ret = send_buf(ofd, iobuf, n, pos, is_pipe);
-		if (ret) {
-			ploop_err(errno, "write");
-			goto done;
-		}
-
+		async_send(n, pos);
 		pos += n;
 	}
 	/* First copy done */
@@ -507,11 +564,7 @@ int ploop_copy_send(struct ploop_copy_send_param *arg)
 					ret = SYSEXIT_READ;
 					goto done;
 				}
-				ret = send_buf(ofd, iobuf, n, pos, is_pipe);
-				if (ret) {
-					ploop_err(errno, "write2");
-					goto done;
-				}
+				async_send(n, pos);
 				pos += n;
 			}
 		} else {
@@ -552,11 +605,7 @@ int ploop_copy_send(struct ploop_copy_send_param *arg)
 			goto done;
 		}
 		TS("SEND 0 %d (sync)", SYNC_MARK);
-		ret = send_buf(ofd, iobuf, SYNC_MARK, 0, is_pipe);
-		if (ret) {
-			ploop_err(errno, "write");
-			goto done;
-		}
+		async_send(SYNC_MARK, 0);
 
 		/* Now we should wait for the other side to finish syncing
 		 * before freezing the container, to optimize CT frozen time.
@@ -665,11 +714,7 @@ sync_done:
 					goto done;
 				}
 				TS("SEND %llu %d", pos, n);
-				ret = send_buf(ofd, iobuf, n, pos, is_pipe);
-				if (ret) {
-					ploop_err(errno, "write3");
-					goto done;
-				}
+				async_send(n, pos);
 				pos += n;
 			}
 		} else {
@@ -691,7 +736,7 @@ sync_done:
 	/* Must clear dirty flag on ploop1 image. */
 	if (strcmp(format, "ploop1") == 0) {
 		int n;
-		struct ploop_pvd_header *vh = (void*)iobuf;
+		struct ploop_pvd_header *vh;
 
 		TS("READ 0 4096");
 		n = do_pread(4096, 0);
@@ -701,14 +746,11 @@ sync_done:
 			goto done;
 		}
 
+		vh = iobuf[i];
 		vh->m_DiskInUse = 0;
 
 		TS("SEND 0 %d (1st sector)", SECTOR_SIZE);
-		ret = send_buf(ofd, vh, SECTOR_SIZE, 0, is_pipe);
-		if (ret) {
-			ploop_err(errno, "write3");
-			goto done;
-		}
+		async_send(SECTOR_SIZE, 0);
 	}
 
 	TS("IOCTL TRACK_STOP");
@@ -718,18 +760,19 @@ sync_done:
 	tracker_on = 0;
 
 	TS("SEND 0 0 (close)");
-	ret = send_buf(ofd, iobuf, 0, 0, is_pipe);
-	if (ret) {
-		ploop_err(errno, "write4");
-		goto done;
-	}
+	async_send(0, 0);
+	pthread_join(send_th, NULL);
+	send_th = 0;
 
 done:
+	if (send_th)
+		pthread_cancel(send_th);
 	if (fs_frozen)
 		(void)ioctl_device(mntfd, FITHAW, 0);
 	if (tracker_on)
 		(void)ioctl_device(devfd, PLOOP_IOC_TRACK_ABORT, 0);
-	free(iobuf);
+	free(iobuf[0]);
+	free(iobuf[1]);
 	if (devfd >=0)
 		close(devfd);
 	if (mntfd >=0)
@@ -742,6 +785,7 @@ done:
 	return ret;
 }
 #undef do_pread
+#undef async_send
 
 /* Deprecated, please use ploop_copy_send() instead */
 int ploop_send(const char *device, int ofd, const char *flush_cmd,

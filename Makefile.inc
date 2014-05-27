@@ -27,7 +27,7 @@ CFLAGS += -I. -I../include -fno-strict-aliasing \
 CFLAGS += $(RPM_OPT_FLAGS) $(CPPFLAGS)
 #CFLAGS += -DDEBUG_TIMES
 
-LDFLAGS += $(if $(DEBUG),-g -rdynamic,)
+LDFLAGS += $(if $(DEBUG),-g -rdynamic,) -lpthread
 
 export CFLAGS CC
 

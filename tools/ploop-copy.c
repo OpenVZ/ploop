@@ -16,11 +16,6 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-/* _XXX_ We should use AIO. ploopcopy cannot use cached reads and
- * has to use O_DIRECT, which introduces large read latencies.
- * AIO is necessary to transfer with maximal speed.
- */
-
 #include <stdio.h>
 #include <errno.h>
 #include <fcntl.h>
