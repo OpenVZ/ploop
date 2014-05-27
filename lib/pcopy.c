@@ -341,9 +341,16 @@ int ploop_copy_send(struct ploop_copy_send_param *arg)
 	int iter;
 	struct ploop_track_extent e;
 
-	// Do not print anything on stdout, since we use it to send delta
+	/* If data is to be send to stdout or stderr,
+	 * we have to disable logging to appropriate fd.
+	 *
+	 * As currently there's no way to disable just stderr,
+	 * so in this case we have to disable stdout as well.
+	 */
 	if (ofd == STDOUT_FILENO)
 		ploop_set_verbose_level(PLOOP_LOG_NOSTDOUT);
+	else if (ofd == STDERR_FILENO)
+		ploop_set_verbose_level(PLOOP_LOG_NOCONSOLE);
 
 	devfd = open(device, O_RDONLY);
 	if (devfd < 0) {
