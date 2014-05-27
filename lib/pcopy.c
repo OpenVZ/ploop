@@ -141,6 +141,9 @@ int ploop_copy_receive(struct ploop_copy_receive_param *arg)
 	__u64 cluster = 0;
 	void *iobuf = NULL;
 
+	if (!arg)
+		return SYSEXIT_PARAM;
+
 	if (arg->ifd < 0 || isatty(arg->ifd) || errno == EBADF) {
 		ploop_err(errno, "Invalid input stream: must be pipelined "
 				"to a pipe or a socket");
@@ -418,9 +421,6 @@ do {							\
 
 int ploop_copy_send(struct ploop_copy_send_param *arg)
 {
-	const char *device = arg->device;
-	int ofd = arg->ofd;
-	int is_pipe = arg->ofd_is_pipe;
 	struct delta idelta = { .fd = -1 };
 	int tracker_on = 0;
 	int fs_frozen = 0;
@@ -448,32 +448,35 @@ int ploop_copy_send(struct ploop_copy_send_param *arg)
 		.cond = PTHREAD_COND_INITIALIZER,
 	};
 
+	if (!arg)
+		return SYSEXIT_PARAM;
+
 	/* If data is to be send to stdout or stderr,
 	 * we have to disable logging to appropriate fd.
 	 *
 	 * As currently there's no way to disable just stderr,
 	 * so in this case we have to disable stdout as well.
 	 */
-	if (ofd == STDOUT_FILENO)
+	if (arg->ofd == STDOUT_FILENO)
 		ploop_set_verbose_level(PLOOP_LOG_NOSTDOUT);
-	else if (ofd == STDERR_FILENO)
+	else if (arg->ofd == STDERR_FILENO)
 		ploop_set_verbose_level(PLOOP_LOG_NOCONSOLE);
 
-	devfd = open(device, O_RDONLY);
+	devfd = open(arg->device, O_RDONLY);
 	if (devfd < 0) {
-		ploop_err(errno, "Can't open device %s", device);
+		ploop_err(errno, "Can't open device %s", arg->device);
 		ret = SYSEXIT_DEVICE;
 		goto done;
 	}
 
-	mntfd = open_mount_point(device);
+	mntfd = open_mount_point(arg->device);
 	if (mntfd < 0) {
 		/* Error is printed by open_mount_point() */
 		ret = SYSEXIT_OPEN;
 		goto done;
 	}
 
-	ret = get_image_info(device, &send_from, &format, &blocksize);
+	ret = get_image_info(arg->device, &send_from, &format, &blocksize);
 	if (ret)
 		goto done;
 	cluster = S2B(blocksize);
@@ -483,7 +486,7 @@ int ploop_copy_send(struct ploop_copy_send_param *arg)
 		if (p_memalign(&iobuf[i], 4096, cluster))
 			goto done;
 
-	ret = ploop_complete_running_operation(device);
+	ret = ploop_complete_running_operation(arg->device);
 	if (ret)
 		goto done;
 
@@ -595,7 +598,7 @@ int ploop_copy_send(struct ploop_copy_send_param *arg)
 	 * this as "sync me" command, while the old one just writes those
 	 * bytes which is useless but harmless.
 	 */
-	if (is_pipe) {
+	if (arg->ofd_is_pipe) {
 		char buf[LEN_STATUS + 1] = {};
 
 		ret = do_pread(4096, 0);
@@ -645,7 +648,7 @@ int ploop_copy_send(struct ploop_copy_send_param *arg)
 		}
 	} else {
 		/* Writing to local file */
-		fdatasync(ofd);
+		fdatasync(arg->ofd);
 	}
 
 sync_done:
