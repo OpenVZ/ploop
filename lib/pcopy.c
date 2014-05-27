@@ -477,6 +477,12 @@ int ploop_copy_send(struct ploop_copy_send_param *arg)
 		return SYSEXIT_PARAM;
 	}
 
+	if (arg->feedback_fd >= 0 && is_fd_pipe(arg->feedback_fd) != 1) {
+		ploop_err(errno, "Invalid feedback fd %d: must be "
+				"a pipe or a socket", arg->feedback_fd);
+		return SYSEXIT_PARAM;
+	}
+
 	/* If data is to be send to stdout or stderr,
 	 * we have to disable logging to appropriate fd.
 	 *
