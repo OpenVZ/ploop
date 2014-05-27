@@ -171,7 +171,6 @@ struct ploop_discard_stat {
 struct ploop_copy_send_param {
 	const char *device;	/* ploop device ("/dev/ploopNNNN") to read */
 	int ofd;		/* File descriptor to write to */
-	int ofd_is_pipe;	/* 1 if ofd is a pipe, 0 otherwise */
 	const char *flush_cmd;	/* command to run to stop disk activity */
 	int feedback_fd;	/* File descriptor to read feedback
 				 * from ploop_copy_receive()

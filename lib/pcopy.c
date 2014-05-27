@@ -38,6 +38,27 @@
 #define STATUS_FAIL	"FAILURE\n"
 #define LEN_STATUS	8
 
+/* Check what a file descriptor refers to.
+ * Return:
+ *  0 - file
+ *  1 - pipe or socket
+ * -1 - none of the above
+ */
+static int is_fd_pipe(int fd) {
+	struct stat st;
+
+	if (fstat(fd, &st))
+		return -1;
+
+	if (S_ISREG(st.st_mode))
+		return 0;
+
+	if (S_ISFIFO(st.st_mode) || S_ISSOCK(st.st_mode))
+		return 1;
+
+	return -1;
+}
+
 static int nwrite(int fd, const void *buf, int len)
 {
 	while (len) {
@@ -443,13 +464,19 @@ int ploop_copy_send(struct ploop_copy_send_param *arg)
 	pthread_t send_th = 0;
 	struct send_data sd = {
 		.fd = arg->ofd,
-		.is_pipe = arg->ofd_is_pipe,
 		.mutex = PTHREAD_MUTEX_INITIALIZER,
 		.cond = PTHREAD_COND_INITIALIZER,
 	};
 
 	if (!arg)
 		return SYSEXIT_PARAM;
+
+	sd.is_pipe = is_fd_pipe(arg->ofd);
+	if (sd.is_pipe < 0) {
+		ploop_err(0, "Invalid output fd %d: must be a file, "
+				"a pipe or a socket", arg->ofd);
+		return SYSEXIT_PARAM;
+	}
 
 	/* If data is to be send to stdout or stderr,
 	 * we have to disable logging to appropriate fd.
@@ -598,7 +625,7 @@ int ploop_copy_send(struct ploop_copy_send_param *arg)
 	 * this as "sync me" command, while the old one just writes those
 	 * bytes which is useless but harmless.
 	 */
-	if (arg->ofd_is_pipe) {
+	if (sd.is_pipe) {
 		char buf[LEN_STATUS + 1] = {};
 
 		ret = do_pread(4096, 0);
@@ -798,7 +825,6 @@ int ploop_send(const char *device, int ofd, const char *flush_cmd,
 		.device		= device,
 		.ofd		= ofd,
 		.flush_cmd	= flush_cmd,
-		.ofd_is_pipe	= is_pipe,
 	};
 
 	return ploop_copy_send(&s);

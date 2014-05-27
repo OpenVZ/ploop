@@ -98,23 +98,15 @@ int plooptool_copy(int argc, char **argv)
 
 	if (r.file) {
 		/* Write to a file, not pipe */
-		s.ofd_is_pipe = 0;
 		s.ofd = open(r.file, O_WRONLY|O_CREAT|O_EXCL, 0600);
 		if (s.ofd < 0) {
 			fprintf(stderr, "Can't open %s: %m", r.file);
 			return SYSEXIT_CREAT;
 		}
 	}
-	else {
-		s.ofd_is_pipe = 1;
-		if (isatty(s.ofd) || errno == EBADF) {
-			fprintf(stderr, "Invalid output stream: must be "
-					"pipelined to a pipe or socket\n");
-			return SYSEXIT_PARAM;
-		}
-	}
 
 	ret = ploop_copy_send(&s);
+
 	if (r.file) {
 		close(s.ofd);
 		if (ret)
