@@ -354,6 +354,21 @@ static int open_mount_point(const char *device)
 #define TS(...)
 #endif
 
+#define do_pread(length, position)			\
+({							\
+	int __ret;					\
+							\
+	__ret = idelta.fops->pread(idelta.fd, iobuf,	\
+			(length), (position));		\
+	if (__ret < 0) {				\
+		ploop_err(errno, "Error from read");	\
+		ret = SYSEXIT_READ;			\
+		goto done;				\
+	}						\
+							\
+	__ret;						\
+})
+
 int ploop_copy_send(struct ploop_copy_send_param *arg)
 {
 	const char *device = arg->device;
@@ -438,13 +453,8 @@ int ploop_copy_send(struct ploop_copy_send_param *arg)
 		if (ret)
 			goto done;
 
-		n = idelta.fops->pread(idelta.fd, iobuf, cluster, pos);
-		if (n < 0) {
-			ploop_err(errno, "pread");
-			ret = SYSEXIT_READ;
-			goto done;
-		}
-		if (n == 0)
+		n = do_pread(cluster, pos);
+		if (n == 0) /* EOF */
 			break;
 
 		ret = send_buf(ofd, iobuf, n, pos, is_pipe);
@@ -491,14 +501,9 @@ int ploop_copy_send(struct ploop_copy_send_param *arg)
 						goto done;
 					}
 				}
-				n = idelta.fops->pread(idelta.fd, iobuf, copy, pos);
-				if (n < 0) {
-					ploop_err(errno, "read2");
-					ret = SYSEXIT_READ;
-					goto done;
-				}
+				n = do_pread(copy, pos);
 				if (n == 0) {
-					ploop_err(0, "unexpected EOF");
+					ploop_err(0, "Unexpected EOF");
 					ret = SYSEXIT_READ;
 					goto done;
 				}
@@ -540,9 +545,9 @@ int ploop_copy_send(struct ploop_copy_send_param *arg)
 	if (is_pipe) {
 		char buf[LEN_STATUS + 1] = {};
 
-		ret = idelta.fops->pread(idelta.fd, iobuf, 4096, 0);
-		if (ret != 4096) {
-			ploop_err(errno, "pread");
+		ret = do_pread(4096, 0);
+		if (ret < SYNC_MARK) {
+			ploop_err(errno, "Short read");
 			ret = SYSEXIT_READ;
 			goto done;
 		}
@@ -653,14 +658,9 @@ sync_done:
 						goto done;
 				}
 				TS("READ %llu %d", pos, copy);
-				n = idelta.fops->pread(idelta.fd, iobuf, copy, pos);
-				if (n < 0) {
-					ploop_err(errno, "read3");
-					ret = SYSEXIT_READ;
-					goto done;
-				}
+				n = do_pread(copy, pos);
 				if (n == 0) {
-					ploop_err(0, "unexpected EOF3");
+					ploop_err(0, "Unexpected EOF");
 					ret = SYSEXIT_READ;
 					goto done;
 				}
@@ -694,9 +694,9 @@ sync_done:
 		struct ploop_pvd_header *vh = (void*)iobuf;
 
 		TS("READ 0 4096");
-		n = idelta.fops->pread(idelta.fd, iobuf, 4096, 0);
-		if (n != 4096) {
-			ploop_err(errno, "Error reading 1st sector of %s", send_from);
+		n = do_pread(4096, 0);
+		if (n < SECTOR_SIZE) {
+			ploop_err(errno, "Short read");
 			ret = SYSEXIT_READ;
 			goto done;
 		}
@@ -741,6 +741,7 @@ done:
 	TS("DONE");
 	return ret;
 }
+#undef do_pread
 
 /* Deprecated, please use ploop_copy_send() instead */
 int ploop_send(const char *device, int ofd, const char *flush_cmd,
