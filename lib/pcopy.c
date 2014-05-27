@@ -165,16 +165,15 @@ int ploop_copy_receive(struct ploop_copy_receive_param *arg)
 	if (!arg)
 		return SYSEXIT_PARAM;
 
-	if (arg->ifd < 0 || isatty(arg->ifd) || errno == EBADF) {
-		ploop_err(errno, "Invalid input stream: must be pipelined "
-				"to a pipe or a socket");
+	if (is_fd_pipe(arg->ifd) != 1) {
+		ploop_err(errno, "Invalid input fd %d: must be "
+				"a pipe or a socket", arg->ifd);
 		return SYSEXIT_PARAM;
 	}
 
-	if (arg->feedback_fd >= 0 &&
-			(isatty(arg->feedback_fd) || errno == EBADF)) {
-		ploop_err(errno, "Invalid feedback stream: must be pipelined "
-				"to a pipe or a socket");
+	if (arg->feedback_fd >= 0 && is_fd_pipe(arg->feedback_fd) != 1) {
+		ploop_err(errno, "Invalid feedback fd %d: must be "
+				"a pipe or a socket", arg->feedback_fd);
 		return SYSEXIT_PARAM;
 	}
 
