@@ -41,7 +41,7 @@ static void usage(void)
 
 int plooptool_copy(int argc, char **argv)
 {
-	int i;
+	int i, ret;
 	struct ploop_copy_send_param s = {
 		.ofd		=  1,	/* write to stdout by default */
 		.feedback_fd	= -1,	/* no feedback */
@@ -114,5 +114,12 @@ int plooptool_copy(int argc, char **argv)
 		}
 	}
 
-	return ploop_copy_send(&s);
+	ret = ploop_copy_send(&s);
+	if (r.file) {
+		close(s.ofd);
+		if (ret)
+			unlink(r.file);
+	}
+
+	return ret;
 }
