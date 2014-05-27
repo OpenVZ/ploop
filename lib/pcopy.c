@@ -366,7 +366,7 @@ struct send_data {
 	int has_data;
 };
 
-void *send_thread(void *data) {
+static void *send_thread(void *data) {
 	struct send_data *sd = data;
 	int done;
 
