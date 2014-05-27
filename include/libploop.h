@@ -173,12 +173,18 @@ struct ploop_copy_send_param {
 	int ofd;		/* File descriptor to write to */
 	int ofd_is_pipe;	/* 1 if ofd is a pipe, 0 otherwise */
 	const char *flush_cmd;	/* command to run to stop disk activity */
+	int feedback_fd;	/* File descriptor to read feedback
+				 * from ploop_copy_receive()
+				 */
 	char dummy[32];
 };
 
 struct ploop_copy_receive_param {
 	const char *file;	/* File name to write to */
 	int ifd;		/* File descriptor to read from */
+	int feedback_fd;	/* File descriptor to send feedback
+				 * to ploop_copy_send()
+				 */
 	char dummy[32];
 };
 

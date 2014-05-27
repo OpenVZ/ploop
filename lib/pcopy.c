@@ -38,6 +38,10 @@
 
 #define SYNC_MARK	4
 
+#define STATUS_OK	"SUCCESS\n"
+#define STATUS_FAIL	"FAILURE\n"
+#define LEN_STATUS	8
+
 static int nwrite(int fd, const void *buf, int len)
 {
 	while (len) {
@@ -147,6 +151,24 @@ int ploop_copy_receive(struct ploop_copy_receive_param *arg)
 		return SYSEXIT_PARAM;
 	}
 
+	if (arg->feedback_fd >= 0 &&
+			(isatty(arg->feedback_fd) || errno == EBADF)) {
+		ploop_err(errno, "Invalid feedback stream: must be pipelined "
+				"to a pipe or a socket");
+		return SYSEXIT_PARAM;
+	}
+
+	/* If feedback is to be send to stdout or stderr,
+	 * we have to disable logging to appropriate fd.
+	 *
+	 * As currently there's no way to disable just stderr,
+	 * so in this case we have to disable stdout as well.
+	 */
+	if (arg->feedback_fd == STDOUT_FILENO)
+		ploop_set_verbose_level(PLOOP_LOG_NOSTDOUT);
+	else if (arg->feedback_fd == STDERR_FILENO)
+		ploop_set_verbose_level(PLOOP_LOG_NOCONSOLE);
+
 	ofd = open(arg->file, O_WRONLY|O_CREAT|O_EXCL, 0600);
 	if (ofd < 0) {
 		ploop_err(errno, "Can't open %s", arg->file);
@@ -186,14 +208,29 @@ int ploop_copy_receive(struct ploop_copy_receive_param *arg)
 			goto out;
 		}
 		if (desc.size == SYNC_MARK) {
+			int st;
 			/* ignore received data, instead do sync */
-			ploop_log(4, "%s: fdatasync()", __func__);
-			if (fdatasync(ofd)) {
+			st = fdatasync(ofd);
+			if (arg->feedback_fd >= 0) {
+				/* Tell the sending side how it went */
+				int w;
+
+				w = write(arg->feedback_fd,
+					st ? STATUS_FAIL : STATUS_OK,
+					LEN_STATUS);
+				/* check write error only if no error yet */
+				if (!st && w != LEN_STATUS) {
+					ploop_err(errno, "Error in write(%d)",
+							arg->feedback_fd);
+					ret = SYSEXIT_WRITE;
+					goto out;
+				}
+			}
+			if (st) {
 				ploop_err(errno, "Error in fdatasync()");
 				ret = SYSEXIT_WRITE;
 				goto out;
 			}
-			ploop_log(4, "%s: fdatasync() complete", __func__);
 			continue;
 		}
 		n = pwrite(ofd, iobuf, desc.size, desc.pos);
@@ -501,6 +538,8 @@ int ploop_copy_send(struct ploop_copy_send_param *arg)
 	 * bytes which is useless but harmless.
 	 */
 	if (is_pipe) {
+		char buf[LEN_STATUS + 1] = {};
+
 		ret = idelta.fops->pread(idelta.fd, iobuf, 4096, 0);
 		if (ret != 4096) {
 			ploop_err(errno, "pread");
@@ -513,18 +552,49 @@ int ploop_copy_send(struct ploop_copy_send_param *arg)
 			ploop_err(errno, "write");
 			goto done;
 		}
+
 		/* Now we should wait for the other side to finish syncing
-		 * before freezing the container. This is done in order to
-		 * optimize CT frozen time. Unfortunately the protocol is
-		 * one-way so there is no way to receive anything from the
-		 * other side. As ugly as it is, let's just sleep for some time.
+		 * before freezing the container, to optimize CT frozen time.
 		 */
-		sleep(5);
+		if (arg->feedback_fd < 0) {
+			/* No descriptor to receive a response back is given.
+			 * As ugly as it looks, let's just sleep for some time
+			 * hoping the other side will finish sync.
+			 */
+			TS("SLEEP 5");
+			sleep(5);
+			goto sync_done;
+		}
+
+		/* Wait for feedback from the receiving side */
+
+		/* FIXME: use select/poll with a timeout */
+		if (read(arg->feedback_fd, buf, LEN_STATUS)
+				!= LEN_STATUS) {
+			ploop_err(errno, "Can't read feedback");
+			ret = SYSEXIT_PROTOCOL;
+			goto done;
+		}
+
+		if (strncmp(buf, STATUS_OK, LEN_STATUS) == 0) {
+			goto sync_done;
+		}
+		else if (strncmp(buf, STATUS_FAIL, LEN_STATUS) == 0) {
+			ploop_err(0, "Remote side reported sync failure");
+			ret = SYSEXIT_FSYNC;
+			goto done;
+		}
+		else {
+			ploop_err(0, "Got back feedback: %s", buf);
+			ret = SYSEXIT_PROTOCOL;
+			goto done;
+		}
 	} else {
 		/* Writing to local file */
 		fdatasync(ofd);
 	}
 
+sync_done:
 	/* Freeze the container */
 	TS("FLUSH");
 	ret = run_cmd(arg->flush_cmd);
