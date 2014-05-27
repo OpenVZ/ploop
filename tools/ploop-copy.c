@@ -101,7 +101,7 @@ int plooptool_copy(int argc, char **argv)
 		s.ofd_is_pipe = 0;
 		s.ofd = open(r.file, O_WRONLY|O_CREAT|O_EXCL, 0600);
 		if (s.ofd < 0) {
-			perror("open destination");
+			fprintf(stderr, "Can't open %s: %m", r.file);
 			return SYSEXIT_CREAT;
 		}
 	}
