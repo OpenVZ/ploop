@@ -1718,6 +1718,23 @@ static int ploop_stop_device(const char *device)
 	return ret;
 }
 
+static int ploop_umount_fs(const char *mnt, struct ploop_disk_images_data *di)
+{
+	int ret;
+
+	/* The component_name feature allows multiple image mount.
+	 * Skip store statfs in custom case.
+	 */
+	if (di != NULL && di->runtime->component_name == NULL)
+		store_statfs_info(mnt, di->images[0]->file);
+	ploop_log(0, "Unmounting file system at %s", mnt);
+	ret = do_umount(mnt);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
 int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 {
 	int ret;
@@ -1729,13 +1746,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	}
 
 	if (get_mount_dir(device, mnt, sizeof(mnt)) == 0) {
-		/* The component_name feature allows multiple image mount.
-		 * Skip store statfs in custom case.
-		 */
-		if (di != NULL && di->runtime->component_name == NULL)
-			store_statfs_info(mnt, di->images[0]->file);
-		ploop_log(0, "Unmounting file system at %s", mnt);
-		ret = do_umount(mnt);
+		ret = ploop_umount_fs(mnt, di);
 		if (ret)
 			return ret;
 	}
@@ -2067,6 +2078,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 	char buf[PATH_MAX];
 	char part_device[64];
 	int mounted = -1;
+	int umount_fs = 0;
 	int balloonfd = -1;
 	struct stat st;
 	off_t part_dev_size = 0;
@@ -2099,11 +2111,18 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 
 		strncpy(mount_param.device, buf, sizeof(mount_param.device));
 		if (get_mount_dir(mount_param.device, buf, sizeof(buf))) {
-			ploop_err(0, "Can't find mount point for %s", buf);
-			ret = SYSEXIT_PARAM;
-			goto err;
-		}
-		mount_param.target = strdup(buf);
+			ret = get_temp_mountpoint(di->images[0]->file, 1, buf, sizeof(buf));
+			if (ret)
+				goto err;
+
+			mount_param.target = strdup(buf);
+			ret = ploop_mount_fs(&mount_param);
+			if (ret)
+				goto err;
+
+			umount_fs = 1;
+		} else
+			mount_param.target = strdup(buf);
 		mounted = 1;
 	}
 
@@ -2303,6 +2322,9 @@ err:
 		close(balloonfd);
 	if (mounted == 0)
 		ploop_umount(mount_param.device, di);
+	else if (umount_fs)
+		ploop_umount_fs(mount_param.target, di);
+
 	ploop_unlock_dd(di);
 	free_mount_param(&mount_param);
 
