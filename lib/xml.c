@@ -24,6 +24,7 @@
 #include <libxml/tree.h>
 #include <libxml/xmlwriter.h>
 #include <errno.h>
+#include <unistd.h>
 
 #include "ploop.h"
 
@@ -457,6 +458,7 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 	xmlDocPtr doc = NULL;
 	char tmp[PATH_MAX];
 	char basedir[PATH_MAX];
+	FILE *fp = NULL;
 
 	ploop_log(0, "Storing %s", fname);
 
@@ -703,12 +705,27 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 	}
 	xmlFreeTextWriter(writer);
 	writer = NULL;
+
 	snprintf(tmp, sizeof(tmp), "%s.tmp", fname);
-	rc = xmlSaveFormatFile(tmp, doc, 1);
+	fp = fopen(tmp, "w+");
+	if (fp == NULL) {
+		ploop_err(0, "Faled to open %s", tmp);
+		goto err;
+	}
+
+	rc = xmlDocFormatDump(fp, doc, 1);
 	if (rc < 0) {
 		ploop_err(0, "Error at xmlSaveFormatFile %s", tmp);
 		goto err;
 	}
+
+	rc = fsync(fileno(fp));
+	if (rc) {
+		ploop_err(errno, "Failed to sync %s", tmp);
+		goto err;
+	}
+	fclose(fp);
+	fp = NULL;
 
 	rc = rename(tmp, fname);
 	if (rc < 0) {
@@ -718,6 +735,9 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 
 	rc = 0;
 err:
+	if (fp)
+		fclose(fp);
+
 	if (writer)
 		xmlFreeTextWriter(writer);
 	if (doc)
