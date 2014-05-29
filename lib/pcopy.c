@@ -462,7 +462,6 @@ int ploop_copy_send(struct ploop_copy_send_param *arg)
 	int i;
 	pthread_t send_th = 0;
 	struct send_data sd = {
-		.fd = arg->ofd,
 		.mutex = PTHREAD_MUTEX_INITIALIZER,
 		.cond = PTHREAD_COND_INITIALIZER,
 	};
@@ -470,6 +469,7 @@ int ploop_copy_send(struct ploop_copy_send_param *arg)
 	if (!arg)
 		return SYSEXIT_PARAM;
 
+	sd.fd = arg->ofd;
 	sd.is_pipe = is_fd_pipe(arg->ofd);
 	if (sd.is_pipe < 0) {
 		ploop_err(0, "Invalid output fd %d: must be a file, "
