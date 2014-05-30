@@ -715,7 +715,7 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 
 	rc = xmlDocFormatDump(fp, doc, 1);
 	if (rc < 0) {
-		ploop_err(0, "Error at xmlSaveFormatFile %s", tmp);
+		ploop_err(0, "Error at xmlDocFormatDump %s", tmp);
 		goto err;
 	}
 
