@@ -342,12 +342,10 @@ static int run_cmd(const char *cmd)
 
 static int open_mount_point(const char *device)
 {
-	int ret;
 	int fd;
 	char mnt[PATH_MAX];
 
-	ret = ploop_get_mnt_by_dev(device, mnt, sizeof(mnt));
-	if (ret == -1) {
+	if (ploop_get_mnt_by_dev(device, mnt, sizeof(mnt))) {
 		ploop_err(0, "Can't find mount point for %s", device);
 		return -1;
 	}
