@@ -48,7 +48,6 @@ static int do_delete_snapshot(struct ploop_disk_images_data *di, const char *gui
 {
 	int ret;
 	char conf[PATH_MAX];
-	char *fname = NULL;
 	int nelem = 0;
 	char dev[64];
 	int snap_id;
@@ -74,10 +73,33 @@ static int do_delete_snapshot(struct ploop_disk_images_data *di, const char *gui
 
 	nelem = ploop_get_child_count_by_uuid(di, guid);
 	if (nelem == 0) {
-		if (strcmp(di->snapshots[snap_id]->parent_guid, NONE_UUID) == 0) {
+		struct ploop_snapshot_data *snap =  di->snapshots[snap_id];
+
+		if (strcmp(snap->parent_guid, NONE_UUID) == 0) {
 			ploop_err(0, "Unable to delete base image");
 			return SYSEXIT_PARAM;
 		}
+
+		char *fname = find_image_by_guid(di, guid);
+		if (fname == NULL) {
+			ploop_err(0, "Unable to find image by uuid %s",
+					guid);
+			return SYSEXIT_PARAM;
+		}
+
+		char *parent_fname = find_image_by_guid(di, snap->parent_guid);
+		if (parent_fname == NULL) {
+			ploop_err(0, "Unable to find image by uuid %s",
+					snap->parent_guid);
+			return SYSEXIT_PARAM;
+		}
+
+		ret = check_snapshot_mount(di, snap->temporary, parent_fname,
+				fname, guid);
+		if (ret)
+			return ret;
+
+		fname = NULL;
 		/* snapshot is not active and last -> delete */
 		ret = ploop_di_remove_image(di, guid, 1, &fname);
 		if (ret)

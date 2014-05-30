@@ -627,7 +627,7 @@ static const char *get_devs_str(char **devs, char *buf, int size)
 	return buf;
 }
 
-static int check_snapshot_mount(struct ploop_disk_images_data *di,
+int check_snapshot_mount(struct ploop_disk_images_data *di,
 		int temporary, const char *parent_fname,
 		const char *child_fname, const char *child_guid)
 {
