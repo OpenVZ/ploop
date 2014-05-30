@@ -912,6 +912,11 @@ static int ploop_stop(int fd, const char *devname)
 	return 0;
 }
 
+/* Returns:
+ *  0 mount point is found and saved to *out
+ *  1 mount point not found (fs not mounted)
+ * -1 some system error
+ */
 static int get_mount_dir(const char *device, char *out, int size)
 {
 	FILE *fp;
@@ -2110,7 +2115,12 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			goto err;
 
 		strncpy(mount_param.device, buf, sizeof(mount_param.device));
-		if (get_mount_dir(mount_param.device, buf, sizeof(buf))) {
+		ret = get_mount_dir(mount_param.device, buf, sizeof(buf));
+		if (ret < 0) {
+			/* error message is printed by get_mount_dir() */
+			ret = SYSEXIT_SYS;
+			goto err;
+		} else if (ret > 0) { /* not mounted */
 			ret = get_temp_mountpoint(di->images[0]->file, 1, buf, sizeof(buf));
 			if (ret)
 				goto err;
