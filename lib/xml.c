@@ -709,7 +709,7 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 	snprintf(tmp, sizeof(tmp), "%s.tmp", fname);
 	fp = fopen(tmp, "w+");
 	if (fp == NULL) {
-		ploop_err(0, "Faled to open %s", tmp);
+		ploop_err(errno, "Can't open %s", tmp);
 		goto err;
 	}
 
