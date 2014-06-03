@@ -80,6 +80,21 @@ static int do_delete_snapshot(struct ploop_disk_images_data *di, const char *gui
 			return SYSEXIT_PARAM;
 		}
 
+		if (strcmp(di->top_guid, guid) == 0) {
+			int id = find_snapshot_by_guid(di, snap->parent_guid);
+			if (id == -1) {
+				ploop_err(0, "Can't find snapshot by uuid %s",
+						snap->parent_guid);
+				return SYSEXIT_PARAM;
+			}
+
+			if (di->snapshots[id]->temporary) {
+				ploop_err(0, "Unable to delete top delta,"
+						" parent snapshot is temporary");
+				return SYSEXIT_PARAM;
+			}
+		}
+
 		char *fname = find_image_by_guid(di, guid);
 		if (fname == NULL) {
 			ploop_err(0, "Unable to find image by uuid %s",
