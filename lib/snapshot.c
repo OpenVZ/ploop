@@ -139,8 +139,8 @@ static int do_delete_snapshot(struct ploop_disk_images_data *di, const char *gui
 	} else if (nelem == 1) {
 		ret = ploop_merge_snapshot_by_guid(di, guid, PLOOP_MERGE_WITH_CHILD);
 	} else if (!di->snapshots[snap_id]->temporary) {
-		ploop_log(1, "Warning: Unable to delete snapshot %s there are %d references"
-				" on snapshot, mark as temporary",
+		ploop_log(1, "Warning: Unable to delete snapshot %s as there are %d references"
+				" to it; marking it as temporary instead",
 				guid, nelem);
 		di->snapshots[snap_id]->temporary = 1;
 		get_disk_descriptor_fname(di, conf, sizeof(conf));
