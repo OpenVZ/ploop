@@ -123,13 +123,14 @@ static int do_delete_snapshot(struct ploop_disk_images_data *di, const char *gui
 				guid);
 	} else if (nelem == 1) {
 		ret = ploop_merge_snapshot_by_guid(di, guid, PLOOP_MERGE_WITH_CHILD);
-	} else {
-		/* There no functionality to merge snapshot with >1 child */
-		ret = SYSEXIT_PARAM;
-		ploop_err(0, "There are %d references on %s snapshot: operation not supported",
-				nelem, guid);
+	} else if (!di->snapshots[snap_id]->temporary) {
+		ploop_log(1, "Warning: Unable to delete snapshot %s there are %d references"
+				" on snapshot, mark as temporary",
+				guid, nelem);
+		di->snapshots[snap_id]->temporary = 1;
+		get_disk_descriptor_fname(di, conf, sizeof(conf));
+		ret = ploop_store_diskdescriptor(conf, di);
 	}
-
 
 	return ret;
 }
@@ -140,6 +141,8 @@ int ploop_delete_snapshot(struct ploop_disk_images_data *di, const char *guid)
 
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
+
+	merge_temporary_snapshots(di);
 
 	ret = do_delete_snapshot(di, guid);
 
