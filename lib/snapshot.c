@@ -544,6 +544,55 @@ int merge_temporary_snapshots(struct ploop_disk_images_data *di)
 	return 0;
 }
 
+static int reset_top_delta(struct ploop_disk_images_data *di,
+		struct ploop_snapshot_switch_param *param)
+{
+	int ret;
+	char *old_top_delta_fname = NULL;
+	char conf[PATH_MAX];
+	char conf_tmp[PATH_MAX];
+	const char *guid = param->guid;
+
+	ret = ploop_di_remove_image(di, di->top_guid, 0, &old_top_delta_fname);
+	if (ret)
+		return ret;
+
+	ploop_di_change_guid(di, guid, TOPDELTA_UUID);
+
+	get_disk_descriptor_fname(di, conf, sizeof(conf));
+	snprintf(conf_tmp, sizeof(conf_tmp), "%s.tmp", conf);
+	ret = ploop_store_diskdescriptor(conf_tmp, di);
+	if (ret)
+		goto err;
+
+	if (rename(conf_tmp, conf)) {
+		ploop_err(errno, "Can't rename %s %s",
+				conf_tmp, conf);
+		ret = SYSEXIT_RENAME;
+		goto err;
+	}
+
+	/* destroy precached info */
+	drop_statfs_info(di->images[0]->file);
+
+	if (old_top_delta_fname != NULL) {
+		ploop_log(0, "Removing %s", old_top_delta_fname);
+		if (unlink(old_top_delta_fname))
+			ploop_err(errno, "Can't unlink %s",
+					old_top_delta_fname);
+	}
+
+	ploop_log(0, "ploop snapshot has been successfully switched");
+
+err:
+	if (ret && unlink(conf_tmp))
+		ploop_err(errno, "Can't unlink %s", conf_tmp);
+
+	free(old_top_delta_fname);
+
+	return ret;
+}
+
 int ploop_switch_snapshot_ex(struct ploop_disk_images_data *di,
 		struct ploop_snapshot_switch_param *param)
 {
@@ -596,6 +645,11 @@ int ploop_switch_snapshot_ex(struct ploop_disk_images_data *di,
 		goto err_cleanup1;
 	}
 
+	if (flags & PLOOP_SNAP_SKIP_TOPDELTA_CREATE) {
+		ret = reset_top_delta(di, param);
+		goto err_cleanup1;
+	}
+
 	// Read image param from snapshot we going to switch on
 	ret = get_image_param(di, guid, &size, &blocksize, &version);
 	if (ret)
@@ -640,15 +694,11 @@ int ploop_switch_snapshot_ex(struct ploop_disk_images_data *di,
 		ploop_di_change_guid(di, di->top_guid, param->guid_old);
 	}
 
-	if (flags & PLOOP_SNAP_SKIP_TOPDELTA_CREATE) {
-		ploop_di_change_guid(di, guid, TOPDELTA_UUID);
-	} else {
-		snprintf(new_top_delta_fname, sizeof(new_top_delta_fname), "%s.%s",
-			di->images[0]->file, file_uuid);
-		ret = ploop_di_add_image(di, new_top_delta_fname, TOPDELTA_UUID, guid);
-		if (ret)
-			goto err_cleanup1;
-	}
+	snprintf(new_top_delta_fname, sizeof(new_top_delta_fname), "%s.%s",
+		di->images[0]->file, file_uuid);
+	ret = ploop_di_add_image(di, new_top_delta_fname, TOPDELTA_UUID, guid);
+	if (ret)
+		goto err_cleanup1;
 
 	get_disk_descriptor_fname(di, conf, sizeof(conf));
 	snprintf(conf_tmp, sizeof(conf_tmp), "%s.tmp", conf);
@@ -657,14 +707,12 @@ int ploop_switch_snapshot_ex(struct ploop_disk_images_data *di,
 		goto err_cleanup1;
 
 	// offline snapshot
-	if (!(flags & PLOOP_SNAP_SKIP_TOPDELTA_CREATE)) {
-		fd = create_snapshot_delta(new_top_delta_fname, blocksize, size, version);
-		if (fd == -1) {
-			ret = SYSEXIT_CREAT;
-			goto err_cleanup2;
-		}
-		close(fd);
+	fd = create_snapshot_delta(new_top_delta_fname, blocksize, size, version);
+	if (fd == -1) {
+		ret = SYSEXIT_CREAT;
+		goto err_cleanup2;
 	}
+	close(fd);
 
 	if (rename(conf_tmp, conf)) {
 		ploop_err(errno, "Can't rename %s %s",
