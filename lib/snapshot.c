@@ -524,15 +524,19 @@ int merge_temporary_snapshots(struct ploop_disk_images_data *di)
 		const char *guid = di->snapshots[i]->guid;
 
 		if (di->snapshots[i]->temporary &&
-				!is_snapshot_in_use(di, guid)) {
+				!is_snapshot_in_use(di, guid))
+		{
+			int nsnapshots = di->nsnapshots;
 
 			ret = do_delete_snapshot(di, guid);
 			if (ret)
 				return ret;
 
 			/* di has modified, start from beginning */
-			i = 0;
-			continue;
+			if (nsnapshots != di->nsnapshots) {
+				i = 0;
+				continue;
+			}
 		}
 		i++;
 	}
