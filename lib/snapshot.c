@@ -582,8 +582,6 @@ static int reset_top_delta(struct ploop_disk_images_data *di,
 					old_top_delta_fname);
 	}
 
-	ploop_log(0, "ploop snapshot has been successfully switched");
-
 err:
 	if (ret && unlink(conf_tmp))
 		ploop_err(errno, "Can't unlink %s", conf_tmp);
