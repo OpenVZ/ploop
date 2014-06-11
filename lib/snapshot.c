@@ -157,9 +157,9 @@ int ploop_delete_snapshot(struct ploop_disk_images_data *di, const char *guid)
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	merge_temporary_snapshots(di);
-
 	ret = do_delete_snapshot(di, guid);
+	if (ret == 0)
+		merge_temporary_snapshots(di);
 
 	ploop_unlock_dd(di);
 
