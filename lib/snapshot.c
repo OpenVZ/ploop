@@ -603,11 +603,13 @@ int ploop_switch_snapshot_ex(struct ploop_disk_images_data *di,
 			goto err_cleanup1;
 	} else if (param->guid_old != NULL) {
 		if (!is_valid_guid(param->guid_old)) {
+			ret = SYSEXIT_PARAM;
 			ploop_err(0, "Incorrect guid %s", param->guid_old);
 			goto err_cleanup1;
 		}
 
 		if (find_snapshot_by_guid(di, param->guid_old) != -1) {
+			ret = SYSEXIT_PARAM;
 			ploop_err(0, "Incorrect guid_old %s: already exists",
 					param->guid_old);
 			goto err_cleanup1;
