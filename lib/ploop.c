@@ -2316,7 +2316,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 						balloonfd, new_balloon_size);
 				if (ret)
 					goto err;
-				tune_fs(mount_param.target, part_device, new_fs_size);
+				tune_fs(balloonfd, part_device, new_fs_size);
 			}
 
 			if (new_balloon_size == 0) {

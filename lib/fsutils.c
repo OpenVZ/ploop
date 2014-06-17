@@ -24,10 +24,13 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <limits.h>
+#include <sys/ioctl.h>
 #include <sys/vfs.h>
 
 #include "ploop.h"
-
+#ifndef EXT4_IOC_SET_RSV_BLOCKS
+#define EXT4_IOC_SET_RSV_BLOCKS         _IOW('f', 44, __u64)
+#endif
 #define __stringify_1(x...)	#x
 #define __stringify(x...)	__stringify_1(x)
 
@@ -147,15 +150,15 @@ int make_fs(const char *device, const char *fstype, unsigned int fsblocksize)
 	return 0;
 }
 
-void tune_fs(const char *target, const char *device, unsigned long long size_sec)
+void tune_fs(int balloonfd, const char *device, unsigned long long size_sec)
 {
 	unsigned long long reserved_blocks;
 	struct statfs fs;
 	char *argv[5];
 	char buf[21];
-
-	if (statfs(target, &fs) != 0) {
-		ploop_err(errno, "tune_fs: can't statfs %s", target);
+	int ret;
+	if (fstatfs(balloonfd, &fs) != 0) {
+		ploop_err(errno, "tune_fs: can't statfs %s", device);
 		return;
 	}
 	reserved_blocks = size_sec / 100 * 5 * SECTOR_SIZE / fs.f_bsize;
@@ -164,6 +167,16 @@ void tune_fs(const char *target, const char *device, unsigned long long size_sec
 				size_sec);
 		return;
 	}
+	/* First try to use kernel API if available */
+	ret = ioctl(balloonfd, EXT4_IOC_SET_RSV_BLOCKS, &reserved_blocks);
+	if (!ret)
+		return;
+	if (errno != -ENOTTY) {
+		ploop_err(0, "Can't set reserved blocks for size %llu",
+				reserved_blocks);
+		return;
+	}
+	/* Fallback to manual modification via tune2fs */
 	argv[0] = get_prog(tune2fs_progs);
 	argv[1] = "-r";
 	snprintf(buf, sizeof(buf), "%llu", reserved_blocks);

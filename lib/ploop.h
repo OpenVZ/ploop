@@ -383,7 +383,7 @@ void ploop_unlock(int *lckfd);
 // fs util
 int get_partition_device_name(const char *device, char *out, int size);
 int make_fs(const char *device, const char *fstype, unsigned int fsblocksize);
-void tune_fs(const char *target, const char *device, unsigned long long size);
+void tune_fs(int balloonfd, const char *device, unsigned long long size);
 int resize_fs(const char *device, off_t blocks);
 int dumpe2fs(const char *device, struct dump2fs_data *data);
 int e2fsck(const char *device, int flags, int *rc);
