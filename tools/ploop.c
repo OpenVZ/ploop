@@ -1001,12 +1001,16 @@ static int plooptool_info(int argc, char **argv)
 {
 	int ret, i;
 	int spec = 0;
+	int device = 0;
 	struct ploop_info info = {};
 
-	while ((i = getopt(argc, argv, "s")) != EOF) {
+	while ((i = getopt(argc, argv, "sd")) != EOF) {
 		switch (i) {
 		case 's':
 			spec = 1;
+			break;
+		case 'd':
+			device = 1;
 			break;
 		default:
 			usage_info();
@@ -1022,21 +1026,38 @@ static int plooptool_info(int argc, char **argv)
 		return SYSEXIT_PARAM;
 	}
 
-	if (spec) {
+	if (spec || device) {
 		struct ploop_disk_images_data *di;
-		struct ploop_spec spec = {};
 
 		ret = ploop_open_dd(&di, argv[0]);
 		if (ret)
 			return ret;
 
-		ret = ploop_get_spec(di, &spec);
-		if (ret == 0)
-			printf("size:\t\t%llu\nblocksize:\t%d\nfmt_version:\t%d\n",
-				(unsigned long long)spec.size,
-				spec.blocksize,
-				spec.fmt_version);
+		if (spec) {
+			struct ploop_spec spec = {};
 
+			ret = ploop_get_spec(di, &spec);
+			if (ret)
+				goto exit;
+
+			printf("size:\t\t%llu\nblocksize:\t%d\nfmt_version:\t%d\n",
+					(unsigned long long)spec.size,
+					spec.blocksize,
+					spec.fmt_version);
+		}
+
+		if (device) {
+			char dev[PATH_MAX] = {};
+
+			if (ploop_get_dev(di, dev, sizeof(dev)) == -1) {
+				ret = SYSEXIT_SYS;
+				goto exit;
+			}
+
+			printf("device:\t\t%s\n", dev);
+		}
+
+exit:
 		ploop_close_dd(di);
 	} else {
 		ret = ploop_get_info_by_descr(argv[0], &info);
