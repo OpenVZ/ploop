@@ -1810,7 +1810,6 @@ int get_image_param_online(const char *device, off_t *size,
 int get_image_param_offline(struct ploop_disk_images_data *di, const char *guid,
 		off_t *size, __u32 *blocksize, int *version)
 {
-	int ret;
 	struct delta delta;
 	const char *image;
 	int raw = 0;
@@ -1845,9 +1844,8 @@ int get_image_param_offline(struct ploop_disk_images_data *di, const char *guid,
 		*version = PLOOP_FMT_UNDEFINED;
 		*blocksize = di->blocksize;
 	} else {
-		ret = open_delta(&delta, image, O_RDONLY, OD_OFFLINE);
-		if (ret)
-			return ret;
+		if (open_delta(&delta, image, O_RDONLY, OD_OFFLINE))
+			return errno == EBUSY ? SYSEXIT_INUSE : SYSEXIT_OPEN;
 		*size = delta.l2_size * delta.blocksize;
 		*version = delta.version;
 		*blocksize = delta.blocksize;

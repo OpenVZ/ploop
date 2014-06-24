@@ -270,10 +270,6 @@ static int do_create_snapshot(struct ploop_disk_images_data *di,
 	if (is_old_snapshot_format(di))
 		return SYSEXIT_PARAM;
 
-	ret = merge_temporary_snapshots(di);
-	if (ret)
-		return ret;
-
 	ret = gen_uuid_pair(snap_guid, sizeof(snap_guid),
 			file_guid, sizeof(file_guid));
 	if (ret) {
@@ -302,6 +298,33 @@ static int do_create_snapshot(struct ploop_disk_images_data *di,
 		return SYSEXIT_PARAM;
 	}
 
+	ret = ploop_find_dev_by_dd(di, dev, sizeof(dev));
+	if (ret == -1)
+		return SYSEXIT_SYS;
+	else if (ret == 0) {
+		online = 1;
+	} else {
+		ret = get_image_param_offline(di, di->top_guid, &size, &blocksize, &version);
+		if (ret == SYSEXIT_INUSE) {
+			/* repair top delta */
+			char *topdelta[] = {find_image_by_guid(di, di->top_guid), NULL};
+			blocksize = di->blocksize;
+
+			ret = check_deltas(di, topdelta, 0, &blocksize);
+			if (ret)
+				return ret;
+
+			ret = get_image_param_offline(di, di->top_guid, &size, &blocksize, &version);
+		}
+
+		if (ret)
+			return ret;
+	}
+
+	ret = merge_temporary_snapshots(di);
+	if (ret)
+		return ret;
+
 	snprintf(fname, sizeof(fname), "%s.%s",
 			di->images[0]->file, file_guid);
 	ploop_di_change_guid(di, di->top_guid, snap_guid);
@@ -312,12 +335,6 @@ static int do_create_snapshot(struct ploop_disk_images_data *di,
 	if (ret)
 		return ret;
 
-	ret = ploop_find_dev_by_dd(di, dev, sizeof(dev));
-	if (ret == -1)
-		return SYSEXIT_SYS;
-	else if (ret == 0)
-		online = 1;
-
 	get_disk_descriptor_fname(di, conf, sizeof(conf));
 	snprintf(conf_tmp, sizeof(conf_tmp), "%s.tmp", conf);
 	ret = ploop_store_diskdescriptor(conf_tmp, di);
@@ -326,10 +343,6 @@ static int do_create_snapshot(struct ploop_disk_images_data *di,
 
 	if (!online) {
 		// offline snapshot
-		ret = get_image_param_offline(di, snap_guid, &size, &blocksize, &version);
-		if (ret)
-			goto err;
-
 		fd = create_snapshot_delta(fname, blocksize, size, version);
 		if (fd < 0) {
 			ret = SYSEXIT_CREAT;
