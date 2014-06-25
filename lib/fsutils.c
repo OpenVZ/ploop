@@ -157,25 +157,29 @@ void tune_fs(int balloonfd, const char *device, unsigned long long size_sec)
 	char *argv[5];
 	char buf[21];
 	int ret;
+
 	if (fstatfs(balloonfd, &fs) != 0) {
 		ploop_err(errno, "tune_fs: can't statfs %s", device);
 		return;
 	}
+
 	reserved_blocks = size_sec / 100 * 5 * SECTOR_SIZE / fs.f_bsize;
 	if (reserved_blocks == 0) {
 		ploop_err(0, "Can't set reserved blocks for size %llu",
 				size_sec);
 		return;
 	}
-	/* First try to use kernel API if available */
+
+	/* First try to use kernel API, if available */
 	ret = ioctl(balloonfd, EXT4_IOC_SET_RSV_BLOCKS, &reserved_blocks);
 	if (!ret)
 		return;
 	if (errno != -ENOTTY) {
-		ploop_err(0, "Can't set reserved blocks for size %llu",
+		ploop_err(errno, "Can't set reserved blocks to %llu",
 				reserved_blocks);
 		return;
 	}
+
 	/* Fallback to manual modification via tune2fs */
 	argv[0] = get_prog(tune2fs_progs);
 	argv[1] = "-r";
