@@ -80,8 +80,9 @@ struct ploop_functions {
 	/* 1.12 */
 	int (*copy_send)(struct ploop_copy_send_param *arg);
 	int (*copy_receive)(struct ploop_copy_receive_param *arg);
+	int (*get_max_size)(unsigned int blocksize, unsigned long long *max);
 	/* padding for up to 64 pointers */
-	void *padding[15];
+	void *padding[14];
 }; /* struct ploop_functions */
 
 __attribute__ ((visibility("default")))

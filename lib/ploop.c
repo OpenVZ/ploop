@@ -34,6 +34,7 @@
 #include <sys/syscall.h>
 #include <mntent.h>
 #include <ext2fs/ext2_fs.h>
+#include <stdint.h>
 
 #include "ploop.h"
 #include "cleanup.h"
@@ -247,25 +248,48 @@ static int default_fmt_version(void)
 	return ploop_is_large_disk_supported() ? PLOOP_FMT_V2 : PLOOP_FMT_V1;
 }
 
+static int get_max_ploop_size(int version, unsigned int blocksize, __u64 *max)
+{
+	switch(version) {
+	case PLOOP_FMT_V1:
+		*max = (__u32)-1;
+		break;
+	case PLOOP_FMT_V2:
+		*max = 0xffffffffUL * blocksize;
+		break;
+	case PLOOP_FMT_UNDEFINED:
+		*max = UINT64_MAX;
+		break;
+	default:
+		ploop_err(0, "Unknown ploop image version: %d", version);
+		return -1;
+	}
+	return 0;
+}
+
+int ploop_get_max_size(unsigned int blocksize, unsigned long long *max)
+{
+	blocksize = blocksize ?  blocksize : (1 << PLOOP1_DEF_CLUSTER_LOG);
+
+	if (get_max_ploop_size(default_fmt_version(), blocksize, max))
+		return SYSEXIT_PARAM;
+
+	if (*max > B2S(PLOOP_MAX_FS_SIZE))
+		*max = B2S(PLOOP_MAX_FS_SIZE);
+
+	return 0;
+}
+
 static int do_check_size(unsigned long long sectors, __u32 blocksize, int version,
 		__u64 max_fs_size)
 {
 	__u64 max;
 
-	switch(version) {
-	case PLOOP_FMT_V1:
-		max = (__u32)-1;
-		break;
-	case PLOOP_FMT_V2:
-		max = 0xffffffffUL * blocksize;
-		break;
-	case PLOOP_FMT_UNDEFINED:
-		/* RAW */
+	if (version == PLOOP_FMT_UNDEFINED)
 		return 0;
-	default:
-		ploop_err(0, "Unknown ploop image version: %d", version);
+
+	if (get_max_ploop_size(version, blocksize, &max))
 		return -1;
-	}
 
 	if (max_fs_size != 0 && max > B2S(max_fs_size))
 		max = B2S(max_fs_size);
