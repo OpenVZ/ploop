@@ -1845,7 +1845,8 @@ int get_image_param_offline(struct ploop_disk_images_data *di, const char *guid,
 		*blocksize = di->blocksize;
 	} else {
 		if (open_delta(&delta, image, O_RDONLY, OD_OFFLINE))
-			return errno == EBUSY ? SYSEXIT_INUSE : SYSEXIT_OPEN;
+			return SYSEXIT_OPEN;
+
 		*size = delta.l2_size * delta.blocksize;
 		*version = delta.version;
 		*blocksize = delta.blocksize;

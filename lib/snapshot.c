@@ -305,7 +305,7 @@ static int do_create_snapshot(struct ploop_disk_images_data *di,
 		online = 1;
 	} else {
 		ret = get_image_param_offline(di, di->top_guid, &size, &blocksize, &version);
-		if (ret == SYSEXIT_INUSE) {
+		if (ret == SYSEXIT_OPEN && errno == EBUSY) {
 			/* repair top delta */
 			char *topdelta[] = {find_image_by_guid(di, di->top_guid), NULL};
 			blocksize = di->blocksize;
