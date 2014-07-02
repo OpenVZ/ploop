@@ -235,10 +235,6 @@ char *ploop_find_parent_by_guid(struct ploop_disk_images_data *di, const char *g
 int ploop_uuid_generate(char *uuid, int len);
 int ploop_is_large_disk_supported(void);
 int ploop_get_spec(struct ploop_disk_images_data *di, struct ploop_spec *spec);
-
-/* returns maximum ploop size */
-/* blocksize - blocksize in sectors, defaults to 2048 sectors (1Mb block) if this parameter is set to 0 */
-/* ploop format is best supported by kernel */
 int ploop_get_max_size(unsigned int blocksize, unsigned long long *max);
 
 const char *ploop_get_last_error(void);

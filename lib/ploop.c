@@ -267,6 +267,13 @@ static int get_max_ploop_size(int version, unsigned int blocksize, __u64 *max)
 	return 0;
 }
 
+/* Returns maximum ploop size
+ *
+ * blocksize	- blocksize in sectors, defaults to
+ *		  2048 sectors (1Mb block) if unset
+ *
+ * Note: default ploop format version is used
+ */
 int ploop_get_max_size(unsigned int blocksize, unsigned long long *max)
 {
 	blocksize = blocksize ?  blocksize : (1 << PLOOP1_DEF_CLUSTER_LOG);
