@@ -109,6 +109,7 @@ ploop \- ploop device management utility
 .YS
 .SY ploop\ info
 .OP -s
+.OP -d
 .I DiskDescriptor.xml
 .YS
 .SY ploop\ list
@@ -471,7 +472,8 @@ Repair sparse image(s).
 .SY ploop\ info
 .I DiskDescriptor.xml
 .YS
-Show information about disk space and inodes usage and limits on the
+When run without any options,
+show information about disk space and inodes usage and limits on the
 inner ploop filesystem, somewhat similar to
 .BR vzquota (8)
 .B stat
@@ -480,10 +482,18 @@ or
 commands.
 
 .SY ploop\ info
-.B -s
+.OP -s
+.OP -d
 .I DiskDescriptor.xml
 .YS
-Show information about ploop device size, block size, and format version.
+Either one or both options can be used together. Option
+.B -s
+is used to show information about ploop device size, block size,
+and format version.
+Option
+.B -d
+is used to show a corresponding ploop block device, it available.
+file.
 
 .SS3 list
 
