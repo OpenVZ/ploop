@@ -259,6 +259,7 @@ int ploop_discard(struct ploop_disk_images_data *di,
 
 int ploop_open_dd(struct ploop_disk_images_data **di, const char *fname);
 void ploop_close_dd(struct ploop_disk_images_data *di);
+int ploop_create_dd(const char *ddxml, struct ploop_create_param *param);
 
 /* deprecated */
 int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data *di);

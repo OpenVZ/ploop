@@ -565,21 +565,17 @@ static void fill_diskdescriptor(struct ploop_pvd_header *vh, struct ploop_disk_i
 	di->sectors = vh->m_Sectors;
 }
 
-static int create_image(struct ploop_disk_images_data *di,
-		const char *file, __u32 blocksize, off_t size_sec, int mode,
+static int create_image(const char *file, __u32 blocksize, off_t size_sec, int mode,
 		int version)
 {
 	int fd = -1;
-	int ret;
-	struct ploop_pvd_header vh = {};
-	char fname[PATH_MAX];
-	char ddxml[PATH_MAX];
 
 	if (size_sec == 0) {
 		ploop_err(0, "Incorrect block device size specified: "
 				"%lu sectors", (long)size_sec);
 		return SYSEXIT_PARAM;
 	}
+
 	if (file == NULL) {
 		ploop_err(0, "Image file name not specified");
 		return SYSEXIT_PARAM;
@@ -590,16 +586,6 @@ static int create_image(struct ploop_disk_images_data *di,
 		return SYSEXIT_PARAM;
 	}
 
-	get_disk_descriptor_fname_by_image(file, ddxml, sizeof(ddxml));
-	if (access(ddxml, F_OK) == 0) {
-		ploop_err(EEXIST, "Can't create %s", ddxml);
-		return SYSEXIT_PARAM;
-	}
-
-	di->size = size_sec;
-	di->mode = mode;
-
-	ret = SYSEXIT_CREAT;
 	if (mode == PLOOP_RAW_MODE)
 		fd = create_raw_delta(file, size_sec);
 	else if (mode == PLOOP_EXPANDED_MODE)
@@ -607,28 +593,11 @@ static int create_image(struct ploop_disk_images_data *di,
 	else if (mode == PLOOP_EXPANDED_PREALLOCATED_MODE)
 		fd = create_empty_preallocated_delta(file, blocksize, size_sec, version);
 	if (fd < 0)
-		goto err;
+		return SYSEXIT_CREAT;
+
 	close(fd);
 
-	generate_pvd_header(&vh, size_sec, blocksize, version);
-	fill_diskdescriptor(&vh, di);
-
-	if (realpath(file, fname) == NULL) {
-		ploop_err(errno, "failed realpath(%s)", file);
-		goto err;
-	}
-
-	if (ploop_di_add_image(di, fname, TOPDELTA_UUID, NONE_UUID)) {
-		ret = SYSEXIT_MALLOC;
-		goto err;
-	}
-
-	ret = ploop_store_diskdescriptor(ddxml, di);
-err:
-	if (ret)
-		unlink(file);
-
-	return ret;
+	return 0;
 }
 
 static int create_balloon_file(struct ploop_disk_images_data *di,
@@ -734,25 +703,36 @@ static int ploop_drop_image(struct ploop_disk_images_data *di)
 	return 0;
 }
 
-int ploop_create_image(struct ploop_create_param *param)
+static int init_dd(struct ploop_disk_images_data **di,
+		const char *ddxml, struct ploop_create_param *param)
 {
-	struct ploop_disk_images_data *di;
-	int ret;
+	struct ploop_pvd_header vh = {};
+	int fmt_version;
 	__u32 blocksize;
-	int version = param->fmt_version;
 
-	if (!is_fmt_version_valid(version)) {
-		ploop_err(0, "Unknown ploop image version: %d",
-				version);
+	if (access(ddxml, F_OK) == 0) {
+		ploop_err(EEXIST, "Can't create %s", ddxml);
 		return SYSEXIT_PARAM;
 	}
-	if (version == PLOOP_FMT_UNDEFINED)
-		version = default_fmt_version();
+
+	fmt_version = param->fmt_version == PLOOP_FMT_UNDEFINED ?
+		default_fmt_version() : param->fmt_version;
 
 	blocksize = param->blocksize ?
-			param->blocksize : (1 << PLOOP1_DEF_CLUSTER_LOG);
+		param->blocksize : (1 << PLOOP1_DEF_CLUSTER_LOG);
 
-	if (check_size(param->size, blocksize, version))
+	if (param->image == NULL) {
+		ploop_err(0, "Image file name not specified");
+		return SYSEXIT_PARAM;
+	}
+
+	if (!is_fmt_version_valid(fmt_version)) {
+		ploop_err(0, "Unknown ploop image version: %d",
+				fmt_version);
+		return SYSEXIT_PARAM;
+	}
+
+	if (check_size(param->size, blocksize, fmt_version))
 		return SYSEXIT_PARAM;
 
 	if (!is_valid_blocksize(blocksize)) {
@@ -761,23 +741,100 @@ int ploop_create_image(struct ploop_create_param *param)
 		return SYSEXIT_PARAM;
 	}
 
-	di = alloc_diskdescriptor();
-	if (di == NULL)
+	*di = alloc_diskdescriptor();
+	if (*di == NULL)
 		return SYSEXIT_MALLOC;
-	di->blocksize = blocksize;
-	ret = create_image(di, param->image, di->blocksize,
-			round_bdsize(param->size, di->blocksize, version),
-			param->mode, version);
+
+	(*di)->size = round_bdsize(param->size, blocksize, fmt_version);
+	(*di)->blocksize = blocksize;
+	(*di)->mode = param->mode;
+
+	generate_pvd_header(&vh, (*di)->size, blocksize, fmt_version);
+	fill_diskdescriptor(&vh, *di);
+
+	return 0;
+}
+
+int ploop_create_dd(const char *ddxml, struct ploop_create_param *param)
+{
+	int ret;
+	struct ploop_disk_images_data *di = NULL;
+
+	ret = init_dd(&di, ddxml, param);
+	if (ret)
+		return ret;
+
+	if (ploop_di_add_image(di, param->image, TOPDELTA_UUID, NONE_UUID)) {
+		ret = SYSEXIT_MALLOC;
+		goto err;
+	}
+
+	ret = ploop_store_diskdescriptor(ddxml, di);
+	if (ret)
+		goto err;
+
+err:
+	ploop_free_diskdescriptor(di);
+
+	return ret;
+}
+
+int ploop_create_image(struct ploop_create_param *param)
+{
+	struct ploop_disk_images_data *di = NULL;
+	char ddxml[PATH_MAX];
+	char fname[PATH_MAX];
+	int ret;
+	int fmt_version;
+
+	if (param->image == NULL) {
+		ploop_err(0, "Image file name not specified");
+		return SYSEXIT_PARAM;
+	}
+
+	get_disk_descriptor_fname_by_image(param->image, ddxml, sizeof(ddxml));
+	ret = init_dd(&di, ddxml, param);
+	if (ret)
+		return ret;
+
+	fmt_version = param->fmt_version == PLOOP_FMT_UNDEFINED ?
+		default_fmt_version() : param->fmt_version;
+
+	ret = create_image(param->image, di->blocksize, di->size,
+			param->mode, fmt_version);
 	if (ret)
 		goto out;
+
+	if (realpath(param->image, fname) == NULL) {
+		ploop_err(errno, "failed realpath(%s)", param->image);
+		ret = SYSEXIT_CREAT;
+		goto out;
+	}
+
+	if (ploop_di_add_image(di, fname, TOPDELTA_UUID, NONE_UUID)) {
+		ret = SYSEXIT_MALLOC;
+		goto out;
+	}
+
+	ret = ploop_store_diskdescriptor(ddxml, di);
+	if (ret)
+		goto out;
+
 
 	if (param->fstype != NULL) {
 		ret = ploop_init_image(di, param);
 		if (ret)
-			ploop_drop_image(di);
+			goto out;
 	}
 
 out:
+	if (ret) {
+		if (di)
+			ploop_drop_image(di);
+		unlink(param->image);
+		unlink(ddxml);
+	}
+
 	ploop_free_diskdescriptor(di);
 
 	return ret;

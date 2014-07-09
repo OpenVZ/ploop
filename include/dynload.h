@@ -81,8 +81,9 @@ struct ploop_functions {
 	int (*copy_send)(struct ploop_copy_send_param *arg);
 	int (*copy_receive)(struct ploop_copy_receive_param *arg);
 	int (*get_max_size)(unsigned int blocksize, unsigned long long *max);
+	int (*create_dd)(const char *ddxml, struct ploop_create_param *param);
 	/* padding for up to 64 pointers */
-	void *padding[14];
+	void *padding[13];
 }; /* struct ploop_functions */
 
 __attribute__ ((visibility("default")))
