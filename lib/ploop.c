@@ -764,10 +764,9 @@ int ploop_create_dd(const char *ddxml, struct ploop_create_param *param)
 	if (ret)
 		return ret;
 
-	if (ploop_di_add_image(di, param->image, TOPDELTA_UUID, NONE_UUID)) {
-		ret = SYSEXIT_MALLOC;
+	ret = ploop_di_add_image(di, param->image, TOPDELTA_UUID, NONE_UUID);
+	if (ret)
 		goto err;
-	}
 
 	ret = ploop_store_diskdescriptor(ddxml, di);
 	if (ret)
@@ -811,10 +810,9 @@ int ploop_create_image(struct ploop_create_param *param)
 		goto out;
 	}
 
-	if (ploop_di_add_image(di, fname, TOPDELTA_UUID, NONE_UUID)) {
-		ret = SYSEXIT_MALLOC;
+	ret = ploop_di_add_image(di, fname, TOPDELTA_UUID, NONE_UUID);
+	if (ret)
 		goto out;
-	}
 
 	ret = ploop_store_diskdescriptor(ddxml, di);
 	if (ret)
