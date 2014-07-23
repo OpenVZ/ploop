@@ -218,16 +218,9 @@ int ploop_check(char *img, int flags, int ro, int raw, int verbose, __u32 *block
 	int check = (flags & CHECK_DETAILED);
 	int version;
 
-	/* If an image is on read-only file system */
-	if (!ro && access(img, W_OK) == -1 && errno == EROFS) {
-		ploop_log(2, "Read-only file system for %s", img);
-		ro = 1; /* don't error out, do read-only check */
-	}
-
-	fd = open(img, ro ? O_RDONLY : O_RDWR);
+	fd = open(img, O_RDONLY);
 	if (fd < 0) {
-		ploop_err(errno, "ploop_check: can't open %s",
-				img);
+		ploop_err(errno, "ploop_check: can't open %s", img);
 		return SYSEXIT_OPEN;
 	}
 
@@ -317,6 +310,16 @@ int ploop_check(char *img, int flags, int ro, int raw, int verbose, __u32 *block
 			memset(bmap, 0, bmap_size);
 			for (i = 0; i < l1_slots; i++)
 				bmap[i / 32] |= 1 << (i % 32);
+		}
+	}
+
+	if (!ro) {
+		close(fd);
+		fd = open(img, O_RDWR);
+		if (fd < 0) {
+			ploop_err(errno, "ploop_check: can't reopen %s", img);
+			ret = SYSEXIT_OPEN;
+			goto done;
 		}
 	}
 
