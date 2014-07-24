@@ -457,7 +457,7 @@ done:
 
 static int fill_hole(const char *image, int fd, off_t start, off_t end, int *log, int repair)
 {
-	static char buf[0x100000];
+	static const char buf[0x100000];
 	off_t offset;
 
 	if (!*log) {
@@ -474,7 +474,6 @@ static int fill_hole(const char *image, int fd, off_t start, off_t end, int *log
 			(long unsigned)start,
 			(long unsigned)(end - start));
 
-	bzero(buf, sizeof(buf));
 	for (offset = start; offset < end; offset += sizeof(buf)) {
 		ssize_t n, len;
 
