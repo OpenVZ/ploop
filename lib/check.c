@@ -556,9 +556,10 @@ static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int
 						" which are not aligned to cluster size",
 						image, fm_ext[i].fe_logical, fm_ext[i].fe_length);
 
-				if (fill_hole(image, fd, fm_ext[i].fe_logical,
-						fm_ext[i].fe_logical + fm_ext[i].fe_length, &log, repair))
-					return SYSEXIT_PLOOPFMT;
+				ret = fill_hole(image, fd, fm_ext[i].fe_logical,
+						fm_ext[i].fe_logical + fm_ext[i].fe_length, &log, repair);
+				if (ret)
+					goto out;
 			}
 
 			if (fm_ext[i].fe_flags & ~(FIEMAP_EXTENT_LAST |
@@ -566,21 +567,24 @@ static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int
 				ploop_log(1, "Warning: extent with unexpected flags 0x%x",
 									fm_ext[i].fe_flags);
 			if (prev_end != fm_ext[i].fe_logical &&
-					fill_hole(image, fd, prev_end, fm_ext[i].fe_logical, &log, repair))
-				return SYSEXIT_PLOOPFMT;
+					(ret = fill_hole(image, fd, prev_end, fm_ext[i].fe_logical, &log, repair)))
+				goto out;
 
 			prev_end = fm_ext[i].fe_logical + fm_ext[i].fe_length;
 		}
 	}
 
 	if (prev_end < st.st_size &&
-			fill_hole(image, fd, prev_end, st.st_size, &log, repair))
-		return SYSEXIT_PLOOPFMT;
+			(ret = fill_hole(image, fd, prev_end, st.st_size, &log, repair)))
+		goto out;
 
 	if (log)
 		print_output(0, "filefrag -vs", image);
 
-	return 0;
+	ret = 0;
+
+out:
+	return ret;
 }
 
 int check_deltas(struct ploop_disk_images_data *di, char **images,
