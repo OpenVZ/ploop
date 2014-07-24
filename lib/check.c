@@ -31,7 +31,6 @@
 #include <linux/fiemap.h>
 
 #include "ploop.h"
-static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int flags);
 
 enum {
 	ZEROFIX = 0,
@@ -185,6 +184,165 @@ static int check_one_slot(struct ploop_check_desc *d, __u32 clu, off_t isec,
 
 	return 0;
 }
+
+/* Check if *fd is already opened r/w; reopen image if not */
+static int reopen_rw(const char *image, int *fd) {
+	int flags, newfd;
+
+	flags = fcntl(*fd, F_GETFL);
+	if (flags & O_RDWR)
+		return 0;
+
+	newfd = open(image, O_RDWR);
+	if (newfd < 0) {
+		ploop_err(errno, "Can't reopen %s", image);
+		return -1;
+	}
+
+	*fd = newfd;
+
+	return 0;
+}
+
+static int fill_hole(const char *image, int *fd, off_t start, off_t end, int *log, int repair)
+{
+	static const char buf[0x100000];
+	off_t offset;
+
+	if (!*log) {
+		ploop_err(0, "%s: ploop image '%s' is sparse",
+				repair ? "Warning" : "Error", image);
+		if (!repair)
+			return SYSEXIT_PLOOPFMT;
+		*log = 1;
+		print_output(0, "filefrag -vs", image);
+		ploop_log(0, "Reallocating sparse blocks back");
+		if (reopen_rw(image, fd))
+			return SYSEXIT_OPEN;
+	}
+
+	ploop_log(1, "Filling hole at start=%lu len=%lu",
+			(long unsigned)start,
+			(long unsigned)(end - start));
+
+	for (offset = start; offset < end; offset += sizeof(buf)) {
+		ssize_t n, len;
+
+		len = end - offset;
+		if (len > sizeof(buf))
+			len = sizeof(buf);
+
+		n = pwrite(*fd, buf, len, offset);
+		if (n != len) {
+			if (n >= 0)
+				errno = EIO;
+			ploop_err(errno, "Failed to write");
+			return SYSEXIT_WRITE;
+		}
+	}
+
+	return fsync_safe(*fd);
+}
+
+static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int flags)
+{
+	int last;
+	int i, ret;
+	int wfd = fd;
+	struct statfs sfs;
+	struct stat st;
+	__u64 prev_end;
+	char buf[40960] = "";
+	struct fiemap *fiemap = (struct fiemap *)buf;
+	struct fiemap_extent *fm_ext = &fiemap->fm_extents[0];
+	int log = 0;
+	int count = (sizeof(buf) - sizeof(*fiemap)) /
+		    sizeof(struct fiemap_extent);
+	int repair = flags & CHECK_REPAIR_SPARSE;
+
+	ret = fstatfs(fd, &sfs);
+	if (ret < 0) {
+		ploop_err(errno, "Unable to statfs delta file %s", image);
+		return SYSEXIT_FSTAT;
+	}
+
+	if (sfs.f_type != EXT4_SUPER_MAGIC)
+		return 0;
+
+	ret = fstat(fd, &st);
+	if (ret < 0) {
+		ploop_err(errno, "Unable to stat delta file %s", image);
+		return SYSEXIT_FSTAT;
+	}
+
+	prev_end = 0;
+	last = 0;
+
+	while (!last && prev_end < st.st_size) {
+		fiemap->fm_start	= prev_end;
+		fiemap->fm_length	= st.st_size;
+		fiemap->fm_flags	= FIEMAP_FLAG_SYNC;
+		fiemap->fm_extent_count = count;
+
+		ret = ioctl_device(fd, FS_IOC_FIEMAP, (unsigned long) fiemap);
+		if (ret)
+			return ret;
+
+		if (fiemap->fm_mapped_extents == 0)
+			break;
+
+		for (i = 0; i < fiemap->fm_mapped_extents; i++) {
+			if (fm_ext[i].fe_flags & FIEMAP_EXTENT_LAST)
+				last = 1;
+
+			if (fm_ext[i].fe_logical >= st.st_size) {
+				last = 1;
+				break;
+			}
+
+			if ((fm_ext[i].fe_flags & FIEMAP_EXTENT_UNWRITTEN) &&
+			    (fm_ext[i].fe_logical % cluster ||
+					fm_ext[i].fe_length % cluster)) {
+				ploop_err(0, "Delta file %s contains uninitialized blocks"
+						" (offset=%llu len=%llu)"
+						" which are not aligned to cluster size",
+						image, fm_ext[i].fe_logical, fm_ext[i].fe_length);
+
+				ret = fill_hole(image, &wfd, fm_ext[i].fe_logical,
+						fm_ext[i].fe_logical + fm_ext[i].fe_length, &log, repair);
+				if (ret)
+					goto out;
+			}
+
+			if (fm_ext[i].fe_flags & ~(FIEMAP_EXTENT_LAST |
+						   FIEMAP_EXTENT_UNWRITTEN))
+				ploop_log(1, "Warning: extent with unexpected flags 0x%x",
+									fm_ext[i].fe_flags);
+			if (prev_end != fm_ext[i].fe_logical &&
+					(ret = fill_hole(image, &wfd, prev_end, fm_ext[i].fe_logical, &log, repair)))
+				goto out;
+
+			prev_end = fm_ext[i].fe_logical + fm_ext[i].fe_length;
+		}
+	}
+
+	if (prev_end < st.st_size &&
+			(ret = fill_hole(image, &wfd, prev_end, st.st_size, &log, repair)))
+		goto out;
+
+	if (log)
+		print_output(0, "filefrag -vs", image);
+
+	ret = 0;
+
+out:
+	if (wfd != fd)
+		close_safe(wfd);
+
+	return ret;
+}
+
+
 
 int ploop_check(char *img, int flags, int ro, int raw, int verbose, __u32 *blocksize_p)
 {
@@ -453,163 +611,6 @@ done:
 
 	free(bmap);
 	free(buf);
-
-	return ret;
-}
-
-/* Check if *fd is already opened r/w; reopen image if not */
-static int reopen_rw(const char *image, int *fd) {
-	int flags, newfd;
-
-	flags = fcntl(*fd, F_GETFL);
-	if (flags & O_RDWR)
-		return 0;
-
-	newfd = open(image, O_RDWR);
-	if (newfd < 0) {
-		ploop_err(errno, "Can't reopen %s", image);
-		return -1;
-	}
-
-	*fd = newfd;
-
-	return 0;
-}
-
-static int fill_hole(const char *image, int *fd, off_t start, off_t end, int *log, int repair)
-{
-	static const char buf[0x100000];
-	off_t offset;
-
-	if (!*log) {
-		ploop_err(0, "%s: ploop image '%s' is sparse",
-				repair ? "Warning" : "Error", image);
-		if (!repair)
-			return SYSEXIT_PLOOPFMT;
-		*log = 1;
-		print_output(0, "filefrag -vs", image);
-		ploop_log(0, "Reallocating sparse blocks back");
-		if (reopen_rw(image, fd))
-			return SYSEXIT_OPEN;
-	}
-
-	ploop_log(1, "Filling hole at start=%lu len=%lu",
-			(long unsigned)start,
-			(long unsigned)(end - start));
-
-	for (offset = start; offset < end; offset += sizeof(buf)) {
-		ssize_t n, len;
-
-		len = end - offset;
-		if (len > sizeof(buf))
-			len = sizeof(buf);
-
-		n = pwrite(*fd, buf, len, offset);
-		if (n != len) {
-			if (n >= 0)
-				errno = EIO;
-			ploop_err(errno, "Failed to write");
-			return SYSEXIT_WRITE;
-		}
-	}
-
-	return fsync_safe(*fd);
-}
-
-static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int flags)
-{
-	int last;
-	int i, ret;
-	int wfd = fd;
-	struct statfs sfs;
-	struct stat st;
-	__u64 prev_end;
-	char buf[40960] = "";
-	struct fiemap *fiemap = (struct fiemap *)buf;
-	struct fiemap_extent *fm_ext = &fiemap->fm_extents[0];
-	int log = 0;
-	int count = (sizeof(buf) - sizeof(*fiemap)) /
-		    sizeof(struct fiemap_extent);
-	int repair = flags & CHECK_REPAIR_SPARSE;
-
-	ret = fstatfs(fd, &sfs);
-	if (ret < 0) {
-		ploop_err(errno, "Unable to statfs delta file %s", image);
-		return SYSEXIT_FSTAT;
-	}
-
-	if (sfs.f_type != EXT4_SUPER_MAGIC)
-		return 0;
-
-	ret = fstat(fd, &st);
-	if (ret < 0) {
-		ploop_err(errno, "Unable to stat delta file %s", image);
-		return SYSEXIT_FSTAT;
-	}
-
-	prev_end = 0;
-	last = 0;
-
-	while (!last && prev_end < st.st_size) {
-		fiemap->fm_start	= prev_end;
-		fiemap->fm_length	= st.st_size;
-		fiemap->fm_flags	= FIEMAP_FLAG_SYNC;
-		fiemap->fm_extent_count = count;
-
-		ret = ioctl_device(fd, FS_IOC_FIEMAP, (unsigned long) fiemap);
-		if (ret)
-			return ret;
-
-		if (fiemap->fm_mapped_extents == 0)
-			break;
-
-		for (i = 0; i < fiemap->fm_mapped_extents; i++) {
-			if (fm_ext[i].fe_flags & FIEMAP_EXTENT_LAST)
-				last = 1;
-
-			if (fm_ext[i].fe_logical >= st.st_size) {
-				last = 1;
-				break;
-			}
-
-			if ((fm_ext[i].fe_flags & FIEMAP_EXTENT_UNWRITTEN) &&
-			    (fm_ext[i].fe_logical % cluster ||
-					fm_ext[i].fe_length % cluster)) {
-				ploop_err(0, "Delta file %s contains uninitialized blocks"
-						" (offset=%llu len=%llu)"
-						" which are not aligned to cluster size",
-						image, fm_ext[i].fe_logical, fm_ext[i].fe_length);
-
-				ret = fill_hole(image, &wfd, fm_ext[i].fe_logical,
-						fm_ext[i].fe_logical + fm_ext[i].fe_length, &log, repair);
-				if (ret)
-					goto out;
-			}
-
-			if (fm_ext[i].fe_flags & ~(FIEMAP_EXTENT_LAST |
-						   FIEMAP_EXTENT_UNWRITTEN))
-				ploop_log(1, "Warning: extent with unexpected flags 0x%x",
-									fm_ext[i].fe_flags);
-			if (prev_end != fm_ext[i].fe_logical &&
-					(ret = fill_hole(image, &wfd, prev_end, fm_ext[i].fe_logical, &log, repair)))
-				goto out;
-
-			prev_end = fm_ext[i].fe_logical + fm_ext[i].fe_length;
-		}
-	}
-
-	if (prev_end < st.st_size &&
-			(ret = fill_hole(image, &wfd, prev_end, st.st_size, &log, repair)))
-		goto out;
-
-	if (log)
-		print_output(0, "filefrag -vs", image);
-
-	ret = 0;
-
-out:
-	if (wfd != fd)
-		close_safe(wfd);
 
 	return ret;
 }
