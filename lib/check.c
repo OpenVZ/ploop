@@ -314,13 +314,15 @@ int ploop_check(char *img, int flags, int ro, int raw, int verbose, __u32 *block
 	}
 
 	if (!ro) {
-		close(fd);
-		fd = open(img, O_RDWR);
-		if (fd < 0) {
+		int newfd;
+		newfd = open(img, O_RDWR);
+		if (newfd < 0) {
 			ploop_err(errno, "ploop_check: can't reopen %s", img);
 			ret = SYSEXIT_OPEN;
 			goto done;
 		}
+		close_safe(fd);
+		newfd = fd;
 	}
 
 	/* in */
