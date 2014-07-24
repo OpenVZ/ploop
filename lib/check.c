@@ -455,7 +455,7 @@ done:
 	return ret;
 }
 
-static int fill_hole(const char *image, int fd, off_t start, off_t end, int *log, int repair)
+static int fill_hole(const char *image, int *fd, off_t start, off_t end, int *log, int repair)
 {
 	static const char buf[0x100000];
 	off_t offset;
@@ -481,7 +481,7 @@ static int fill_hole(const char *image, int fd, off_t start, off_t end, int *log
 		if (len > sizeof(buf))
 			len = sizeof(buf);
 
-		n = pwrite(fd, buf, len, offset);
+		n = pwrite(*fd, buf, len, offset);
 		if (n != len) {
 			if (n >= 0)
 				errno = EIO;
@@ -490,13 +490,14 @@ static int fill_hole(const char *image, int fd, off_t start, off_t end, int *log
 		}
 	}
 
-	return fsync_safe(fd);
+	return fsync_safe(*fd);
 }
 
 static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int flags)
 {
 	int last;
 	int i, ret;
+	int wfd = fd;
 	struct statfs sfs;
 	struct stat st;
 	__u64 prev_end;
@@ -556,7 +557,7 @@ static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int
 						" which are not aligned to cluster size",
 						image, fm_ext[i].fe_logical, fm_ext[i].fe_length);
 
-				ret = fill_hole(image, fd, fm_ext[i].fe_logical,
+				ret = fill_hole(image, &wfd, fm_ext[i].fe_logical,
 						fm_ext[i].fe_logical + fm_ext[i].fe_length, &log, repair);
 				if (ret)
 					goto out;
@@ -567,7 +568,7 @@ static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int
 				ploop_log(1, "Warning: extent with unexpected flags 0x%x",
 									fm_ext[i].fe_flags);
 			if (prev_end != fm_ext[i].fe_logical &&
-					(ret = fill_hole(image, fd, prev_end, fm_ext[i].fe_logical, &log, repair)))
+					(ret = fill_hole(image, &wfd, prev_end, fm_ext[i].fe_logical, &log, repair)))
 				goto out;
 
 			prev_end = fm_ext[i].fe_logical + fm_ext[i].fe_length;
@@ -575,7 +576,7 @@ static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int
 	}
 
 	if (prev_end < st.st_size &&
-			(ret = fill_hole(image, fd, prev_end, st.st_size, &log, repair)))
+			(ret = fill_hole(image, &wfd, prev_end, st.st_size, &log, repair)))
 		goto out;
 
 	if (log)
