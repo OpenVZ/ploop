@@ -186,17 +186,25 @@ static int check_one_slot(struct ploop_check_desc *d, __u32 clu, off_t isec,
 }
 
 /* Check if *fd is already opened r/w; reopen image if not */
-static int reopen_rw(const char *image, int *fd) {
-	int flags, newfd;
+static int reopen_rw(const char *image, int *fd)
+{
+	int flags, newfd, ret;
 
 	flags = fcntl(*fd, F_GETFL);
 	if (flags & O_RDWR)
 		return 0;
 
+	ploop_log(3, "Reopen rw %s", image);
 	newfd = open(image, O_RDWR);
 	if (newfd < 0) {
 		ploop_err(errno, "Can't reopen %s", image);
-		return -1;
+		return SYSEXIT_OPEN;
+	}
+
+	ret = close_safe(*fd);
+	if (ret) {
+		close(newfd);
+		return ret;
 	}
 
 	*fd = newfd;
@@ -210,6 +218,8 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end, int *lo
 	off_t offset;
 
 	if (!*log) {
+		int ret;
+
 		ploop_err(0, "%s: ploop image '%s' is sparse",
 				repair ? "Warning" : "Error", image);
 		if (!repair)
@@ -217,8 +227,9 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end, int *lo
 		*log = 1;
 		print_output(0, "filefrag -vs", image);
 		ploop_log(0, "Reallocating sparse blocks back");
-		if (reopen_rw(image, fd))
-			return SYSEXIT_OPEN;
+		ret = reopen_rw(image, fd);
+		if (ret)
+			return ret;
 	}
 
 	ploop_log(1, "Filling hole at start=%lu len=%lu",
@@ -244,11 +255,10 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end, int *lo
 	return fsync_safe(*fd);
 }
 
-static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int flags)
+static int check_and_repair_sparse(const char *image, int *fd, __u64 cluster, int flags)
 {
 	int last;
 	int i, ret;
-	int wfd = fd;
 	struct statfs sfs;
 	struct stat st;
 	__u64 prev_end;
@@ -260,7 +270,7 @@ static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int
 		    sizeof(struct fiemap_extent);
 	int repair = flags & CHECK_REPAIR_SPARSE;
 
-	ret = fstatfs(fd, &sfs);
+	ret = fstatfs(*fd, &sfs);
 	if (ret < 0) {
 		ploop_err(errno, "Unable to statfs delta file %s", image);
 		return SYSEXIT_FSTAT;
@@ -269,7 +279,7 @@ static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int
 	if (sfs.f_type != EXT4_SUPER_MAGIC)
 		return 0;
 
-	ret = fstat(fd, &st);
+	ret = fstat(*fd, &st);
 	if (ret < 0) {
 		ploop_err(errno, "Unable to stat delta file %s", image);
 		return SYSEXIT_FSTAT;
@@ -284,7 +294,7 @@ static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int
 		fiemap->fm_flags	= FIEMAP_FLAG_SYNC;
 		fiemap->fm_extent_count = count;
 
-		ret = ioctl_device(fd, FS_IOC_FIEMAP, (unsigned long) fiemap);
+		ret = ioctl_device(*fd, FS_IOC_FIEMAP, (unsigned long) fiemap);
 		if (ret)
 			return ret;
 
@@ -308,7 +318,7 @@ static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int
 						" which are not aligned to cluster size",
 						image, fm_ext[i].fe_logical, fm_ext[i].fe_length);
 
-				ret = fill_hole(image, &wfd, fm_ext[i].fe_logical,
+				ret = fill_hole(image, fd, fm_ext[i].fe_logical,
 						fm_ext[i].fe_logical + fm_ext[i].fe_length, &log, repair);
 				if (ret)
 					goto out;
@@ -319,7 +329,7 @@ static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int
 				ploop_log(1, "Warning: extent with unexpected flags 0x%x",
 									fm_ext[i].fe_flags);
 			if (prev_end != fm_ext[i].fe_logical &&
-					(ret = fill_hole(image, &wfd, prev_end, fm_ext[i].fe_logical, &log, repair)))
+					(ret = fill_hole(image, fd, prev_end, fm_ext[i].fe_logical, &log, repair)))
 				goto out;
 
 			prev_end = fm_ext[i].fe_logical + fm_ext[i].fe_length;
@@ -327,7 +337,7 @@ static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int
 	}
 
 	if (prev_end < st.st_size &&
-			(ret = fill_hole(image, &wfd, prev_end, st.st_size, &log, repair)))
+			(ret = fill_hole(image, fd, prev_end, st.st_size, &log, repair)))
 		goto out;
 
 	if (log)
@@ -336,13 +346,9 @@ static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int
 	ret = 0;
 
 out:
-	if (wfd != fd)
-		close_safe(wfd);
 
 	return ret;
 }
-
-
 
 int ploop_check(char *img, int flags, int ro, int raw, int verbose, __u32 *blocksize_p)
 {
@@ -472,15 +478,9 @@ int ploop_check(char *img, int flags, int ro, int raw, int verbose, __u32 *block
 	}
 
 	if (!ro) {
-		int newfd;
-		newfd = open(img, O_RDWR);
-		if (newfd < 0) {
-			ploop_err(errno, "ploop_check: can't reopen %s", img);
-			ret = SYSEXIT_OPEN;
+		ret = reopen_rw(img, &fd);
+		if (ret)
 			goto done;
-		}
-		close_safe(fd);
-		fd = newfd;
 	}
 
 	/* in */
@@ -603,7 +603,7 @@ int ploop_check(char *img, int flags, int ro, int raw, int verbose, __u32 *block
 		ret = fsync_safe(fd);
 done:
 	if (ret == 0)
-		ret = check_and_repair_sparse(img, fd, cluster, flags);
+		ret = check_and_repair_sparse(img, &fd, cluster, flags);
 
 	ret2 = close_safe(fd);
 	if (ret2 && !ret)
