@@ -455,6 +455,25 @@ done:
 	return ret;
 }
 
+/* Check if *fd is already opened r/w; reopen image if not */
+static int reopen_rw(const char *image, int *fd) {
+	int flags, newfd;
+
+	flags = fcntl(*fd, F_GETFL);
+	if (flags & O_RDWR)
+		return 0;
+
+	newfd = open(image, O_RDWR);
+	if (newfd < 0) {
+		ploop_err(errno, "Can't reopen %s", image);
+		return -1;
+	}
+
+	*fd = newfd;
+
+	return 0;
+}
+
 static int fill_hole(const char *image, int *fd, off_t start, off_t end, int *log, int repair)
 {
 	static const char buf[0x100000];
@@ -468,6 +487,8 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end, int *lo
 		*log = 1;
 		print_output(0, "filefrag -vs", image);
 		ploop_log(0, "Reallocating sparse blocks back");
+		if (reopen_rw(image, fd))
+			return SYSEXIT_OPEN;
 	}
 
 	ploop_log(1, "Filling hole at start=%lu len=%lu",
@@ -585,6 +606,9 @@ static int check_and_repair_sparse(const char *image, int fd, __u64 cluster, int
 	ret = 0;
 
 out:
+	if (wfd != fd)
+		close_safe(wfd);
+
 	return ret;
 }
 
