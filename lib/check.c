@@ -322,7 +322,7 @@ int ploop_check(char *img, int flags, int ro, int raw, int verbose, __u32 *block
 			goto done;
 		}
 		close_safe(fd);
-		newfd = fd;
+		fd = newfd;
 	}
 
 	/* in */
