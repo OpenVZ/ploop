@@ -1,7 +1,7 @@
 %define _incdir /usr/include/ploop
 Summary: ploop tools
 Name: ploop
-Version: 1.11
+Version: 1.12
 %define rel 1
 Release: %{rel}%{?dist}
 Group: Applications/System
@@ -92,6 +92,34 @@ Headers and a static version of ploop library
 %attr(644,root,root) %{_incdir}/dynload.h
 
 %changelog
+* Thu Jul 29 2014 Kir Kolyshkin <kir@openvz.org> 1.12-1
+- New functionality:
+-- ploop copy: implement two-way protocol
+-- ploop copy send: implement async read/send
+-- ploop copy send: add profiling
+-- delete_snapshot(): handle snapshots with multiple refs
+-- tune_fs(): use EXT4_IOC_SET_RSV_BLOCKS if available
+-- Introduce ploop_get_max_size()
+-- Introduce ploop_copy_{send,receive}, obsoleting ploop_{send,receive}
+-- Introduce ploop_create_dd()
+-- ploop info: add -d to show ploop device
+-- ploop_check(): open image RO, reopen RW later
+-- check_and_repair_sparse(): reopen image rw if needed
+- Fixes:
+-- ploop copy: fix open_mount_point err handling
+-- ploop copy: improve fd checks
+-- ploop_store_diskdescriptor: fsync DiskDescriptor.xml upon writing
+-- ploop_resize_image(): handle get_mount_dir() error
+-- ploop_resize_image: auto-mount fs
+-- do_delete_snapshot: fix wrt temp snapshot uuid
+-- ploop_switch_snapshot_ex(): don't return 0 if guid_old is bad
+-- do_delete_snapshot: deny delete top delta in case parent snapshot is temp
+-- merge_temporary_snapshots: fix infinite loop
+-- ploop_switch_snapshot_ex: fixed case with PLOOP_SNAP_SKIP_TOPDELTA_CREATE
+-- ploop_delete_snapshot: fix for temp snapshot
+-- create_snapshot: clear stale top delta inuse flag
+-- e2fsck: make it quiet
+
 * Thu Apr  3 2014 Kir Kolyshkin <kir@openvz.org> 1.11-1
 - New functionality and important changes:
 -- support for 4K sector size (including GPT conversion)
