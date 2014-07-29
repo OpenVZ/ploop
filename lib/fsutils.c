@@ -141,8 +141,9 @@ int make_fs(const char *device, const char *fstype, unsigned int fsblocksize)
 	argv[1] =  "-ouser_xattr,acl";
 	argv[2] = "-c0";
 	argv[3] = "-i0";
-	argv[4] = part_device;
-	argv[5] = NULL;
+	argv[4] = "-eremount-ro";
+	argv[5] = part_device;
+	argv[6] = NULL;
 
 	if (run_prg(argv))
 		return SYSEXIT_MKFS;
