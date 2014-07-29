@@ -980,7 +980,7 @@ static int plooptool_convert(int argc, char **argv)
 
 static void usage_info(void)
 {
-	fprintf(stderr, "Usage: ploop info [-s] DiskDescriptor.xml\n");
+	fprintf(stderr, "Usage: ploop info [-s] [-d] DiskDescriptor.xml\n");
 }
 
 static void print_info(struct ploop_info *info)
