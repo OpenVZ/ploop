@@ -175,7 +175,7 @@ void tune_fs(int balloonfd, const char *device, unsigned long long size_sec)
 	ret = ioctl(balloonfd, EXT4_IOC_SET_RSV_BLOCKS, &reserved_blocks);
 	if (!ret)
 		return;
-	if (errno != -ENOTTY) {
+	if (errno != ENOTTY) {
 		ploop_err(errno, "Can't set reserved blocks to %llu",
 				reserved_blocks);
 		return;
