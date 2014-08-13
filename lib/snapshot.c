@@ -737,7 +737,7 @@ int ploop_switch_snapshot_ex(struct ploop_disk_images_data *di,
 
 	if (old_top_delta_fname != NULL) {
 		ploop_log(0, "Removing %s", old_top_delta_fname);
-		if (unlink(old_top_delta_fname))
+		if (unlink(old_top_delta_fname) && errno != ENOENT)
 			ploop_err(errno, "Can't unlink %s",
 					old_top_delta_fname);
 	}
