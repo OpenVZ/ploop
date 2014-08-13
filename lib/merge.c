@@ -686,7 +686,7 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 	int start_level = -1;
 	int end_level = -1;
 	int merge_top = 0;
-	int raw = (di->mode == PLOOP_RAW_MODE);
+	int raw = 0;
 	int online = 0;
 	int snap_idx;
 	int temporary = 0;
@@ -793,7 +793,8 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 				goto err;
 			}
 			device = dev;
-			raw = info.raw;
+			if (start_level == 0)
+				raw = info.raw;
 			merge_top = (info.top_level == end_level);
 		} else if (end_level == -1 && start_level == -1) {
 			online = 0;
@@ -804,9 +805,14 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 			goto err;
 		}
 	}
+
 	if (!online) {
 		start_level = 0;
 		end_level = 1;
+		/* Only base image could be in RAW format */
+		if (di->mode == PLOOP_RAW_MODE &&
+				!guidcmp(di->snapshots[snap_idx]->parent_guid, NONE_UUID))
+			raw = 1;
 	}
 
 	names[0] = strdup(child_fname);
@@ -826,10 +832,17 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 	if (ret)
 		goto err;
 
+	ploop_log(0, "%sline merge uuid %s -> %s image %s -> %s %s",
+			online ? "On": "Off",
+			child_guid, parent_guid,
+			names[0], names[1],
+			raw ? "raw" : "");
+
 	/* make validation before real merge */
 	ret = ploop_di_merge_image(di, child_guid, &delete_fname);
 	if (ret)
 		goto err;
+
 
 	ret = merge_image(device, start_level, end_level, raw, merge_top, names);
 	if (ret)

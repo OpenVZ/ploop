@@ -477,8 +477,6 @@ int ploop_di_merge_image(struct ploop_disk_images_data *di, const char *guid, ch
 			return SYSEXIT_MALLOC;
 	}
 
-	ploop_log(3, "merge snapshot %s -> %s",
-			snapshot->guid, snapshot->parent_guid);
 	/* Caller passed child_guid S2 to delete S1 (S1 <- S2 <- S3) (S2 <- S3)
 	 * so it has merge S2 to S1 and we should update all S1 referrences to S2
 	 */
