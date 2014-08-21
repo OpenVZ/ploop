@@ -235,6 +235,16 @@ static int get_temp_mountpoint(const char *file, int create, char *buf, int len)
 
 int ploop_is_large_disk_supported(void)
 {
+	static int warned = 0;
+
+	/* First check if ploop is loaded, as otherwise we'll not be able
+	 * to check if large disk is support is there
+	 */
+	if (!warned && access("/sys/module/ploop/parameters/", F_OK)) {
+		ploop_err(errno, "ploop kernel module not loaded");
+		warned++;
+	}
+
 	return (access("/sys/module/ploop/parameters/large_disk_support", R_OK) == 0 ? 1 : 0);
 }
 
