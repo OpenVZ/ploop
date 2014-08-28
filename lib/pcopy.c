@@ -388,8 +388,8 @@ static void *send_thread(void *data) {
 	struct send_data *sd = data;
 	int done;
 
+	pthread_mutex_lock(&sd->mutex);
 	do {
-		pthread_mutex_lock(&sd->mutex);
 		if (!sd->has_data) {
 			pthread_cond_wait(&sd->cond, &sd->mutex);
 		}
@@ -399,8 +399,8 @@ static void *send_thread(void *data) {
 			sd->err_no = errno;
 		done = (sd->len == 0 && sd->pos == 0);
 		sd->has_data = 0;
-		pthread_mutex_unlock(&sd->mutex);
 	} while (!done);
+	pthread_mutex_unlock(&sd->mutex);
 
 	return NULL;
 }
