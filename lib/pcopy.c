@@ -417,8 +417,8 @@ do {							\
 	sd.len = (length);				\
 	sd.pos = (position);				\
 	sd.has_data = 1;				\
-	pthread_mutex_unlock(&sd.mutex);		\
 	pthread_cond_signal(&sd.cond);			\
+	pthread_mutex_unlock(&sd.mutex);		\
 } while (0)
 
 #define do_pread(length, position)			\
