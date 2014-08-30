@@ -381,6 +381,7 @@ struct send_data {
 	int err_no;
 	pthread_mutex_t mutex;
 	pthread_cond_t cond;
+	pthread_cond_t cond_sent;
 	int has_data;
 };
 
@@ -399,6 +400,7 @@ static void *send_thread(void *data) {
 			sd->err_no = errno;
 		done = (sd->len == 0 && sd->pos == 0);
 		sd->has_data = 0;
+		pthread_cond_signal(&sd->cond_sent);
 	} while (!done);
 	pthread_mutex_unlock(&sd->mutex);
 
@@ -408,6 +410,9 @@ static void *send_thread(void *data) {
 #define async_send(length, position)			\
 do {							\
 	pthread_mutex_lock(&sd.mutex);			\
+	while (sd.has_data) {				\
+		pthread_cond_wait(&sd.cond_sent, &sd.mutex);	\
+	}						\
 	if (sd.ret) {					\
 		ploop_err(sd.err_no, "write error");	\
 		ret = sd.ret;				\
@@ -462,6 +467,7 @@ int ploop_copy_send(struct ploop_copy_send_param *arg)
 	struct send_data sd = {
 		.mutex = PTHREAD_MUTEX_INITIALIZER,
 		.cond = PTHREAD_COND_INITIALIZER,
+		.cond_sent = PTHREAD_COND_INITIALIZER,
 	};
 
 	if (!arg)
