@@ -1599,6 +1599,79 @@ err:
 	return ret;
 }
 
+/* Checks a mount point hosting a ploop image
+ * for bad (i.e. not recommended) mount options.
+ *
+ * Returns:
+ *  -1: internal error
+ *   1: bad mount option found
+ *   0: everything is fine
+ */
+static int check_host_ext4_mount_opts(const char *file)
+{
+	struct stat st;
+	char buf[PATH_MAX * 4];
+	FILE *fp;
+	int ret;
+	const char *bad_opt="data=writeback";
+	static int warned = 0;
+
+	if (stat(file, &st)) {
+		ploop_err(errno, "Can't stat %s", file);
+		return -1;
+	}
+
+	fp = fopen("/proc/self/mountinfo", "r");
+	if (!fp) {
+		ploop_err(errno, "Can't open /proc/self/mountinfo");
+		return -1;
+	}
+
+	ret = -1;
+	while (fgets(buf, sizeof(buf), fp)) {
+		int n;
+		unsigned int major, minor;
+		char target[PATH_MAX];
+		char *opt;
+
+		n = sscanf(buf, "%*u %*u %u:%u %*s %s",
+				&major, &minor, target);
+		if (n != 3) {
+			ploop_err(0, "Can't parse /proc/self/mountinfo "
+					"line: %s", buf);
+			continue; /* just skip it */
+		}
+		if (makedev(major, minor) != st.st_dev)
+			continue;
+		/* found our device */
+		opt = strrchr(buf, ' ');
+		if (opt == NULL) /* should never happen */
+			break;
+		/* check mount options */
+		if (strstr(opt, bad_opt) == NULL) {
+			ret = 0;
+			break;
+		}
+		if (!warned) {
+			ploop_log(-1, "WARNING: %s is mounted with %s "
+					"not recommended for ploop; "
+					"please use data=ordered instead",
+					target, bad_opt);
+			warned = 1;
+		}
+
+		ret = 0; /* FIXME: just a warning for now */
+		break;
+	}
+
+	if (ret == -1)
+		ploop_log(0, "Warning: mount point not found for %s", file);
+
+	fclose(fp);
+
+	return ret;
+}
+
 #ifndef FS_IOC_GETFLAGS
 #define FS_IOC_GETFLAGS	_IOR('f', 1, long)
 #endif
@@ -1609,8 +1682,12 @@ err:
 static int check_mount_restrictions(struct ploop_mount_param *param, const char *fname)
 {
 	struct statfs st;
-	int fd;
+	int fd, ret;
 	long flags;
+
+	ret = check_host_ext4_mount_opts(fname);
+	if (ret > 0) /* ignore internal errors */
+		return ret;
 
 	/* FIXME: */
 	if (getenv("PLOOP_SKIP_EXT4_EXTENTS_CHECK") != NULL)
