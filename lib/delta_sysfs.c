@@ -321,8 +321,12 @@ int ploop_get_dev_by_delta(const char *delta, const char *topdelta,
 	char cookie[PLOOP_COOKIE_SIZE];
 	int lckfd;
 	int nelem = 1;
+	struct stat st;
 
 	*out = NULL;
+
+	if (stat(delta, &st) && errno == ENOENT)
+		return 1;
 
 	if (realpath(delta, delta_r) == NULL) {
 		ploop_err(errno, "Can't resolve %s", delta);
