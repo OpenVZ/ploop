@@ -1,7 +1,7 @@
 %define _incdir /usr/include/ploop
 Summary: ploop tools
 Name: ploop
-Version: 1.12
+Version: 1.12.1
 %define rel 1
 Release: %{rel}%{?dist}
 Group: Applications/System
@@ -92,6 +92,15 @@ Headers and a static version of ploop library
 %attr(644,root,root) %{_incdir}/dynload.h
 
 %changelog
+* Tue Sep  2 2014 Kir Kolyshkin <kir@openvz.org> 1.12.1-1
+- Fixes:
+-- ploop copy send: fix a race that could result in image corruption
+-- resize: fix resize working on an older (pre 042stab092.1) kernel
+- Improvements:
+-- ploop mount: warn if host filesystem uses data=writeback (#3030)
+-- snapshot-switch: don't show ENOENT remove error
+-- ploop_is_large_disk_supported(): check ploop module first
+
 * Thu Jul 29 2014 Kir Kolyshkin <kir@openvz.org> 1.12-1
 - New functionality:
 -- ploop copy: implement two-way protocol
