@@ -390,7 +390,7 @@ static void *send_thread(void *data) {
 
 	pthread_mutex_lock(&sd->mutex);
 	do {
-		if (!sd->has_data) {
+		while (!sd->has_data) {
 			pthread_cond_wait(&sd->cond, &sd->mutex);
 		}
 		sd->ret = send_buf(sd->fd, sd->buf,
