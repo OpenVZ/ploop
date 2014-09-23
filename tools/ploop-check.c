@@ -129,35 +129,19 @@ int plooptool_check(int argc, char ** argv)
 
 	if (is_xml_fname(argv[0])) {
 		struct ploop_disk_images_data *di;
-		char **images;
 		int ret;
 
 		if (flags | raw | ro | silent | blocksize)
 			fprintf(stderr, "WARNING: options are ignored "
 					"for DiskDescriptor.xml form\n");
 
-		ret = read_dd(&di, argv[0]);
+		ret = ploop_open_dd(&di, argv[0]);
 		if (ret)
 			return ret;
 
-		if (!uuid)
-			uuid = di->top_guid;
-		images = make_images_list(di, uuid, 0);
-		if (!images) {
-			ploop_free_diskdescriptor(di);
-			/* this might fail for a number of reasons, so
-			 * let's return something more or less generic.
-			 */
-			return SYSEXIT_DISKDESCR;
-		}
+		ret = check_dd(di, uuid);
 
-		blocksize = di->blocksize;
-		raw = (di->mode == PLOOP_RAW_MODE);
-
-		ret = check_deltas(di, images, raw, &blocksize);
-
-		ploop_free_diskdescriptor(di);
-		free_images_list(images);
+		ploop_close_dd(di);
 
 		return ret;
 	}

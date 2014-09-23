@@ -644,6 +644,37 @@ int check_deltas(struct ploop_disk_images_data *di, char **images,
 	return ret;
 }
 
+int check_dd(struct ploop_disk_images_data *di, const char *uuid)
+{
+	char **images;
+	__u32 blocksize;
+	int raw;
+	int ret;
+
+	if (ploop_lock_dd(di))
+		return SYSEXIT_LOCK;
+
+	images = make_images_list(di, (uuid) ? uuid : di->top_guid, 0);
+	if (!images) {
+		/* this might fail for a number of reasons, so
+		 * let's return something more or less generic.
+		 */
+		ret = SYSEXIT_DISKDESCR;
+		goto out;
+	}
+
+	blocksize = di->blocksize;
+	raw = (di->mode == PLOOP_RAW_MODE);
+
+	ret = check_deltas(di, images, raw, &blocksize);
+
+	free_images_list(images);
+out:
+	ploop_unlock_dd(di);
+
+	return ret;
+}
+
 int check_deltas_same(const char *img1, const char *img2) {
 	int i, ret;
 	int fd[2] = { -1, -1 };
