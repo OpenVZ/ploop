@@ -230,7 +230,6 @@ int ploop_get_size(const char * device, off_t * res);
 int dev_num2dev_start(const char *device, dev_t dev_num, __u32 *dev_start);
 int get_dev_by_name(const char *name, dev_t *dev);
 int get_dev_start(const char *path, __u32 *start);
-int ploop_get_top_level(int devfd, const char *devname, int *top);
 
 void init_delta_array(struct delta_array *);
 void deinit_delta_array(struct delta_array * p);

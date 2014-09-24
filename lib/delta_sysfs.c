@@ -450,31 +450,3 @@ int ploop_find_dev(const char *component_name, const char *delta,
 
 	return ret;
 }
-
-int ploop_get_top_level(int devfd, const char *devname, int *top)
-{
-	char path[PATH_MAX];
-	char name[64];
-	struct stat st;
-	char nbuf[4096];
-
-	if (fstat(devfd, &st)) {
-		ploop_err(errno, "fstat %s", devname);
-		return -1;
-	}
-
-	snprintf(path, sizeof(path) - 1, "/sys/block/%s/pstate/top",
-		 make_sysfs_dev_name(gnu_dev_minor(st.st_rdev), name, sizeof(name)));
-
-	if (read_line(path, nbuf, sizeof(nbuf)))
-		return -1;
-
-	if (sscanf(nbuf, "%d", top) != 1) {
-		ploop_err(0, "Unexpected format of %s: %s (%s)",
-			  path, nbuf, devname);
-		errno = ERANGE;
-		return -1;
-	}
-
-	return 0;
-}

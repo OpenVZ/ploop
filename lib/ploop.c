@@ -975,7 +975,7 @@ static int delete_deltas(int devfd, const char *devname)
 {
 	int top;
 
-	if (ploop_get_top_level(devfd, devname, &top))
+	if (ploop_get_attr(devname, "top", &top))
 		return errno;
 
 	while (top >= 0) {
