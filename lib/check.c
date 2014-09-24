@@ -650,9 +650,20 @@ int check_dd(struct ploop_disk_images_data *di, const char *uuid)
 	__u32 blocksize;
 	int raw;
 	int ret;
+	char **devices;
 
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
+
+	ret = ploop_get_devs(di, &devices);
+	if (ret == 0) {
+		ploop_err(0, "Can't check, in use by device: %s", devices[0]);
+		ploop_free_array(devices);
+		return SYSEXIT_PLOOPINUSE;
+	}
+	else if (ret == -1)
+		/* Some system error */
+		return SYSEXIT_SYS;
 
 	images = make_images_list(di, (uuid) ? uuid : di->top_guid, 0);
 	if (!images) {
