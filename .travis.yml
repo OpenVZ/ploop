@@ -1,0 +1,17 @@
+language: c
+
+compiler: gcc
+
+before_install:
+    - sudo apt-get update -qq
+
+install:
+    - sudo apt-get install make gcc libxml++2.6-dev e2fslibs-dev
+
+script:
+    - make -j2 && sudo make install
+
+notifications:
+  email:
+    on_success: change
+    on_failure: always
