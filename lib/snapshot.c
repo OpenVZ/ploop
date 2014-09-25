@@ -240,7 +240,7 @@ static int get_snapshot_count(struct ploop_disk_images_data *di)
 	if (images == NULL)
 		return -1;
 	n = get_list_size(images);
-	free_images_list(images);
+	ploop_free_array(images);
 
 	return n;
 }

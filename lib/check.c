@@ -679,7 +679,7 @@ int check_dd(struct ploop_disk_images_data *di, const char *uuid)
 
 	ret = check_deltas(di, images, raw, &blocksize);
 
-	free_images_list(images);
+	ploop_free_array(images);
 out:
 	ploop_unlock_dd(di);
 

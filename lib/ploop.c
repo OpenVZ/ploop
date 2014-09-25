@@ -159,20 +159,8 @@ char **make_images_list(struct ploop_disk_images_data *di, const char *guid, int
 
 err:
 	images[n] = NULL;
-	free_images_list(images);
+	ploop_free_array(images);
 	return NULL;
-}
-
-void free_images_list(char **images)
-{
-	int i;
-
-	if (images == NULL)
-		return;
-	for (i = 0; images[i] != NULL; i++)
-		free(images[i]);
-
-	free(images);
 }
 
 static int WRITE(int fd, void * buf, unsigned int size)
@@ -1821,7 +1809,7 @@ int mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *par
 
 	ret = ploop_mount(di, images, param, (di->mode == PLOOP_RAW_MODE));
 
-	free_images_list(images);
+	ploop_free_array(images);
 
 	return ret;
 }

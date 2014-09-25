@@ -853,7 +853,7 @@ err:
 		free(names[i]);
 
 	free(delete_fname);
-	free_images_list(info.names);
+	ploop_free_array(info.names);
 
 	return ret;
 }

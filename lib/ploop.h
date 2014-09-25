@@ -316,7 +316,6 @@ PL_EXT int ploop_mount(struct ploop_disk_images_data *di, char **images,
 PL_EXT int replace_delta(const char *device, int level, const char *image);
 PL_EXT int create_snapshot(const char *device, const char *delta, int syncfs);
 int get_list_size(char **list);
-PL_EXT void free_images_list(char **images);
 int PWRITE(struct delta * delta, void * buf, unsigned int size, off_t off);
 int PREAD(struct delta * delta, void *buf, unsigned int size, off_t off);
 PL_EXT int ploop_getdevice(int *minor);
