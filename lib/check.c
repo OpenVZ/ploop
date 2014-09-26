@@ -625,10 +625,12 @@ int check_deltas(struct ploop_disk_images_data *di, char **images,
 		int flags = CHECK_DETAILED | (di ? (CHECK_DROPINUSE | CHECK_REPAIR_SPARSE) : 0);
 		int raw_delta = (raw && i == 0);
 		__u32 cur_blocksize = raw_delta ? *blocksize : 0;
+		int ro = (images[i+1] != NULL);
 
-		ret = ploop_check(images[i], flags, 0, raw_delta, 0, &cur_blocksize);
+		ret = ploop_check(images[i], flags, ro, raw_delta, 0, &cur_blocksize);
 		if (ret) {
-			ploop_err(0, "%s : irrecoverable errors", images[i]);
+			ploop_err(0, "%s : irrecoverable errors (%s)",
+					images[i], ro ? "ro" : "rw");
 			break;
 		}
 		if (*blocksize == 0)
