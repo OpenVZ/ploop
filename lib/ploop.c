@@ -1600,34 +1600,27 @@ err:
 }
 
 /* Checks a mount point hosting a ploop image
- * for bad (i.e. not recommended) mount options.
- *
- * Returns:
- *  -1: internal error
- *   1: bad mount option found
- *   0: everything is fine
+ * for bad (i.e. not recommended) mount options
+ * and display warning message
  */
-static int check_host_ext4_mount_opts(const char *file)
+static void check_host_ext4_mount_opts(const char *file)
 {
 	struct stat st;
 	char buf[PATH_MAX * 4];
 	FILE *fp;
-	int ret;
 	const char *bad_opt="data=writeback";
-	static int warned = 0;
 
 	if (stat(file, &st)) {
 		ploop_err(errno, "Can't stat %s", file);
-		return -1;
+		return;
 	}
 
 	fp = fopen("/proc/self/mountinfo", "r");
 	if (!fp) {
 		ploop_err(errno, "Can't open /proc/self/mountinfo");
-		return -1;
+		return;
 	}
 
-	ret = -1;
 	while (fgets(buf, sizeof(buf), fp)) {
 		int n;
 		unsigned int major, minor;
@@ -1648,28 +1641,20 @@ static int check_host_ext4_mount_opts(const char *file)
 		if (opt == NULL) /* should never happen */
 			break;
 		/* check mount options */
-		if (strstr(opt, bad_opt) == NULL) {
-			ret = 0;
-			break;
-		}
-		if (!warned) {
+		if (strstr(opt, bad_opt) != NULL)
 			ploop_log(-1, "WARNING: %s is mounted with %s "
 					"not recommended for ploop; "
 					"please use data=ordered instead",
 					target, bad_opt);
-			warned = 1;
-		}
-
-		ret = 0; /* FIXME: just a warning for now */
-		break;
+		goto out;
 	}
 
-	if (ret == -1)
-		ploop_log(0, "Warning: mount point not found for %s", file);
+	ploop_log(0, "Warning: mount point not found for %s", file);
 
+out:
 	fclose(fp);
 
-	return ret;
+	return;
 }
 
 #ifndef FS_IOC_GETFLAGS
@@ -1682,12 +1667,10 @@ static int check_host_ext4_mount_opts(const char *file)
 static int check_mount_restrictions(struct ploop_mount_param *param, const char *fname)
 {
 	struct statfs st;
-	int fd, ret;
+	int fd;
 	long flags;
 
-	ret = check_host_ext4_mount_opts(fname);
-	if (ret > 0) /* ignore internal errors */
-		return ret;
+	check_host_ext4_mount_opts(fname);
 
 	/* FIXME: */
 	if (getenv("PLOOP_SKIP_EXT4_EXTENTS_CHECK") != NULL)
