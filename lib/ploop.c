@@ -1652,27 +1652,29 @@ out:
 #define EXT4_EXTENTS_FL		0x00080000 /* Inode uses extents */
 #endif
 
-static int check_mount_restrictions(struct ploop_mount_param *param, const char *fname)
+static int check_ext4_mount_restrictions(const char *fname)
 {
 	struct statfs st;
 	int fd;
 	long flags;
 
-	check_host_ext4_mount_opts(fname);
-
-	/* FIXME: */
-	if (getenv("PLOOP_SKIP_EXT4_EXTENTS_CHECK") != NULL)
-		return 0;
 	if (statfs(fname, &st) < 0) {
 		ploop_err(errno, "Unable to statfs %s", fname);
 		return -1;
 	}
-	if (st.f_type == EXT4_SUPER_MAGIC) {
+
+	if (st.f_type != EXT4_SUPER_MAGIC)
+		return 0;
+
+	check_host_ext4_mount_opts(fname);
+
+	if (getenv("PLOOP_SKIP_EXT4_EXTENTS_CHECK") == NULL) {
 		fd = open(fname, O_RDONLY);
 		if (fd < 0) {
 			ploop_err(errno, "Can't open %s", fname);
 			return -1;
 		}
+
 		if (ioctl(fd, FS_IOC_GETFLAGS, &flags) < 0) {
 			ploop_err(errno, "FS_IOC_GETFLAGS %s", fname);
 			close(fd);
@@ -1687,6 +1689,30 @@ static int check_mount_restrictions(struct ploop_mount_param *param, const char 
 		}
 	}
 
+	return 0;
+}
+
+static int check_mount_restrictions(char **images)
+{
+	int i, ret;
+	struct stat st;
+	dev_t prev_dev = 0;
+
+	for (i = 0; images[i] != NULL; i++) {
+		if (stat(images[i], &st) < 0) {
+			ploop_err(errno, "Unable to statfs %s", images[i]);
+			return -1;
+		}
+		/* device already checked */
+		if (st.st_dev == prev_dev)
+			continue;
+
+		ret = check_ext4_mount_restrictions(images[i]);
+		if (ret)
+			return ret;
+
+		prev_dev = st.st_dev;
+	}
 	return 0;
 }
 
@@ -1726,7 +1752,7 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 	} else if (di)
 		blocksize = di->blocksize;
 
-	if (check_mount_restrictions(param, images[0]))
+	if (check_mount_restrictions(images))
 		return SYSEXIT_MOUNT;
 
 	if (di && (ret = check_and_restore_fmt_version(di)))
