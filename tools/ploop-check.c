@@ -51,10 +51,8 @@ static void usage(void)
 int plooptool_check(int argc, char ** argv)
 {
 	int i, idx;
-	int flags = 0;
-	int raw = 0;
-	int ro = 0;	/* read-only access to image file */
-	int silent = 0;	/* print messages only if errors detected */
+	const int def_flags = CHECK_TALKATIVE;
+	int flags = def_flags;
 	unsigned int blocksize = 0;
 	char *endptr;
 	const char *uuid = NULL;
@@ -90,10 +88,10 @@ int plooptool_check(int argc, char ** argv)
 			flags |= CHECK_DROPINUSE;
 			break;
 		case 'r':
-			ro = 1;
+			flags |= CHECK_READONLY;
 			break;
 		case 'R':
-			raw = 1;
+			flags |= CHECK_RAW;
 			break;
 		case 'b':
 			blocksize = strtoul(optarg, &endptr, 0);
@@ -103,7 +101,7 @@ int plooptool_check(int argc, char ** argv)
 			}
 			break;
 		case 's':
-			silent = 1;
+			flags &= ~CHECK_TALKATIVE;
 			break;
 		case 'S':
 			flags |= CHECK_REPAIR_SPARSE;
@@ -131,7 +129,7 @@ int plooptool_check(int argc, char ** argv)
 		struct ploop_disk_images_data *di;
 		int ret;
 
-		if (flags | raw | ro | silent | blocksize)
+		if (flags != def_flags || blocksize)
 			fprintf(stderr, "WARNING: options are ignored "
 					"for DiskDescriptor.xml form\n");
 
@@ -153,5 +151,5 @@ int plooptool_check(int argc, char ** argv)
 		return SYSEXIT_PARAM;
 	}
 
-	return ploop_check(argv[0], flags, ro, raw, !silent, &blocksize);
+	return ploop_check(argv[0], flags, &blocksize);
 }

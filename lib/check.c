@@ -350,13 +350,15 @@ out:
 	return ret;
 }
 
-int ploop_check(char *img, int flags, int ro, int raw, int verbose, __u32 *blocksize_p)
+int ploop_check(char *img, int flags, __u32 *blocksize_p)
 {
 	struct ploop_check_desc d;
 	int i, j;
 	int fd;
 	int ret = 0;
 	int ret2;
+	const int ro = flags | CHECK_READONLY;
+	const int verbose = flags | CHECK_TALKATIVE;
 	off_t bd_size;
 	struct stat stb;
 	void *buf = NULL;
@@ -388,7 +390,7 @@ int ploop_check(char *img, int flags, int ro, int raw, int verbose, __u32 *block
 		return SYSEXIT_OPEN;
 	}
 
-	if (raw) {
+	if (flags | CHECK_RAW) {
 		if (!blocksize_p || !*blocksize_p) {
 			ploop_err(0, "Cluster blocksize required for raw image");
 			ret = SYSEXIT_PARAM;
@@ -622,12 +624,15 @@ int check_deltas(struct ploop_disk_images_data *di, char **images,
 	int ret = 0;
 
 	for (i = 0; images[i] != NULL; i++) {
-		int flags = CHECK_DETAILED | (di ? (CHECK_DROPINUSE | CHECK_REPAIR_SPARSE) : 0);
 		int raw_delta = (raw && i == 0);
-		__u32 cur_blocksize = raw_delta ? *blocksize : 0;
 		int ro = (images[i+1] != NULL);
+		int flags = CHECK_DETAILED |
+			(di ? (CHECK_DROPINUSE | CHECK_REPAIR_SPARSE) : 0) |
+			(ro ? CHECK_READONLY : 0) |
+			(raw_delta ? CHECK_RAW : 0);
+		__u32 cur_blocksize = raw_delta ? *blocksize : 0;
 
-		ret = ploop_check(images[i], flags, ro, raw_delta, 0, &cur_blocksize);
+		ret = ploop_check(images[i], flags, &cur_blocksize);
 		if (ret) {
 			ploop_err(0, "%s : irrecoverable errors (%s)",
 					images[i], ro ? "ro" : "rw");

@@ -57,6 +57,9 @@
 #define CHECK_DROPINUSE	0x04
 #define CHECK_DETAILED	0x08
 #define CHECK_REPAIR_SPARSE	0x10
+#define CHECK_READONLY		0x20	/* do a read-only check */
+#define CHECK_TALKATIVE		0x40	/* be verbose, produce more output */
+#define CHECK_RAW		0x80	/* delta is in raw format */
 
 #define S2B(sec) ((off_t)(sec) << PLOOP1_SECTOR_LOG)
 #define B2S(sec) ((sec) >> PLOOP1_SECTOR_LOG)
@@ -276,8 +279,7 @@ struct relocmap *relocmap_alloc(int n);
 struct ploop_relocblks_ctl;
 int relocmap2relocblks(struct relocmap *relocmap, int lvl, __u32 a_h, __u32 n_scanned,
 			struct ploop_relocblks_ctl **relocblks_pp);
-PL_EXT int ploop_check(char *img, int flags, int ro, int raw, int verbose,
-		__u32 *blocksize_p);
+PL_EXT int ploop_check(char *img, int flags, __u32 *blocksize_p);
 int check_deltas(struct ploop_disk_images_data *di, char **images,
 		int raw, __u32 *blocksize);
 PL_EXT int check_dd(struct ploop_disk_images_data *di, const char *uuid);
