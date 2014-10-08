@@ -1715,7 +1715,7 @@ static int check_mount_restrictions(char **images)
 
 	for (i = 0; images[i] != NULL; i++) {
 		if (stat(images[i], &st) < 0) {
-			ploop_err(errno, "Unable to statfs %s", images[i]);
+			ploop_err(errno, "Unable to stat %s", images[i]);
 			return -1;
 		}
 		/* device already checked */
