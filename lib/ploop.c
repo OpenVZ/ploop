@@ -1589,24 +1589,33 @@ err:
 
 /* Checks a mount point hosting a ploop image
  * for bad (i.e. not recommended) mount options
- * and display warning message
+ * and display a warning message if such an option
+ * is present.
+ *
+ * Returns:
+ *  -1: internal error
+ *   1: bad mount option found
+ *   0: everything is fine
+ *
+ * TODO: change a warning into an error
  */
-static void check_host_ext4_mount_opts(const char *file)
+static int check_host_ext4_mount_opts(const char *file)
 {
 	struct stat st;
 	char buf[PATH_MAX * 4];
 	FILE *fp;
 	const char *bad_opt="data=writeback";
+	int ret = -1;
 
 	if (stat(file, &st)) {
 		ploop_err(errno, "Can't stat %s", file);
-		return;
+		return -1;
 	}
 
 	fp = fopen("/proc/self/mountinfo", "r");
 	if (!fp) {
 		ploop_err(errno, "Can't open /proc/self/mountinfo");
-		return;
+		return -1;
 	}
 
 	while (fgets(buf, sizeof(buf), fp)) {
@@ -1628,12 +1637,16 @@ static void check_host_ext4_mount_opts(const char *file)
 		opt = strrchr(buf, ' ');
 		if (opt == NULL) /* should never happen */
 			break;
+
+		ret = 0;
 		/* check mount options */
-		if (strstr(opt, bad_opt) != NULL)
+		if (strstr(opt, bad_opt) != NULL) {
+			/* ret = 1; FIXME: warning for now */
 			ploop_log(-1, "WARNING: %s is mounted with %s "
 					"not recommended for ploop; "
 					"please use data=ordered instead",
 					target, bad_opt);
+		}
 		goto out;
 	}
 
@@ -1642,7 +1655,7 @@ static void check_host_ext4_mount_opts(const char *file)
 out:
 	fclose(fp);
 
-	return;
+	return ret;
 }
 
 #ifndef FS_IOC_GETFLAGS
@@ -1655,7 +1668,7 @@ out:
 static int check_ext4_mount_restrictions(const char *fname)
 {
 	struct statfs st;
-	int fd;
+	int fd, ret;
 	long flags;
 
 	if (statfs(fname, &st) < 0) {
@@ -1666,7 +1679,9 @@ static int check_ext4_mount_restrictions(const char *fname)
 	if (st.f_type != EXT4_SUPER_MAGIC)
 		return 0;
 
-	check_host_ext4_mount_opts(fname);
+	ret = check_host_ext4_mount_opts(fname);
+	if (ret)
+		return ret;
 
 	if (getenv("PLOOP_SKIP_EXT4_EXTENTS_CHECK") == NULL) {
 		fd = open(fname, O_RDONLY);
