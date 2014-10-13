@@ -1210,6 +1210,9 @@ static int ploop_mount_fs(struct ploop_mount_param *param)
 		if (e2fsck(part_device, E2FSCK_PREEN, &param->fsck_rc))
 			return SYSEXIT_FSCK;
 
+	if (param->target == NULL)
+		return 0;
+
 	/* Two step mount
 	 * 1 mount ro and read balloon inode
 	 * 2 remount with balloon_ino=ino
@@ -1781,7 +1784,7 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 	if (ret)
 		goto err;
 
-	if (param->target != NULL) {
+	if (param->target != NULL || param->fsck) {
 		ret = ploop_mount_fs(param);
 		if (ret)
 			ploop_stop(lfd, param->device);
