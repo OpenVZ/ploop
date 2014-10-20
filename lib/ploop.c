@@ -1181,7 +1181,7 @@ static int reread_part(const char *device)
 		ploop_err(errno, "Can't open %s", device);
 		return -1;
 	}
-	if (do_ioctl(fd, BLKRRPART, 0) < 0)
+	if (do_ioctl(fd, BLKRRPART) < 0)
 		ploop_err(errno, "BLKRRPART %s", device);
 	close(fd);
 
