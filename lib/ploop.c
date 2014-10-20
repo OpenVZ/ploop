@@ -1500,11 +1500,7 @@ static int set_max_delta_size(int fd, __u64 size)
 {
 	/* Set max delta size to last added (top) delta */
 	ploop_log(0, "Set max delta size %llusec", size);
-	if (ioctl(fd, PLOOP_IOC_MAX_DELTA_SIZE, &size) < 0) {
-		ploop_err(errno, "PLOOP_IOC_MAX_DELTA_SIZE");
-		return SYSEXIT_DEVIOC;
-	}
-	return 0;
+	return ioctl_device(fd, PLOOP_IOC_MAX_DELTA_SIZE, &size);
 }
 
 /* NB: caller will take care about *lfd_p even if we fail */
