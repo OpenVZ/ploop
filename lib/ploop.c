@@ -1496,6 +1496,17 @@ static int create_ploop_dev(int minor)
 	return 0;
 }
 
+static int set_max_delta_size(int fd, __u64 size)
+{
+	/* Set max delta size to last added (top) delta */
+	ploop_log(0, "Set max delta size %llusec", size);
+	if (ioctl(fd, PLOOP_IOC_MAX_DELTA_SIZE, &size) < 0) {
+		ploop_err(errno, "PLOOP_IOC_MAX_DELTA_SIZE");
+		return SYSEXIT_DEVIOC;
+	}
+	return 0;
+}
+
 /* NB: caller will take care about *lfd_p even if we fail */
 static int add_deltas(struct ploop_disk_images_data *di,
 		char **images, struct ploop_mount_param *param,
@@ -1559,6 +1570,11 @@ static int add_deltas(struct ploop_disk_images_data *di,
 		if (ret)
 			goto err1;
 	}
+
+	if (di->max_delta_size != 0 &&
+			(ret = set_max_delta_size(*lfd_p, di->max_delta_size)))
+		goto err1;
+
 	if (ioctl(*lfd_p, PLOOP_IOC_START, 0) < 0) {
 		ploop_err(errno, "PLOOP_IOC_START");
 		ret = SYSEXIT_DEVIOC;
@@ -3168,4 +3184,42 @@ int ploop_get_spec(struct ploop_disk_images_data *di, struct ploop_spec *spec)
 	ploop_unlock_dd(di);
 
 	return ret;
+}
+
+int ploop_set_max_delta_size(struct ploop_disk_images_data *di, __u64 size)
+{
+	char conf[PATH_MAX];
+	char dev[64];
+	int fd = -1;
+	int rc;
+
+	if (ploop_lock_dd(di))
+		return SYSEXIT_LOCK;
+
+	rc = ploop_find_dev_by_dd(di, dev, sizeof(dev));
+	if (rc == -1) {
+		rc = SYSEXIT_SYS;
+		goto err;
+	} else if (rc == 0) {
+		fd = open(dev, O_RDONLY);
+		if (fd == -1) {
+			ploop_err(errno, "Can't open device %s", dev);
+			rc = SYSEXIT_DEVICE;
+			goto err;
+		}
+		rc = set_max_delta_size(fd, size);
+		if (rc)
+			goto err;
+	}
+
+	get_disk_descriptor_fname(di, conf, sizeof(conf));
+	di->max_delta_size = size;
+	rc = ploop_store_diskdescriptor(conf, di);
+err:
+	if (fd != -1)
+		close(fd);
+	ploop_unlock_dd(di);
+
+	return rc;
+
 }

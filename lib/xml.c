@@ -124,6 +124,13 @@ static int parse_xml(const char *basedir, xmlNode *root_node, struct ploop_disk_
 			di->size = val;
 	}
 
+	node = seek(cur_node, "Max_delta_size");
+	if (node != NULL) {
+		data = get_element_txt(node);
+		if (parse_ul(data, &val) == 0)
+			di->max_delta_size = val;
+	}
+
 	node = seek(cur_node, "Cylinders");
 	if (node != NULL) {
 		data = get_element_txt(node);
@@ -515,6 +522,15 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 	if (rc < 0) {
 		ploop_err(0, "Error at xmlTextWriter Disk_size");
 		goto err;
+	}
+
+	if (di->max_delta_size != 0) {
+		rc = xmlTextWriterWriteFormatElement(writer,
+				BAD_CAST "Max_delta_size", "%llu", di->max_delta_size);
+		if (rc < 0) {
+			ploop_err(0, "Error at xmlTextWriter Disk_size");
+			goto err;
+		}
 	}
 
 	rc = xmlTextWriterWriteFormatElement(writer, BAD_CAST "Cylinders", "%u", di->cylinders);

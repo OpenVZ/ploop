@@ -102,6 +102,7 @@ struct ploop_disk_images_data {
 	struct ploop_snapshot_data **snapshots;
 	struct ploop_disk_images_runtime_data *runtime;
 	unsigned int blocksize;
+	unsigned long long max_delta_size;
 	char dummy[32];
 };
 
@@ -236,6 +237,7 @@ int ploop_uuid_generate(char *uuid, int len);
 int ploop_is_large_disk_supported(void);
 int ploop_get_spec(struct ploop_disk_images_data *di, struct ploop_spec *spec);
 int ploop_get_max_size(unsigned int blocksize, unsigned long long *max);
+int ploop_set_max_delta_size(struct ploop_disk_images_data *di, unsigned long long size);
 
 const char *ploop_get_last_error(void);
 int ploop_set_log_file(const char *fname);
