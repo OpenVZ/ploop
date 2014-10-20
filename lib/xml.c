@@ -528,7 +528,7 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 		rc = xmlTextWriterWriteFormatElement(writer,
 				BAD_CAST "Max_delta_size", "%llu", di->max_delta_size);
 		if (rc < 0) {
-			ploop_err(0, "Error at xmlTextWriter Disk_size");
+			ploop_err(0, "Error at xmlTextWriter Max_delta_size");
 			goto err;
 		}
 	}
