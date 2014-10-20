@@ -1498,8 +1498,9 @@ static int create_ploop_dev(int minor)
 
 static int set_max_delta_size(int fd, __u64 size)
 {
-	/* Set max delta size to last added (top) delta */
-	ploop_log(0, "Set max delta size %llusec", size);
+	/* Set max delta size for the last added (top) delta */
+	ploop_log(0, "Setting maximum delta size to %llu sec", size);
+
 	return ioctl_device(fd, PLOOP_IOC_MAX_DELTA_SIZE, &size);
 }
 
