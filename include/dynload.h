@@ -82,8 +82,10 @@ struct ploop_functions {
 	int (*copy_receive)(struct ploop_copy_receive_param *arg);
 	int (*get_max_size)(unsigned int blocksize, unsigned long long *max);
 	int (*create_dd)(const char *ddxml, struct ploop_create_param *param);
+	/* 1.13 */
+	int (*set_max_delta_size)(struct ploop_disk_images_data *di, unsigned long long size);
 	/* padding for up to 64 pointers */
-	void *padding[13];
+	void *padding[12];
 }; /* struct ploop_functions */
 
 __attribute__ ((visibility("default")))
