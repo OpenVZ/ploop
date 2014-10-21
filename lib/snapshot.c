@@ -246,7 +246,7 @@ static int get_snapshot_count(struct ploop_disk_images_data *di)
 }
 
 static int do_create_snapshot(struct ploop_disk_images_data *di,
-		const char *guid, int temporary)
+		const char *guid, const char *snap_dir, int temporary)
 {
 	int ret;
 	int fd;
@@ -325,8 +325,20 @@ static int do_create_snapshot(struct ploop_disk_images_data *di,
 	if (ret)
 		return ret;
 
-	snprintf(fname, sizeof(fname), "%s.%s",
-			di->images[0]->file, file_guid);
+	if (snap_dir != NULL) {
+		char *name;
+
+		name = strrchr(di->images[0]->file, '/');
+		if (name != NULL)
+			name++;
+		else
+			name = di->images[0]->file;
+		snprintf(fname, sizeof(fname), "%s/%s.%s",
+				snap_dir, name,	file_guid);
+	} else
+		snprintf(fname, sizeof(fname), "%s.%s",
+				di->images[0]->file, file_guid);
+
 	ploop_di_change_guid(di, di->top_guid, snap_guid);
 	if (temporary)
 		ploop_di_set_temporary(di, snap_guid);
@@ -384,7 +396,7 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di,
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	ret = do_create_snapshot(di, param->guid, 0);
+	ret = do_create_snapshot(di, param->guid, param->snap_dir, 0);
 
 	ploop_unlock_dd(di);
 
@@ -425,7 +437,7 @@ int ploop_create_temporary_snapshot(struct ploop_disk_images_data *di,
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	ret = do_create_snapshot(di, param->guid, 1);
+	ret = do_create_snapshot(di, param->guid, NULL, 1);
 	if (ret)
 		goto err_unlock;
 
