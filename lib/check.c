@@ -357,8 +357,8 @@ int ploop_check(char *img, int flags, __u32 *blocksize_p)
 	int fd;
 	int ret = 0;
 	int ret2;
-	const int ro = flags | CHECK_READONLY;
-	const int verbose = flags | CHECK_TALKATIVE;
+	const int ro = (flags & CHECK_READONLY);
+	const int verbose = (flags & CHECK_TALKATIVE);
 	off_t bd_size;
 	struct stat stb;
 	void *buf = NULL;
@@ -390,7 +390,7 @@ int ploop_check(char *img, int flags, __u32 *blocksize_p)
 		return SYSEXIT_OPEN;
 	}
 
-	if (flags | CHECK_RAW) {
+	if (flags & CHECK_RAW) {
 		if (!blocksize_p || !*blocksize_p) {
 			ploop_err(0, "Cluster blocksize required for raw image");
 			ret = SYSEXIT_PARAM;
