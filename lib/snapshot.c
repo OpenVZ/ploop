@@ -327,6 +327,13 @@ static int do_create_snapshot(struct ploop_disk_images_data *di,
 
 	if (snap_dir != NULL) {
 		char *name;
+		char *dir;
+
+		dir = realpath(snap_dir, NULL);
+		if (dir == NULL) {
+			ploop_err(errno, "Error in realpath(%s)", snap_dir);
+			return SYSEXIT_CREAT;
+		}
 
 		name = strrchr(di->images[0]->file, '/');
 		if (name != NULL)
@@ -334,7 +341,8 @@ static int do_create_snapshot(struct ploop_disk_images_data *di,
 		else
 			name = di->images[0]->file;
 		snprintf(fname, sizeof(fname), "%s/%s.%s",
-				snap_dir, name,	file_guid);
+				dir, name,	file_guid);
+		free(dir);
 	} else
 		snprintf(fname, sizeof(fname), "%s.%s",
 				di->images[0]->file, file_guid);
