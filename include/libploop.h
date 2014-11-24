@@ -123,6 +123,7 @@ struct ploop_tsnapshot_param {
 	char *component_name;
 	char *target;
 	char device[64];	/* out: assigned device */
+	char *snap_dir;		/* folder for new delta */
 	char dummy[32];
 };
 

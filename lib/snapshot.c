@@ -445,7 +445,7 @@ int ploop_create_temporary_snapshot(struct ploop_disk_images_data *di,
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	ret = do_create_snapshot(di, param->guid, NULL, 1);
+	ret = do_create_snapshot(di, param->guid, param->snap_dir, 1);
 	if (ret)
 		goto err_unlock;
 
