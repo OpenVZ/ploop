@@ -673,6 +673,7 @@ out:
 int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *guid, int merge_mode)
 {
 	char conf[PATH_MAX];
+	char conf_tmp[PATH_MAX];
 	char dev[64];
 	char *device = NULL;
 	char *fname = NULL;
@@ -843,20 +844,29 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 	if (ret)
 		goto err;
 
+	get_disk_descriptor_fname(di, conf, sizeof(conf));
+	snprintf(conf_tmp, sizeof(conf_tmp), "%s.tmp", conf);
+	ret = ploop_store_diskdescriptor(conf_tmp, di);
+	if (ret)
+		goto err;
 
 	ret = merge_image(device, start_level, end_level, raw, merge_top, names);
 	if (ret)
 		goto err;
 
-	get_disk_descriptor_fname(di, conf, sizeof(conf));
-	ret = ploop_store_diskdescriptor(conf, di);
-	if (ret)
+	if (rename(conf_tmp, conf)) {
+		ploop_err(errno, "Can't rename %s %s",
+				conf_tmp, conf);
+		ret = SYSEXIT_RENAME;
 		goto err;
+	}
+
 	ploop_log(0, "Removing %s", delete_fname);
 	if (unlink(delete_fname)) {
 		ploop_err(errno, "unlink %s", delete_fname);
 		ret = SYSEXIT_UNLINK;
 	}
+
 	if (ret == 0)
 		ploop_log(0, "ploop %s %s has been successfully merged",
 				get_snap_str(temporary), guid);
