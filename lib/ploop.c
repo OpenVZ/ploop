@@ -1575,7 +1575,7 @@ static int add_deltas(struct ploop_disk_images_data *di,
 			goto err1;
 	}
 
-	if (di->max_delta_size != 0 &&
+	if (di != NULL && di->max_delta_size != 0 &&
 			(ret = set_max_delta_size(*lfd_p, di->max_delta_size)))
 		goto err1;
 
