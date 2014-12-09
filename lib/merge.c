@@ -788,7 +788,7 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 
 		if (end_level != -1 && start_level != -1) {
 			if (end_level != start_level + 1) {
-				ploop_err(0, "Inconsistensy detected %s [%d] %s [%d]",
+				ploop_err(0, "Inconsistency detected %s [%d] %s [%d]",
 						parent_fname, end_level, child_fname, start_level);
 				ret = SYSEXIT_PARAM;
 				goto err;
@@ -800,7 +800,7 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 		} else if (end_level == -1 && start_level == -1) {
 			online = 0;
 		} else {
-			ploop_err(0, "Inconsistensy detected %s [%d] %s [%d]",
+			ploop_err(0, "Inconsistency detected %s [%d] %s [%d]",
 					parent_fname, end_level, child_fname, start_level);
 			ret = SYSEXIT_PARAM;
 			goto err;
