@@ -306,7 +306,7 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 	if (start_level >= end_level || start_level < 0) {
 		ploop_err(0, "Invalid parameters: start_level %d end_level %d",
 			start_level, end_level);
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 	if (device) {
 		ret = ploop_complete_running_operation(device);
@@ -463,10 +463,9 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 			 * lookup lower deltas.
 			 */
 			if (da.delta_arr[0].l2[k] == 0) {
-				if (locate_l2_entry(&da, 0, i, k, &level2)) {
-					ret = -1;
+				ret = locate_l2_entry(&da, 0, i, k, &level2);
+				if (ret)
 					goto merge_done;
-				}
 				if (level2 < 0)
 					continue;
 			}
@@ -508,7 +507,7 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 							blocksize, version);
 				if (odelta.l2[k] == 0) {
 					ploop_err(0, "abort: odelta.l2[k] == 0");
-					ret = -1;
+					ret = SYSEXIT_ABORT;
 					goto merge_done;
 				}
 				odelta.l2_dirty = 1;
@@ -541,12 +540,12 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 
 		if (odelta.l2_cache < 0) {
 			ploop_err(0, "abort: odelta.l2_cache < 0");
-			ret = -1;
+			ret = SYSEXIT_ABORT;
 			goto merge_done;
 		}
 		if (odelta.l2_cache >= odelta.l1_size) {
 			ploop_err(0, "abort: odelta.l2_cache >= odelta.l1_size");
-			ret = -1;
+			ret = SYSEXIT_ABORT;
 			goto merge_done;
 		}
 
