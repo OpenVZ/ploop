@@ -361,6 +361,7 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 		if (i != 0 && blocksize != prev_blocksize) {
 			ploop_err(errno, "Wrong blocksize %s bs=%d [prev bs=%d]",
 					names[i], blocksize, prev_blocksize);
+			ret = SYSEXIT_PLOOPFMT;
 			goto merge_done2;
 		}
 		prev_blocksize = blocksize;
@@ -368,12 +369,14 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 		if (i != 0 && version != da.delta_arr[i].version) {
 			ploop_err(errno, "Wrong version %s %d [prev %d]",
 					names[i], da.delta_arr[i].version, version);
+			ret = SYSEXIT_PLOOPFMT;
 			goto merge_done2;
 		}
 		version = da.delta_arr[i].version;
 	}
 	if (blocksize == 0) {
 		ploop_err(errno, "Wrong blocksize 0");
+		ret = SYSEXIT_PLOOPFMT;
 		goto merge_done2;
 
 	}
