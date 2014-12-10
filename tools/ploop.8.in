@@ -92,7 +92,7 @@ ploop \- ploop device management utility
 .I DiskDescriptor.xml
 .YS
 .SY ploop\ check
-.OP -u UUID
+.OP -u uuid
 .I DiskDescriptor.xml
 .YS
 .SY ploop\ check
@@ -420,12 +420,12 @@ Check the internal consistency of (and possibly repair) a ploop image
 (or images). Note that image(s) to be tested should not be in use.
 
 .SY ploop\ check
-.OP -u UUID
+.OP -u uuid
 .I DiskDescriptor.xml
 .YS
 
 Check all the images in \fIDiskDescriptor.xml\fR up to the one
-denoted by the \fIUUID\fR (or default top delta, if UUID is not
+denoted by the \fIuuid\fR (or default top delta, if UUID is not
 specified). Default built-in check options are used, and the ones
 specified on the command line, if any, are ignored.
 
@@ -516,7 +516,7 @@ up to 126) stacked ploop images (or snapshots). Online snapshot merging is
 also supported.
 
 Snapshots are identified by a unique UUID. A snapshot can be mounted using
-\fBploop mount -u \fIUUID\fR command, see above.
+\fBploop mount -u \fIuuid\fR command, see above.
 
 .SS3 snapshot
 
