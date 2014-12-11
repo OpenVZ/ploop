@@ -288,7 +288,7 @@ int get_delta_info(const char *device, struct merge_info *info)
 }
 
 int merge_image(const char *device, int start_level, int end_level, int raw, int merge_top,
-		      char **images)
+		      char **images, char *new_image)
 {
 	int last_delta = 0;
 	char **names = NULL;
@@ -302,6 +302,7 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 	__u32 blocksize = 0;
 	__u32 prev_blocksize = 0;
 	int version = PLOOP_FMT_UNDEFINED;
+	const char *merged_image;
 
 	if (start_level >= end_level || start_level < 0) {
 		ploop_err(0, "Invalid parameters: start_level %d end_level %d",
@@ -314,6 +315,12 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 			return ret;
 
 		if (merge_top) {
+			if (new_image) {
+				// Can't use merge_top and new_image together
+				ploop_err(0, "Online merge of top delta to "
+						"a new one is not supported");
+				return SYSEXIT_PARAM;
+			}
 			/* top delta is in running state merged
 			by means of PLOOP_IOC_MERGE */
 			end_level--;
@@ -323,8 +330,10 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 		} else
 			names = images;
 
-		if ((ret = grow_lower_delta(device, merge_top, start_level, end_level)))
-			return ret;
+		if (!new_image)
+			if ((ret = grow_lower_delta(device, merge_top,
+						start_level, end_level)))
+				return ret;
 
 		if (end_level == 0) {
 			int lfd;
@@ -345,6 +354,14 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 	} else {
 		last_delta = get_list_size(images) - 1;
 		names = images;
+	}
+
+	if (new_image) {
+		last_delta++;
+		merged_image = new_image;
+	}
+	else {
+		merged_image = names[last_delta];
 	}
 
 	init_delta_array(&da);
@@ -381,8 +398,22 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 
 	}
 	cluster = S2B(blocksize);
+
+	if (new_image) { /* Create it */
+		struct ploop_pvd_header *vh;
+		off_t size;
+		int mode = (raw) ? PLOOP_RAW_MODE : PLOOP_EXPANDED_MODE;
+
+		vh = (struct ploop_pvd_header *)da.delta_arr[0].hdr0;
+		size = get_SizeInSectors(vh);
+
+		ret = create_image(new_image, blocksize, size, mode, version);
+		if (ret)
+			goto merge_done2;
+	}
+
 	if (!raw) {
-		if (open_delta(&odelta, names[last_delta], O_RDWR,
+		if (open_delta(&odelta, merged_image, O_RDWR,
 			       device ? OD_NOFLAGS : OD_OFFLINE)) {
 			ploop_err(errno, "open_delta");
 			ret = SYSEXIT_OPEN;
@@ -394,7 +425,7 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 			goto merge_done2;
 		}
 	} else {
-		if (open_delta_simple(&odelta, names[last_delta], O_RDWR,
+		if (open_delta_simple(&odelta, merged_image, O_RDWR,
 				      device ? 0 : OD_OFFLINE)) {
 			ret = SYSEXIT_WRITE;
 			goto merge_done2;
@@ -405,7 +436,7 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 		goto merge_done2;
 	}
 
-	if (!device) {
+	if (!device && !new_image) {
 		struct ploop_pvd_header *vh;
 		vh = (struct ploop_pvd_header *)da.delta_arr[0].hdr0;
 
@@ -417,12 +448,12 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 			off_t src_size = get_SizeInSectors(vh);
 			off_t dst_size;
 
-			ret = read_size_from_image(names[last_delta], 1, &dst_size);
+			ret = read_size_from_image(merged_image, 1, &dst_size);
 			if (ret)
 				goto merge_done;
 
 			if (src_size > dst_size) {
-				ret = grow_raw_delta(names[last_delta],
+				ret = grow_raw_delta(merged_image,
 					       S2B(src_size - dst_size));
 				if (ret)
 					goto merge_done;
@@ -527,7 +558,7 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 
 	if (device && allocated &&
 	    odelta.fops->update_size &&
-	    (ret = odelta.fops->update_size(odelta.fd, names[last_delta]))) {
+	    (ret = odelta.fops->update_size(odelta.fd, merged_image))) {
 		ploop_err(errno, "update_size");
 		goto merge_done;
 	}
@@ -592,6 +623,21 @@ merge_done:
 			goto merge_done2;
 		}
 
+		if (new_image) {
+			int fd;
+
+			fd = open(new_image, O_DIRECT | O_RDONLY);
+			if (fd < 0) {
+				ploop_err(errno, "Can't open %s", new_image);
+				ret = SYSEXIT_OPEN;
+				goto close_lfd;
+			}
+			ret = do_replace_delta(lfd, start_level, fd, blocksize, new_image);
+			close(fd);
+			if (ret)
+				goto close_lfd;
+		}
+
 		level = start_level + 1;
 
 		for (i = start_level + 1; i <= end_level; i++) {
@@ -606,7 +652,7 @@ merge_done:
 			ploop_log(0, "Merging top delta");
 			ret = ioctl_device(lfd, PLOOP_IOC_MERGE, 0);
 		}
-
+close_lfd:
 		close(lfd);
 	}
 merge_done2:
@@ -852,7 +898,7 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 	if (ret)
 		goto err;
 
-	ret = merge_image(device, start_level, end_level, raw, merge_top, names);
+	ret = merge_image(device, start_level, end_level, raw, merge_top, names, NULL);
 	if (ret)
 		goto err;
 

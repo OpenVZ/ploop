@@ -563,7 +563,7 @@ static void fill_diskdescriptor(struct ploop_pvd_header *vh, struct ploop_disk_i
 	di->sectors = vh->m_Sectors;
 }
 
-static int create_image(const char *file, __u32 blocksize, off_t size_sec, int mode,
+int create_image(const char *file, __u32 blocksize, off_t size_sec, int mode,
 		int version)
 {
 	int fd = -1;

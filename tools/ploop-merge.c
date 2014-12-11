@@ -134,7 +134,7 @@ int plooptool_merge(int argc, char ** argv)
 			merge_top = info.merge_top;
 		}
 
-		ret = merge_image(device, start_level, end_level, raw, merge_top, names);
+		ret = merge_image(device, start_level, end_level, raw, merge_top, names, NULL);
 	}
 
 	return ret;
