@@ -34,8 +34,8 @@
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: ploop merge -d DEVICE [-l LEVEL[..TOP_LEVEL]]\n"
-			"       ploop merge [-f raw] DELTAS_TO_MERGE BASE_DELTA\n"
+	fprintf(stderr, "Usage: ploop merge -d DEVICE [-l LEVEL[..TOP_LEVEL]] [-n NEW_DELTA]\n"
+			"       ploop merge [-f raw] [-n NEW_DELTA] DELTAS_TO_MERGE BASE_DELTA\n"
 			"       ploop merge [-u <uuid> | -A] DiskDescriptor.xml\n");
 }
 
@@ -47,10 +47,11 @@ int plooptool_merge(int argc, char ** argv)
 	int merge_top = 0;
 	char *device = NULL;
 	char **names = NULL;
+	char *new_image = NULL;
 	int i, f, ret;
 	struct ploop_merge_param param = {};
 
-	while ((i = getopt(argc, argv, "f:d:l:u:A")) != EOF) {
+	while ((i = getopt(argc, argv, "f:d:l:n:u:A")) != EOF) {
 		switch (i) {
 		case 'f':
 			f = parse_format_opt(optarg);
@@ -75,6 +76,9 @@ int plooptool_merge(int argc, char ** argv)
 				usage();
 				return SYSEXIT_PARAM;
 			}
+			break;
+		case 'n':
+			new_image = optarg;
 			break;
 		case 'u':
 			param.guid = parse_uuid(optarg);
@@ -134,7 +138,7 @@ int plooptool_merge(int argc, char ** argv)
 			merge_top = info.merge_top;
 		}
 
-		ret = merge_image(device, start_level, end_level, raw, merge_top, names, NULL);
+		ret = merge_image(device, start_level, end_level, raw, merge_top, names, new_image);
 	}
 
 	return ret;
