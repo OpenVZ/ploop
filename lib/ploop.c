@@ -1286,13 +1286,36 @@ out:
 	return ret;
 }
 
+int do_replace_delta(int devfd, int level, int imgfd, __u32 blocksize,
+		const char *image)
+{
+	struct ploop_ctl_delta req = {};
+
+	req.c.pctl_cluster_log = ffs(blocksize) - 1;
+	req.c.pctl_level = level;
+	req.c.pctl_chunks = 1;
+	req.c.pctl_format = PLOOP_FMT_PLOOP1;
+	req.c.pctl_flags = PLOOP_FMT_RDONLY;
+
+	req.f.pctl_type = PLOOP_IO_AUTO;
+	req.f.pctl_fd = imgfd;
+
+	if (ioctl(devfd, PLOOP_IOC_REPLACE_DELTA, &req) < 0) {
+		ploop_err(errno, "Can't replace image %s", image);
+		if (errno == EBUSY)
+			print_sys_block_ploop();
+		return SYSEXIT_DEVIOC;
+	}
+
+	return 0;
+}
+
 int replace_delta(const char *device, int level, const char *image)
 {
 	int fd = -1, lfd = -1;
 	int top_level = 0;
 	int ret;
 	__u32 blocksize = 0;
-	struct ploop_ctl_delta req = {};
 
 	fd = open(image, O_DIRECT | O_RDONLY);
 	if (fd < 0) {
@@ -1323,23 +1346,7 @@ int replace_delta(const char *device, int level, const char *image)
 		goto out;
 	}
 
-	req.c.pctl_cluster_log = ffs(blocksize) - 1;
-	req.c.pctl_level = level;
-	req.c.pctl_chunks = 1;
-	req.c.pctl_format = PLOOP_FMT_PLOOP1;
-	req.c.pctl_flags = PLOOP_FMT_RDONLY;
-
-	req.f.pctl_type = PLOOP_IO_AUTO;
-	req.f.pctl_fd = fd;
-
-	if (ioctl(lfd, PLOOP_IOC_REPLACE_DELTA, &req) < 0) {
-		if (errno == EBUSY)
-			print_sys_block_ploop();
-		ploop_err(errno, "Can't replace image %s", image);
-		ret = SYSEXIT_DEVIOC;
-		goto out;
-	}
-	ret = 0;
+	ret = do_replace_delta(lfd, level, fd, blocksize, image);
 
 out:
 	if (lfd >= 0)
