@@ -309,6 +309,11 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 			start_level, end_level);
 		return SYSEXIT_PARAM;
 	}
+	if (new_image && access(new_image, F_OK) == 0) {
+		ploop_err(EEXIST, "Invalid new image %s", new_image);
+		return SYSEXIT_PARAM;
+	}
+
 	if (device) {
 		ret = ploop_complete_running_operation(device);
 		if (ret)
