@@ -441,13 +441,13 @@ int grow_delta(struct delta *odelta, off_t bdsize, void *buf,
 
 	if (odelta->alloc_head < odelta->l1_size) {
 		ploop_err(0, "grow_delta: odelta->alloc_head < odelta->l1_size");
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	/* assume that we're called early enough */
 	if (odelta->l2_cache >= 0) {
 		ploop_err(0, "odelta->l2_cache >= 0");
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 
 	/* Total number of image-blocks in the image file is lesser
