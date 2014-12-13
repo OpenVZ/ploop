@@ -3227,3 +3227,127 @@ err:
 	return rc;
 
 }
+
+int copy_delta(const char *src, const char *dst)
+{
+	void *buf = NULL;
+	int sfd = -1, dfd = -1;
+	struct ploop_pvd_header *vh;
+	int version, cluster = DEF_CLUSTER;
+	struct stat st;
+	off_t i;
+	int ret = 0;
+
+	sfd = open(src, O_DIRECT | O_RDONLY);
+	if (sfd < 0) {
+		ploop_err(errno, "Can't open %s", src);
+		return SYSEXIT_OPEN;
+	}
+
+	dfd = open(dst, O_RDWR | O_CREAT | O_DIRECT | O_EXCL, 0600);
+	if (dfd < 0) {
+		ploop_err(errno, "Can't create %s", dst);
+		ret = SYSEXIT_CREAT;
+		goto out;
+	}
+
+	if (fstat(sfd, &st)) {
+		ploop_err(errno, "Can't fstat %s", src);
+		ret = SYSEXIT_OPEN;
+		goto out;
+	}
+
+	if (p_memalign(&buf, 4096, cluster)) {
+		ret = SYSEXIT_MALLOC;
+		goto out;
+	}
+
+	/* Read header */
+	ret = read_safe(sfd, buf, 4096, 0, "read PVD header");
+	if (ret)
+		goto out;
+	vh = buf;
+
+	/* Do some minor checks on header */
+	ret = SYSEXIT_PLOOPFMT;
+	version = ploop1_version(vh);
+	if (version == PLOOP_FMT_ERROR) {
+		ploop_err(0, "Wrong signature in image %s", src);
+		goto out;
+	}
+	if (vh->m_Type != PRL_IMAGE_COMPRESSED) {
+		ploop_err(0, "Wrong type in image %s", src);
+		goto out;
+	}
+	if (!is_valid_blocksize(vh->m_Sectors)) {
+		ploop_err(0, "Wrong cluster size %d in image %s",
+				vh->m_Sectors, src);
+		goto out;
+	}
+	if (vh->m_FirstBlockOffset % vh->m_Sectors != 0) {
+		ploop_err(0, "Wrong first block offset in image %s", src);
+		goto out;
+	}
+	if (vh->m_DiskInUse) {
+		ploop_err(0, "Image %s is in use", src);
+		ret = SYSEXIT_PLOOPINUSE;
+		goto out;
+	}
+
+	/* Does cluster size differs from default? */
+	if (cluster != S2B(vh->m_Sectors)) {
+		/* realloc */
+		cluster = S2B(vh->m_Sectors);
+		free(buf);
+		if (p_memalign(&buf, 4096, cluster)) {
+			ret = SYSEXIT_MALLOC;
+			goto out;
+		}
+	}
+
+	/* Check file size for sanity, should be X clusters */
+	if (st.st_size % cluster != 0) {
+		ploop_err(0, "Bad file size of image %s", src);
+		ret = SYSEXIT_PLOOPFMT;
+		goto out;
+	}
+
+	ploop_log(0, "Copying %lu MB delta %s to %s",
+			st.st_size >> 20, src, dst);
+
+	/* Preallocate disk space */
+	if (sys_fallocate(dfd, 0, 0, st.st_size) && errno != ENOTSUP) {
+		ploop_err(errno, "Can't fallocate(%s, %lu)", dst, st.st_size);
+		ret = SYSEXIT_FALLOCATE;
+		goto out;
+	}
+
+	/* Copy data */
+	for (i = 0; i < st.st_size; i+=cluster) {
+		ret = read_safe(sfd, buf, cluster, i, "read cluster");
+		if (ret)
+			goto out;
+		ret = write_safe(dfd, buf, cluster, i, "write cluster");
+		if (ret)
+			goto out;
+	}
+
+	if (fsync(dfd)) {
+		ploop_err(errno, "Failed to sync %s", dst);
+		ret = SYSEXIT_FSYNC;
+		goto out;
+	}
+
+	ret = 0;
+out:
+	if (buf)
+		free(buf);
+	if (sfd >= 0)
+		close(sfd);
+	if (dfd >= 0)
+		close(dfd);
+	if (ret && ret != SYSEXIT_CREAT)
+		unlink(dst);
+
+	return ret;
+}

@@ -437,5 +437,6 @@ int create_image(const char *file, __u32 blocksize, off_t size_sec, int mode,
 		int version);
 int do_replace_delta(int devfd, int level, int imgfd, __u32 blocksize,
 		const char *image);
+int copy_delta(const char *src, const char *dst);
 
 #endif
