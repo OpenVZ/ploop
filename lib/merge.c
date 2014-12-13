@@ -321,12 +321,6 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 			return ret;
 
 		if (merge_top) {
-			if (new_image) {
-				// Can't use merge_top and new_image together
-				ploop_err(0, "Online merge of top delta to "
-						"a new one is not supported");
-				return SYSEXIT_PARAM;
-			}
 			/* top delta is in running state merged
 			by means of PLOOP_IOC_MERGE */
 			end_level--;
@@ -344,15 +338,32 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 		if (end_level == 0) {
 			int lfd;
 
+			if (new_image) {
+				/* Special case: only one delta below top one:
+				 * copy it to new_image and do ploop_replace()
+				 */
+				ret = copy_delta(names[0], new_image);
+				if (ret)
+					return ret;
+
+				ret = replace_delta(device, start_level, new_image);
+				if (ret)
+					goto rm_delta;
+			}
 			ploop_log(0, "Merging top delta");
 			lfd = open(device, O_RDONLY);
 			if (lfd < 0) {
 				ploop_err(errno, "open dev %s", device);
-				return SYSEXIT_DEVICE;
+				ret = SYSEXIT_DEVICE;
+				goto rm_delta;
 			}
 
 			ret = ioctl_device(lfd, PLOOP_IOC_MERGE, 0);
 			close(lfd);
+
+rm_delta:
+			if (ret && new_image)
+				unlink(new_image);
 
 			return ret;
 		}
