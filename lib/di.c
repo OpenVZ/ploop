@@ -346,17 +346,17 @@ static void remove_data_from_array(void **array, int nelem, int id)
 		array[i] = array[i+1];
 }
 
-int ploop_get_child_by_uuid(struct ploop_disk_images_data *di, const char *guid, char **child_guid)
+const char * ploop_get_child_by_uuid(struct ploop_disk_images_data *di, const char *guid)
 {
 	int i;
 
 	for (i = 0; i < di->nsnapshots; i++) {
 		if (guidcmp(di->snapshots[i]->parent_guid, guid) == 0) {
-			*child_guid = di->snapshots[i]->guid;
-			return 0;
+			return di->snapshots[i]->guid;
 		}
 	}
-	return -1;
+
+	return NULL;
 }
 
 char *ploop_find_parent_by_guid(struct ploop_disk_images_data *di, const char *guid)

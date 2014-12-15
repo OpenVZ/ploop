@@ -745,8 +745,8 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 	char *parent_fname = NULL;
 	char *child_fname = NULL;
 	char *delete_fname = NULL;
-	char *child_guid = NULL;
-	char *parent_guid = NULL;
+	const char *child_guid = NULL;
+	const char *parent_guid = NULL;
 	char *names[3] = {};
 	int ret;
 	int start_level = -1;
@@ -776,12 +776,11 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 		return ret;
 	}
 	if (merge_mode == PLOOP_MERGE_WITH_CHILD) {
-		parent_guid = (char *)guid;
+		parent_guid = guid;
 		parent_fname = fname;
-		ret = ploop_get_child_by_uuid(di, guid, &child_guid);
-		if (ret) {
-			ploop_err(0, "Can't find child by uuid %s",
-					child_guid);
+		child_guid = ploop_get_child_by_uuid(di, guid);
+		if (!child_guid) {
+			ploop_err(0, "Can't find child of uuid %s", guid);
 			goto err;
 		}
 		child_fname = find_image_by_guid(di, child_guid);
@@ -793,7 +792,7 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 		temporary = di->snapshots[snap_idx]->temporary;
 	} else if (merge_mode == PLOOP_MERGE_WITH_PARENT) {
 		parent_guid = di->snapshots[snap_idx]->parent_guid;
-		child_guid = (char *)guid;
+		child_guid = guid;
 		if (strcmp(parent_guid, NONE_UUID) == 0) {
 			ploop_err(0, "Unable to merge base image");
 			goto err;

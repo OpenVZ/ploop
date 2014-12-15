@@ -400,7 +400,7 @@ int drop_statfs_info(const char *image);
 int read_statfs_info(const char *image, struct ploop_info *info);
 int get_statfs_info(const char *mnt, struct ploop_info *info);
 int ploop_get_child_count_by_uuid(struct ploop_disk_images_data *di, const char *guid);
-int ploop_get_child_by_uuid(struct ploop_disk_images_data *di, const char *guid,  char **child_guid);
+const char* ploop_get_child_by_uuid(struct ploop_disk_images_data *di, const char *guid);
 int ploop_fname_cmp(const char *p1, const char *p2);
 PL_EXT int is_valid_guid(const char *guid);
 PL_EXT int read_line(const char *path, char *nbuf, int len);
