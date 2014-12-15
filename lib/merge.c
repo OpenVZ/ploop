@@ -823,8 +823,10 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 	}
 
 	ret = ploop_find_dev_by_dd(di, dev, sizeof(dev));
-	if (ret == -1)
+	if (ret == -1) {
+		ret = SYSEXIT_SYS;
 		goto err;
+	}
 	else if (ret == 0)
 		online = 1;
 
