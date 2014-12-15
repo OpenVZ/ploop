@@ -767,8 +767,6 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 		return ret;
 	}
 
-	temporary = di->snapshots[snap_idx]->temporary;
-
 	fname = find_image_by_guid(di, guid);
 	if (fname == NULL) {
 		ploop_err(0, "Can't find image by uuid %s",
