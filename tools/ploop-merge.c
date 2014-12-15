@@ -100,6 +100,13 @@ int plooptool_merge(int argc, char ** argv)
 	if (argc == 1 && is_xml_fname(argv[0])) {
 		struct ploop_disk_images_data *di;
 
+		if (device || raw || start_level || end_level) {
+			fprintf(stderr, "Options -d, -r, -l can't be used "
+					"with DiskDescriptor.xml");
+			usage();
+			return SYSEXIT_PARAM;
+		}
+
 		if (param.guid != NULL && param.merge_all != 0) {
 			fprintf(stderr, "Options -u and -A can't be used together\n");
 			usage();
