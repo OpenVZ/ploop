@@ -2489,6 +2489,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			struct dump2fs_data data = {};
 			__u64 available_balloon_size;
 			__u64 blocks;
+			__u64 reserved_blocks;
 
 			ret = dumpe2fs(part_device, &data);
 			if (ret)
@@ -2504,12 +2505,18 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 				}
 
 				new_balloon_size = blocks - new_fs_size;
+				/* exclude data accounted by ext4 by assumption that
+				 * overhead is inodes * inode size
+				 */
+				reserved_blocks = B2S(fs.f_files * 256);
+				new_balloon_size -= new_balloon_size > reserved_blocks ?
+							reserved_blocks : new_balloon_size;
 				available_balloon_size = balloon_size + (fs.f_bfree * B2S(fs.f_bsize));
 				if (available_balloon_size < new_balloon_size) {
 					ploop_err(0, "Unable to change image size to %lu "
 							"sectors, minimal size is %llu",
 							(long)new_fs_size,
-							(blocks - available_balloon_size));
+							(blocks - available_balloon_size - reserved_blocks));
 					ret = SYSEXIT_PARAM;
 					goto err;
 				}
