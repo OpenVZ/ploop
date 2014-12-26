@@ -861,6 +861,9 @@ static int ploop_trim(const char *mount_point, __u64 minlen_b, __u64 cluster)
 
 	for (; range.minlen >= minlen_b; range.minlen /= 2) {
 		ploop_log(1, "Call FITRIM, for minlen=%lld", range.minlen);
+
+		/* range.len is reseted by FITRIM */
+		range.len = ULLONG_MAX;
 		ret = ioctl(fd, FITRIM, &range);
 		if (ret < 0) {
 			if (trim_stop)
