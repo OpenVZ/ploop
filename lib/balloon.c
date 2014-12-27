@@ -832,7 +832,7 @@ static void cancel_discard(void *data)
 
 static int ploop_trim(const char *mount_point, __u64 minlen_b, __u64 cluster)
 {
-	struct fstrim_range range = {0, ULLONG_MAX, 0};
+	struct fstrim_range range = {};
 	int fd, ret = -1;
 
 	struct sigaction sa = {
