@@ -85,7 +85,7 @@ Headers and a static version of ploop library
 %defattr(-,root,root)
 %dir %{_incdir}
 %attr(644,root,root) %{_libdir}/libploop.a
-%attr(644,root,root) %{_libdir}/libploop.so
+%{_libdir}/libploop.so
 %attr(644,root,root) %{_incdir}/libploop.h
 %attr(644,root,root) %{_incdir}/ploop_if.h
 %attr(644,root,root) %{_incdir}/ploop1_image.h
