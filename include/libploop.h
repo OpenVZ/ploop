@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2008-2014, Parallels, Inc. All rights reserved.
+ *  Copyright (C) 2008-2015, Parallels, Inc. All rights reserved.
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -138,6 +138,8 @@ struct ploop_merge_param {
 	int unused1;
 	int merge_all;
 	const char *guid;
+	const char *unused2;
+	const char *new_delta;
 	char dummy[32];
 };
 

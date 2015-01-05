@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2008-2013, Parallels, Inc. All rights reserved.
+ *  Copyright (C) 2008-2015, Parallels, Inc. All rights reserved.
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -36,7 +36,7 @@ static void usage(void)
 {
 	fprintf(stderr, "Usage: ploop merge -d DEVICE [-l LEVEL[..TOP_LEVEL]] [-n NEW_DELTA]\n"
 			"       ploop merge [-f raw] [-n NEW_DELTA] DELTAS_TO_MERGE BASE_DELTA\n"
-			"       ploop merge [-u <uuid> | -A] DiskDescriptor.xml\n");
+			"       ploop merge [-u UUID | -A] [-n NEW_DELTA] DiskDescriptor.xml\n");
 }
 
 int plooptool_merge(int argc, char ** argv)
@@ -47,7 +47,6 @@ int plooptool_merge(int argc, char ** argv)
 	int merge_top = 0;
 	char *device = NULL;
 	char **names = NULL;
-	char *new_image = NULL;
 	int i, f, ret;
 	struct ploop_merge_param param = {};
 
@@ -78,7 +77,7 @@ int plooptool_merge(int argc, char ** argv)
 			}
 			break;
 		case 'n':
-			new_image = optarg;
+			param.new_delta = optarg;
 			break;
 		case 'u':
 			param.guid = parse_uuid(optarg);
@@ -145,7 +144,7 @@ int plooptool_merge(int argc, char ** argv)
 			merge_top = info.merge_top;
 		}
 
-		ret = merge_image(device, start_level, end_level, raw, merge_top, names, new_image);
+		ret = merge_image(device, start_level, end_level, raw, merge_top, names, param.new_delta);
 	}
 
 	return ret;

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2008-2012, Parallels, Inc. All rights reserved.
+ *  Copyright (C) 2008-2015, Parallels, Inc. All rights reserved.
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -788,8 +788,9 @@ static int plooptool_snapshot_delete(int argc, char **argv)
 
 static void usage_snapshot_merge(void)
 {
-	fprintf(stderr, "Usage: ploop snapshot-merge [-u <uuid> | -A] DiskDescriptor.xml\n"
-			"       -u <uuid>     snapshot uuid (top delta if not specified)\n");
+	fprintf(stderr, "Usage: ploop snapshot-merge [-u UUID | -A] [-n DELTA] DiskDescriptor.xml\n"
+			"       -u UUID       snapshot to merge (top delta if not specified)\n"
+			"       -n DELTA      new delta file to merge to\n");
 }
 
 static int plooptool_snapshot_merge(int argc, char ** argv)
@@ -797,7 +798,7 @@ static int plooptool_snapshot_merge(int argc, char ** argv)
 	int i, ret;
 	struct ploop_merge_param param = {};
 
-	while ((i = getopt(argc, argv, "u:A")) != EOF) {
+	while ((i = getopt(argc, argv, "u:n:A")) != EOF) {
 		switch (i) {
 		case 'u':
 			param.guid = parse_uuid(optarg);
@@ -806,6 +807,9 @@ static int plooptool_snapshot_merge(int argc, char ** argv)
 			break;
 		case 'A':
 			param.merge_all = 1;
+			break;
+		case 'n':
+			param.new_delta = strdup(optarg);
 			break;
 		default:
 			usage_snapshot_merge();

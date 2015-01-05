@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2008-2012, Parallels, Inc. All rights reserved.
+ *  Copyright (C) 2008-2015, Parallels, Inc. All rights reserved.
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -137,7 +137,7 @@ static int do_delete_snapshot(struct ploop_disk_images_data *di, const char *gui
 			ploop_log(0, "ploop snapshot %s has been successfully deleted",
 				guid);
 	} else if (nelem == 1) {
-		ret = ploop_merge_snapshot_by_guid(di, guid, PLOOP_MERGE_WITH_CHILD);
+		ret = ploop_merge_snapshot_by_guid(di, guid, PLOOP_MERGE_WITH_CHILD, NULL);
 	} else if (!di->snapshots[snap_id]->temporary) {
 		ploop_log(1, "Warning: Unable to delete snapshot %s as there are %d references"
 				" to it; marking it as temporary instead",
@@ -481,7 +481,7 @@ err:
 	ploop_umount(mount_param.device, di);
 
 err_merge:
-	ploop_merge_snapshot_by_guid(di, param->guid, PLOOP_MERGE_WITH_CHILD);
+	ploop_merge_snapshot_by_guid(di, param->guid, PLOOP_MERGE_WITH_CHILD, NULL);
 
 err_unlock:
 	ploop_unlock_dd(di);

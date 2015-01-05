@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2008-2012, Parallels, Inc. All rights reserved.
+ *  Copyright (C) 2008-2015, Parallels, Inc. All rights reserved.
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -735,7 +735,8 @@ out:
 	return ret;
 }
 
-int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *guid, int merge_mode)
+int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di,
+		const char *guid, int merge_mode, const char *new_delta)
 {
 	char conf[PATH_MAX];
 	char conf_tmp[PATH_MAX];
@@ -914,9 +915,49 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di, const char *
 	if (ret)
 		goto err;
 
-	ret = merge_image(device, start_level, end_level, raw, merge_top, names, NULL);
+	ret = merge_image(device, start_level, end_level, raw, merge_top, names, new_delta);
 	if (ret)
 		goto err;
+
+	if (new_delta) {
+		/* Write new delta name to dd.xml, and remove the old file.
+		 * Note we can only write new delta now after merge_image()
+		 * as the file is created and we can use realpath() on it.
+		 */
+		int idx;
+		char *oldimg, *newimg;
+
+		newimg = realpath(new_delta, NULL);
+		if (!newimg) {
+			ploop_err(errno, "Error in realpath(%s)", new_delta);
+			ret = SYSEXIT_PARAM;
+			goto err;
+		}
+
+		idx = find_image_idx_by_guid(di, child_guid);
+		if (idx == -1) {
+			ploop_err(0, "Unable to find image by uuid %s", guid);
+			ret = SYSEXIT_PARAM;
+			goto err;
+		}
+
+		oldimg = di->images[idx]->file;
+		di->images[idx]->file = newimg;
+
+		ret = ploop_store_diskdescriptor(conf_tmp, di);
+		if (ret)
+			goto err;
+
+		ploop_log(0, "Removing %s", oldimg);
+		ret = unlink(oldimg);
+		free(oldimg);
+
+		if (ret) {
+			ploop_err(errno, "unlink %s", oldimg);
+			ret = SYSEXIT_UNLINK;
+		}
+
+	}
 
 	if (rename(conf_tmp, conf)) {
 		ploop_err(errno, "Can't rename %s %s",
@@ -959,10 +1000,10 @@ int ploop_merge_snapshot(struct ploop_disk_images_data *di, struct ploop_merge_p
 		guid = di->top_guid;
 
 	if (guid != NULL) {
-		ret = ploop_merge_snapshot_by_guid(di, guid, PLOOP_MERGE_WITH_PARENT);
+		ret = ploop_merge_snapshot_by_guid(di, guid, PLOOP_MERGE_WITH_PARENT, param->new_delta);
 	} else {
 		while (di->nsnapshots != 1) {
-			ret = ploop_merge_snapshot_by_guid(di, di->top_guid, PLOOP_MERGE_WITH_PARENT);
+			ret = ploop_merge_snapshot_by_guid(di, di->top_guid, PLOOP_MERGE_WITH_PARENT, param->new_delta);
 			if (ret)
 				break;
 		}
