@@ -305,7 +305,7 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 	const char *merged_image;
 
 	if (new_image && access(new_image, F_OK) == 0) {
-		ploop_err(EEXIST, "Invalid new image %s", new_image);
+		ploop_err(EEXIST, "Can't merge to new image %s", new_image);
 		return SYSEXIT_PARAM;
 	}
 
