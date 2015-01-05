@@ -288,7 +288,7 @@ int get_delta_info(const char *device, struct merge_info *info)
 }
 
 int merge_image(const char *device, int start_level, int end_level, int raw, int merge_top,
-		      char **images, char *new_image)
+		      char **images, const char *new_image)
 {
 	int last_delta = 0;
 	char **names = NULL;
