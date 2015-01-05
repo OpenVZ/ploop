@@ -92,6 +92,17 @@ Headers and a static version of ploop library
 %attr(644,root,root) %{_incdir}/dynload.h
 
 %changelog
+* Thu Jan  1 2015 Kir Kolyshkin <kir@openvz.org> 1.12.2-1
+- Fixes:
+-- ploop balloon discard: fix wrt 042stab10x kernel (#3156)
+-- ploop_merge_snapshot_by_guid: fix offline merge with raw base image
+-- reread_part(): repeat ioctl if EBUSY (#3081)
+- Improvements:
+-- check_mount_restrictions(): check for all images
+-- ploop check dd.xml: lock dd
+-- ploop check dd.xml: skip check if ploop is used
+-- check_deltas(): read-only check for non-top deltas
+
 * Tue Sep  2 2014 Kir Kolyshkin <kir@openvz.org> 1.12.1-1
 - Fixes:
 -- ploop copy send: fix a race that could result in image corruption
