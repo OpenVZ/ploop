@@ -996,6 +996,40 @@ static int ploop_stop(int fd, const char *devname)
 	return 0;
 }
 
+/* Convert escape sequences used in /proc/mounts, /etc/mtab
+ * and /proc/self/mountinfo files, such as:
+ *
+ *	\040 -> space
+ *	\011 -> tab
+ *	\012 -> newline
+ *	\134 -> \
+ *
+ * Taken as is from util-linux-2.24.2, licensed under GNU LGPL 2.1
+ */
+#define isoctal(a)		(((a) & ~7) == '0')
+void unmangle_to_buffer(const char *s, char *buf, size_t len)
+{
+	size_t sz = 0;
+
+	if (!s)
+		return;
+
+	while(*s && sz < len - 1) {
+		if (*s == '\\' && sz + 3 < len - 1 && isoctal(s[1]) &&
+				isoctal(s[2]) && isoctal(s[3])) {
+
+			*buf++ = 64*(s[1] & 7) + 8*(s[2] & 7) + (s[3] & 7);
+			s += 4;
+			sz += 4;
+		} else {
+			*buf++ = *s++;
+			sz++;
+		}
+	}
+	*buf = '\0';
+}
+#undef isoctal
+
 /* Returns:
  *  0 mount point is found and saved to *out
  *  1 mount point not found (fs not mounted)
@@ -1029,8 +1063,7 @@ static int get_mount_dir(const char *device, char *out, int size)
 		if (_major == PLOOP_DEV_MAJOR &&
 				(_minor == minor || _minor == minor + 1))
 		{
-			strncpy(out, target, size - 1);
-			out[size - 1] = 0;
+			unmangle_to_buffer(target, out, size);
 			ret = 0;
 			break;
 		}
