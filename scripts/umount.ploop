@@ -38,11 +38,11 @@ if [ "x$1" = "x" ]; then
 	echo "ploop-related mount point was not given"
 	exit 32
 else
-	MOUNT_POINT=$1
+	MOUNT_POINT="$1"
 fi
 
 # Call the ploop utility
-$PLOOP umount -m $MOUNT_POINT
+$PLOOP umount -m "$MOUNT_POINT"
 
 if [ $? -ne 0 ]; then
 	echo "$PLOOP umount -m $MOUNT_POINT failed"
