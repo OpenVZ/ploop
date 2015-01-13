@@ -60,7 +60,7 @@ fi
 # Clear /etc/mtab
 if [ -f $MTAB ]; then
 	MPNT=$(mangle "$MOUNT_POINT" | sed -e 's/\\/\\\\/g')
-	sed -i "\;^[a-zA-Z0-9/\.]*/$DESCRIPTOR $MPNT ploop ;d" $MTAB
+	sed -i "\;^[^ ]*/$DESCRIPTOR $MPNT ploop ;d" $MTAB
 	if [ $? -ne 0 ]; then
 		echo "Failed to save $MTAB"
 		exit 32
