@@ -12,7 +12,7 @@ DISK_DESCRIPTOR=""
 MOUNT_POINT=""
 OPTIONS=""
 OPTS_ORIG=""
-READLINK="/bin/readlink"
+READLINK="readlink"
 MTAB="/etc/mtab"
 LOGFILE="/var/log/ploop_mount.log"
 MODULES="ploop pfmt_ploop1 pfmt_raw pio_direct pio_nfs pio_kaio"
@@ -70,7 +70,7 @@ load_modules() {
 	local m
 
 	for m in $MODULES; do
-		/sbin/modprobe $m
+		modprobe $m
 	done
 }
 
