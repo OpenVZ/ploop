@@ -74,6 +74,20 @@ load_modules() {
 	done
 }
 
+mangle() {
+	echo "$1" |
+	sed	-e 's/\\/\\134/g' \
+		-e 's/ /\\040/g'  \
+		-e 's/\t/\\011/g' |
+	sed ':a;N;$!ba;s/\n/\\012/g'
+}
+
+unmangle() {
+	echo -n "$1" | sed \
+		-e 's/\\040/ /g'  -e 's/\\011/\t/g' \
+		-e 's/\\012/\n/g' -e 's/\\134/\\/g'
+}
+
 # Place the timestamp into log
 if [ "x$USER" = "x" ]; then
 	date >> $LOGFILE
@@ -158,7 +172,7 @@ done
 
 # Check that it's already mounted
 for mpoint in `awk '{print $2}' /proc/mounts`; do
-	if [ "$mpoint" = "$MOUNT_POINT" ]; then
+	if [ "$(unmangle $mpoint)" = "$MOUNT_POINT" ]; then
 		log "$MOUNT_POINT already mounted"
 		exit 32
 	fi
@@ -184,7 +198,7 @@ fi
 # Fill /etc/mtab
 if [ -f $MTAB ]; then
 	verbose "adding mount to $MTAB"
-	echo "$DISK_DESCRIPTOR $MOUNT_POINT ploop $OPTS_ORIG 0 0" >> $MTAB
+	echo "$(mangle "$DISK_DESCRIPTOR") $(mangle "$MOUNT_POINT") ploop $OPTS_ORIG 0 0" >> $MTAB
 fi
 
 exit 0
