@@ -74,7 +74,7 @@
 
 struct delta_fops
 {
-	int		(*open)(char *pathname, int flags, mode_t mode);
+	int		(*open)(const char *pathname, int flags, mode_t mode);
 	int		(*close)(int fd);
 	int		(*pread)(int fd, void *buf, size_t count, off_t offset);
 	int		(*pwrite)(int fd, void *buf, size_t count, off_t offset);
