@@ -172,11 +172,6 @@ static int grow_lower_delta(const char *device, int top, int start_level, int en
 	if ((ret = grow_delta(&odelta, src_size, buf, &grow_maps)))
 		goto done;
 
-	if (grow_maps.ctl->n_maps &&
-	    odelta.fops->update_size &&
-	    (ret = odelta.fops->update_size(odelta.fd, dst_image)))
-		goto done;
-
 	if (clear_delta(&odelta)) {
 		ploop_err(errno, "clear_delta");
 		ret = SYSEXIT_WRITE;
@@ -219,7 +214,7 @@ static int grow_lower_delta(const char *device, int top, int start_level, int en
 		goto done;
 	}
 
-	if (odelta.fops->fsync(odelta.fd)) {
+	if (fsync(odelta.fd)) {
 		ploop_err(errno, "fsync");
 		ret = SYSEXIT_FSYNC;
 	}
@@ -573,14 +568,7 @@ rm_delta:
 		}
 	}
 
-	if (device && allocated &&
-	    odelta.fops->update_size &&
-	    (ret = odelta.fops->update_size(odelta.fd, merged_image))) {
-		ploop_err(errno, "update_size");
-		goto merge_done;
-	}
-
-	if (odelta.fops->fsync(odelta.fd)) {
+	if (fsync(odelta.fd)) {
 		ploop_err(errno, "fsync");
 		ret = SYSEXIT_FSYNC;
 		goto merge_done;
@@ -609,7 +597,7 @@ rm_delta:
 			ret = SYSEXIT_WRITE;
 			goto merge_done;
 		}
-		if (odelta.fops->fsync(odelta.fd)) {
+		if (fsync(odelta.fd)) {
 			ploop_err(errno, "fsync");
 			ret = SYSEXIT_FSYNC;
 			goto merge_done;
@@ -620,7 +608,7 @@ rm_delta:
 		ploop_err(errno, "clear_delta");
 		ret = SYSEXIT_WRITE;
 	} else {
-		if (odelta.fops->fsync(odelta.fd)) {
+		if (fsync(odelta.fd)) {
 			ploop_err(errno, "fsync");
 			ret = SYSEXIT_FSYNC;
 		}

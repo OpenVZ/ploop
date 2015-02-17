@@ -65,39 +65,6 @@ int extend_delta_array(struct delta_array * p, char * path, int rw, int od_flags
 	return 0;
 }
 
-static int local_delta_open(const char *pathname, int flags, mode_t mode)
-{
-	return open(pathname, flags, mode);
-}
-static int local_delta_close(int fd)
-{
-	return close(fd);
-}
-static int local_delta_pread(int fd, void *buf, size_t count, off_t offset)
-{
-	return pread(fd, buf, count, offset);
-}
-static int local_delta_pwrite(int fd, void *buf, size_t count, off_t offset)
-{
-	return pwrite(fd, buf, count, offset);
-}
-static int local_delta_fstat(int fd, struct stat *buf)
-{
-	return fstat(fd, buf);
-}
-static int local_delta_fsync(int fd)
-{
-	return fsync(fd);
-}
-static struct delta_fops local_delta_fops = {
-	.open = local_delta_open,
-	.close = local_delta_close,
-	.pread = local_delta_pread,
-	.pwrite = local_delta_pwrite,
-	.fstat = local_delta_fstat,
-	.fsync = local_delta_fsync,
-};
-
 void close_delta(struct delta *delta)
 {
 	int err = errno;
@@ -106,22 +73,18 @@ void close_delta(struct delta *delta)
 	delta->hdr0 = NULL;
 	free(delta->l2);
 	delta->l2 = NULL;
-	if (delta->fops != NULL)
-		delta->fops->close(delta->fd);
-	delta->fops = NULL;
+	close(delta->fd);
 	delta->fd = -1;
 	errno = err;
 }
 
 int open_delta_simple(struct delta * delta, const char * path, int rw, int od_flags)
 {
-	delta->fops = &local_delta_fops;
-
 	delta->hdr0 = NULL;
 	delta->l2 = NULL;
 
 	ploop_log(0, "Opening delta %s", path);
-	delta->fd = delta->fops->open(path, rw, 0600);
+	delta->fd = open(path, rw, 0600);
 	if (delta->fd < 0) {
 		ploop_err(errno, "open %s", path);
 		return -1;
@@ -144,7 +107,7 @@ int open_delta(struct delta * delta, const char * path, int rw, int od_flags)
 	if (rc != 0)
 		return -1;
 
-	rc = delta->fops->fstat(delta->fd, &stat);
+	rc = fstat(delta->fd, &stat);
 	if (rc != 0) {
 		err = errno;
 		ploop_err(errno, "stat %s", path);
@@ -161,7 +124,7 @@ int open_delta(struct delta * delta, const char * path, int rw, int od_flags)
 	vh = p;
 	delta->hdr0 = p;
 	/* read header */
-	res = delta->fops->pread(delta->fd, delta->hdr0, 4096, 0);
+	res = pread(delta->fd, delta->hdr0, 4096, 0);
 	if (res != 4096) {
 		err = (res >= 0) ? EIO : errno;
 		ploop_err(errno, "read 1st sector of %s", path);
@@ -217,7 +180,7 @@ int change_delta_version(struct delta *delta, int version)
 			offsetof(struct ploop_pvd_header, m_Sig)))
 		return SYSEXIT_WRITE;
 
-	if (delta->fops->fsync(delta->fd)) {
+	if (fsync(delta->fd)) {
 		ploop_err(errno, "fsync");
 		return SYSEXIT_FSYNC;
 	}
@@ -230,7 +193,7 @@ int change_delta_flags(struct delta * delta, __u32 flags)
 			offsetof(struct ploop_pvd_header, m_Flags)))
 		return SYSEXIT_WRITE;
 
-	if (delta->fops->fsync(delta->fd)) {
+	if (fsync(delta->fd)) {
 		ploop_err(errno, "Failed to change delta flags");
 		return SYSEXIT_FSYNC;
 	}
@@ -241,14 +204,14 @@ static int change_delta_state(struct delta * delta, __u32 m_DiskInUse)
 {
 	ssize_t res;
 
-	res = delta->fops->pwrite(delta->fd, &m_DiskInUse, sizeof(m_DiskInUse),
+	res = pwrite(delta->fd, &m_DiskInUse, sizeof(m_DiskInUse),
 				  offsetof(struct ploop_pvd_header, m_DiskInUse));
 	if (res != sizeof(m_DiskInUse)) {
 		if (res >= 0)
 			errno = EIO;
 		return -1;
 	}
-	if (delta->fops->fsync(delta->fd))
+	if (fsync(delta->fd))
 		return -1;
 	return 0;
 }
@@ -277,7 +240,7 @@ static int READ(struct delta * delta, void * buf, unsigned int size, off_t pos)
 {
 	ssize_t res;
 
-	res = delta->fops->pread(delta->fd, buf, size, pos);
+	res = pread(delta->fd, buf, size, pos);
 	if (res != size) {
 		if (res >= 0)
 			errno = EIO;
@@ -290,7 +253,7 @@ static int WRITE(struct delta * delta, void * buf, unsigned int size, off_t pos)
 {
 	ssize_t res;
 
-	res = delta->fops->pwrite(delta->fd, buf, size, pos);
+	res = pwrite(delta->fd, buf, size, pos);
 	if (res != size) {
 		if (res >= 0)
 			errno = EIO;
@@ -314,7 +277,7 @@ int read_size_from_image(const char *img_name, int raw, off_t * res)
 		if (open_delta_simple(&delta, img_name, O_RDONLY, OD_NOFLAGS))
 			return SYSEXIT_OPEN;
 
-		if(delta.fops->fstat(delta.fd, &stat)) {
+		if (fstat(delta.fd, &stat)) {
 			ploop_err(errno, "fstat");
 			close_delta(&delta);
 			return SYSEXIT_READ;
@@ -394,7 +357,7 @@ static int relocate_block(struct delta *delta, __u32 iblk, void *buf,
 		return -1;
 	}
 
-	if (delta->fops->fsync(delta->fd)) {
+	if (fsync(delta->fd)) {
 		ploop_err(errno, "fsync");
 		return -1;
 	}
@@ -490,7 +453,7 @@ int grow_delta(struct delta *odelta, off_t bdsize, void *buf,
 		} else {
 			memset(buf, 0, cluster);
 
-			if (odelta->fops->fsync(odelta->fd)) {
+			if (fsync(odelta->fd)) {
 				ploop_err(errno, "fsync");
 				return SYSEXIT_FSYNC;
 			}
@@ -507,12 +470,12 @@ int grow_delta(struct delta *odelta, off_t bdsize, void *buf,
 	if (!gm) {
 		struct stat stat;
 
-		if (odelta->fops->fsync(odelta->fd)) {
+		if (fsync(odelta->fd)) {
 			ploop_err(errno, "fsync");
 			return SYSEXIT_FSYNC;
 		}
 
-		if (odelta->fops->fstat(odelta->fd, &stat)) {
+		if (fstat(odelta->fd, &stat)) {
 			ploop_err(errno, "fstat");
 			return SYSEXIT_FSTAT;
 		}
@@ -553,7 +516,7 @@ int grow_raw_delta(const char *image, off_t append_size)
 		goto err1;
 	}
 
-	if(delta.fops->fstat(delta.fd, &stat)) {
+	if(fstat(delta.fd, &stat)) {
 		ploop_err(errno, "fstat");
 		ret = SYSEXIT_READ;
 		goto err;
@@ -575,15 +538,12 @@ int grow_raw_delta(const char *image, off_t append_size)
 			usleep(1000);
 	}
 
-	if (delta.fops->fsync(delta.fd)) {
+	if (fsync(delta.fd)) {
 		ploop_err(errno, "fsync");
 		ret = SYSEXIT_FSYNC;
 		goto err;
 	}
 	ret = 0;
-
-	if (pos != stat.st_size && delta.fops->update_size)
-		ret = delta.fops->update_size(delta.fd, image);
 
 err:
 	close_delta(&delta);

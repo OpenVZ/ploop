@@ -72,17 +72,6 @@
 #define DEF_PATH_LIST	{ "/sbin", "/bin", "/usr/sbin", "/usr/bin", \
 			"/usr/local/sbin", "/usr/bin", NULL }
 
-struct delta_fops
-{
-	int		(*open)(const char *pathname, int flags, mode_t mode);
-	int		(*close)(int fd);
-	int		(*pread)(int fd, void *buf, size_t count, off_t offset);
-	int		(*pwrite)(int fd, void *buf, size_t count, off_t offset);
-	int		(*fstat)(int fd, struct stat *buf);
-	int		(*fsync)(int fd);
-	int		(*update_size)(int fd, const char *pathname);
-};
-
 struct delta
 {
 	int    fd;
@@ -99,7 +88,7 @@ struct delta
 	__u32  blocksize;
 	int    version;	  /* ploop1 version */
 
-	struct delta_fops *fops;
+	void *reserved1;
 };
 
 struct delta_array

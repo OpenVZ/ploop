@@ -431,7 +431,7 @@ do {							\
 	int __ret;					\
 							\
 	i = !i;						\
-	__ret = idelta.fops->pread(idelta.fd, iobuf[i],	\
+	__ret = pread(idelta.fd, iobuf[i],		\
 			(length), (position));		\
 	if (__ret < 0) {				\
 		ploop_err(errno, "Error from read");	\

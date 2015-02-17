@@ -182,7 +182,7 @@ int PWRITE(struct delta * delta, void * buf, unsigned int size, off_t off)
 {
 	ssize_t res;
 
-	res = delta->fops->pwrite(delta->fd, buf, size, off);
+	res = pwrite(delta->fd, buf, size, off);
 	if (res == size)
 		return 0;
 	if (res >= 0)
@@ -196,7 +196,7 @@ int PREAD(struct delta * delta, void *buf, unsigned int size, off_t off)
 {
 	ssize_t res;
 
-	res = delta->fops->pread(delta->fd, buf, size, off);
+	res = pread(delta->fd, buf, size, off);
 	if (res == size)
 		return 0;
 	if (res >= 0)
