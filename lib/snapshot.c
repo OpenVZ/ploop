@@ -782,7 +782,7 @@ int ploop_switch_snapshot(struct ploop_disk_images_data *di, const char *guid, i
 {
 	struct ploop_snapshot_switch_param param = {};
 
-	param.guid = (char *) guid;
+	param.guid = guid;
 	param.flags = flags;
 
 	return ploop_switch_snapshot_ex(di, &param);
