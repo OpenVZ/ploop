@@ -36,7 +36,7 @@ static void usage(void)
 {
 	fprintf(stderr, "Usage: ploop merge -d DEVICE [-l LEVEL[..TOP_LEVEL]] [-n NEW_DELTA]\n"
 			"       ploop merge [-f raw] [-n NEW_DELTA] DELTAS_TO_MERGE BASE_DELTA\n"
-			"       ploop merge [-u UUID | -A] [-n NEW_DELTA] DiskDescriptor.xml\n");
+	       );
 }
 
 int plooptool_merge(int argc, char ** argv)
@@ -47,8 +47,8 @@ int plooptool_merge(int argc, char ** argv)
 	int merge_top = 0;
 	char *device = NULL;
 	char **names = NULL;
+	const char *new_delta = NULL;
 	int i, f, ret;
-	struct ploop_merge_param param = {};
 
 	while ((i = getopt(argc, argv, "f:d:l:n:u:A")) != EOF) {
 		switch (i) {
@@ -77,15 +77,11 @@ int plooptool_merge(int argc, char ** argv)
 			}
 			break;
 		case 'n':
-			param.new_delta = optarg;
+			new_delta = optarg;
 			break;
 		case 'u':
-			param.guid = parse_uuid(optarg);
-			if (!param.guid)
-				return SYSEXIT_PARAM;
-			break;
 		case 'A':
-			param.merge_all = 1;
+			/* ignore */
 			break;
 		default:
 			usage();
@@ -97,26 +93,8 @@ int plooptool_merge(int argc, char ** argv)
 	argv += optind;
 
 	if (argc == 1 && is_xml_fname(argv[0])) {
-		struct ploop_disk_images_data *di;
-
-		if (device || raw || start_level || end_level) {
-			fprintf(stderr, "Options -d, -r, -l can't be used "
-					"with DiskDescriptor.xml");
-			usage();
-			return SYSEXIT_PARAM;
-		}
-
-		if (param.guid != NULL && param.merge_all != 0) {
-			fprintf(stderr, "Options -u and -A can't be used together\n");
-			usage();
-			return SYSEXIT_PARAM;
-		}
-
-		ret = ploop_open_dd(&di, argv[0]);
-		if (ret)
-			return ret;
-		ret = ploop_merge_snapshot(di, &param);
-		ploop_close_dd(di);
+		fprintf(stderr, "Please use ploop snapshot-merge command\n");
+		return SYSEXIT_PARAM;
 	} else {
 		if (device == NULL) {
 			if (argc < 2) {
@@ -144,7 +122,7 @@ int plooptool_merge(int argc, char ** argv)
 			merge_top = info.merge_top;
 		}
 
-		ret = merge_image(device, start_level, end_level, raw, merge_top, names, param.new_delta);
+		ret = merge_image(device, start_level, end_level, raw, merge_top, names, new_delta);
 	}
 
 	return ret;
