@@ -59,7 +59,7 @@ static int do_delete_snapshot(struct ploop_disk_images_data *di, const char *gui
 	if (snap_id == -1) {
 		ploop_err(0, "Can't find snapshot by uuid %s",
 				guid);
-		return SYSEXIT_PARAM;
+		return SYSEXIT_NOSNAP;
 	}
 	ret = ploop_find_dev_by_dd(di, dev, sizeof(dev));
 	if (ret == -1)
