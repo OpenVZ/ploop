@@ -2181,14 +2181,24 @@ int ploop_grow_image(struct ploop_disk_images_data *di, off_t size)
 {
 	int ret;
 	char device[64];
+	char conf[PATH_MAX];
+	char conf_tmp[PATH_MAX];
 
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
+	// Update size in the DiskDescriptor.xml
+	di->size = size;
+	get_disk_descriptor_fname(di, conf, sizeof(conf));
+	snprintf(conf_tmp, sizeof(conf_tmp), "%s.tmp", conf);
+	ret = ploop_store_diskdescriptor(conf_tmp, di);
+	if (ret)
+		goto err;
+
 	ret = ploop_find_dev_by_dd(di, device, sizeof(device));
 	if (ret == -1) {
 		ret = SYSEXIT_SYS;
-		goto err;
+		goto err_unlink;
 	}
 	if (ret == 0) {
 		ret = ploop_grow_device(device, size);
@@ -2200,14 +2210,14 @@ int ploop_grow_image(struct ploop_disk_images_data *di, off_t size)
 		if (i == -1) {
 			ploop_err(0, "Unable to find top delta file name");
 			ret = SYSEXIT_PARAM;
-			goto err;
+			goto err_unlink;
 		}
 
 		fname = find_image_by_guid(di, di->top_guid);
 		if (!fname) {
 			ploop_err(0, "Unable to find top delta file name");
 			ret = SYSEXIT_PARAM;
-			goto err;
+			goto err_unlink;
 		}
 
 		if (strcmp(di->snapshots[i]->parent_guid, NONE_UUID) == 0 &&
@@ -2217,6 +2227,17 @@ int ploop_grow_image(struct ploop_disk_images_data *di, off_t size)
 			ret = ploop_grow_delta_offline(fname, size);
 	}
 
+	if (ret)
+		goto err_unlink;
+
+	if (rename(conf_tmp, conf)) {
+		ploop_err(errno, "Can't rename %s to %s",
+				conf_tmp, conf);
+		ret = SYSEXIT_RENAME;
+	}
+
+err_unlink:
+	unlink(conf_tmp);
 err:
 	ploop_unlock_dd(di);
 
