@@ -1283,7 +1283,7 @@ static void print_sys_block_ploop(void)
 {
 	print_output(-1, "find",
 			"/sys/block/ploop[0-9]*/pdelta/ -type f "
-			"\( -name image -or -name io -or -name ro \) "
+			"\\( -name image -or -name io -or -name ro \\) "
 			"| xargs tail | grep -v '^$'");
 }
 
