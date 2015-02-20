@@ -107,7 +107,7 @@ static int grow_lower_delta(const char *device, int top, int start_level, int en
 	struct grow_maps grow_maps;
 	char *fmt;
 	int dst_is_raw = 0;
-	void *buf;
+	void *buf = NULL;
 	struct delta odelta = {};
 	int ret;
 	__u64 cluster;
@@ -220,6 +220,7 @@ static int grow_lower_delta(const char *device, int top, int start_level, int en
 	}
 
 done:
+	free(buf);
 	free(src_image);
 	free(dst_image);
 	close_delta(&odelta);
