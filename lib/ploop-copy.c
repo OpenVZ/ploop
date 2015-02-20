@@ -473,7 +473,7 @@ static int send_image_block(struct ploop_copy_handle *h, __u64 size,
 	void *iobuf = get_free_iobuf(h);
 
 	ploop_dbg(4, "READ size=%llu pos=%llu", size, pos);
-	*nread = idelta->fops->pread(idelta->fd, iobuf, size, pos);
+	*nread = pread(idelta->fd, iobuf, size, pos);
 	if (*nread == 0)
 		return 0;
 	if (*nread < 0) {
