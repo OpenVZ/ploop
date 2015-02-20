@@ -3391,3 +3391,100 @@ out:
 
 	return ret;
 }
+
+/*
+ * Find best blocksize for raw image.
+ * Select largest possible blocksize between 1M and 32K.
+ *
+ * Returns blocksize in sectors or -1 in case of error.
+ */
+static int select_best_blocksize(off_t size)
+{
+	int i;
+
+	for (i = 20; i >= 15; i--)
+		if (size % (1 << i) == 0)
+			return 1 << (i - PLOOP1_SECTOR_LOG);
+
+	return -1;
+}
+
+int ploop_restore_descriptor(const char *dir, char *delta_path, int raw, int blocksize)
+{
+	struct delta delta;
+	struct ploop_disk_images_data *di = NULL;
+	struct ploop_create_param param = {};
+	char ddxml[PATH_MAX];
+	char fname[PATH_MAX];
+	int ret;
+
+	if (strlen(dir) == 0)
+		return SYSEXIT_PARAM;
+
+	ret = snprintf(ddxml, sizeof(ddxml), "%s/" DISKDESCRIPTOR_XML, dir);
+	if (ret >= sizeof(ddxml)) {
+		ploop_err(0, "Output path is too long");
+		return SYSEXIT_PARAM;
+	}
+
+	if (raw) {
+		struct stat st;
+
+		param.mode = PLOOP_RAW_MODE;
+		if (stat(delta_path, &st)) {
+			ploop_err(errno, "stat %s", delta_path);
+			return SYSEXIT_OPEN;
+		}
+
+		if(blocksize) {
+			if (st.st_size % (blocksize * SECTOR_SIZE)) {
+				ploop_err(0, "Image size must be aligned "
+						"to the blocksize specified");
+				return SYSEXIT_PARAM;
+			}
+
+			param.blocksize = blocksize;
+		} else {
+			param.blocksize = select_best_blocksize(st.st_size);
+			if (param.blocksize < 0) {
+				ploop_err(0, "Image size must be aligned to 32K");
+				return SYSEXIT_PARAM;
+			}
+		}
+
+		param.size = st.st_size;
+		param.image = delta_path;
+	} else {
+		if (open_delta(&delta, delta_path, O_RDONLY, OD_ALLOW_DIRTY))
+			return SYSEXIT_OPEN;
+
+		param.size = delta.blocksize * delta.l2_size;
+		param.mode = PLOOP_EXPANDED_MODE;
+		param.image = delta_path;
+		param.blocksize = delta.blocksize;
+		param.fmt_version = delta.version;
+		close_delta(&delta);
+	}
+
+	ret = init_dd(&di, ddxml, &param);
+	if (ret)
+		return ret;
+
+	if (realpath(param.image, fname) == NULL) {
+		ploop_err(errno, "failed realpath(%s)", param.image);
+		ret = SYSEXIT_CREAT;
+		goto out;
+	}
+
+	ret = ploop_di_add_image(di, fname, TOPDELTA_UUID, NONE_UUID);
+	if (ret)
+		goto out;
+
+	ret = ploop_store_diskdescriptor(ddxml, di);
+	if (ret)
+		goto out;
+
+out:
+	ploop_close_dd(di);
+	return ret;
+}

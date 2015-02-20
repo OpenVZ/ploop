@@ -1277,6 +1277,57 @@ static int plooptool_replace(int argc, char **argv)
 	}
 }
 
+static void usage_restore_descriptor(void)
+{
+	fprintf(stderr, "Usage: ploop restore-descriptor [-f FORMAT] [-b BLOCKSIZE] IMAGE_DIR BASE_DELTA\n"
+			"       FORMAT := { raw | ploop1 }\n"
+			"       BLOCKSIZE := block size in sectors (for raw image format)"
+			"       *IMAGE_DIR := directory where to place DiskDescriptor.xml\n"
+			"       *BASE_DELTA := path to image file\n"
+		);
+}
+
+static int plooptool_restore_descriptor(int argc, char **argv)
+{
+	int i, f;
+	int raw = 0;
+	int blocksize = 0;
+	char *endptr;
+
+	while ((i = getopt(argc, argv, "f:b:")) != EOF) {
+		switch (i) {
+		case 'f':
+			f = parse_format_opt(optarg);
+			if (f < 0) {
+				usage_restore_descriptor();
+				return SYSEXIT_PARAM;
+			}
+			raw = (f == PLOOP_RAW_MODE);
+			break;
+		case 'b':
+			  blocksize = strtoul(optarg, &endptr, 0);
+			  if (*endptr != '\0') {
+				  usage_restore_descriptor();
+				  return SYSEXIT_PARAM;
+			  }
+			  break;
+		default:
+			  usage_restore_descriptor();
+			  return SYSEXIT_PARAM;
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc != 2) {
+		usage_restore_descriptor();
+		return SYSEXIT_PARAM;
+	}
+
+	return ploop_restore_descriptor(argv[0], argv[1], raw, blocksize);
+}
+
 int main(int argc, char **argv)
 {
 	char * cmd;
@@ -1373,6 +1424,8 @@ int main(int argc, char **argv)
 		return plooptool_copy(argc, argv);
 	if (strcmp(cmd, "replace") == 0)
 		return plooptool_replace(argc, argv);
+	if (strcmp(cmd, "restore-descriptor") == 0)
+		return plooptool_restore_descriptor(argc, argv);
 
 	if (cmd[0] != '-') {
 		char ** nargs;
