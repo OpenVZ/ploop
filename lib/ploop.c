@@ -1282,9 +1282,8 @@ static int ploop_mount_fs(struct ploop_mount_param *param)
 static void print_sys_block_ploop(void)
 {
 	print_output(-1, "find",
-			"/sys/block/ploop[0-9]*/ -type f "
-			"-not -name '*event' "
-			"-not -name ve_device_add "
+			"/sys/block/ploop[0-9]*/pdelta/ -type f "
+			"\( -name image -or -name io -or -name ro \) "
 			"| xargs tail | grep -v '^$'");
 }
 
