@@ -33,6 +33,7 @@ static int _s_log_verbose_level = PLOOP_LOG_NOCONSOLE; // disable stdout/stderr
 static FILE *_s_log_file = NULL;
 static struct timeval start = { };
 
+
 /* Thread Local Storage */
 static __thread char _g_log_buf[LOG_BUF_SIZE];
 
@@ -40,6 +41,21 @@ static char *get_buffer(void)
 {
 	return _g_log_buf;
 }
+
+#ifdef PLOOP_LOG_FILE
+static FILE *_s_ploop_log_file = NULL;
+__attribute__((constructor)) void __ploop_init (void)
+{
+
+	_s_ploop_log_file = fopen(PLOOP_LOG_FILE, "a");
+}
+
+__attribute__((destructor)) void __ploop_deinit (void)
+{
+	if (_s_ploop_log_file)
+		fclose(_s_ploop_log_file);
+}
+#endif
 
 static inline void get_date(char *buf, int len)
 {
@@ -93,6 +109,15 @@ static void logger_ap(int level, int err_no, const char *format, va_list ap)
 		snprintf(buf + r, sizeof(buf) - r, ": %s",
 			 strerror(err_no));
 	}
+
+#ifdef PLOOP_LOG_FILE
+	if (_s_ploop_log_file && _s_log_level >= level) {
+		get_date(date, sizeof(date));
+		fprintf(_s_ploop_log_file, "%s pid=%d: %s\n", date, getpid(), buf);
+		fflush(_s_ploop_log_file);
+	}
+#endif
+
 	if (_s_log_enable) {
 		if (_s_log_verbose_level != PLOOP_LOG_NOCONSOLE &&
 				_s_log_verbose_level >= level) {
