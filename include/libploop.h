@@ -192,6 +192,16 @@ struct ploop_copy_receive_param {
 	char dummy[32];
 };
 
+struct ploop_copy_param {
+	int ofd;
+	char dummy[32];
+};
+
+struct ploop_copy_stat {
+	__u64 xferred_total;
+	__u64 xferred;
+};
+
 /* Constants for ploop_set_verbose_level(): */
 #define PLOOP_LOG_NOCONSOLE	-2	/* disable all console logging */
 #define PLOOP_LOG_NOSTDOUT	-1	/* disable all but errors to stderr */
