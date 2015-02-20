@@ -18,6 +18,7 @@ LOCKDIR=/var/lock/ploop
 MANDIR=/usr/share/man
 MAN8DIR=$(MANDIR)/man8
 TMPFILESDIR=/usr/lib/tmpfiles.d
+LOGROTATEDIR=/etc/logrotate.d
 DEBUG=yes
 
 CFLAGS := $(if $(DEBUG),-g -O0 -DDEBUG,-O2) $(CFLAGS)
@@ -25,6 +26,7 @@ CFLAGS += -I. -I../include -fno-strict-aliasing \
 	-Wall -Wstrict-prototypes -Werror -Wformat-security \
 	-D_GNU_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64
 CFLAGS += $(RPM_OPT_FLAGS) $(CPPFLAGS)
+CFLAGS += $(if $(PLOOP_LOG_FILE), -DPLOOP_LOG_FILE=\"$(PLOOP_LOG_FILE)\")
 #CFLAGS += -DDEBUG_TIMES
 
 LDFLAGS += $(if $(DEBUG),-g -rdynamic,) -lpthread
