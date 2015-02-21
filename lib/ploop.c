@@ -3373,11 +3373,12 @@ int copy_delta(const char *src, const char *dst)
 	}
 
 	ploop_log(0, "Copying %lu MB delta %s to %s",
-			st.st_size >> 20, src, dst);
+			(unsigned long)(st.st_size >> 20), src, dst);
 
 	/* Preallocate disk space */
 	if (sys_fallocate(dfd, 0, 0, st.st_size) && errno != ENOTSUP) {
-		ploop_err(errno, "Can't fallocate(%s, %lu)", dst, st.st_size);
+		ploop_err(errno, "Can't fallocate(%s, %lu)",
+				dst, (unsigned long)st.st_size);
 		ret = SYSEXIT_FALLOCATE;
 		goto out;
 	}
