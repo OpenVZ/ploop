@@ -1,10 +1,7 @@
 include ../Makefile.inc
 
-# Get version numbers from spec file
-SPEC    := ../$(NAME).spec
-VERSION := $(shell awk '/^Version:/{print $$2}' $(SPEC))
-V_MAJOR := $(word 1,$(subst ., ,$(VERSION)))
-V_MINOR := $(patsubst $(V_MAJOR).%,%,$(VERSION))
+V_MAJOR := 1
+V_MINOR := 12
 
 LIBPLOOP        := libploop.a
 LIBPLOOP_SO     := libploop.so
