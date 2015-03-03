@@ -450,7 +450,7 @@ static int normalize_image_name(const char *basedir, const char *image, char *ou
 
 	n = strlen(basedir);
 	p = image;
-	if (strncmp(image, basedir, n) == 0)
+	if ((strncmp(image, basedir, n) == 0) && (image[n] == '/'))
 		p += n + 1;
 
 	snprintf(out, len, "%s", p);
