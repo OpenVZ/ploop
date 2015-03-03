@@ -1393,7 +1393,7 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 		struct ploop_replace_param *param)
 {
 	char dev[PATH_MAX];
-	char *file = NULL, *oldfile;
+	char *file = NULL, *oldfile, *tmp;
 	char conf[PATH_MAX], conf_tmp[PATH_MAX] = "";
 	int ret, level;
 
@@ -1465,15 +1465,15 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 	/* Write new dd.xml with changed image file */
 	get_disk_descriptor_fname(di, conf, sizeof(conf));
 	snprintf(conf_tmp, sizeof(conf_tmp), "%s.tmp", conf);
-	oldfile = di->images[level]->file;
+	tmp = di->images[level]->file;
 	di->images[level]->file = file;
 	ret = ploop_store_diskdescriptor(conf_tmp, di);
-	di->images[level]->file = oldfile;
+	di->images[level]->file = tmp;
 	if (ret)
 		goto err;
 
 	/* Do replace */
-	ploop_log(0, "Replacing %s with %s", di->images[level]->file, file);
+	ploop_log(0, "Replacing %s with %s", oldfile, file);
 	ret = replace_delta(dev, level, file);
 	if (ret)
 		goto err;
