@@ -40,6 +40,7 @@ test "$build" = "yes" && clean="yes"
 
 NAME=ploop
 RPM_SPEC=${NAME}.spec
+MAKEFILE=Makefile.inc
 
 # Try to figure out version from git
 GIT_DESC=$(git describe --tags | sed s'/^[^0-9]*-\([0-9].*\)$/\1/')
@@ -74,7 +75,8 @@ read_spec
 # Store original spec
 if test "$clean" = "yes"; then
 	cp -a $RPM_SPEC .$RPM_SPEC.$$
-	trap "mv -f .$RPM_SPEC.$$ $RPM_SPEC" EXIT
+	ATEXIT="mv -f .$RPM_SPEC.$$ $RPM_SPEC"
+	trap "$ATEXIT" EXIT
 fi
 
 # Set version/release in spec from git
@@ -94,6 +96,30 @@ if test "$GIT_VR" != "$SPEC_VR"; then
 fi
 test -z "$verbose" || \
 	grep -E -H '^Version:|^%define rel|^Source:|^%setup' $RPM_SPEC
+
+# Store original Makefile
+if test "$clean" = "yes"; then
+	cp -a $MAKEFILE .$MAKEFILE.$$
+	ATEXIT="$ATEXIT; mv -f .$MAKEFILE.$$ $MAKEFILE"
+	trap "$ATEXIT" EXIT
+fi
+
+# Set version in Makefile from git
+MF_V=$(awk -F = '($1 == "VERSION") { print $2; }' $MAKEFILE)
+MF_R=$(awk -F = '($1 == "RELEASE") { print $2; }' $MAKEFILE)
+GIT_R_MF="-$GIT_RT"
+test "$GIT_RT" = "1" && GIT_R_MF=""
+if test "$GIT_V" != "$MF_V" -o "$GIT_R_MF" != "MF_R"; then
+	test -z "$verbose" || echo "Changing $MAKEFILE:"
+	# VERSION=1.12
+	# RELEASE=
+	sed -i -e "s/^\(VERSION=\).*\$/\1$GIT_V/" \
+	       -e "s/^\(RELEASE=\).*\$/\1$GIT_R_MF/" \
+		$MAKEFILE
+fi
+
+test -z "$verbose" || \
+	grep -E -H "^VERSION=|^RELEASE=" $MAKEFILE
 
 test "$build" = "yes" || exit 0
 make rpms || exit 1
