@@ -1418,8 +1418,7 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 		goto err;
 	}
 
-	/* Image to be replaced is specified by either guid or level
-	 */
+	/* Image to be replaced is specified by either guid or level */
 	if (param->guid) {
 		if (!is_valid_guid(param->guid)) {
 			ploop_err(0, "Invalid guid specified: %s", param->guid);
@@ -1445,7 +1444,7 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 	}
 	/* Proper level check (against top_level) is to be done later
 	 * in replace_delta(). Here is just some basic sanity check.
-	 * */
+	 */
 	if (level < 0 || level >= di->nimages) {
 		ploop_err(0, "Invalid level %d", level);
 		goto err;
