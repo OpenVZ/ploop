@@ -1,7 +1,7 @@
 #!/bin/sh
 
-OPTS=$(getopt -o biUFv --long \
-	build,install,update,freshen,verbose \
+OPTS=$(getopt -o biUFvo --long \
+	build,install,update,freshen,verbose,oldpackage \
 	-n 'setver.sh' -- "$@")
 
 eval set -- "$OPTS"
@@ -25,6 +25,9 @@ while true; do
 		;;
 	   -v|--verbose)
 		verbose=yes
+		;;
+	   -o|--oldpackage)
+		rpm_install_flags="${rpm_install_flags} --oldpackage"
 		;;
 	   --)
 		break
@@ -128,7 +131,7 @@ make rpms || exit 1
 test "$clean" = "yes" && rm -f ${NAME}-${GIT_VRT}.tar.bz2
 
 test -z "$install" && exit 0
-sudo rpm -${install}hv \
+sudo rpm -${install}hv ${rpm_install_flags} \
 	$(rpm --eval %{_rpmdir}/%{_arch})/${NAME}-*${GIT_VRT}*.rpm || exit 1
 
 # Remove rpms
