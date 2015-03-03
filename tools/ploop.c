@@ -1145,14 +1145,15 @@ static int plooptool_list(int argc, char **argv)
 
 static void usage_replace(void)
 {
-	fprintf(stderr, "Usage: ploop replace {-d DEVICE | -m MNT} {-l LVL | -o СDELTA} -i DELTA\n"
-			"       ploop replace {-u UUID | -l LVL | -o CDELTA} -i DELTA DiskDescriptor.xml\n"
+	fprintf(stderr, "Usage: ploop replace {-d DEVICE | -m MNT} {-l LVL | -o СDELTA} [-k] -i DELTA\n"
+			"       ploop replace {-u UUID|-l LVL|-o CDELTA} [-k] -i DELTA DiskDescriptor.xml\n"
 			"       DEVICE := ploop device, e.g. /dev/ploop0\n"
 			"       MNT := directory where ploop is mounted to\n"
 			"       LVL := NUMBER, distance from base delta\n"
 			"       UUID := UUID of image to be replaced\n"
 			"       CDELTA := path to currently used image file\n"
 			"       DELTA := path to new image file\n"
+			"       -k := keep the file name (rename DELTA to CDELTA)\n"
 	       );
 }
 
@@ -1167,7 +1168,7 @@ static int plooptool_replace(int argc, char **argv)
 		.level = -1,
 	};
 
-	while ((i = getopt(argc, argv, "d:m:l:i:u:o:")) != EOF) {
+	while ((i = getopt(argc, argv, "d:m:l:i:u:o:k")) != EOF) {
 		switch (i) {
 		case 'd':
 			device = optarg;
@@ -1188,6 +1189,9 @@ static int plooptool_replace(int argc, char **argv)
 			break;
 		case 'o':
 			param.cur_file = strdup(optarg);
+			break;
+		case 'k':
+			param.flags |= PLOOP_REPLACE_KEEP_NAME;
 			break;
 		default:
 			usage_replace();

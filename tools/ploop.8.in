@@ -72,6 +72,7 @@ ploop \- ploop device management utility
 .B -o
 .I cur_image_file
 }
+.OP -k
 .B -i
 .I image_file
 .I DiskDescriptor.xml
@@ -365,6 +366,7 @@ on a file system not supported by ploop), the result is undefined.
 .B -o
 .I cur_image_file
 }
+.OP -k
 .B -i
 .I image_file
 .I DiskDescriptor.xml
@@ -377,6 +379,11 @@ A level of image to be replaced. A level is a distance of an image
 from the base delta.
 .IP "\fB-o\fR \fIcur_image_file\fR"
 A current image file (the one to replace).
+.IP \fB-k\fR
+A flag to keep the same image file name. If this flag is set, after the image
+is replaced, a new \fIimage_file\fR is renamed to the old one (removing
+the old, now unused, image), so no modification to DiskDescriptor.xml
+is required.
 .IP "\fB-i\fR \fIimage_file\fR"
 A new replacement image.
 .IP \fIDiskDescriptor.xml\fR

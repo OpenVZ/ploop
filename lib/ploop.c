@@ -1396,6 +1396,7 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 	char *file = NULL, *oldfile, *tmp;
 	char conf[PATH_MAX], conf_tmp[PATH_MAX] = "";
 	int ret, level;
+	int keep_name = (param->flags & PLOOP_REPLACE_KEEP_NAME);
 
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
@@ -1477,19 +1478,66 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 	if (ret)
 		goto err;
 
-	/* Put a new dd.xml */
-	if (rename(conf_tmp, conf)) {
-		ploop_err(errno, "Can't rename %s to %s", conf_tmp, conf);
-		ret = SYSEXIT_RENAME;
-		/* FIXME: how to rollback now? */
-		goto err;
-	}
-	conf_tmp[0] = '\0'; /* prevent unlink() below */
+	if (keep_name) {
+		char tmp[PATH_MAX] = "";
 
-	/* Change image in di */
-	free(di->images[level]->file);
-	di->images[level]->file = file; /* malloc()ed by realpath */
-	file = NULL; /* prevent free(file) below */
+		ret = SYSEXIT_SYS;
+
+		snprintf(tmp, sizeof(tmp), "%s.XXXXXX", file);
+		if (mktemp(tmp)[0] == '\0') {
+			ploop_err(errno, "Can't mktemp(%s)", tmp);
+			goto undo_keep;
+		}
+		if (link(file, tmp)) {
+			ploop_err(errno, "Can't hardlink %s to %s", tmp, file);
+			goto undo_keep;
+		}
+		if (rename(file, oldfile)) {
+			ploop_err(errno, "Can't rename %s to %s",
+					file, oldfile);
+			goto undo_keep;
+		}
+
+		ret = 0;
+
+undo_keep:
+		if (tmp[0] && unlink(tmp)) {
+			ploop_err(errno, "Can't delete %s", tmp);
+		}
+
+		if (ret) {
+			ploop_log(0, "Rollback: replacing %s with %s",
+					file, oldfile);
+			if (replace_delta(dev, level, oldfile)) {
+				/* Hmm. We can't roll back the replace, so
+				 * let's at least keep the dd.xml consistent
+				 * with the in-kernel ploop state.
+				 */
+				ploop_log(0, "Rollback replace failed, "
+						"saving new image name "
+						"to DiskDescriptor.xml");
+				ret = 0; /* FIXME: do we want error code? */
+				keep_name = 0;
+			}
+		}
+	}
+
+	if (!keep_name) {
+		/* Put a new dd.xml */
+		ret = rename(conf_tmp, conf);
+		conf_tmp[0] = '\0'; /* prevent unlink() below */
+		if (ret) {
+			ploop_err(errno, "Can't rename %s to %s",
+					conf_tmp, conf);
+			ret = SYSEXIT_RENAME;
+			/* FIXME: how to rollback now? */
+			goto err;
+		}
+		/* Change image in di */
+		free(di->images[level]->file);
+		di->images[level]->file = file; /* malloc()ed by realpath */
+		file = NULL; /* prevent free(file) below */
+	}
 
 	ret = 0;
 err:

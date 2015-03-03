@@ -66,6 +66,11 @@ struct ploop_create_param {
 	char dummy[32];
 };
 
+/* Bit values for ploop_replace_param.flag */
+enum ploop_replace_flags {
+	PLOOP_REPLACE_KEEP_NAME		= 1 << 0,
+};
+
 struct ploop_replace_param {
 	char *file;	/* A new image file name */
 	/* Image to be replaced is specified by
@@ -73,6 +78,7 @@ struct ploop_replace_param {
 	char *guid;
 	int  level;
 	char *cur_file;
+	int  flags;
 	char dummy[32];
 };
 
