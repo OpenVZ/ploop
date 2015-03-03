@@ -1,8 +1,5 @@
 include Makefile.inc
 
-SPEC=$(NAME).spec
-VERSION=$(shell awk '/^Version:/{print $$2}' $(SPEC))
-RELEASE=$(shell awk '/^%define rel / {if ($$3 != 1) print "-"$$3}' $(SPEC))
 NAMEVER=$(NAME)-$(VERSION)$(RELEASE)
 TARBALL=$(NAMEVER).tar.bz2
 

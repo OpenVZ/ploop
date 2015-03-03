@@ -1,4 +1,6 @@
 NAME=ploop
+VERSION=1.12
+RELEASE=
 
 CC=gcc
 INSTALL=install

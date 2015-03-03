@@ -1,7 +1,7 @@
 include ../Makefile.inc
 
-V_MAJOR := 1
-V_MINOR := 12
+V_MAJOR := $(word 1,$(subst ., ,$(VERSION)))
+V_MINOR := $(patsubst $(V_MAJOR).%,%,$(VERSION))
 
 LIBPLOOP        := libploop.a
 LIBPLOOP_SO     := libploop.so
