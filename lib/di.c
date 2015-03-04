@@ -301,6 +301,17 @@ int ploop_open_dd(struct ploop_disk_images_data **di, const char *fname)
 	return 0;
 }
 
+int find_image_idx_by_file(struct ploop_disk_images_data *di, const char *file)
+{
+	int i;
+
+	for (i = 0; i < di->nimages; i++) {
+		if (!strcmp(file, di->images[i]->file))
+			return i;
+	}
+	return -1;
+}
+
 int find_image_idx_by_guid(struct ploop_disk_images_data *di, const char *guid)
 {
 	int i;

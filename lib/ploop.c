@@ -1440,6 +1440,7 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 	char conf[PATH_MAX], conf_tmp[PATH_MAX] = "";
 	int ret, level;
 	int keep_name = (param->flags & PLOOP_REPLACE_KEEP_NAME);
+	int offline = 0;
 
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
@@ -1458,8 +1459,9 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 	}
 
 	if (ploop_find_dev_by_dd(di, dev, sizeof(dev))) {
-		ploop_err(0, "Can't find running ploop device");
-		goto err;
+		ploop_log(1, "Can't find running ploop device, "
+				"doing offline replace");
+		offline = 1;
 	}
 
 	/* Image to be replaced is specified by either guid or level */
@@ -1476,14 +1478,47 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 		}
 	}
 	else if (param->cur_file) {
-		level = find_level_by_delta(dev, param->cur_file);
-		if (level < 0) {
-			ploop_err(0, "Can't find level by delta file name %s",
-					param->cur_file);
-			goto err;
+		if (offline) {
+			char basedir[PATH_MAX];
+			char image[PATH_MAX];
+			const char *cur_file = param->cur_file;
+
+			/* First we need to normalize the image file name
+			 * to be the same as in struct ploop_disk_images_data
+			 * as filled in by ploop_read_dd() and parse_xml().
+			 */
+			get_basedir(di->runtime->xml_fname,
+					basedir, sizeof(basedir));
+			if (basedir[0] != 0 && cur_file[0] != '/')
+				snprintf(image, sizeof(image), "%s%s",
+						basedir, cur_file);
+			else
+				snprintf(image, sizeof(image), "%s",
+						cur_file);
+			level = find_image_idx_by_file(di, image);
+			if (level == -1) {
+				ploop_err(0, "Can't find file %s "
+						"in DiskDescriptor.xml",
+						image);
+				goto err;
+			}
+		} else {
+			level = find_level_by_delta(dev, param->cur_file);
+			if (level < 0) {
+				ploop_err(0, "Can't find level by image file "
+						"%s", param->cur_file);
+				goto err;
+			}
 		}
 	}
 	else {
+		/* by param->level */
+		if (offline) {
+			ploop_err(0, "Can't specify level for "
+					"offline replace");
+			ret = SYSEXIT_PARAM;
+			goto err;
+		}
 		level = param->level;
 	}
 	/* Proper level check (against top_level) is to be done later
@@ -1521,17 +1556,20 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 		goto err;
 
 	/* Do replace */
-	ploop_log(0, "Replacing %s with %s", oldfile, file);
-	ret = replace_delta(dev, level, file);
-	if (ret)
-		goto err;
+	ploop_log(0, "Replacing %s with %s (%s)", oldfile, file,
+			(offline) ? "offline" : "online");
+	if (!offline) {
+	       ret = replace_delta(dev, level, file);
+	       if (ret)
+		       goto err;
+	}
 
 	if (keep_name) {
 		char tmp[PATH_MAX] = "";
 
 		ret = SYSEXIT_SYS;
 
-		if (st_nlink(file) < 2) {
+		if (!offline && st_nlink(file) < 2) {
 			/* If ploop is running, we can't just rename
 			 * the file if its st.st_nlink < 2 as it is used
 			 * by ploop and the kernel checks that the last
@@ -1564,7 +1602,7 @@ undo_keep:
 			ploop_err(errno, "Can't delete %s", tmp);
 		}
 
-		if (ret) {
+		if (ret && !offline) {
 			ploop_log(0, "Rollback: replacing %s with %s",
 					file, oldfile);
 			if (replace_delta(dev, level, oldfile)) {

@@ -315,6 +315,7 @@ int read_diskdescriptor(const char *fname, struct ploop_disk_images_data *di);
 void get_disk_descriptor_fname(struct ploop_disk_images_data *di, char *buf, int size);
 void get_disk_descriptor_lock_fname(struct ploop_disk_images_data *di, char *out, int size);
 int find_image_idx_by_guid(struct ploop_disk_images_data *di, const char *guid);
+int find_image_idx_by_file(struct ploop_disk_images_data *di, const char *file);
 int ploop_find_dev(const char *component_name, const char *image, char *out, int size);
 int ploop_find_dev_by_cn(struct ploop_disk_images_data *di, const char *component_name,
 		int check_state, char *out, int len);
