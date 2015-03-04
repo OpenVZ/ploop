@@ -1421,6 +1421,17 @@ static int cant_rename(const char *f1, const char *f2) {
 	return 0;
 }
 
+/* Return number of hardlinks for the file */
+static int st_nlink(const char *file)
+{
+	struct stat st;
+
+	if (stat(file, &st))
+		return -1;
+
+	return st.st_nlink;
+}
+
 int ploop_replace_image(struct ploop_disk_images_data *di,
 		struct ploop_replace_param *param)
 {
@@ -1520,14 +1531,25 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 
 		ret = SYSEXIT_SYS;
 
-		snprintf(tmp, sizeof(tmp), "%s.XXXXXX", file);
-		if (mktemp(tmp)[0] == '\0') {
-			ploop_err(errno, "Can't mktemp(%s)", tmp);
-			goto undo_keep;
-		}
-		if (link(file, tmp)) {
-			ploop_err(errno, "Can't hardlink %s to %s", tmp, file);
-			goto undo_keep;
+		if (st_nlink(file) < 2) {
+			/* If ploop is running, we can't just rename
+			 * the file if its st.st_nlink < 2 as it is used
+			 * by ploop and the kernel checks that the last
+			 * reference to the file is not removed.
+			 *
+			 * We need to create a hardlink to it,
+			 * rename the file, then remove the hardlink.
+			 */
+			snprintf(tmp, sizeof(tmp), "%s.XXXXXX", file);
+			if (mktemp(tmp)[0] == '\0') {
+				ploop_err(errno, "Can't mktemp(%s)", tmp);
+				goto undo_keep;
+			}
+			if (link(file, tmp)) {
+				ploop_err(errno, "Can't hardlink %s to %s",
+						tmp, file);
+				goto undo_keep;
+			}
 		}
 		if (rename(file, oldfile)) {
 			ploop_err(errno, "Can't rename %s to %s",
