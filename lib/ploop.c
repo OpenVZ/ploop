@@ -1389,6 +1389,38 @@ out:
 	return ret;
 }
 
+/* Check if f1 can be rename()d to f2.
+ * This is not a thorough check, currenty it just checks
+ * both files are on the same file system.
+ *
+ * Returns:
+ *  1	rename() will likely fail
+ *  0	rename() will likely succeed
+ * -1	internal error
+ */
+static int cant_rename(const char *f1, const char *f2) {
+	struct stat st1, st2;
+
+	if (lstat(f1, &st1)) {
+		ploop_err(errno, "Can't stat %s", f1);
+		return -1;
+	}
+	if (lstat(f2, &st2)) {
+		if (errno == ENOENT)
+			return 0; /* can rename */
+		ploop_err(errno, "Can't stat %s", f2);
+		return -1;
+	}
+	if (st1.st_dev != st2.st_dev) {
+		ploop_err(0, "Files %s and %s are on different file systems, "
+				"can't rename", f1, f2);
+		return 1; /* rename will return EXDEV */
+	}
+
+	/* FIXME: any other checks to add? */
+	return 0;
+}
+
 int ploop_replace_image(struct ploop_disk_images_data *di,
 		struct ploop_replace_param *param)
 {
@@ -1461,6 +1493,9 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 	ret = check_deltas_same(file, oldfile);
 	if (ret)
 		return ret;
+
+	if (keep_name && cant_rename(file, oldfile))
+		return SYSEXIT_RENAME;
 
 	/* Write new dd.xml with changed image file */
 	get_disk_descriptor_fname(di, conf, sizeof(conf));
