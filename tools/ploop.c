@@ -30,6 +30,7 @@
 #include <sys/types.h>
 #include <dirent.h>
 #include <ctype.h>
+#include <getopt.h>
 
 #include "ploop.h"
 #include "common.h"
@@ -1153,22 +1154,27 @@ static void usage_replace(void)
 			"       UUID := UUID of image to be replaced\n"
 			"       CDELTA := path to currently used image file\n"
 			"       DELTA := path to new image file\n"
-			"       -k := keep the file name (rename DELTA to CDELTA)\n"
+			"       -k, --keep-name    keep the file name (rename DELTA to CDELTA)\n"
 	       );
 }
 
 
 static int plooptool_replace(int argc, char **argv)
 {
-	int i;
+	int i, idx;
 	char dev[PATH_MAX];
 	char *device = NULL;
 	char *mnt = NULL;
 	struct ploop_replace_param param = {
 		.level = -1,
 	};
+	static struct option options[] = {
+		{"keep-name", no_argument, NULL, 'k'},
+		{NULL, 0, NULL, 0 }
+	};
 
-	while ((i = getopt(argc, argv, "d:m:l:i:u:o:k")) != EOF) {
+	while ((i = getopt_long(argc, argv, "d:m:l:i:u:o:k",
+					options, &idx)) != EOF) {
 		switch (i) {
 		case 'd':
 			device = optarg;
