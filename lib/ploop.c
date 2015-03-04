@@ -1486,16 +1486,18 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 	/* check a new image */
 	ret = ploop_check(file, CHECK_DETAILED | CHECK_READONLY, NULL);
 	if (ret)
-		return ret;
+		goto err;
 
 	/* check that images are identical */
 	oldfile = param->cur_file ? : di->images[level]->file;
 	ret = check_deltas_same(file, oldfile);
 	if (ret)
-		return ret;
+		goto err;
 
-	if (keep_name && cant_rename(file, oldfile))
-		return SYSEXIT_RENAME;
+	if (keep_name && cant_rename(file, oldfile)) {
+		ret = SYSEXIT_RENAME;
+		goto err;
+	}
 
 	/* Write new dd.xml with changed image file */
 	get_disk_descriptor_fname(di, conf, sizeof(conf));
