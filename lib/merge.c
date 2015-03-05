@@ -857,7 +857,8 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di,
 
 		idx = find_image_idx_by_guid(di, child_guid);
 		if (idx == -1) {
-			ploop_err(0, "Unable to find image by uuid %s", guid);
+			ploop_err(0, "Unable to find image by uuid %s",
+					child_guid);
 			ret = SYSEXIT_PARAM;
 			goto err;
 		}
