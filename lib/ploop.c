@@ -1447,7 +1447,7 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 
 	ret = SYSEXIT_PARAM;
 
-	if (!param || !param->file) {
+	if (!param->file) {
 		ploop_err(0, "New image file not specified");
 		goto err;
 	}
