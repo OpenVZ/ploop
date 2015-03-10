@@ -939,13 +939,12 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di,
 
 		ploop_log(0, "Removing %s", oldimg);
 		ret = unlink(oldimg);
-		free(oldimg);
-
 		if (ret) {
 			ploop_err(errno, "unlink %s", oldimg);
 			ret = SYSEXIT_UNLINK;
 		}
 
+		free(oldimg);
 	}
 
 	if (rename(conf_tmp, conf)) {
