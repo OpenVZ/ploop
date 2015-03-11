@@ -576,7 +576,11 @@ curly brackets.
 
 .SS3 snapshot-merge
 
-Merge a snapshot with its parent.
+Merge a snapshot with its parent. That is, contents of the delta file
+corresponding to the snapshot is merged to a parent delta, then the
+file is removed. Parent snapshot UUID is lost (as it is replaced with
+the \fIuuid\fR specified). All snapshots having the lost one as a parent
+are updated to have the \fIuuid\fR as its parent.
 
 .SY ploop\ snapshot-merge
 .OP -u uuid\fR\ |\ \fB-A
