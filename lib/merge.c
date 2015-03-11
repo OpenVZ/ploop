@@ -725,7 +725,7 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di,
 
 	nelem = ploop_get_child_count_by_uuid(di, parent_guid);
 	if (nelem > 1) {
-		ploop_err(0, "Unable to merge snapshot %s: it has %d children",
+		ploop_err(0, "Can't merge to snapshot %s: it has %d children",
 				parent_guid, nelem);
 		return SYSEXIT_PARAM;
 	}
