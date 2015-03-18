@@ -513,7 +513,7 @@ err_unlock:
 	return ret;
 }
 
-static int is_device_inuse(const char *dev)
+int is_device_inuse(const char *dev)
 {
 	int count;
 	char fname[PATH_MAX];

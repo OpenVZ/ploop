@@ -3791,7 +3791,11 @@ int check_snapshot_mount(struct ploop_disk_images_data *di,
 
 	/* Try to unmount temp snapshot(s) */
 	for (p = devs; *p != NULL; p++) {
-		ret = ploop_umount(*p, NULL);
+		if (!is_device_inuse(*p))
+			ret = ploop_umount(*p, NULL);
+		else
+			ret = SYSEXIT_EBUSY;
+
 		if (ret) {
 			/* print current device and remaining ones */
 			ploop_err(0, "Snapshot %s is busy by device(s): %s", guid,
