@@ -2118,10 +2118,8 @@ static int ploop_umount_fs(const char *mnt, struct ploop_disk_images_data *di)
 		store_statfs_info(mnt, di->images[0]->file);
 	ploop_log(0, "Unmounting file system at %s", mnt);
 	ret = do_umount(mnt);
-	if (ret)
-		return ret;
 
-	return 0;
+	return ret;
 }
 
 int ploop_umount(const char *device, struct ploop_disk_images_data *di)
