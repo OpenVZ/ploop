@@ -2131,7 +2131,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 
 	if (!device) {
 		ploop_err(0, "ploop_umount: device is not specified");
-		return -1;
+		return SYSEXIT_SYS; /* internal error */
 	}
 
 	if (get_mount_dir(device, mnt, sizeof(mnt)) == 0) {
