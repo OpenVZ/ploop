@@ -101,35 +101,57 @@ int find_delta_names(const char * device, int start_level, int end_level,
 	return 0;
 }
 
-int find_level_by_delta(const char *device, const char *delta)
+/* Finds a level for a given delta in a running ploop device.
+ *
+ * Parameters:
+ *   device	ploop device
+ *   delta	delta file name
+ *   *level	pointer to store found level to
+ *
+ * Returns:
+ *   0		found
+ *   SYSEXIT_*	error (SYSEXIT_PARAM if not found)
+ */
+int find_level_by_delta(const char *device, const char *delta, int *level)
 {
 	int i, top_level;
-	char path[PATH_MAX];
-	char nbuf[PATH_MAX];
-	char delta_r[PATH_MAX];
+	struct stat st1, st2;
 
 	if (memcmp(device, "/dev/", 5) == 0)
 		device += 5;
 
-	if (realpath(delta, delta_r) == NULL) {
-		ploop_err(errno, "Can't resolve %s", delta);
-		return -1;
+	if (stat(delta, &st1)) {
+		ploop_err(errno, "Can't stat %s", delta);
+		return SYSEXIT_FSTAT;
 	}
 	if (ploop_get_attr(device, "top", &top_level))
-		return -1;
+		return SYSEXIT_SYSFS;
 
 	for (i = 0; i <= top_level; i++) {
+		char path[PATH_MAX];
+		char nbuf[PATH_MAX];
+
 		snprintf(path, sizeof(path), "/sys/block/%s/pdelta/%d/image",
 			 device, i);
 
 		if (read_line(path, nbuf, sizeof(nbuf)))
-			return -1;
-		if (strcmp(nbuf, delta_r) == 0)
-			return i;
+			/* error is printed by read_line() */
+			return SYSEXIT_SYSFS;
+
+		if (stat(nbuf, &st2)) {
+			ploop_err(errno, "Can't stat %s", nbuf);
+			return SYSEXIT_FSTAT;
+		}
+
+		if (st1.st_dev == st2.st_dev && st1.st_ino == st2.st_ino) {
+			*level = i;
+			return 0;
+		}
 	}
 
-	return -1;
+	return SYSEXIT_PARAM; /* not found */
 }
+
 int ploop_get_attr(const char * device, const char * attr, int * res)
 {
 	char path[PATH_MAX];

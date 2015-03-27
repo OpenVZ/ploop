@@ -219,7 +219,7 @@ static inline off_t ploop_ioff_to_sec(__u32 iblk, __u32 blocksize, int version)
 int gen_uuid_pair(char *uuid1, int len1, char *uuid2, int len2);
 int find_delta_names(const char * device, int start_level, int end_level,
 			    char **names, char ** format);
-PL_EXT int find_level_by_delta(const char *device, const char *delta);
+PL_EXT int find_level_by_delta(const char *device, const char *delta, int *level);
 PL_EXT int ploop_get_attr(const char * device, const char * attr, int * res);
 int ploop_get_delta_attr(const char * device, int level, const char * attr, int * res);
 int ploop_get_size(const char * device, off_t * res);
