@@ -1528,27 +1528,11 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 	}
 	else if (param->cur_file) {
 		if (offline) {
-			char basedir[PATH_MAX];
-			char image[PATH_MAX];
-			const char *cur_file = param->cur_file;
-
-			/* First we need to normalize the image file name
-			 * to be the same as in struct ploop_disk_images_data
-			 * as filled in by ploop_read_dd() and parse_xml().
-			 */
-			get_basedir(di->runtime->xml_fname,
-					basedir, sizeof(basedir));
-			if (basedir[0] != 0 && cur_file[0] != '/')
-				snprintf(image, sizeof(image), "%s%s",
-						basedir, cur_file);
-			else
-				snprintf(image, sizeof(image), "%s",
-						cur_file);
-			level = find_image_idx_by_file(di, image);
+			level = find_image_idx_by_file(di, param->cur_file);
 			if (level == -1) {
 				ploop_err(0, "Can't find file %s "
 						"in DiskDescriptor.xml",
-						image);
+						param->cur_file);
 				goto err;
 			}
 		} else {
