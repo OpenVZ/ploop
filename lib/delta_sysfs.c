@@ -128,14 +128,10 @@ int find_level_by_delta(const char *device, const char *delta, int *level)
 		return SYSEXIT_SYSFS;
 
 	for (i = 0; i <= top_level; i++) {
-		char path[PATH_MAX];
 		char nbuf[PATH_MAX];
 
-		snprintf(path, sizeof(path), "/sys/block/%s/pdelta/%d/image",
-			 device, i);
-
-		if (read_line(path, nbuf, sizeof(nbuf)))
-			/* error is printed by read_line() */
+		if (ploop_get_delta_attr_str(device, i, "image",
+					nbuf, sizeof(nbuf)))
 			return SYSEXIT_SYSFS;
 
 		if (stat(nbuf, &st2)) {
@@ -169,6 +165,23 @@ int ploop_get_attr(const char * device, const char * attr, int * res)
 		ploop_err(0, "Unexpected format of %s: %s", path, nbuf);
 		return -1;
 	}
+	return 0;
+}
+
+int ploop_get_delta_attr_str(const char *device, int level, const char *attr,
+		char *out, int len)
+{
+	char path[PATH_MAX];
+
+	if (memcmp(device, "/dev/", 5) == 0)
+		device += 5;
+
+	snprintf(path, sizeof(path), "/sys/block/%s/pdelta/%d/%s",
+			device,	level, attr);
+
+	if (read_line(path, out, len))
+		return -1;
+
 	return 0;
 }
 
