@@ -56,10 +56,10 @@ static void usage_summary(void)
 			"       ploop balloon { show | status | clear | change | complete | check |\n"
 			"                       repair | discard } ... DiskDescriptor.xml\n"
 			"       ploop snapshot DiskDescriptor.xml\n"
-			"       ploop snapshot-delete -u <uuid> DiskDescriptor.xml\n"
-			"       ploop snapshot-merge [-u <uuid>] DiskDescriptor.xml\n"
-			"       ploop snapshot-switch -u <uuid> DiskDescriptor.xml\n"
-			"       ploop snapshot-list [-o field[,field...]] [-u <UUID>] DiskDescriptor.xml\n"
+			"       ploop snapshot-delete -u UUID DiskDescriptor.xml\n"
+			"       ploop snapshot-merge [-u UUID] DiskDescriptor.xml\n"
+			"       ploop snapshot-switch -u UUID DiskDescriptor.xml\n"
+			"       ploop snapshot-list [-o field[,field...]] [-u UUID] DiskDescriptor.xml\n"
 			"Also:  ploop { start | stop | delete | clear | merge | grow | copy |\n"
 			"               stat | info | list} ...\n"
 			"\n"
@@ -579,7 +579,7 @@ static int plooptool_rm(int argc, char **argv)
 
 static void usage_snapshot(void)
 {
-	fprintf(stderr, "Usage: ploop snapshot [-u <uuid>] DiskDescriptor.xml\n"
+	fprintf(stderr, "Usage: ploop snapshot [-u UUID] DiskDescriptor.xml\n"
 			"       ploop snapshot [-F] -d DEVICE DELTA\n"
 			"       DEVICE := ploop device, e.g. /dev/ploop0\n"
 			"       DELTA := path to new image file\n"
@@ -643,8 +643,8 @@ static int plooptool_snapshot(int argc, char **argv)
 
 static void usage_tsnapshot(void)
 {
-	fprintf(stderr, "Usage: ploop tsnapshot -u <uuid> -c <component_name>\n"
-			"	[-m MOUNT_POINT] DiskDescriptor.xml\n"
+	fprintf(stderr, "Usage: ploop tsnapshot -u UUID -c COMPONENT\n"
+			"       [-m MOUNT_POINT] DiskDescriptor.xml\n"
 		);
 }
 
@@ -696,8 +696,8 @@ static int plooptool_tsnapshot(int argc, char **argv)
 
 static void usage_snapshot_switch(void)
 {
-	fprintf(stderr, "Usage: ploop snapshot-switch -u <uuid> DiskDescriptor.xml\n"
-			"       -u <uuid>     snapshot uuid\n");
+	fprintf(stderr, "Usage: ploop snapshot-switch -u UUID DiskDescriptor.xml\n"
+			"       UUID := snapshot UUID\n");
 }
 
 static int plooptool_snapshot_switch(int argc, char **argv)
@@ -745,8 +745,8 @@ static int plooptool_snapshot_switch(int argc, char **argv)
 
 static void usage_snapshot_delete(void)
 {
-	fprintf(stderr, "Usage: ploop snapshot-delete -u <uuid> DiskDescriptor.xml\n"
-			"       -u <uuid>     snapshot uuid\n");
+	fprintf(stderr, "Usage: ploop snapshot-delete -u UUID DiskDescriptor.xml\n"
+			"       UUID := snapshot id\n");
 }
 
 static int plooptool_snapshot_delete(int argc, char **argv)
