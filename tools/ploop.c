@@ -668,7 +668,7 @@ static int plooptool_tsnapshot(int argc, char **argv)
 			param.target = optarg;
 			break;
 		default:
-			usage_snapshot();
+			usage_tsnapshot();
 			return SYSEXIT_PARAM;
 		}
 	}
