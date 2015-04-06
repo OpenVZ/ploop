@@ -1,5 +1,5 @@
 NAME=ploop
-VERSION=`cat Makefile.version`
+VERSION=$(shell cat Makefile.version)
 RELEASE=
 
 CC=gcc
