@@ -432,6 +432,8 @@ int normalize_image_name(const char *basedir, const char *image, char *out, int 
 	int n;
 
 	n = strlen(basedir);
+	while (basedir[n-1] == '/')
+		n--;
 	p = image;
 	if ((strncmp(image, basedir, n) == 0) && (image[n] == '/'))
 		p += n + 1;
