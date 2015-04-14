@@ -123,6 +123,7 @@ ploop \- ploop device management utility
 .YS
 .SY ploop\ snapshot-merge
 .OP -u uuid\fR\ |\ \fB-A
+.OP -n new_delta
 .I DiskDescriptor.xml
 .YS
 .SY ploop\ snapshot-switch
@@ -559,6 +560,7 @@ Merge a snapshot with its parent.
 
 .SY ploop\ snapshot-merge
 .OP -u uuid\fR\ |\ \fB-A
+.OP -n new_delta
 .I DiskDescriptor.xml
 .YS
 
@@ -568,6 +570,11 @@ If this option is not specified, the top delta will be used.
 .IP \fB-A\fR
 Merge all snapshots down to base delta. If some snapshots have more than
 a single child, they will be impossible to merge.
+.IP "\fB-n\fR \fInew_delta\fR"
+If this option is set, instead of merging the child delta into its parent,
+both the parent and the child deltas are merged into a newly created
+file \fInew_delta\fR, which replaces the parent delta. Both deltas are
+then removed.
 
 .SS3 snapshot-switch
 
