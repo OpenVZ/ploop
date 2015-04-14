@@ -663,6 +663,57 @@ merge_done2:
 	return ret;
 }
 
+/* Logs a line showing deltas to merge and the merge destination,
+ * that looks something like these:
+ *
+ *	Merging image: delta_file -> parent_delta_file
+ *
+ *	Merging images: delta_file_1 file_2 file_3 -> (new) new_delta
+ */
+static void log_merge_images_info(struct ploop_disk_images_data *di,
+		char **names, const char *new_delta)
+{
+	char basedir[PATH_MAX];
+	char imglist[LOG_BUF_SIZE];
+	char merged_image[PATH_MAX];
+	int i, pos = 0, nimg;
+
+	get_basedir(di->runtime->xml_fname, basedir, sizeof(basedir));
+
+	nimg = get_list_size(names) - 1;
+	if (new_delta) {
+		nimg++;
+		// merged_image is new_delta;
+		normalize_image_name(basedir, new_delta,
+				merged_image, sizeof(merged_image));
+	}
+	else {
+		// merged_image is names[nimg];
+		normalize_image_name(basedir, names[nimg],
+				merged_image, sizeof(merged_image));
+	}
+
+	for (i = 0; i < nimg; i++) {
+		int n;
+		char img[PATH_MAX];
+
+		normalize_image_name(basedir, names[i], img, sizeof(img));
+		n = snprintf(imglist + pos, sizeof(imglist) - pos, "%s ", img);
+		if (n <= 0)
+			// error?
+			break;
+		pos += n;
+		if (pos >= sizeof(imglist))
+			// output truncated!
+			break;
+	}
+
+	ploop_log(0, "Merging image%s: %s-> %s%s",
+			nimg > 1 ? "s" : "",
+			imglist,
+			new_delta ? "(new) " : "", merged_image);
+}
+
 int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di,
 		const char *guid, const char *new_delta)
 {
@@ -814,12 +865,12 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di,
 	if (ret)
 		goto err;
 
-	ploop_log(0, "%sline %s merge uuid %s -> %s image %s -> %s %s",
+	ploop_log(0, "%sline %s merge %s -> %s%s",
 			online ? "On": "Off",
 			get_snap_str(di->snapshots[parent_idx]->temporary),
 			child_guid, parent_guid,
-			names[0], names[1],
-			raw ? "raw" : "");
+			raw ? " (raw)" : "");
+	log_merge_images_info(di, names, new_delta);
 
 	/* make validation before real merge */
 	ret = ploop_di_merge_image(di, child_guid, &delete_fname);

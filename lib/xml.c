@@ -426,7 +426,7 @@ int ploop_read_disk_descr(struct ploop_disk_images_data **di, const char *file)
 	return ploop_read_dd(*di);
 }
 
-static int normalize_image_name(const char *basedir, const char *image, char *out, int len)
+int normalize_image_name(const char *basedir, const char *image, char *out, int len)
 {
 	const char *p;
 	int n;
