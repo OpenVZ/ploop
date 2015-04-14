@@ -527,6 +527,26 @@ their corresponding base images. With option
 .B -a
 it also shows a mount point (third column).
 
+.SS3 restore-descriptor
+
+Create DiskDescriptor.xml file suitable for \fIdelta_file\fR and put it into
+\fIdisk_dir\fR.
+
+.SY ploop\ restore-descriptor
+.B -f
+.I format
+.OP -b blocksize
+.I disk_dir
+.I delta_file
+.YS
+
+Read image header in case of ploop1 format or check raw image size and generate proper
+DiskDescriptor.xml file. You can specify blocksize for raw images. If it's not specified
+it will be choosen automatically - largest possible value between 32K and 1M. Raw image
+size must be aligned to blocksize.
+
+This command works only for base images. Snapshots are not supported.
+
 .SS Working with snapshots
 
 Ploop snapshots is a mechanism for creating and managing instant states of a
@@ -761,26 +781,6 @@ whole discarding operation.
 
 Note that the same functionality is available by means of \fBvzctl compact\fR
 command.
-
-.SS3 restore descriptor
-
-Create DiskDescriptor.xml file suitable for \fIdelta_file\fR and put it into
-\fIdisk_dir\fR.
-
-.SY ploop\ restore-descriptor
-.B -f
-.I format
-.OP -b blocksize
-.I disk_dir
-.I delta_file
-.YS
-
-Read image header in case of ploop1 format or check raw image size and generate proper
-DiskDescriptor.xml file. You can specify blocksize for raw images. If it's not specified
-it will be choosen automatically - largest possible value between 32K and 1M. Raw image
-size must be aligned to blocksize.
-
-This command works only for base images. Snapshots are not supported.
 
 .SS Image formats
 The following image formats are currently supported.
