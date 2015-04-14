@@ -933,6 +933,9 @@ Ploop image is not mounted.
 .BR 41 ,\  SYSEXIT_FSCK
 Error from
 .BR fsck (8).
+.TP
+.BR 43 ,\  SYSEXIT_NOSNAP
+Can't find specified snapshot UUID.
 .SH SEE ALSO
 .BR vzctl (8),
 .BR vzmigrate (8),
