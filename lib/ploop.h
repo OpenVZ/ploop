@@ -430,4 +430,13 @@ int do_replace_delta(int devfd, int level, int imgfd, __u32 blocksize,
 		const char *image);
 int copy_delta(const char *src, const char *dst);
 
+struct ploop_copy_handle;
+PL_EXT int ploop_copy_init(struct ploop_disk_images_data *di, struct ploop_copy_param *param,
+	struct ploop_copy_handle **h);
+PL_EXT int ploop_copy_start(struct ploop_copy_handle *h, struct ploop_copy_stat *stat);
+PL_EXT int ploop_copy_next_iteration(struct ploop_copy_handle *h, struct ploop_copy_stat *stat);
+PL_EXT int ploop_copy_stop(struct ploop_copy_handle *h);
+PL_EXT void ploop_copy_deinit(struct ploop_copy_handle *h);
+PL_EXT int ploop_copy_receiver(struct ploop_copy_receive_param *arg);
+
 #endif

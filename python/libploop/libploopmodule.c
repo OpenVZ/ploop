@@ -1,6 +1,6 @@
 #include <Python.h>
 #include <stdio.h>
-#include "libploop.h"
+#include "ploop.h"
 
 #define ploop_di_object_t "ploop_di_object_t"
 
