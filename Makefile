@@ -3,7 +3,7 @@ include Makefile.inc
 NAMEVER=$(NAME)-$(VERSION)$(RELEASE)
 TARBALL=$(NAMEVER).tar.bz2
 
-SUBDIRS=include lib tools scripts etc
+SUBDIRS=include lib tools scripts etc python
 
 all install clean distclean:
 	@set -e; \
