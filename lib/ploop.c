@@ -3615,7 +3615,7 @@ int ploop_restore_descriptor(const char *dir, char *delta_path, int raw, int blo
 			}
 		}
 
-		param.size = st.st_size;
+		param.size = st.st_size / SECTOR_SIZE;
 		param.image = delta_path;
 	} else {
 		if (open_delta(&delta, delta_path, O_RDONLY, OD_ALLOW_DIRTY))
