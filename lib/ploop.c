@@ -246,7 +246,7 @@ static int default_fmt_version(void)
 	return ploop_is_large_disk_supported() ? PLOOP_FMT_V2 : PLOOP_FMT_V1;
 }
 
-static int get_max_ploop_size(int version, unsigned int blocksize, __u64 *max)
+static int get_max_ploop_size(int version, unsigned int blocksize, unsigned long long *max)
 {
 	switch(version) {
 	case PLOOP_FMT_V1:
@@ -288,7 +288,7 @@ int ploop_get_max_size(unsigned int blocksize, unsigned long long *max)
 static int do_check_size(unsigned long long sectors, __u32 blocksize, int version,
 		__u64 max_fs_size)
 {
-	__u64 max;
+	unsigned long long max;
 
 	if (version == PLOOP_FMT_UNDEFINED)
 		return 0;
