@@ -3392,7 +3392,7 @@ int ploop_get_spec(struct ploop_disk_images_data *di, struct ploop_spec *spec)
 	return ret;
 }
 
-int ploop_set_max_delta_size(struct ploop_disk_images_data *di, __u64 size)
+int ploop_set_max_delta_size(struct ploop_disk_images_data *di, unsigned long long size)
 {
 	char conf[PATH_MAX];
 	char dev[64];
