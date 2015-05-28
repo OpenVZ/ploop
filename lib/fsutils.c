@@ -103,7 +103,7 @@ int make_fs(const char *device, const char *fstype, unsigned int fsblocksize)
 	char fsblock_size[14];
 	char *argv[10];
 	char ext_opts[1024];
-	__u64 max_online_resize;
+	uint64_t max_online_resize;
 
 	fsblocksize = fsblocksize != 0 ? fsblocksize : 4096;
 
@@ -118,12 +118,12 @@ int make_fs(const char *device, const char *fstype, unsigned int fsblocksize)
 			fsblocksize);
 	argv[4] = fsblock_size;
 	/* Reserve enough space so that the block group descriptor table can grow to 16T
-	 * Note: the max_online_resize is __u32 in mkfs.ext4
+	 * Note: the max_online_resize is u32 in mkfs.ext4
 	 */
 	max_online_resize = PLOOP_MAX_FS_SIZE / fsblocksize;
-	if (max_online_resize > (__u32)~0)
-		max_online_resize = (__u32)~0;
-	snprintf(ext_opts, sizeof(ext_opts), "-Elazy_itable_init,resize=%llu",
+	if (max_online_resize > (uint32_t)~0)
+		max_online_resize = (uint32_t)~0;
+	snprintf(ext_opts, sizeof(ext_opts), "-Elazy_itable_init,resize=%" PRIu64,
 			 max_online_resize);
 	argv[5] = ext_opts;
 	/* Set the journal size to 128M to allow online resize up to 16T
@@ -240,10 +240,10 @@ int dumpe2fs(const char *device, struct dump2fs_data *data)
 
 	while (fgets(buf, sizeof(buf), fp) != NULL) {
 		if ((found & BLOCK_COUNT_BIT) &&
-				sscanf(buf, "Block count: %llu", &data->block_count) == 1)
+				sscanf(buf, "Block count: %" SCNu64, &data->block_count) == 1)
 			found &= ~BLOCK_COUNT_BIT;
 		else if ((found & BLOCK_FREE_BIT) &&
-				sscanf(buf, "Free blocks: %llu", &data->block_free) == 1)
+				sscanf(buf, "Free blocks: %" SCNu64, &data->block_free) == 1)
 			found &= ~BLOCK_FREE_BIT;
 		else if ((found & BLOCK_SIZE_BIT) &&
 				sscanf(buf, "Block size: %u", &data->block_size) == 1)

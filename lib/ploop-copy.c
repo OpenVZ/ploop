@@ -305,8 +305,8 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 			goto out;
 		}
 
-		ploop_log(3, "RCV type=%d len=%d pos=%llu",
-				desc.type, desc.size, desc.pos);
+		ploop_log(3, "RCV type=%d len=%d pos=%" PRIu64,
+				desc.type, desc.size, (uint64_t)desc.pos);
 		switch (desc.type) {
 		case PCOPY_PKT_DATA: {
 			n = pwrite(ofd, iobuf, desc.size, desc.pos);
@@ -680,7 +680,7 @@ int ploop_copy_start(struct ploop_copy_handle *h,
 
 	h->tracker_on = 1;
 	h->trackend = e.end;
-	ploop_log(3, "pcopy start e.end=%llu", e.end);
+	ploop_log(3, "pcopy start e.end=%" PRIu64, (uint64_t)e.end);
 	for (pos = 0; pos <= h->trackend; ) {
 		h->trackpos = pos + h->cluster;
 		ret = ioctl_device(h->devfd, PLOOP_IOC_TRACK_SETPOS, &h->trackpos);
@@ -777,8 +777,8 @@ int ploop_copy_next_iteration(struct ploop_copy_handle *h,
 
 	stat->xferred_total += stat->xferred;
 
-	ploop_log(3, "pcopy iter %d xferred=%llu",
-			h->niter++, stat->xferred);
+	ploop_log(3, "pcopy iter %d xferred=%" PRIu64,
+			h->niter++, (uint64_t)stat->xferred);
 
 	return 0;
 

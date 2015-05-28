@@ -1679,7 +1679,7 @@ static int create_ploop_dev(int minor)
 	return 0;
 }
 
-static int set_max_delta_size(int fd, __u64 size)
+static int set_max_delta_size(int fd, unsigned long long size)
 {
 	/* Set max delta size for the last added (top) delta */
 	ploop_log(0, "Setting maximum delta size to %llu sec", size);
@@ -2709,9 +2709,9 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 				available_balloon_size = balloon_size + (fs.f_bfree * B2S(fs.f_bsize));
 				if (available_balloon_size < new_balloon_size) {
 					ploop_err(0, "Unable to change image size to %lu "
-							"sectors, minimal size is %llu",
+							"sectors, minimal size is %" PRIu64,
 							(long)new_fs_size,
-							(blocks - available_balloon_size - reserved_blocks));
+							(uint64_t)(blocks - available_balloon_size - reserved_blocks));
 					ret = SYSEXIT_PARAM;
 					goto err;
 				}
