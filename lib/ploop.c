@@ -1565,7 +1565,8 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 	}
 
 	if (keep_name) {
-		char tmp[PATH_MAX] = "";
+		char tmp[PATH_MAX];
+		int tmpfd = -1;
 
 		ret = SYSEXIT_SYS;
 
@@ -1579,8 +1580,9 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 			 * rename the file, then remove the hardlink.
 			 */
 			snprintf(tmp, sizeof(tmp), "%s.XXXXXX", file);
-			if (mktemp(tmp)[0] == '\0') {
-				ploop_err(errno, "Can't mktemp(%s)", tmp);
+			tmpfd = mkstemp(tmp);
+			if (tmpfd < 0) {
+				ploop_err(errno, "Can't mkstemp(%s)", tmp);
 				goto undo_keep;
 			}
 			if (link(file, tmp)) {
@@ -1598,8 +1600,10 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 		ret = 0;
 
 undo_keep:
-		if (tmp[0] && unlink(tmp)) {
-			ploop_err(errno, "Can't delete %s", tmp);
+		if (tmpfd >= 0) {
+			if (unlink(tmp))
+				ploop_err(errno, "Can't delete %s", tmp);
+			close(tmpfd);
 		}
 
 		if (ret && !offline) {
