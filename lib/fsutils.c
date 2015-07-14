@@ -99,6 +99,7 @@ int create_gpt_partition(const char *device, off_t size, __u32 blocksize)
 
 int make_fs(const char *device, const char *fstype, unsigned int fsblocksize)
 {
+	int i;
 	char part_device[64];
 	char fsblock_size[14];
 	char *argv[10];
@@ -110,13 +111,14 @@ int make_fs(const char *device, const char *fstype, unsigned int fsblocksize)
 	if (get_partition_device_name(device, part_device, sizeof(part_device)))
 		return SYSEXIT_MKFS;
 
-	argv[0] = "mkfs";
-	argv[1] = "-t";
-	argv[2] = (char*)fstype;
-	argv[3] = "-j";
+	i = 0;
+	argv[i++] = "mkfs";
+	argv[i++] = "-t";
+	argv[i++] = (char*)fstype;
+	argv[i++] = "-j";
 	snprintf(fsblock_size, sizeof(fsblock_size), "-b%u",
 			fsblocksize);
-	argv[4] = fsblock_size;
+	argv[i++] = fsblock_size;
 	/* Reserve enough space so that the block group descriptor table can grow to 16T
 	 * Note: the max_online_resize is u32 in mkfs.ext4
 	 */
@@ -125,25 +127,26 @@ int make_fs(const char *device, const char *fstype, unsigned int fsblocksize)
 		max_online_resize = (uint32_t)~0;
 	snprintf(ext_opts, sizeof(ext_opts), "-Elazy_itable_init,resize=%" PRIu64,
 			 max_online_resize);
-	argv[5] = ext_opts;
+	argv[i++] = ext_opts;
 	/* Set the journal size to 128M to allow online resize up to 16T
 	 * independly on the initial image size
 	*/
-	argv[6] = "-Jsize=128";
-	argv[7] = "-i16384"; /* 1 inode per 16K disk space */
-	argv[8] = part_device;
-	argv[9] = NULL;
+	argv[i++] = "-Jsize=128";
+	argv[i++] = "-i16384"; /* 1 inode per 16K disk space */
+	argv[i++] = part_device;
+	argv[i++] = NULL;
 
 	if (run_prg(argv))
 		return SYSEXIT_MKFS;
 
-	argv[0] = get_prog(tune2fs_progs);
-	argv[1] =  "-ouser_xattr,acl";
-	argv[2] = "-c0";
-	argv[3] = "-i0";
-	argv[4] = "-eremount-ro";
-	argv[5] = part_device;
-	argv[6] = NULL;
+	i = 0;
+	argv[i++] = get_prog(tune2fs_progs);
+	argv[i++] =  "-ouser_xattr,acl";
+	argv[i++] = "-c0";
+	argv[i++] = "-i0";
+	argv[i++] = "-eremount-ro";
+	argv[i++] = part_device;
+	argv[i++] = NULL;
 
 	if (run_prg(argv))
 		return SYSEXIT_MKFS;
