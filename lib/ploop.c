@@ -1284,7 +1284,7 @@ static void print_sys_block_ploop(void)
 	print_output(-1, "find",
 			"/sys/block/ploop[0-9]*/pdelta/ -type f "
 			"\\( -name image -or -name io -or -name ro \\) "
-			"| xargs tail | grep -v '^$'");
+			"| xargs grep -HF ''");
 }
 
 static int add_delta(int lfd, const char *image, struct ploop_ctl_delta *req)
