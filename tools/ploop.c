@@ -727,7 +727,7 @@ static int plooptool_snapshot_switch(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if ((argc != 1 && !is_xml_fname(argv[0])) || uuid == NULL) {
+	if (argc != 1 || !is_xml_fname(argv[0]) || uuid == NULL) {
 		usage_snapshot_switch();
 		return SYSEXIT_PARAM;
 	}
