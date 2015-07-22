@@ -196,7 +196,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Fill /etc/mtab
-if [ -f $MTAB ]; then
+if [ -f $MTAB -a ! -L $MTAB ]; then
 	verbose "adding mount to $MTAB"
 	echo "$(mangle "$DISK_DESCRIPTOR") $(mangle "$MOUNT_POINT") ploop $OPTS_ORIG 0 0" >> $MTAB
 fi

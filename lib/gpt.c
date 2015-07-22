@@ -225,8 +225,8 @@ static int update_gpt_partition(int fd, const char *devname, __u64 new_size512,
 
 	if (new_size512 > size) {
 		ploop_err(0, "Unable to resize GPT partition:"
-				" incorrect parameter new_size=%llu size=%lu",
-				new_size512, (long)size);
+				" incorrect parameter new_size=%" PRIu64 " size=%lu",
+				(uint64_t)new_size512, (long)size);
 		return SYSEXIT_PARAM;
 	}
 

@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <assert.h>
+#include <inttypes.h>
 
 #include "ploop_if.h"
 #include "ploop1_image.h"
@@ -166,9 +167,9 @@ struct ploop_disk_images_runtime_data {
 };
 
 struct dump2fs_data {
-	__u64 block_count;
-	__u64 block_free;
-	__u32 block_size;
+	uint64_t block_count;
+	uint64_t block_free;
+	uint32_t block_size;
 };
 
 enum {

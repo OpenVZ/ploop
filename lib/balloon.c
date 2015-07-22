@@ -860,7 +860,7 @@ static int ploop_trim(const char *mount_point, __u64 minlen_b, __u64 cluster)
 	range.minlen = MAX(MAX_DISCARD_CLU * cluster, minlen_b);
 
 	for (; range.minlen >= minlen_b; range.minlen /= 2) {
-		ploop_log(1, "Call FITRIM, for minlen=%lld", range.minlen);
+		ploop_log(1, "Call FITRIM, for minlen=%" PRIu64, (uint64_t)range.minlen);
 
 		/* range.len is reseted by FITRIM */
 		range.len = ULLONG_MAX;
@@ -897,7 +897,7 @@ static int blk_discard(int fd, __u32 cluster, __u64 start, __u64 len)
 		if (start % S2B(cluster) && len > range[1])
 			range[1] -= start % S2B(cluster);
 
-		ploop_log(1, "Call BLKDISCARD start=%llu length=%llu ", range[0], range[1]);
+		ploop_log(1, "Call BLKDISCARD start=%" PRIu64 " length=%" PRIu64, (uint64_t)range[0], (uint64_t)range[1]);
 		ret = ioctl_device(fd, BLKDISCARD, range);
 		if (ret)
 			return ret;
@@ -920,10 +920,10 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 	struct ploop_cleanup_hook *h;
 
 	if (blk_discard_range != NULL)
-		ploop_log(0, "Discard %s start=%llu length=%llu",
-				device, blk_discard_range[0], blk_discard_range[1]);
+		ploop_log(0, "Discard %s start=%" PRIu64 " length=%" PRIu64,
+				device, (uint64_t)blk_discard_range[0], (uint64_t)blk_discard_range[1]);
 	else
-		ploop_log(3, "Trying to find free extents bigger than %llu bytes", minlen_b);
+		ploop_log(3, "Trying to find free extents bigger than %" PRIu64 " bytes", (uint64_t)minlen_b);
 
 	if (ploop_lock_di(di))
 		return SYSEXIT_LOCK;

@@ -255,13 +255,13 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end, int *lo
 	return fsync_safe(*fd);
 }
 
-static int check_and_repair_sparse(const char *image, int *fd, __u64 cluster, int flags)
+static int check_and_repair_sparse(const char *image, int *fd, uint64_t cluster, int flags)
 {
 	int last;
 	int i, ret;
 	struct statfs sfs;
 	struct stat st;
-	__u64 prev_end;
+	uint64_t prev_end;
 	char buf[40960] = "";
 	struct fiemap *fiemap = (struct fiemap *)buf;
 	struct fiemap_extent *fm_ext = &fiemap->fm_extents[0];
@@ -314,9 +314,9 @@ static int check_and_repair_sparse(const char *image, int *fd, __u64 cluster, in
 			    (fm_ext[i].fe_logical % cluster ||
 					fm_ext[i].fe_length % cluster)) {
 				ploop_err(0, "Delta file %s contains uninitialized blocks"
-						" (offset=%llu len=%llu)"
+						" (offset=%" PRIu64 "len=%" PRIu64 ")"
 						" which are not aligned to cluster size",
-						image, fm_ext[i].fe_logical, fm_ext[i].fe_length);
+						image, (uint64_t)fm_ext[i].fe_logical, (uint64_t)fm_ext[i].fe_length);
 
 				ret = fill_hole(image, fd, fm_ext[i].fe_logical,
 						fm_ext[i].fe_logical + fm_ext[i].fe_length, &log, repair);
