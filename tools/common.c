@@ -123,6 +123,8 @@ err:
 int is_xml_fname(const char *fname)
 {
 	const char *p;
+	if (fname == NULL)
+		return 0;
 
 	p = strrchr(fname, '.');
 	return (p != NULL && !strcmp(p, ".xml"));

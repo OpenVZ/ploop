@@ -25,9 +25,6 @@
 
 #define DISKDESCRIPTOR_XML      "DiskDescriptor.xml"
 
-#define PLOOP_SNAP_SKIP_TOPDELTA_DESTROY	0x01
-#define PLOOP_SNAP_SKIP_TOPDELTA_CREATE		0x02
-
 #ifndef PLOOP_DEPRECATED
 #define PLOOP_DEPRECATED __attribute__ ((deprecated))
 #endif
@@ -39,14 +36,14 @@ enum ploop_image_mode {
 };
 
 struct ploop_mount_param {
-	char device[64];
-	int ro;
-	int flags;
+	char device[64];	/* returns device name */
+	int ro;			/* read-only mount */
+	int flags;		/* flags such as MS_NOATIME */
 	int unused1;
-	char *fstype;
-	char *target;
-	char *guid;
-	int quota;
+	char *fstype;		/* filesystem type; default if not set*/
+	char *target;		/* mount point */
+	char *guid;		/* UUID; top if not set */
+	int quota;		/* enable inner FS quota */
 	char *mount_data;
 	unsigned int blocksize; /* blocksize for raw image */
 	int fsck;
@@ -133,9 +130,17 @@ struct ploop_tsnapshot_param {
 	char dummy[32];
 };
 
+
+/* Values for ploop_snapshot_switch_param.flags field */
+/* Do not remove old top delta */
+#define PLOOP_SNAP_SKIP_TOPDELTA_DESTROY	0x01
+/* Do not create a new delta after switching */
+#define PLOOP_SNAP_SKIP_TOPDELTA_CREATE		0x02
+
 struct ploop_snapshot_switch_param {
 	const char *guid;
-	const char *guid_old;	/* guid for old top delta */
+	/* guid for old top delta when SKIP_TOPDELTA_DESTROY is used */
+	const char *guid_old;
 	int flags;
 	char dummy[32];
 };
