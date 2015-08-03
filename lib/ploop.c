@@ -1159,18 +1159,26 @@ static const char *get_top_delta_guid(struct ploop_disk_images_data *di)
 
 int ploop_get_top_delta_fname(struct ploop_disk_images_data *di, char *out, int len)
 {
+	int ret = 0;
 	const char *fname;
+
+	if (ploop_lock_dd(di))
+		return SYSEXIT_LOCK;
 
 	fname = find_image_by_guid(di, get_top_delta_guid(di));
 	if (fname == NULL){
 		ploop_err(0, "Can't find image by uuid %s", di->top_guid);
-		return -1;
+		ret = SYSEXIT_PARAM;
+		goto out;
 	}
 	if (snprintf(out, len, "%s", fname) > len -1) {
 		ploop_err(0, "Not enough space to store data");
-		return -1;
+		ret = SYSEXIT_PARAM;
 	}
-	return 0;
+
+out:
+	ploop_unlock_dd(di);
+	return ret;
 }
 
 int ploop_get_dev(struct ploop_disk_images_data *di, char *out, int len)
