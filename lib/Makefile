@@ -39,7 +39,7 @@ GENERATED=symbols.c
 
 CFLAGS += $(shell pkg-config libxml-2.0 --cflags) -fPIC -fvisibility=hidden
 LDFLAGS+= -shared -Wl,-soname,$(LIBPLOOP_SO_X)
-LDLIBS += $(shell pkg-config libxml-2.0 --libs) -lrt
+LDLIBS += $(shell pkg-config libxml-2.0 --libs) -lpthread -lrt
 
 all: $(LIBPLOOP) $(LIBPLOOP_SO) $(PC)
 .PHONY: all
