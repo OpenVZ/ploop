@@ -31,7 +31,7 @@ CFLAGS += $(RPM_OPT_FLAGS) $(CPPFLAGS)
 CFLAGS += $(if $(PLOOP_LOG_FILE), -DPLOOP_LOG_FILE=\"$(PLOOP_LOG_FILE)\")
 #CFLAGS += -DDEBUG_TIMES
 
-LDFLAGS += $(if $(DEBUG),-g -rdynamic,) -lpthread
+LDFLAGS += $(if $(DEBUG),-g -rdynamic,)
 
 export CFLAGS CC
 
