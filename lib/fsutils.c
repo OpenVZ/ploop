@@ -77,7 +77,7 @@ int create_gpt_partition(const char *device, off_t size, __u32 blocksize)
 
 	if (size <= start + blocksize) {
 		ploop_err(0, "Image size should be greater than %llu", start);
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 	argv[0] = "parted";
 	argv[1] = "-s";
@@ -91,7 +91,7 @@ int create_gpt_partition(const char *device, off_t size, __u32 blocksize)
 
 	if (run_prg(argv)) {
 		ploop_err(0, "Failed to create partition");
-		return -1;
+		return SYSEXIT_SYS;
 	}
 
 	return 0;
