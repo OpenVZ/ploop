@@ -51,6 +51,11 @@ struct ploop_mount_param {
 	char dummy[32];
 };
 
+/* Bit values for ploop_create_param.flags */
+enum ploop_create_flags {
+	PLOOP_CREATE_NOLAZY		= 1 << 0, /* do NOT use lazy init */
+};
+
 struct ploop_create_param {
 	unsigned long long size;
 	int mode;
@@ -60,6 +65,7 @@ struct ploop_create_param {
 	unsigned int blocksize;
 	unsigned int fsblocksize;
 	int fmt_version;
+	unsigned int flags;
 	char dummy[32];
 };
 
