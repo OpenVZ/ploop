@@ -725,7 +725,7 @@ out:
 }
 
 int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di,
-		const char *guid, int merge_mode, const char *new_delta)
+		const char *guid, const char *new_delta)
 {
 	char conf[PATH_MAX];
 	char conf_tmp[PATH_MAX];
@@ -763,45 +763,28 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di,
 				guid);
 		return ret;
 	}
-	if (merge_mode == PLOOP_MERGE_WITH_CHILD) {
-		parent_guid = guid;
-		parent_fname = fname;
-		child_guid = ploop_get_child_by_uuid(di, guid);
-		if (!child_guid) {
-			ploop_err(0, "Can't find child of uuid %s", guid);
-			goto err;
-		}
-		child_fname = find_image_by_guid(di, child_guid);
-		if (child_fname == NULL) {
-			ploop_err(0, "Can't find image by uuid %s",
-					child_guid);
-			goto err;
-		}
-		temporary = di->snapshots[snap_idx]->temporary;
-	} else if (merge_mode == PLOOP_MERGE_WITH_PARENT) {
-		parent_guid = di->snapshots[snap_idx]->parent_guid;
-		child_guid = guid;
-		if (strcmp(parent_guid, NONE_UUID) == 0) {
-			ploop_err(0, "Unable to merge base image");
-			goto err;
-		}
-		child_fname = fname;
-		parent_fname = find_image_by_guid(di, parent_guid);
-		if (parent_fname == NULL) {
-			ploop_err(0, "Can't find image by uuid %s",
-					 parent_guid);
-			goto err;
-		}
-		snap_idx = find_snapshot_by_guid(di, parent_guid);
-		if (snap_idx == -1) {
-			ploop_err(0, "Can't find snapshot by uuid %s",
-					parent_guid);
 
-			goto err;
-		}
-		temporary = di->snapshots[snap_idx]->temporary;
-	} else
-		assert(0);
+	parent_guid = di->snapshots[snap_idx]->parent_guid;
+	child_guid = guid;
+	if (strcmp(parent_guid, NONE_UUID) == 0) {
+		ploop_err(0, "Unable to merge base image");
+		goto err;
+	}
+	child_fname = fname;
+	parent_fname = find_image_by_guid(di, parent_guid);
+	if (parent_fname == NULL) {
+		ploop_err(0, "Can't find image by uuid %s",
+				parent_guid);
+		goto err;
+	}
+	snap_idx = find_snapshot_by_guid(di, parent_guid);
+	if (snap_idx == -1) {
+		ploop_err(0, "Can't find snapshot by uuid %s",
+				parent_guid);
+
+		goto err;
+	}
+	temporary = di->snapshots[snap_idx]->temporary;
 
 	nelem = ploop_get_child_count_by_uuid(di, parent_guid);
 	if (nelem > 1) {
@@ -988,10 +971,10 @@ int ploop_merge_snapshot(struct ploop_disk_images_data *di, struct ploop_merge_p
 		guid = di->top_guid;
 
 	if (guid != NULL) {
-		ret = ploop_merge_snapshot_by_guid(di, guid, PLOOP_MERGE_WITH_PARENT, param->new_delta);
+		ret = ploop_merge_snapshot_by_guid(di, guid, param->new_delta);
 	} else {
 		while (di->nsnapshots != 1) {
-			ret = ploop_merge_snapshot_by_guid(di, di->top_guid, PLOOP_MERGE_WITH_PARENT, param->new_delta);
+			ret = ploop_merge_snapshot_by_guid(di, di->top_guid, param->new_delta);
 			if (ret)
 				break;
 		}

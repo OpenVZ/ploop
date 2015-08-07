@@ -143,7 +143,7 @@ static int do_delete_snapshot(struct ploop_disk_images_data *di, const char *gui
 			return SYSEXIT_PARAM;
 		}
 
-		ret = ploop_merge_snapshot_by_guid(di, child_guid, PLOOP_MERGE_WITH_PARENT, NULL);
+		ret = ploop_merge_snapshot_by_guid(di, child_guid, NULL);
 	} else if (!di->snapshots[snap_id]->temporary) {
 		ploop_log(1, "Warning: Unable to delete snapshot %s as there are %d references"
 				" to it; marking it as temporary instead",
@@ -487,7 +487,7 @@ err:
 	ploop_umount(mount_param.device, di);
 
 err_merge:
-	ploop_merge_snapshot_by_guid(di, di->top_guid, PLOOP_MERGE_WITH_PARENT, NULL);
+	ploop_merge_snapshot_by_guid(di, di->top_guid, NULL);
 
 err_unlock:
 	ploop_unlock_dd(di);
