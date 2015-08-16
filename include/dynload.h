@@ -24,12 +24,12 @@
 
 struct ploop_functions {
 	/* 1.5 */
-	int (*read_disk_descr)(struct ploop_disk_images_data **di, const char *file);
+	void (*obsolete_1)(void);
 	int (*set_component_name)(struct ploop_disk_images_data *di, const char *component_name);
-	void (*free_diskdescriptor)(struct ploop_disk_images_data *di);
+	void (*obsolete_2)(void);
 	char *(*get_base_delta_uuid)(struct ploop_disk_images_data *di);
 	int (*get_top_delta_fname)(struct ploop_disk_images_data *di, char *out, int len);
-	int (*store_diskdescriptor)(const char *fname, struct ploop_disk_images_data *di);
+	void (*obsolete_3)(void);
 	int (*find_dev)(const char *component_name, const char *delta, char *buf, int size);
 	int (*get_dev_by_mnt)(const char *path, char *buf, int size);
 	int (*get_mnt_by_dev)(const char *dev, char *buf, int size);
