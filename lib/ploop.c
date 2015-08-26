@@ -2166,23 +2166,23 @@ int ploop_umount_image(struct ploop_disk_images_data *di)
 
 	ret = ploop_find_dev_by_cn(di, di->runtime->component_name, 0, dev, sizeof(dev));
 	if (ret == -1) {
-		ploop_unlock_dd(di);
-		return SYSEXIT_SYS;
+		ret = SYSEXIT_SYS;
+		goto out;
 	}
 	if (ret != 0) {
-		ploop_unlock_dd(di);
 		ploop_err(0, "Image %s is not mounted", di->images[0]->file);
-		return SYSEXIT_DEV_NOT_MOUNTED;
+		ret = SYSEXIT_DEV_NOT_MOUNTED;
+		goto out;
 	}
 
 	ret = ploop_complete_running_operation(dev);
 	if (ret) {
-		ploop_unlock_dd(di);
-		return ret;
+		goto out;
 	}
 
 	ret = ploop_umount(dev, di);
 
+out:
 	ploop_unlock_dd(di);
 
 	return ret;
