@@ -251,7 +251,7 @@ int plooptool_snapshot_list(int argc, char **argv)
 		usage_snapshot_list();
 		return 1;
 	}
-	if (read_dd(&g_di, argv[0])) {
+	if (ploop_read_disk_descr(&g_di, argv[0])) {
 		fprintf(stderr, "failed to read %s: %s\n",
 				argv[0], ploop_get_last_error());
 		return 1;

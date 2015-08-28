@@ -25,6 +25,7 @@ check-api: ../gensym.sh libploop.h
 		 -e '/\/\* struct ploop_functions \*\/$$/,$$d' dynload.h | \
 		grep -vE '^[[:space:]]*/\*.**/$$' | \
 		grep -v '^	void \*padding\[' | \
+		grep -v '^	void (\*obsolete_' | \
 		sort > cur-dynload.h
 	$(Q) diff -u cur-dynload.h new-dynload.h || \
 		( echo "*** API CHANGED, PLEASE UPDATE dynload.h"; exit 1 )

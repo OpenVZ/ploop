@@ -772,7 +772,7 @@ int ploop_create_dd(const char *ddxml, struct ploop_create_param *param)
 		goto err;
 
 err:
-	ploop_free_diskdescriptor(di);
+	ploop_close_dd(di);
 
 	return ret;
 }
@@ -832,7 +832,7 @@ out:
 		unlink(ddxml);
 	}
 
-	ploop_free_diskdescriptor(di);
+	ploop_close_dd(di);
 
 	return ret;
 }
