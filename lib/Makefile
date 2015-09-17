@@ -47,7 +47,7 @@ all: $(LIBPLOOP) $(LIBPLOOP_SO) $(PC)
 $(PC): $(PC).in
 	$(E) "  GEN     " $@
 	$(Q) sed \
-		-e 's|@VERSION|$(VERSION)|g' \
+		-e 's|@VERSION@|$(VERSION)|g' \
 		-e 's|@LIBDIR@|$(LIBDIR)|g' \
 		$^ > $@
 
