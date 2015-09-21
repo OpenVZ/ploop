@@ -127,8 +127,8 @@ int make_fs(const char *device, const char *fstype, unsigned int fsblocksize,
 	max_online_resize = PLOOP_MAX_FS_SIZE / fsblocksize;
 	if (max_online_resize > (uint32_t)~0)
 		max_online_resize = (uint32_t)~0;
-	snprintf(ext_opts, sizeof(ext_opts), "-Elazy_itable_init=%d,lazy_journal_init=%d,resize=%" PRIu64,
-			lazy, lazy, max_online_resize);
+	snprintf(ext_opts, sizeof(ext_opts), "-Elazy_itable_init=%d,resize=%" PRIu64,
+			lazy, max_online_resize);
 	argv[i++] = ext_opts;
 	/* Set the journal size to 128M to allow online resize up to 16T
 	 * independly on the initial image size
