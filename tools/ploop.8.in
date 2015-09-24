@@ -22,6 +22,7 @@ ploop \- ploop device management utility
 .OP -t fstype
 .OP -b blocksize
 .OP -B fsblocksize
+.OP --nolazy
 .I delta_file
 .YS
 .SY ploop\ mount
@@ -218,6 +219,7 @@ file.
 .OP -t fstype
 .OP -b blocksize
 .OP -B fsblocksize
+.OP --nolazy
 .I delta_file
 .YS
 
@@ -239,6 +241,10 @@ Device block size, in 512 byte sectors. Default block size is 2048 sectors,
 or 1 megabyte.
 .IP "\fB-B\fR \fIfsblocksize\fR"
 Filesystem block size, in bytes. Default is 4096 bytes.
+.IP "\fB-n\fR, \fB--nolazy\fR"
+Disable lazy mkfs initialization (which is enabled by default).
+Currently that means if this flag is set, \fBmkfs.ext4\fR(8) is called
+with \fB-Elazy_itable_init=0,lazy_journal_init=0\fR options.
 .IP \fIdelta_file\fR
 Path to a non-existent image file to be created.
 

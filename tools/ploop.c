@@ -71,7 +71,7 @@ static void usage_init(void)
 {
 	fprintf(stderr,
 "Usage: ploop init -s SIZE [-f FORMAT] [-v VERSION] [-t FSTYPE]\n"
-"                 [-b BLOCKSIZE] [-B FSBLOCKSIZE] DELTA\n"
+"                 [-b BLOCKSIZE] [-B FSBLOCKSIZE] [-n|--nolazy] DELTA\n"
 "\n"
 "       SIZE        := NUMBER[KMGT]\n"
 "       FORMAT      := " USAGE_FORMATS "\n"
@@ -79,6 +79,7 @@ static void usage_init(void)
 "       FSTYPE      := { none | ext3 | ext4 } (create filesystem, default ext4)\n"
 "       BLOCKSIZE   := cluster block size, sectors\n"
 "       FSBLOCKSIZE := file system block size, bytes\n"
+"       -n, --nolazy - do not use lazy initialization during mkfs\n"
 "       DELTA       := path to a new image file\n"
 	);
 }
@@ -104,8 +105,14 @@ static int plooptool_init(int argc, char **argv)
 		.mode		= PLOOP_EXPANDED_MODE,
 		.fmt_version	= PLOOP_FMT_UNDEFINED,
 	};
+	static struct option long_opts[] = {
+		{ "nolazy", no_argument, 0, 'n' },
+		{},
+	};
 
-	while ((i = getopt(argc, argv, "s:b:B:f:t:v:")) != EOF) {
+
+	while ((i = getopt_long(argc, argv, "s:b:B:f:t:v:n",
+					long_opts, NULL)) != EOF) {
 		switch (i) {
 		case 's':
 			if (parse_size(optarg, &size_sec, "-s")) {
@@ -154,6 +161,9 @@ static int plooptool_init(int argc, char **argv)
 				return SYSEXIT_PARAM;
 			}
 			param.fmt_version = f;
+			break;
+		case 'n':
+			param.flags |= PLOOP_CREATE_NOLAZY;
 			break;
 		default:
 			usage_init();
