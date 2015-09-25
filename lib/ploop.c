@@ -864,18 +864,31 @@ int ploop_getdevice(int *minor)
 	return fd;
 }
 
-/* Workaround for bug #PCLIN-30116 */
-static int do_ioctl(int fd, int req)
+/* Device might be used by blkid binary (see #PSBM-10590), in such case
+ * kernel returns EBUSY and we need to retry ioctl() after some delay.
+ * Start with a small delay, increasing it exponentially.
+ */
+static int do_ioctl(int fd, int req, const char *dev)
 {
-	int i, ret;
+	useconds_t total = 0;
+	useconds_t wait = 10000; // initial wait time 0.01s
+	useconds_t maxwait = 500000; // max wait time per iteration 0.5s
+	const useconds_t maxtotal = 60000000; // max total wait time 60s
 
-	for (i = 0; i < 60; i++) {
-		ret = ioctl(fd, req, 0);
+	do {
+		int ret = ioctl(fd, req, 0);
 		if (ret == 0 || (ret == -1 && errno != EBUSY))
 			return ret;
-		sleep(1);
-	}
-	return ret;
+		if (total > maxtotal) {
+			print_output(-1, "lsof", dev);
+			return ret;
+		}
+		usleep(wait);
+		total += wait;
+		wait *= 2;
+		if (wait > maxwait)
+			wait = maxwait;
+	} while (1);
 }
 
 int print_output(int level, const char *cmd, const char *arg)
@@ -981,7 +994,7 @@ static int delete_deltas(int devfd, const char *devname)
 
 static int ploop_stop(int fd, const char *devname)
 {
-	if (do_ioctl(fd, PLOOP_IOC_STOP) < 0) {
+	if (do_ioctl(fd, PLOOP_IOC_STOP, devname) < 0) {
 		if (errno != EINVAL) {
 			ploop_err(errno, "PLOOP_IOC_STOP");
 			return SYSEXIT_DEVIOC;
@@ -1223,7 +1236,7 @@ static int reread_part(const char *device)
 		ploop_err(errno, "Can't open %s", device);
 		return -1;
 	}
-	if (do_ioctl(fd, BLKRRPART) < 0)
+	if (do_ioctl(fd, BLKRRPART, device) < 0)
 		ploop_err(errno, "BLKRRPART %s", device);
 	close(fd);
 
