@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <assert.h>
+#include <inttypes.h>
 
 #include "ploop_if.h"
 #include "ploop1_image.h"
@@ -166,9 +167,9 @@ struct ploop_disk_images_runtime_data {
 };
 
 struct dump2fs_data {
-	__u64 block_count;
-	__u64 block_free;
-	__u32 block_size;
+	uint64_t block_count;
+	uint64_t block_free;
+	uint32_t block_size;
 };
 
 /* flags for e2fsck() */
@@ -306,7 +307,8 @@ int PWRITE(struct delta * delta, void * buf, unsigned int size, off_t off);
 int PREAD(struct delta * delta, void *buf, unsigned int size, off_t off);
 PL_EXT int ploop_getdevice(int *minor);
 struct ploop_disk_images_data *alloc_diskdescriptor(void);
-int read_diskdescriptor(const char *fname, struct ploop_disk_images_data *di);
+int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data *di);
+PL_EXT int ploop_read_disk_descr(struct ploop_disk_images_data **di, const char *file);
 void get_disk_descriptor_fname(struct ploop_disk_images_data *di, char *buf, int size);
 void get_disk_descriptor_lock_fname(struct ploop_disk_images_data *di, char *out, int size);
 int find_image_idx_by_guid(struct ploop_disk_images_data *di, const char *guid);
@@ -368,7 +370,8 @@ void ploop_unlock(int *lckfd);
 
 // fs util
 int get_partition_device_name(const char *device, char *out, int size);
-int make_fs(const char *device, const char *fstype, unsigned int fsblocksize);
+int make_fs(const char *device, const char *fstype, unsigned int fsblocksize,
+		unsigned int flags);
 void tune_fs(int balloonfd, const char *device, unsigned long long size);
 int resize_fs(const char *device, off_t blocks);
 int dumpe2fs(const char *device, struct dump2fs_data *data);

@@ -21,7 +21,7 @@ OBJS	= $(addsuffix .o,$(PROGS)) $(PLOOP_OBJS)
 SOURCES	= $(OBJS:.o=.c)
 CFLAGS	+= -I../lib
 LDFLAGS	+= -L../lib
-LDLIBS	+= -lploop
+LDLIBS	= -lploop
 
 all: $(PROGS) $(MANS)
 .PHONY: all

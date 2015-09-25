@@ -415,23 +415,6 @@ int ploop_read_dd(struct ploop_disk_images_data *di)
 	return ret;
 }
 
-int read_diskdescriptor(const char *fname,
-		struct ploop_disk_images_data *di)
-{
-	char *path;
-
-	path = realpath(fname, NULL);
-	if (!path) {
-		ploop_err(errno, "Can't resolve %s", fname);
-		return -1;
-	}
-
-	free(di->runtime->xml_fname);
-	di->runtime->xml_fname = path;
-
-	return ploop_read_dd(di);
-}
-
 int ploop_read_disk_descr(struct ploop_disk_images_data **di, const char *file)
 {
 	int ret;

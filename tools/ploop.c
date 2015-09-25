@@ -56,10 +56,10 @@ static void usage_summary(void)
 			"       ploop balloon { show | status | clear | change | complete | check |\n"
 			"                       repair | discard } ... DiskDescriptor.xml\n"
 			"       ploop snapshot DiskDescriptor.xml\n"
-			"       ploop snapshot-delete -u <uuid> DiskDescriptor.xml\n"
-			"       ploop snapshot-merge [-u <uuid>] DiskDescriptor.xml\n"
-			"       ploop snapshot-switch -u <uuid> DiskDescriptor.xml\n"
-			"       ploop snapshot-list [-o field[,field...]] [-u <UUID>] DiskDescriptor.xml\n"
+			"       ploop snapshot-delete -u UUID DiskDescriptor.xml\n"
+			"       ploop snapshot-merge [-u UUID] DiskDescriptor.xml\n"
+			"       ploop snapshot-switch -u UUID DiskDescriptor.xml\n"
+			"       ploop snapshot-list [-o field[,field...]] [-u UUID] DiskDescriptor.xml\n"
 			"Also:  ploop { start | stop | delete | clear | merge | grow | copy |\n"
 			"               stat | info | list} ...\n"
 			"\n"
@@ -71,7 +71,7 @@ static void usage_init(void)
 {
 	fprintf(stderr,
 "Usage: ploop init -s SIZE [-f FORMAT] [-v VERSION] [-t FSTYPE]\n"
-"                 [-b BLOCKSIZE] [-B FSBLOCKSIZE] DELTA\n"
+"                 [-b BLOCKSIZE] [-B FSBLOCKSIZE] [-n|--nolazy] DELTA\n"
 "\n"
 "       SIZE        := NUMBER[KMGT]\n"
 "       FORMAT      := " USAGE_FORMATS "\n"
@@ -79,6 +79,7 @@ static void usage_init(void)
 "       FSTYPE      := { none | ext3 | ext4 } (create filesystem, default ext4)\n"
 "       BLOCKSIZE   := cluster block size, sectors\n"
 "       FSBLOCKSIZE := file system block size, bytes\n"
+"       -n, --nolazy - do not use lazy initialization during mkfs\n"
 "       DELTA       := path to a new image file\n"
 	);
 }
@@ -104,8 +105,14 @@ static int plooptool_init(int argc, char **argv)
 		.mode		= PLOOP_EXPANDED_MODE,
 		.fmt_version	= PLOOP_FMT_UNDEFINED,
 	};
+	static struct option long_opts[] = {
+		{ "nolazy", no_argument, 0, 'n' },
+		{},
+	};
 
-	while ((i = getopt(argc, argv, "s:b:B:f:t:v:")) != EOF) {
+
+	while ((i = getopt_long(argc, argv, "s:b:B:f:t:v:n",
+					long_opts, NULL)) != EOF) {
 		switch (i) {
 		case 's':
 			if (parse_size(optarg, &size_sec, "-s")) {
@@ -154,6 +161,9 @@ static int plooptool_init(int argc, char **argv)
 				return SYSEXIT_PARAM;
 			}
 			param.fmt_version = f;
+			break;
+		case 'n':
+			param.flags |= PLOOP_CREATE_NOLAZY;
 			break;
 		default:
 			usage_init();
@@ -579,7 +589,7 @@ static int plooptool_rm(int argc, char **argv)
 
 static void usage_snapshot(void)
 {
-	fprintf(stderr, "Usage: ploop snapshot [-u <uuid>] DiskDescriptor.xml\n"
+	fprintf(stderr, "Usage: ploop snapshot [-u UUID] DiskDescriptor.xml\n"
 			"       ploop snapshot [-F] -d DEVICE DELTA\n"
 			"       DEVICE := ploop device, e.g. /dev/ploop0\n"
 			"       DELTA := path to new image file\n"
@@ -643,8 +653,8 @@ static int plooptool_snapshot(int argc, char **argv)
 
 static void usage_tsnapshot(void)
 {
-	fprintf(stderr, "Usage: ploop tsnapshot -u <uuid> -c <component_name>\n"
-			"	[-m MOUNT_POINT] DiskDescriptor.xml\n"
+	fprintf(stderr, "Usage: ploop tsnapshot -u UUID -c COMPONENT\n"
+			"       [-m MOUNT_POINT] DiskDescriptor.xml\n"
 		);
 }
 
@@ -668,7 +678,7 @@ static int plooptool_tsnapshot(int argc, char **argv)
 			param.target = optarg;
 			break;
 		default:
-			usage_snapshot();
+			usage_tsnapshot();
 			return SYSEXIT_PARAM;
 		}
 	}
@@ -696,8 +706,8 @@ static int plooptool_tsnapshot(int argc, char **argv)
 
 static void usage_snapshot_switch(void)
 {
-	fprintf(stderr, "Usage: ploop snapshot-switch -u <uuid> DiskDescriptor.xml\n"
-			"       -u <uuid>     snapshot uuid\n");
+	fprintf(stderr, "Usage: ploop snapshot-switch -u UUID DiskDescriptor.xml\n"
+			"       UUID := snapshot UUID\n");
 }
 
 static int plooptool_snapshot_switch(int argc, char **argv)
@@ -727,7 +737,7 @@ static int plooptool_snapshot_switch(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if ((argc != 1 && !is_xml_fname(argv[0])) || uuid == NULL) {
+	if (argc != 1 || !is_xml_fname(argv[0]) || uuid == NULL) {
 		usage_snapshot_switch();
 		return SYSEXIT_PARAM;
 	}
@@ -745,8 +755,8 @@ static int plooptool_snapshot_switch(int argc, char **argv)
 
 static void usage_snapshot_delete(void)
 {
-	fprintf(stderr, "Usage: ploop snapshot-delete -u <uuid> DiskDescriptor.xml\n"
-			"       -u <uuid>     snapshot uuid\n");
+	fprintf(stderr, "Usage: ploop snapshot-delete -u UUID DiskDescriptor.xml\n"
+			"       UUID := snapshot id\n");
 }
 
 static int plooptool_snapshot_delete(int argc, char **argv)

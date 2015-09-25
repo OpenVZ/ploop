@@ -77,7 +77,7 @@ int create_gpt_partition(const char *device, off_t size, __u32 blocksize)
 
 	if (size <= start + blocksize) {
 		ploop_err(0, "Image size should be greater than %llu", start);
-		return -1;
+		return SYSEXIT_PARAM;
 	}
 	argv[0] = "parted";
 	argv[1] = "-s";
@@ -91,59 +91,64 @@ int create_gpt_partition(const char *device, off_t size, __u32 blocksize)
 
 	if (run_prg(argv)) {
 		ploop_err(0, "Failed to create partition");
-		return -1;
+		return SYSEXIT_SYS;
 	}
 
 	return 0;
 }
 
-int make_fs(const char *device, const char *fstype, unsigned int fsblocksize)
+int make_fs(const char *device, const char *fstype, unsigned int fsblocksize,
+		unsigned int flags)
 {
+	int i;
 	char part_device[64];
 	char fsblock_size[14];
 	char *argv[10];
 	char ext_opts[1024];
-	__u64 max_online_resize;
+	uint64_t max_online_resize;
+	const int lazy = !(flags & PLOOP_CREATE_NOLAZY);
 
 	fsblocksize = fsblocksize != 0 ? fsblocksize : 4096;
 
 	if (get_partition_device_name(device, part_device, sizeof(part_device)))
 		return SYSEXIT_MKFS;
 
-	argv[0] = "mkfs";
-	argv[1] = "-t";
-	argv[2] = (char*)fstype;
-	argv[3] = "-j";
+	i = 0;
+	argv[i++] = "mkfs";
+	argv[i++] = "-t";
+	argv[i++] = (char*)fstype;
+	argv[i++] = "-j";
 	snprintf(fsblock_size, sizeof(fsblock_size), "-b%u",
 			fsblocksize);
-	argv[4] = fsblock_size;
+	argv[i++] = fsblock_size;
 	/* Reserve enough space so that the block group descriptor table can grow to 16T
-	 * Note: the max_online_resize is __u32 in mkfs.ext4
+	 * Note: the max_online_resize is u32 in mkfs.ext4
 	 */
 	max_online_resize = PLOOP_MAX_FS_SIZE / fsblocksize;
-	if (max_online_resize > (__u32)~0)
-		max_online_resize = (__u32)~0;
-	snprintf(ext_opts, sizeof(ext_opts), "-Elazy_itable_init,resize=%llu",
-			 max_online_resize);
-	argv[5] = ext_opts;
+	if (max_online_resize > (uint32_t)~0)
+		max_online_resize = (uint32_t)~0;
+	snprintf(ext_opts, sizeof(ext_opts), "-Elazy_itable_init=%d,lazy_journal_init=%d,resize=%" PRIu64,
+			lazy, lazy, max_online_resize);
+	argv[i++] = ext_opts;
 	/* Set the journal size to 128M to allow online resize up to 16T
 	 * independly on the initial image size
 	*/
-	argv[6] = "-Jsize=128";
-	argv[7] = "-i16384"; /* 1 inode per 16K disk space */
-	argv[8] = part_device;
-	argv[9] = NULL;
+	argv[i++] = "-Jsize=128";
+	argv[i++] = "-i16384"; /* 1 inode per 16K disk space */
+	argv[i++] = part_device;
+	argv[i++] = NULL;
 
 	if (run_prg(argv))
 		return SYSEXIT_MKFS;
 
-	argv[0] = get_prog(tune2fs_progs);
-	argv[1] =  "-ouser_xattr,acl";
-	argv[2] = "-c0";
-	argv[3] = "-i0";
-	argv[4] = "-eremount-ro";
-	argv[5] = part_device;
-	argv[6] = NULL;
+	i = 0;
+	argv[i++] = get_prog(tune2fs_progs);
+	argv[i++] =  "-ouser_xattr,acl";
+	argv[i++] = "-c0";
+	argv[i++] = "-i0";
+	argv[i++] = "-eremount-ro";
+	argv[i++] = part_device;
+	argv[i++] = NULL;
 
 	if (run_prg(argv))
 		return SYSEXIT_MKFS;
@@ -240,10 +245,10 @@ int dumpe2fs(const char *device, struct dump2fs_data *data)
 
 	while (fgets(buf, sizeof(buf), fp) != NULL) {
 		if ((found & BLOCK_COUNT_BIT) &&
-				sscanf(buf, "Block count: %llu", &data->block_count) == 1)
+				sscanf(buf, "Block count: %" SCNu64, &data->block_count) == 1)
 			found &= ~BLOCK_COUNT_BIT;
 		else if ((found & BLOCK_FREE_BIT) &&
-				sscanf(buf, "Free blocks: %llu", &data->block_free) == 1)
+				sscanf(buf, "Free blocks: %" SCNu64, &data->block_free) == 1)
 			found &= ~BLOCK_FREE_BIT;
 		else if ((found & BLOCK_SIZE_BIT) &&
 				sscanf(buf, "Block size: %u", &data->block_size) == 1)

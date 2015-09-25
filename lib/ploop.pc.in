@@ -1,0 +1,10 @@
+libdir=@LIBDIR@
+
+Name: ploop
+Version: @VERSION@
+Description: ploop library
+Requires:
+Requires.private: libxml-2.0
+Libs: -L${libdir} -lploop
+Libs.private: -lrt -lpthread
+Cflags:

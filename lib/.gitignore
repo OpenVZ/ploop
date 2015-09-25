@@ -3,3 +3,4 @@
 libploop.a
 libploop.so
 symbols.c
+ploop.pc

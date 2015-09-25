@@ -25,9 +25,6 @@
 
 #define DISKDESCRIPTOR_XML      "DiskDescriptor.xml"
 
-#define PLOOP_SNAP_SKIP_TOPDELTA_DESTROY	0x01
-#define PLOOP_SNAP_SKIP_TOPDELTA_CREATE		0x02
-
 #ifndef PLOOP_DEPRECATED
 #define PLOOP_DEPRECATED __attribute__ ((deprecated))
 #endif
@@ -39,19 +36,24 @@ enum ploop_image_mode {
 };
 
 struct ploop_mount_param {
-	char device[64];
-	int ro;
-	int flags;
+	char device[64];	/* returns device name */
+	int ro;			/* read-only mount */
+	int flags;		/* flags such as MS_NOATIME */
 	int unused1;
-	char *fstype;
-	char *target;
-	char *guid;
-	int quota;
+	char *fstype;		/* filesystem type; default if not set*/
+	char *target;		/* mount point */
+	char *guid;		/* UUID; top if not set */
+	int quota;		/* enable inner FS quota */
 	char *mount_data;
 	unsigned int blocksize; /* blocksize for raw image */
 	int fsck;
 	int fsck_rc;		/* out: fsck return code */
 	char dummy[32];
+};
+
+/* Bit values for ploop_create_param.flags */
+enum ploop_create_flags {
+	PLOOP_CREATE_NOLAZY		= 1 << 0, /* do NOT use lazy init */
 };
 
 struct ploop_create_param {
@@ -63,6 +65,7 @@ struct ploop_create_param {
 	unsigned int blocksize;
 	unsigned int fsblocksize;
 	int fmt_version;
+	unsigned int flags;
 	char dummy[32];
 };
 
@@ -133,9 +136,17 @@ struct ploop_tsnapshot_param {
 	char dummy[32];
 };
 
+
+/* Values for ploop_snapshot_switch_param.flags field */
+/* Do not remove old top delta */
+#define PLOOP_SNAP_SKIP_TOPDELTA_DESTROY	0x01
+/* Do not create a new delta after switching */
+#define PLOOP_SNAP_SKIP_TOPDELTA_CREATE		0x02
+
 struct ploop_snapshot_switch_param {
 	const char *guid;
-	const char *guid_old;	/* guid for old top delta */
+	/* guid for old top delta when SKIP_TOPDELTA_DESTROY is used */
+	const char *guid_old;
 	int flags;
 	char dummy[32];
 };
@@ -284,9 +295,6 @@ void ploop_close_dd(struct ploop_disk_images_data *di);
 int ploop_create_dd(const char *ddxml, struct ploop_create_param *param);
 
 /* deprecated */
-int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data *di);
-void ploop_free_diskdescriptor(struct ploop_disk_images_data *di);
-int ploop_read_disk_descr(struct ploop_disk_images_data **di, const char *file);
 PLOOP_DEPRECATED char *ploop_get_base_delta_uuid(struct ploop_disk_images_data *di);
 PLOOP_DEPRECATED int ploop_send(const char *device, int ofd, const char *flush_cmd, int is_pipe);
 PLOOP_DEPRECATED int ploop_receive(const char *dst);
