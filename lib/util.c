@@ -269,7 +269,7 @@ static int ploop_execvp(const char *file, char *const argv[])
 	return ret;
 }
 
-int run_prg_rc(char *const argv[], int close_std_mask, int *rc)
+int run_prg_rc(char *const argv[], int hide_mask, int *rc)
 {
 	int pid, ret, status;
 	char cmd[512];
@@ -284,10 +284,10 @@ int run_prg_rc(char *const argv[], int close_std_mask, int *rc)
 		if (fd >= 0) {
 			dup2(fd, STDIN_FILENO);
 
-			if (close_std_mask & 0x1)
+			if (hide_mask & HIDE_STDOUT)
 				 dup2(fd, STDOUT_FILENO);
 
-			if (close_std_mask & 0x2)
+			if (hide_mask & HIDE_STDERR)
 				 dup2(fd, STDERR_FILENO);
 
 			close(fd);
