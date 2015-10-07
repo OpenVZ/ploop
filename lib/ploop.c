@@ -1224,6 +1224,9 @@ int ploop_is_mounted(struct ploop_disk_images_data *di)
 
 int ploop_get_devs(struct ploop_disk_images_data *di, char ***out)
 {
+	if (di->nimages == 0 && ploop_read_dd(di))
+		return -1;
+
 	return ploop_get_dev_by_delta(di->images[0]->file, NULL, NULL, out);
 }
 
