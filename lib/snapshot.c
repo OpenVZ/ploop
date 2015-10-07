@@ -143,7 +143,7 @@ static int do_delete_snapshot(struct ploop_disk_images_data *di, const char *gui
 			return SYSEXIT_PARAM;
 		}
 
-		ret = ploop_merge_snapshot_by_guid(di, child_guid, NULL);
+		ret = ploop_merge_snapshot_by_guid(di, strdupa(child_guid), NULL);
 	} else if (!di->snapshots[snap_id]->temporary) {
 		ploop_log(1, "Warning: Unable to delete snapshot %s as there are %d references"
 				" to it; marking it as temporary instead",
