@@ -444,6 +444,7 @@ static int pb_discard(int argc, char **argv)
 		{ "min-block", required_argument, 0, 667 },
 		{ "stat", no_argument, 0, 668 },
 		{ "automount", no_argument, 0, 669 },
+		{ "defrag", no_argument, 0, 670 },
 		{},
 	};
 	struct ploop_disk_images_data *di = NULL;
@@ -476,6 +477,9 @@ static int pb_discard(int argc, char **argv)
 			break;
 		case 669:
 			param.automount = 1;
+			break;
+		case 670:
+			param.defrag = 1;
 			break;
 		default:
 			usage_discard();

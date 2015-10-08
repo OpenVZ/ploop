@@ -31,7 +31,6 @@
 
 #include "ploop.h"
 
-#define PLOOP_LOCK_DIR		"/var/lock/ploop"
 #define PLOOP_GLOBAL_LOCK_FILE	PLOOP_LOCK_DIR"/ploop.lck"
 #define LOCK_TIMEOUT		60
 

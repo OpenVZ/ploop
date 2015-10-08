@@ -34,12 +34,15 @@
 #include <linux/types.h>
 #include <linux/fs.h>
 #include <string.h>
+#include <libgen.h>
 
 #include "ploop.h"
 #include "ploop_if.h"
 #include "cleanup.h"
 
 #define EXT4_IOC_OPEN_BALLOON		_IO('f', 42)
+
+#define BIN_E4DEFRAG	"/usr/sbin/e4defrag2"
 
 
 char *mntn2str(int mntn_type)
@@ -909,13 +912,42 @@ static int blk_discard(int fd, __u32 cluster, __u64 start, __u64 len)
 	return 0;
 }
 
+static int wait_pid(pid_t pid, const char *mes)
+{
+	int err, status;
+
+	while ((err = waitpid(pid, &status, 0)))
+		 if (errno != EINTR)
+			break;
+	if (err == -1) {
+		if (errno != ECHILD)
+			ploop_err(errno, "wait() failed");
+	} else if (WIFEXITED(status)) {
+		err = WEXITSTATUS(status);
+		if (err) {
+			ploop_err(0, "The %s process failed with code %d",
+					mes, err);
+			err = -1;
+		}
+	} else if (WIFSIGNALED(status)) {
+		ploop_err(0, "The %s process killed by signal %d",
+				mes, WTERMSIG(status));
+		err = -1;
+	} else {
+		ploop_err(0, "The %s process died abnormally", mes);
+		err = -1;
+	}
+
+	return err;
+}
+
 static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 			const char *device, const char *mount_point,
 			__u64 minlen_b, __u32 cluster, __u32 to_free,
 			__u64 blk_discard_range[2], const int *stop)
 {
 	pid_t tpid;
-	int err = 0, ret, status;
+	int ret;
 	__u32 size = 0;
 	struct ploop_cleanup_hook *h;
 
@@ -1021,8 +1053,6 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 	}
 
 	if (ret) {
-		err = -1;
-
 		ret = ioctl(fd, PLOOP_IOC_DISCARD_FINI);
 		if (ret < 0) {
 			if (errno == EBUSY)
@@ -1039,28 +1069,7 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 
 	unregister_cleanup_hook(h);
 
-	while ((ret = waitpid(tpid, &status, 0)))
-		 if (errno != EINTR)
-			break;
-	if (ret == -1) {
-		if (errno != ECHILD)
-			ploop_err(errno, "wait() failed");
-		err = -1;
-	} else if (WIFEXITED(status)) {
-		ret = WEXITSTATUS(status);
-		if (ret) {
-			ploop_err(0, "The trim process failed with code %d", ret);
-			err = -1;
-		}
-	} else if (WIFSIGNALED(status)) {
-		ploop_err(0, "The trim process killed by signal %d", WTERMSIG(status));
-		err = -1;
-	} else {
-		ploop_err(0, "The trim process died abnormally");
-		err = -1;
-	}
-
-	return err;
+	return wait_pid(tpid, "trim");
 }
 
 static int do_ploop_discard(struct ploop_disk_images_data *di,
@@ -1155,6 +1164,111 @@ int ploop_discard_by_dev(const char *device, const char *mount_point,
 	return do_ploop_discard(NULL, device, mount_point, minlen_b, to_free, stop);
 }
 
+static void defrag_pidfile(const char *dev, char *out, int size)
+{
+	char *p = strrchr(dev, '/');
+
+	snprintf(out, size, PLOOP_LOCK_DIR "/%s.defrag.pid",
+			p ? ++p : dev);
+}
+
+static void defrag_complete(const char *dev)
+{
+	char buf[PATH_MAX];
+	pid_t pid;
+	FILE *fp;
+	struct stat st, st2;
+
+	defrag_pidfile(dev, buf, sizeof(buf));
+	if (access(buf, F_OK))
+		return;
+
+	fp = fopen(buf, "r");
+	if (fp == NULL)
+		return;
+
+	if (fscanf(fp, "%d\n", &pid) != 1) {
+		fclose(fp);
+		return;
+	}
+	fclose(fp);
+
+	snprintf(buf, sizeof(buf), "/proc/%d/exe", pid);
+	if (stat(BIN_E4DEFRAG, &st) || stat(buf, &st2) ||
+			st.st_ino != st2.st_ino)
+		return
+
+	ploop_log(0, "Cancel defrag dev=%s pid=%d", dev, pid);
+	kill(pid, SIGTERM);
+}
+
+static int create_pidfile(const char *fname, pid_t pid)
+{
+	FILE *fp;
+
+	fp = fopen(fname, "w");
+	if (fp == NULL) {
+		ploop_err(errno, "Cant't create %s", fname);
+		return -1;
+	}
+
+	fprintf(fp, "%d\n", pid);
+
+	fclose(fp);
+
+	return 0;
+}
+
+static int ploop_defrag(struct ploop_disk_images_data *di,
+		const char *dev, const char *mnt)
+{
+	int ret;
+	int blocksize;
+	pid_t pid;
+	char pidfile[PATH_MAX];
+	char block_size[16];
+	char part[64];
+	char *arg[] = {BIN_E4DEFRAG, "-c", block_size, part, (char*)mnt, NULL};
+
+	if (access(arg[0], F_OK))
+		return 0;
+
+	if (ploop_get_attr(dev, "block_size", &blocksize)) {
+		ploop_err(0, "Can't find block size");
+		return -1;
+	}
+
+	snprintf(block_size, sizeof(block_size), "%d", blocksize << 9);
+
+	if (ploop_get_partition_by_mnt(mnt, part, sizeof(part))) {
+		ploop_log(-1, "Can't get partition by_mnt %s", mnt);
+		return -1;
+	}
+
+	ploop_log(0, "Start defrag dev=%s mnt=%s blocksize=%d",
+			part, mnt, blocksize);
+
+	pid = fork();
+	if (pid < 0) {
+		ploop_err(errno, "Can't fork");
+		return -1;
+	} else if (pid == 0) {
+		execv(arg[0], arg);
+
+		ploop_err(errno, "Can't exec %s", arg[0]);
+		_exit(1);
+	}
+
+	defrag_pidfile(dev, pidfile, sizeof(pidfile));
+	create_pidfile(pidfile, pid);
+
+	ret = wait_pid(pid, arg[0]);
+
+	unlink(pidfile);
+
+	return ret;
+}
+
 int ploop_discard(struct ploop_disk_images_data *di,
 		struct ploop_discard_param *param)
 {
@@ -1198,9 +1312,16 @@ int ploop_discard(struct ploop_disk_images_data *di,
 	}
 	ploop_unlock_dd(di);
 
+	if (param->defrag) {
+		ret = ploop_defrag(di, dev, mnt);
+		if (ret)
+			goto out;
+	}
+
 	ret = do_ploop_discard(di, dev, mnt, param->minlen_b,
 			param->to_free, param->stop);
 
+out:
 	if (mounted && ploop_lock_dd(di) == 0) {
 		ploop_umount(dev, di);
 		ploop_unlock_dd(di);
@@ -1213,6 +1334,8 @@ int ploop_complete_running_operation(const char *device)
 {
 	struct ploop_balloon_ctl b_ctl;
 	int fd, ret;
+
+	defrag_complete(device);
 
 	fd = open_device(device);
 	if (fd == -1)
