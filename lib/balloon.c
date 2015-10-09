@@ -34,7 +34,6 @@
 #include <linux/types.h>
 #include <linux/fs.h>
 #include <string.h>
-#include <libgen.h>
 
 #include "ploop.h"
 #include "ploop_if.h"
