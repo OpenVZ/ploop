@@ -1179,14 +1179,16 @@ static void defrag_complete(const char *dev)
 	struct stat st, st2;
 
 	defrag_pidfile(dev, buf, sizeof(buf));
-	if (access(buf, F_OK))
-		return;
 
 	fp = fopen(buf, "r");
-	if (fp == NULL)
+	if (fp == NULL) {
+		if (errno != ENOENT)
+			ploop_err(errno, "Can't open %s", buf);
 		return;
+	}
 
 	if (fscanf(fp, "%d\n", &pid) != 1) {
+		ploop_err(0, "Can't read PID from %s", buf);
 		fclose(fp);
 		return;
 	}
