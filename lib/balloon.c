@@ -1195,7 +1195,7 @@ static void defrag_complete(const char *dev)
 	snprintf(buf, sizeof(buf), "/proc/%d/exe", pid);
 	if (stat(BIN_E4DEFRAG, &st) || stat(buf, &st2) ||
 			st.st_ino != st2.st_ino)
-		return
+		return;
 
 	ploop_log(0, "Cancel defrag dev=%s pid=%d", dev, pid);
 	kill(pid, SIGTERM);
