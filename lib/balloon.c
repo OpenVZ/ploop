@@ -1216,7 +1216,7 @@ static void defrag_complete(const char *dev)
 	}
 	free(cmd);
 
-	ploop_log(0, "Cancel defrag dev=%s pid=%d", dev, pid);
+	ploop_log(0, "Cancelling defrag dev=%s pid=%d", dev, pid);
 	kill(pid, SIGTERM);
 	return;
 
