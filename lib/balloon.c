@@ -1174,9 +1174,10 @@ static void defrag_pidfile(const char *dev, char *out, int size)
 static void defrag_complete(const char *dev)
 {
 	char buf[PATH_MAX];
+	char cmdline[64];
 	pid_t pid;
 	FILE *fp;
-	struct stat st, st2;
+	char *cmd;
 
 	defrag_pidfile(dev, buf, sizeof(buf));
 
@@ -1194,10 +1195,26 @@ static void defrag_complete(const char *dev)
 	}
 	fclose(fp);
 
-	snprintf(buf, sizeof(buf), "/proc/%d/exe", pid);
-	if (stat(BIN_E4DEFRAG, &st) || stat(buf, &st2) ||
-			st.st_ino != st2.st_ino)
+	snprintf(cmdline, sizeof(cmdline), "/proc/%d/cmdline", pid);
+	fp = fopen(cmdline, "r");
+	if (fp == NULL) {
+		// no process with such pid
 		return;
+	}
+
+	if (fscanf(fp, "%ms", &cmd) != 1) {
+		// the process just gone
+		fclose(fp);
+		return;
+	}
+	fclose(fp);
+
+	if (strcmp(BIN_E4DEFRAG, cmd) != 0) {
+		// some other process that happen to reuse our pid
+		free(cmd);
+		return;
+	}
+	free(cmd);
 
 	ploop_log(0, "Cancel defrag dev=%s pid=%d", dev, pid);
 	kill(pid, SIGTERM);
