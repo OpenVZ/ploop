@@ -1198,8 +1198,8 @@ static void defrag_complete(const char *dev)
 	snprintf(cmdline, sizeof(cmdline), "/proc/%d/cmdline", pid);
 	fp = fopen(cmdline, "r");
 	if (fp == NULL) {
-		// no process with such pid
-		return;
+		// no process with such pidr, possible stale file
+		goto stale;
 	}
 
 	if (fscanf(fp, "%ms", &cmd) != 1) {
@@ -1212,12 +1212,19 @@ static void defrag_complete(const char *dev)
 	if (strcmp(BIN_E4DEFRAG, cmd) != 0) {
 		// some other process that happen to reuse our pid
 		free(cmd);
-		return;
+		goto stale;
 	}
 	free(cmd);
 
 	ploop_log(0, "Cancel defrag dev=%s pid=%d", dev, pid);
 	kill(pid, SIGTERM);
+	return;
+
+stale:
+	if (access(buf, F_OK))
+		ploop_log(0, "Warning: stale defrag pidfile %s", buf);
+
+	return;
 }
 
 static int create_pidfile(const char *fname, pid_t pid)
