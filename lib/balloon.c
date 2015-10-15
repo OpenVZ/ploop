@@ -34,7 +34,6 @@
 #include <linux/types.h>
 #include <linux/fs.h>
 #include <string.h>
-#include <libgen.h>
 
 #include "ploop.h"
 #include "ploop_if.h"
@@ -1175,31 +1174,57 @@ static void defrag_pidfile(const char *dev, char *out, int size)
 static void defrag_complete(const char *dev)
 {
 	char buf[PATH_MAX];
+	char cmdline[64];
 	pid_t pid;
 	FILE *fp;
-	struct stat st, st2;
+	char *cmd;
 
 	defrag_pidfile(dev, buf, sizeof(buf));
-	if (access(buf, F_OK))
-		return;
 
 	fp = fopen(buf, "r");
-	if (fp == NULL)
+	if (fp == NULL) {
+		if (errno != ENOENT)
+			ploop_err(errno, "Can't open %s", buf);
 		return;
+	}
 
 	if (fscanf(fp, "%d\n", &pid) != 1) {
+		ploop_err(0, "Can't read PID from %s", buf);
 		fclose(fp);
 		return;
 	}
 	fclose(fp);
 
-	snprintf(buf, sizeof(buf), "/proc/%d/exe", pid);
-	if (stat(BIN_E4DEFRAG, &st) || stat(buf, &st2) ||
-			st.st_ino != st2.st_ino)
-		return
+	snprintf(cmdline, sizeof(cmdline), "/proc/%d/cmdline", pid);
+	fp = fopen(cmdline, "r");
+	if (fp == NULL) {
+		// no process with such pidr, possible stale file
+		goto stale;
+	}
 
-	ploop_log(0, "Cancel defrag dev=%s pid=%d", dev, pid);
+	if (fscanf(fp, "%ms", &cmd) != 1) {
+		// the process just gone
+		fclose(fp);
+		return;
+	}
+	fclose(fp);
+
+	if (strcmp(BIN_E4DEFRAG, cmd) != 0) {
+		// some other process that happen to reuse our pid
+		free(cmd);
+		goto stale;
+	}
+	free(cmd);
+
+	ploop_log(0, "Cancelling defrag dev=%s pid=%d", dev, pid);
 	kill(pid, SIGTERM);
+	return;
+
+stale:
+	if (access(buf, F_OK))
+		ploop_log(0, "Warning: stale defrag pidfile %s", buf);
+
+	return;
 }
 
 static int create_pidfile(const char *fname, pid_t pid)
