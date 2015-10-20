@@ -2039,7 +2039,7 @@ int mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *par
 	if (param->guid != NULL) {
 		if (find_image_by_guid(di, param->guid) == NULL) {
 			ploop_err(0, "Uuid %s not found", param->guid);
-			return SYSEXIT_PARAM;
+			return SYSEXIT_NOSNAP;
 		}
 		guid = param->guid;
 	} else
