@@ -102,15 +102,7 @@ static int do_delete_snapshot(struct ploop_disk_images_data *di, const char *gui
 			return SYSEXIT_PARAM;
 		}
 
-		char *parent_fname = find_image_by_guid(di, snap->parent_guid);
-		if (parent_fname == NULL) {
-			ploop_err(0, "Unable to find image by uuid %s",
-					snap->parent_guid);
-			return SYSEXIT_PARAM;
-		}
-
-		ret = check_snapshot_mount(di, snap->temporary, parent_fname,
-				fname, guid);
+		ret = check_snapshot_mount(di, guid, fname, snap->temporary);
 		if (ret)
 			return ret;
 

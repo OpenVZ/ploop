@@ -3748,3 +3748,61 @@ out:
 	ploop_close_dd(di);
 	return ret;
 }
+
+static const char *get_devs_str(char **devs, char *buf, int size)
+{
+	char **p;
+	char *sp = buf;
+	char *ep = buf + size;
+
+	for (p = devs; *p != NULL; p++) {
+		sp += snprintf(sp, ep - sp, "%s ", *p);
+		if (sp >= ep)
+			break;
+	}
+	return buf;
+}
+
+int check_snapshot_mount(struct ploop_disk_images_data *di,
+		const char *guid, const char *fname, int temp)
+{
+	int ret = 0;
+	char **devs, **p;
+	char buf[512];
+
+	/* Don't check top delta */
+	if (guidcmp(guid, di->top_guid) == 0)
+		return 0;
+
+	ret = ploop_get_dev_by_delta(di->images[0]->file,
+			fname, NULL, &devs);
+	if (ret == 1)
+		return 0;
+	if (ret == -1)
+		return SYSEXIT_SYS;
+
+	/* There is one or more ploop devices found */
+	if (!temp) {
+		ploop_err(0, "Snapshot %s is busy by device(s): %s", guid,
+				get_devs_str(devs, buf, sizeof(buf)));
+		ret = SYSEXIT_EBUSY;
+		goto out;
+	}
+
+	/* Try to unmount temp snapshot(s) */
+	for (p = devs; *p != NULL; p++) {
+		ret = ploop_umount(*p, NULL);
+		if (ret) {
+			/* print current device and remaining ones */
+			ploop_err(0, "Snapshot %s is busy by device(s): %s", guid,
+					get_devs_str(p, buf, sizeof(buf)));
+			goto out;
+		}
+	}
+
+	ret = 0;
+out:
+	ploop_free_array(devs);
+
+	return ret;
+}
