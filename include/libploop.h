@@ -118,6 +118,7 @@ struct ploop_disk_images_data {
 struct ploop_resize_param {
 	unsigned long long size;
 	int offline_resize;
+	pid_t mntns_pid;
 	char dummy[32];
 };
 

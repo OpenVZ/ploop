@@ -1049,7 +1049,7 @@ void unmangle_to_buffer(const char *s, char *buf, size_t len)
  *  1 mount point not found (fs not mounted)
  * -1 some system error
  */
-static int get_mount_dir(const char *device, char *out, int size)
+static int get_mntns_mount_dir(const char *device, int pid, char *out, int size)
 {
 	FILE *fp;
 	int ret = 1;
@@ -1061,14 +1061,18 @@ static int get_mount_dir(const char *device, char *out, int size)
 
 	if (get_dev_by_name(device, &dev))
 		return -1;
-	minor = gnu_dev_minor(dev);
 
-	fp = fopen("/proc/self/mountinfo", "r");
+	if (pid > 0)
+		snprintf(buf, sizeof(buf), "/proc/%d/mountinfo", pid);
+	else
+		snprintf(buf, sizeof(buf), "/proc/self/mountinfo");
+	fp = fopen(buf, "r");
 	if (fp == NULL) {
-		ploop_err(errno, "Can't open /proc/self/mountinfo");
+		ploop_err(errno, "Can't open %s", buf);
 		return -1;
 	}
 
+	minor = gnu_dev_minor(dev);
 	while (fgets(buf, sizeof(buf), fp)) {
 		n = sscanf(buf, "%u %u %u:%u %*s %4096s", &u, &u, &_major, &_minor, target);
 		if (n != 5)
@@ -1077,13 +1081,19 @@ static int get_mount_dir(const char *device, char *out, int size)
 		if (_major == PLOOP_DEV_MAJOR &&
 				(_minor == minor || _minor == minor + 1))
 		{
-			unmangle_to_buffer(target, out, size);
+			if (out != NULL)
+				unmangle_to_buffer(target, out, size);
 			ret = 0;
 			break;
 		}
 	}
 	fclose(fp);
 	return ret;
+}
+
+static int get_mount_dir(const char *device, char *out, int size)
+{
+	return get_mntns_mount_dir(device, 0, out, size);
 }
 
 int ploop_get_mnt_by_dev(const char *dev, char *buf, int size)
@@ -2066,6 +2076,47 @@ int mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *par
 	return ret;
 }
 
+int mount_fs(const char *dev, const char *target)
+{
+	char pdev[64];
+
+	if (get_partition_device_name(dev, pdev, sizeof(pdev)))
+		return SYSEXIT_MOUNT;
+
+	ploop_log(0, "Mounting %s at %s", pdev, target);
+	if (mount(pdev, target, DEFAULT_FSTYPE, 0, 0)) {
+		ploop_err(errno, "Can't mount dev=%s target=%s",
+				pdev, target);
+		return SYSEXIT_MOUNT;
+	}
+
+	return 0;
+}
+
+static int auto_mount_fs(struct ploop_disk_images_data *di, pid_t mntns_pid,
+		struct ploop_mount_param *param)
+{
+	int ret;
+	char target[PATH_MAX];
+
+	ret = get_temp_mountpoint(di->images[0]->file, 1, target, sizeof(target));
+	if (ret)
+		return ret;
+
+	param->target = strdup(target);
+
+	if (mntns_pid) {
+		ret = get_mntns_mount_dir(param->device, mntns_pid, NULL, 0);
+		if (ret < 0)
+			return SYSEXIT_SYS;
+
+		if (ret == 0) /* image mounted inside mnt namespace */
+			return mount_fs(param->device, target);	
+	}
+
+	return ploop_mount_fs(param);
+}
+
 int auto_mount_image(struct ploop_disk_images_data *di,
 		struct ploop_mount_param *param)
 {
@@ -2546,24 +2597,20 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			goto err;
 
 		strncpy(mount_param.device, buf, sizeof(mount_param.device));
+
 		ret = get_mount_dir(mount_param.device, buf, sizeof(buf));
 		if (ret < 0) {
 			/* error message is printed by get_mount_dir() */
 			ret = SYSEXIT_SYS;
 			goto err;
 		} else if (ret > 0) { /* not mounted */
-			ret = get_temp_mountpoint(di->images[0]->file, 1, buf, sizeof(buf));
+			ret = auto_mount_fs(di, param->mntns_pid, &mount_param);
 			if (ret)
 				goto err;
-
-			mount_param.target = strdup(buf);
-			ret = ploop_mount_fs(&mount_param);
-			if (ret)
-				goto err;
-
 			umount_fs = 1;
 		} else
 			mount_param.target = strdup(buf);
+
 		mounted = 1;
 	}
 
