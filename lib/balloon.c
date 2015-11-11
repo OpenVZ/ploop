@@ -835,7 +835,7 @@ static void cancel_discard(void *data)
 static int ploop_trim(const char *mount_point, __u64 minlen_b, __u64 cluster)
 {
 	struct fstrim_range range = {};
-	int fd, ret = -1;
+	int fd, ret = -1, last = 0;
 
 	struct sigaction sa = {
 		.sa_handler     = stop_trim_handler,
@@ -875,9 +875,14 @@ static int ploop_trim(const char *mount_point, __u64 minlen_b, __u64 cluster)
 			break;
 		}
 
+		if (last)
+			break;
+
 		/* last iteration should go with range.minlen == minlen_b */
-		if (range.minlen != minlen_b && range.minlen / 2 < minlen_b)
+		if (range.minlen != minlen_b && range.minlen / 2 < minlen_b) {
 			range.minlen = minlen_b * 2;
+			last = 1;
+		}
 	}
 
 	close(fd);
