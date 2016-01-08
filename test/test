@@ -1,0 +1,10 @@
+#!/bin/bash -e
+
+export PATH=$PATH:.
+
+test-device-grow --online
+test-device-grow --offline
+test-device-snapshot --online --merge
+test-device-snapshot --offline --merge
+test-fs-resize --online
+test-fs-resize --offline

@@ -1,0 +1,86 @@
+#!/bin/bash
+
+set -e
+. ./functions
+
+V=2
+BLOCKSIZE=2048
+DELTA=100000
+SIZE=104857600
+if [ -f /sys/module/ploop/parameters/large_disk_support ]; then
+	SIZENEW=60485760000
+else
+	SIZENEW=2147482624
+fi
+
+while [ "${#}" -gt 0 ]; do
+case "${1}" in
+	"--online")
+		OFFLINE="no"
+		shift
+		;;
+	"--offline")
+		OFFLINE="yes"
+		shift
+		;;
+	"-v")
+		V=${2}
+		shift
+		shift
+		;;
+	*)
+		shift
+		;;
+	esac
+done
+
+test_cleanup
+
+ploop init -v $V -b $BLOCKSIZE -s ${SIZE}k $TEST_IMAGE
+ploop mount -d /dev/ploop0 $TEST_DDXML
+
+let bs=$BLOCKSIZE/2
+dd if=/dev/urandom bs=${bs}k count=1 of=$TEST_STORAGE/data
+
+size=$SIZE
+for ((i = 0; i < size; i += bs*DELTA)); do
+	progress Writing $i $size
+	dd if=$TEST_STORAGE/data of=/dev/ploop0 bs=1k seek=$i >/dev/null 2>&1
+done
+echo
+
+if [ "$OFFLINE" = yes ]; then
+	echo "Offline resize"
+	ploop umount $TEST_DDXML
+else
+	echo "Online resize"
+fi
+ploop grow -s ${SIZENEW}k $TEST_DDXML
+
+if [ "$OFFLINE" != yes ]; then
+	ploop umount $TEST_DDXML
+fi
+ploop mount $TEST_DDXML
+
+size=${SIZENEW}
+for ((; i < size; i += bs*DELTA)); do
+	progress Writing $i $size
+	dd if=$TEST_STORAGE/data of=/dev/ploop0 bs=1k seek=$i >/dev/null 2>&1
+done
+echo
+
+echo "Read"
+for ((i = 0; i < size; i += bs*DELTA)); do
+	progress Reading $i $size
+	dd of=$TEST_STORAGE/data_out if=/dev/ploop0 bs=1k count=$bs skip=$i >/dev/null 2>&1
+	cmp $TEST_STORAGE/data $TEST_STORAGE/data_out
+	rm -f $TEST_STORAGE/data_out
+done
+echo
+
+test_cleanup
+
+rm -f $TEST_STORAGE/data_out
+rm -f $TEST_STORAGE/data
+
+echo "FINISHED"

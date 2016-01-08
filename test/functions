@@ -1,0 +1,21 @@
+TEST_STORAGE=/vz/test
+TEST_IMAGE=$TEST_STORAGE/test-image.hdd
+TEST_DDXML=$TEST_STORAGE/DiskDescriptor.xml
+TEST_MNT=${TEST_STORAGE}_mnt
+
+[ -e /dev/ploop0 ] || mknod /dev/ploop0 b 182 0
+mkdir -p $TEST_STORAGE
+mkdir -p $TEST_MNT
+
+test_cleanup()
+{
+	if [ -f $TEST_IMAGE ]; then
+		ploop umount $TEST_DDXML 2>/dev/null || true
+		rm -f $TEST_IMAGE $TEST_DDXML
+	fi
+}
+
+progress()
+{
+	printf "%s %d/%d (%2d%%)\015" $1 $2 $3 $(($2*100/$3))
+}
