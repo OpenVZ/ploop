@@ -2817,8 +2817,10 @@ err:
 		close(balloonfd);
 	if (mounted == 0)
 		ploop_umount(mount_param.device, di);
-	else if (umount_fs)
-		ploop_umount_fs(mount_param.target, di);
+	else if (umount_fs) {
+		if (ploop_umount_fs(mount_param.target, di) == 0)
+			rmdir(mount_param.target);
+	}
 
 	ploop_unlock_dd(di);
 	free_mount_param(&mount_param);
