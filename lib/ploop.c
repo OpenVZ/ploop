@@ -2827,9 +2827,10 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 err:
 	if (balloonfd != -1)
 		close(balloonfd);
-	if (mounted == 0)
-		ploop_umount(mount_param.device, di);
-	else if (umount_fs)
+	if (mounted == 0) {
+		if (ploop_umount(mount_param.device, di) == 0)
+			rmdir(mount_param.target);
+	} else if (umount_fs)
 		ploop_umount_fs(mount_param.target, di);
 
 	ploop_unlock_dd(di);
