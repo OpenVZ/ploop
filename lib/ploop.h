@@ -196,6 +196,9 @@ static inline __u32 ploop_sec_to_ioff(off_t offSec, __u32 blocksize, int version
 	default:
 		assert(0);
 	}
+
+	// this unreachable code is here to satisfy broken compilers
+	return 0;
 }
 
 static inline off_t ploop_ioff_to_sec(__u32 iblk, __u32 blocksize, int version)
@@ -208,6 +211,9 @@ static inline off_t ploop_ioff_to_sec(__u32 iblk, __u32 blocksize, int version)
 	default:
 		assert(0);
 	}
+
+	// this unreachable code is here to satisfy broken compilers
+	return 0;
 }
 
 int gen_uuid_pair(char *uuid1, int len1, char *uuid2, int len2);
