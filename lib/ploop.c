@@ -1072,7 +1072,7 @@ static int get_mntns_mount_dir(const char *device, int pid, char *out, int size)
 		return -1;
 	}
 
-	minor = gnu_dev_minor(dev);
+	minor = minor(dev);
 	while (fgets(buf, sizeof(buf), fp)) {
 		n = sscanf(buf, "%u %u %u:%u %*s %4096s", &u, &u, &_major, &_minor, target);
 		if (n != 5)
@@ -1695,7 +1695,7 @@ static int create_ploop_dev(int minor)
 	make_sysfs_dev_name(minor, device + 5, sizeof(device) - 5);
 	/* Create pair /dev/ploopN & /dev/ploopNp1 */
 	if (access(device, F_OK)) {
-		if (mknod(device, S_IFBLK, gnu_dev_makedev(PLOOP_DEV_MAJOR, minor))) {
+		if (mknod(device, S_IFBLK, makedev(PLOOP_DEV_MAJOR, minor))) {
 			ploop_err(errno, "mknod %s", device);
 			return SYSEXIT_MKNOD;
 		}
@@ -1706,7 +1706,7 @@ static int create_ploop_dev(int minor)
 	}
 	snprintf(devicep1, sizeof(devicep1), "%sp1", device);
 	if (access(devicep1, F_OK)) {
-		if (mknod(devicep1, S_IFBLK, gnu_dev_makedev(PLOOP_DEV_MAJOR, minor+1))) {
+		if (mknod(devicep1, S_IFBLK, makedev(PLOOP_DEV_MAJOR, minor+1))) {
 			ploop_err(errno, "mknod %s", devicep1);
 			return SYSEXIT_MKNOD;
 		}

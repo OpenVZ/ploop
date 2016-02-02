@@ -203,7 +203,7 @@ static int get_dev_num(const char *path, dev_t *dev_num)
 		ploop_err(0, "Unexpected format of %s: %s", path, nbuf);
 		return -1;
 	}
-	*dev_num = gnu_dev_makedev(maj, min);
+	*dev_num = makedev(maj, min);
 	return 0;
 }
 
