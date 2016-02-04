@@ -2221,9 +2221,11 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 
 	ret = ploop_stop_device(device);
 
-	get_temp_mountpoint(di->images[0]->file, 0, mnt, sizeof(mnt));
-	if (access(mnt, F_OK) == 0)
-		rmdir(mnt);
+	if (di != NULL) {
+		get_temp_mountpoint(di->images[0]->file, 0, mnt, sizeof(mnt));
+		if (access(mnt, F_OK) == 0)
+			rmdir(mnt);
+	}
 
 	return ret;
 }
