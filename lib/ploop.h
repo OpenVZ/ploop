@@ -299,7 +299,7 @@ void __ploop_err(int err_no, const char *format, ...)
 	 })
 
 char *make_sysfs_dev_name(int minor, char *buf, int len);
-int mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *param, int flags);
+int mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *param);
 PL_EXT int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		struct ploop_mount_param *param, int raw);
 PL_EXT int replace_delta(const char *device, int level, const char *image);
