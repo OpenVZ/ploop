@@ -1282,10 +1282,10 @@ static int ploop_mount_fs(struct ploop_mount_param *param)
 		return 0;
 
 	/* Two step mount
-	 * 1 mount ro and read balloon inode
+	 * 1 mount and find balloon inode
 	 * 2 remount with balloon_ino=ino
 	 */
-	if (mount(part_device, param->target, fstype, MS_RDONLY, param->mount_data)) {
+	if (mount(part_device, param->target, fstype, flags, param->mount_data)) {
 		ploop_err(errno, "Can't mount file system dev=%s target=%s data='%s'",
 				part_device, param->target, param->mount_data);
 		return SYSEXIT_MOUNT;
