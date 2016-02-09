@@ -39,7 +39,7 @@
 #include "ploop.h"
 #include "cleanup.h"
 
-static int ploop_mount_fs(struct ploop_mount_param *param);
+static int ploop_mount_fs(struct ploop_mount_param *param, int need_balloon);
 
 static off_t round_bdsize(off_t size, __u32 blocksize, int version)
 {
@@ -614,7 +614,7 @@ static int create_balloon_file(struct ploop_disk_images_data *di,
 		return ret;
 	strcpy(mount_param.device, device);
 	mount_param.target = mnt;
-	ret = ploop_mount_fs(&mount_param);
+	ret = ploop_mount_fs(&mount_param, 0);
 	if (ret)
 		goto out;
 	snprintf(fname, sizeof(fname), "%s/"BALLOON_FNAME, mnt);
@@ -1256,7 +1256,7 @@ static int reread_part(const char *device)
 	return 0;
 }
 
-static int ploop_mount_fs(struct ploop_mount_param *param)
+static int ploop_mount_fs(struct ploop_mount_param *param, int need_balloon)
 {
 	unsigned long flags =
 		(param->flags & MS_NOATIME) |
@@ -1265,8 +1265,9 @@ static int ploop_mount_fs(struct ploop_mount_param *param)
 	struct stat st;
 	char *fstype = param->fstype == NULL ? DEFAULT_FSTYPE : param->fstype;
 	char data[1024];
-	char balloon_ino[64] = "";
+	int len;
 	char part_device[64];
+	int mounted = 0;
 
 	if (reread_part(param->device))
 		return SYSEXIT_MOUNT;
@@ -1285,33 +1286,46 @@ static int ploop_mount_fs(struct ploop_mount_param *param)
 	 * 1 mount and find balloon inode
 	 * 2 remount with balloon_ino=ino
 	 */
-	if (mount(part_device, param->target, fstype, flags, param->mount_data)) {
-		ploop_err(errno, "Can't mount file system dev=%s target=%s data='%s'",
-				part_device, param->target, param->mount_data);
-		return SYSEXIT_MOUNT;
-	}
-	snprintf(buf, sizeof(buf), "%s/" BALLOON_FNAME, param->target);
-	if (stat(buf, &st) == 0)
-		sprintf(balloon_ino, "balloon_ino=%llu,",
-				(unsigned long long) st.st_ino);
-
-	snprintf(data, sizeof(data), "%s%s%s",
-			balloon_ino,
+	snprintf(data, sizeof(data), "%s%s",
 			param->quota ? "usrjquota=aquota.user,grpjquota=aquota.group,jqfmt=vfsv0," : "",
 			param->mount_data ? param->mount_data : "");
+	if (mount(part_device, param->target, fstype, flags, data))
+		goto mnt_err;
+	mounted = 1;
 
-	ploop_log(0, "Mounting %s at %s fstype=%s data='%s' %s",
-			part_device, param->target, fstype,
-			data, param->ro  ? "ro":"");
+	if (!need_balloon)
+		goto done;
 
-	if (mount(part_device, param->target, fstype, flags | MS_REMOUNT, data)) {
-		ploop_err(errno, "Can't mount file system dev=%s target=%s",
-				part_device, param->target);
+	snprintf(buf, sizeof(buf), "%s/" BALLOON_FNAME, param->target);
+	if (stat(buf, &st) < 0) {
+		ploop_err(errno, "Can't stat balloon file %s", buf);
 		umount(param->target);
 		return SYSEXIT_MOUNT;
 	}
 
+	len = strlen(data);
+	snprintf(data + len, sizeof(data) - len, ",balloon_ino=%llu",
+			(unsigned long long) st.st_ino);
+
+	flags |= MS_REMOUNT;
+	if (mount(part_device, param->target, fstype, flags, data)) {
+		goto mnt_err;
+	}
+
+done:
+	ploop_log(0, "Mounted %s at %s fstype=%s data='%s' %s",
+			part_device, param->target, fstype,
+			data, param->ro  ? "ro":"");
 	return 0;
+
+mnt_err:
+	ploop_err(errno, "Can't mount file system "
+			"(dev=%s target=%s fstype=%s flags=%lx data=%s)",
+			part_device, param->target, fstype, flags, data);
+	if (mounted)
+		umount(param->target);
+
+	return SYSEXIT_MOUNT;
 }
 
 static void print_sys_block_ploop(void)
@@ -2020,7 +2034,7 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		goto err;
 
 	if (param->target != NULL || param->fsck) {
-		ret = ploop_mount_fs(param);
+		ret = ploop_mount_fs(param, 1);
 		if (ret)
 			ploop_stop(lfd, param->device);
 	} else {
@@ -2114,7 +2128,7 @@ static int auto_mount_fs(struct ploop_disk_images_data *di, pid_t mntns_pid,
 			return mount_fs(param->device, target);	
 	}
 
-	return ploop_mount_fs(param);
+	return ploop_mount_fs(param, 1);
 }
 
 int auto_mount_image(struct ploop_disk_images_data *di,
