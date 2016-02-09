@@ -464,7 +464,7 @@ int ploop_create_temporary_snapshot(struct ploop_disk_images_data *di,
 
 	mount_param.guid = param->guid;
 	mount_param.target = param->target;
-	ret = mount_image(di, &mount_param, 0);
+	ret = mount_image(di, &mount_param);
 	di->runtime->component_name = t;
 
 	if (ret)
