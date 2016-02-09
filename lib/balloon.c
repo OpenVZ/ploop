@@ -1017,7 +1017,7 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 			continue;
 		} else
 			size += ret;
-		/* serialize ploop operations vs ploop_complete_running_operation()
+		/* serialize ploop operations vs complete_running_operation()
 		 * NB: PLOOP_IOC_BALLOON may change mntn from PLOOP_MNTN_DISCARD:
 		 * to PLOOP_MNTN_FBLOADED
 		 */
@@ -1361,6 +1361,12 @@ out:
 }
 
 int ploop_complete_running_operation(const char *device)
+{
+	return 0;
+}
+
+int complete_running_operation(struct ploop_disk_images_data *di,
+		const char *device)
 {
 	struct ploop_balloon_ctl b_ctl;
 	int fd, ret;

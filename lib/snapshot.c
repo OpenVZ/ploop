@@ -194,10 +194,6 @@ int create_snapshot(const char *device, const char *delta, int syncfs)
 	__u32 blocksize;
 	int version;
 
-	ret = ploop_complete_running_operation(device);
-	if (ret)
-		return ret;
-
 	ret = get_image_param_online(device, &bdsize,
 			&blocksize, &version);
 	if (ret)
@@ -309,6 +305,9 @@ static int do_create_snapshot(struct ploop_disk_images_data *di,
 		return SYSEXIT_SYS;
 	else if (ret == 0) {
 		online = 1;
+		ret = complete_running_operation(di, dev);
+		if (ret)
+			return ret;
 	} else {
 		ret = get_image_param_offline(di, di->top_guid, &size, &blocksize, &version);
 		if (ret == SYSEXIT_OPEN && errno == EBUSY) {

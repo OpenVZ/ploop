@@ -638,7 +638,7 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 		goto err;
 	}
 
-	ret = ploop_complete_running_operation(device);
+	ret = complete_running_operation(di, device);
 	if (ret)
 		goto err;
 

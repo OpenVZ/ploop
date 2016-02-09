@@ -522,7 +522,7 @@ int ploop_copy_send(struct ploop_copy_send_param *arg)
 		if (p_memalign(&iobuf[i], 4096, cluster))
 			goto done;
 
-	ret = ploop_complete_running_operation(arg->device);
+	ret = complete_running_operation(NULL, arg->device);
 	if (ret)
 		goto done;
 

@@ -2249,7 +2249,7 @@ int ploop_umount_image(struct ploop_disk_images_data *di)
 		goto out;
 	}
 
-	ret = ploop_complete_running_operation(dev);
+	ret = complete_running_operation(di, dev);
 	if (ret) {
 		goto out;
 	}
@@ -2599,7 +2599,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			goto err;
 		mounted = 0;
 	} else {
-		ret = ploop_complete_running_operation(buf);
+		ret = complete_running_operation(di, buf);
 		if (ret)
 			goto err;
 
