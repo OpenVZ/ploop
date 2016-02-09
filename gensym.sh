@@ -41,7 +41,7 @@ disclaimer() {
 gen_h() {
 	# Make list of pointers to functions
 	extract_functions | sort | \
-	  sed 's/\(^.*[* ]\)ploop_\([a-z_]*\)\((.*\)$/\t\1(*\2)\3/'
+	  sed 's/^\([^(]*\)ploop_\([a-z_]*\)/\t\1(*\2)/'
 }
 
 gen_c() {
