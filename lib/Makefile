@@ -98,7 +98,7 @@ install: all install-lockdir install-pc
 
 clean:
 	$(E) "  CLEAN   "
-	$(Q) rm -f $(GENERATED) *.o *.a *.so *.so.*
+	$(Q) rm -f $(GENERATED) *.o *.a *.so *.so.* .depend
 .PHONY: clean
 
 distclean: clean

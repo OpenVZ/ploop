@@ -56,7 +56,7 @@ install: install-bin install-man
 
 clean:
 	$(E) "  CLEAN   "
-	$(Q) rm -f $(PROGS) $(OBJS) $(MANS)
+	$(Q) rm -f $(PROGS) $(OBJS) $(MANS) .depend
 .PHONY: clean
 
 distclean: clean
