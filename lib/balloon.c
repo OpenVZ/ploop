@@ -1365,6 +1365,64 @@ int ploop_complete_running_operation(const char *device)
 	return 0;
 }
 
+static int do_mntn_merge(struct ploop_disk_images_data *di, const char *device,
+		int fd)
+{
+	int ret;
+	char x[PATH_MAX];
+	char conf[PATH_MAX];
+	char *top_delta = NULL;
+
+	if (di == NULL) {
+		ploop_err(0, "Unable to complete on-going merge operation:"
+			" DiskDescriptor.xml is not provided");
+		return SYSEXIT_PARAM;
+	}
+
+	get_disk_descriptor_fname(di, conf, sizeof(conf));
+	ploop_log(0, "Process PLOOP_MNTN_MERGE state on '%s'", conf);
+
+	ret = ploop_find_top_delta_name_and_format(device, x, sizeof(x), NULL, 0);
+	if (ret)
+		return ret;
+
+	/* make validation before real merge */
+	ret = ploop_di_merge_image(di, di->top_guid, &top_delta);
+	if (ret)
+		return ret;
+
+	ploop_log(0, "Repair %s: merge top delta %s", conf, top_delta);
+	if (strcmp(x, top_delta)) {
+		ploop_err(0, "Unable to find top delta '%s' in the %s",
+				x, conf);
+		ret = SYSEXIT_PARAM;
+		goto err;
+	}
+
+	snprintf(x, sizeof(x), "%s.tmp", conf);
+	ret = ploop_store_diskdescriptor(x, di);
+	if (ret)
+		goto err;
+
+	ret = ioctl_device(fd, PLOOP_IOC_MERGE, 0);
+	if (ret)
+		goto err;
+
+	if (rename(x, conf)) {
+		ploop_err(errno, "Can't rename %s %s", x, conf);
+		ret = SYSEXIT_RENAME;
+		goto err;
+	}
+
+	if (unlink(top_delta))
+		 ploop_err(errno, "Can't unlink %s", top_delta);
+
+err:
+	free(top_delta);
+
+	return ret;
+}
+
 int complete_running_operation(struct ploop_disk_images_data *di,
 		const char *device)
 {
@@ -1393,7 +1451,7 @@ int complete_running_operation(struct ploop_disk_images_data *di,
 
 	switch (b_ctl.mntn_type) {
 	case PLOOP_MNTN_MERGE:
-		ret = ioctl_device(fd, PLOOP_IOC_MERGE, 0);
+		ret = do_mntn_merge(di, device, fd);
 		break;
 	case PLOOP_MNTN_GROW:
 		ret = ioctl_device(fd, PLOOP_IOC_GROW, 0);
