@@ -124,7 +124,7 @@ static PyObject *libploop_copy_start(PyObject *self, PyObject *args)
 		return NULL;
 	}
 
-	return PyLong_FromLong((long)ret);
+	return PyLong_FromLong((long)stat.xferred_total);
 }
 
 static PyObject *libploop_copy_next_iteration(PyObject *self, PyObject *args)
@@ -151,7 +151,7 @@ static PyObject *libploop_copy_next_iteration(PyObject *self, PyObject *args)
 		return NULL;
 	}
 
-	return PyLong_FromLong((long) stat.xferred);
+	return PyLong_FromLong((long)stat.xferred_total);
 }
 
 static PyObject *libploop_copy_stop(PyObject *self, PyObject *args)
@@ -159,6 +159,7 @@ static PyObject *libploop_copy_stop(PyObject *self, PyObject *args)
 	int ret;
 	PyObject *py_h;
 	struct ploop_copy_handle *h;
+	struct ploop_copy_stat stat = {};
 
 	if (!PyArg_ParseTuple(args, "O:libploop_copy_start", &py_h) ||
 			!is_ploop_copy_handle_object(py_h))
@@ -170,14 +171,14 @@ static PyObject *libploop_copy_stop(PyObject *self, PyObject *args)
 	h = ((ploop_copy_handle_object *)py_h)->h;
 
 	Py_BEGIN_ALLOW_THREADS
-	ret = ploop_copy_stop(h);
+	ret = ploop_copy_stop(h, &stat);
 	Py_END_ALLOW_THREADS
 	if (ret) {
 		PyErr_SetString(PyExc_RuntimeError, ploop_get_last_error());
 		return NULL;
 	}
 
-	return PyLong_FromLong((long)ret);
+	return PyLong_FromLong((long)stat.xferred_total);
 }
 
 static PyObject *libploop_copy_deinit(PyObject *self, PyObject *args)
