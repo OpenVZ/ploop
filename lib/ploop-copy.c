@@ -820,10 +820,10 @@ err:
 	return ret;
 }
 
-int ploop_copy_stop(struct ploop_copy_handle *h)
+int ploop_copy_stop(struct ploop_copy_handle *h,
+		struct ploop_copy_stat *stat)
 {
 	int ret;
-	struct ploop_copy_stat stat = {};
 	int iter;
 
 	ploop_log(3, "pcopy last");
@@ -834,10 +834,10 @@ int ploop_copy_stop(struct ploop_copy_handle *h)
 
 	iter = 1;
 	for (;;) {
-		ret = ploop_copy_next_iteration(h, &stat);
+		ret = ploop_copy_next_iteration(h, stat);
 		if (ret)
 			goto err;
-		else if (stat.xferred == 0)
+		else if (stat->xferred == 0)
 			break;
 		if (iter++ > 2) {
 			ploop_err(0, "Too many iterations on frozen FS, aborting");
