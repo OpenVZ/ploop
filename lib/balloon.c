@@ -1392,10 +1392,12 @@ static int do_mntn_merge(struct ploop_disk_images_data *di, const char *device,
 		return ret;
 
 	ploop_log(0, "Repair %s: merge top delta %s", conf, top_delta);
-	if (strcmp(x, top_delta)) {
-		ploop_err(0, "Unable to find top delta '%s' in the %s",
-				x, conf);
-		ret = SYSEXIT_PARAM;
+	if (ploop_fname_cmp(x, top_delta)) {
+		ploop_err(0, "Config %s inconsistent with device state: "
+				"top delta file differs "
+				"(device='%s' config='%s')\n",
+				conf, x, top_delta);
+		ret = SYSEXIT_DISKDESCR;
 		goto err;
 	}
 
