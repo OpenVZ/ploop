@@ -134,7 +134,7 @@ static PyObject *libploop_copy_next_iteration(PyObject *self, PyObject *args)
 	struct ploop_copy_handle *h;
 	struct ploop_copy_stat stat = {};
 
-	if (!PyArg_ParseTuple(args, "O:libploop_copy_start", &py_h) ||
+	if (!PyArg_ParseTuple(args, "O:libploop_copy_next_iteration", &py_h) ||
 			!is_ploop_copy_handle_object(py_h))
 	{
 		PyErr_SetString(PyExc_ValueError, "An incorrect parameter");
@@ -161,7 +161,7 @@ static PyObject *libploop_copy_stop(PyObject *self, PyObject *args)
 	struct ploop_copy_handle *h;
 	struct ploop_copy_stat stat = {};
 
-	if (!PyArg_ParseTuple(args, "O:libploop_copy_start", &py_h) ||
+	if (!PyArg_ParseTuple(args, "O:libploop_copy_stop", &py_h) ||
 			!is_ploop_copy_handle_object(py_h))
 	{
 		PyErr_SetString(PyExc_ValueError, "An incorrect parameter");
@@ -186,7 +186,7 @@ static PyObject *libploop_copy_deinit(PyObject *self, PyObject *args)
 	PyObject *py_h;
 	struct ploop_copy_handle *h;
 
-	if (!PyArg_ParseTuple(args, "O:libploop_copy_start", &py_h) ||
+	if (!PyArg_ParseTuple(args, "O:libploop_copy_deinit", &py_h) ||
 			!is_ploop_copy_handle_object(py_h))
 	{
 		PyErr_SetString(PyExc_ValueError, "An incorrect parameter");
@@ -207,7 +207,7 @@ static PyObject *libploop_start_receiver(PyObject *self, PyObject *args)
 	int ret;
 	struct ploop_copy_receive_param param = {};
 
-	if (!PyArg_ParseTuple(args, "sk:libploop_copy_init", &param.file, &param.ifd)) {
+	if (!PyArg_ParseTuple(args, "sk:libploop_start_reciver", &param.file, &param.ifd)) {
 		PyErr_SetString(PyExc_ValueError, "An incorrect parameter");
 		return NULL;
 	}
