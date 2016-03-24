@@ -36,3 +36,13 @@ class ploopcopy_thr_receiver(threading.Thread):
 
 	def run(self):
 		libploopapi.start_receiver(self.__fname, self.__fd);
+
+class snapshot():
+	def __init__(self, ddxml):
+		self.ddxml = ddxml
+
+	def create(self):
+		return libploopapi.create_snapshot(self.ddxml);
+
+	def delete(self, guid):
+		return libploopapi.delete_snapshot(self.ddxml, guid);

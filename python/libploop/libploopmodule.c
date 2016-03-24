@@ -223,6 +223,64 @@ static PyObject *libploop_start_receiver(PyObject *self, PyObject *args)
 	Py_RETURN_NONE;
 }
 
+static PyObject *libploop_create_snapshot(PyObject *self, PyObject *args)
+{
+	int ret;
+	struct ploop_disk_images_data *di = NULL;
+	char *ddxml;
+	char guid[39];
+	struct ploop_snapshot_param param = {
+		.guid = guid
+	};
+
+	if (!PyArg_ParseTuple(args, "s:libploop_create_snapshot", &ddxml)) {
+		PyErr_SetString(PyExc_ValueError, "An incorrect ddxml");
+		return NULL;
+	}
+
+	Py_BEGIN_ALLOW_THREADS
+	ploop_uuid_generate(guid, sizeof(guid));
+	ret = ploop_open_dd(&di, ddxml);
+	if (ret == 0) {
+		ret = ploop_create_snapshot(di, &param);
+		ploop_close_dd(di);
+	}
+	Py_END_ALLOW_THREADS
+	if (ret) {
+		PyErr_Format(PyExc_RuntimeError, "create_snapshot %s",
+			ploop_get_last_error());
+		return NULL;
+	}
+
+	return PyString_FromString(param.guid);
+}
+
+static PyObject *libploop_delete_snapshot(PyObject *self, PyObject *args)
+{
+	int ret;
+	struct ploop_disk_images_data *di = NULL;
+	char *guid, *ddxml;
+
+	if (!PyArg_ParseTuple(args, "ss:libploop_delete_snapshot", &ddxml, &guid)) {
+		PyErr_SetString(PyExc_ValueError, "An incorrect ddxml");
+		return NULL;
+	}
+
+	Py_BEGIN_ALLOW_THREADS
+	ret = ploop_open_dd(&di, ddxml);
+	if (ret == 0) {
+		ret = ploop_delete_snapshot(di, guid);
+		ploop_close_dd(di);
+	}
+	Py_END_ALLOW_THREADS
+	if (ret) {
+		PyErr_Format(PyExc_RuntimeError, "delete_snapshot %s",
+			ploop_get_last_error());
+		return NULL;
+	}
+
+	Py_RETURN_NONE;
+}
 static PyMethodDef PloopMethods[] = {
 	{ "open_dd", libploop_open_dd, METH_VARARGS, "Open DiskDescriptor.xml" },
 	{ "close_dd", libploop_close_dd, METH_VARARGS, "Close DiskDescriptor.xml" },
@@ -232,6 +290,8 @@ static PyMethodDef PloopMethods[] = {
 	{ "copy_stop", libploop_copy_stop, METH_VARARGS, "Final copy after CT freeze" },
 	{ "copy_deinit", libploop_copy_deinit, METH_VARARGS, "Free ploop copy handle" },
 	{ "start_receiver", libploop_start_receiver, METH_VARARGS, "Start ploop copy receiver" },
+	{ "create_snapshot", libploop_create_snapshot, METH_VARARGS, "Creaet snapshot" },
+	{ "delete_snapshot", libploop_delete_snapshot, METH_VARARGS, "Delete snapshot" },
 	{ NULL, NULL, 0, NULL }
 };
 
