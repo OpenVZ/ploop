@@ -31,6 +31,9 @@
 /* lock temporary snapshot by mount */
 #define TSNAPSHOT_MOUNT_LOCK_MARK	"~"
 
+#define SNAP_TYPE_TEMPORARY	0x1
+#define SNAP_TYPE_OFFLINE	0x2
+
 static int is_old_snapshot_format(struct ploop_disk_images_data *di)
 {
 	if (di->top_guid != NULL && !guidcmp(di->top_guid, TOPDELTA_UUID))
@@ -248,7 +251,7 @@ static int get_snapshot_count(struct ploop_disk_images_data *di)
 }
 
 static int do_create_snapshot(struct ploop_disk_images_data *di,
-		const char *guid, const char *snap_dir, int temporary)
+		const char *guid, const char *snap_dir, int flags)
 {
 	int ret;
 	int fd;
@@ -259,6 +262,7 @@ static int do_create_snapshot(struct ploop_disk_images_data *di,
 	char conf[PATH_MAX];
 	char conf_tmp[PATH_MAX];
 	int online = 0;
+	int temporary = flags & SNAP_TYPE_TEMPORARY;
 	int n;
 	off_t size;
 	__u32 blocksize;
@@ -303,9 +307,15 @@ static int do_create_snapshot(struct ploop_disk_images_data *di,
 	ret = ploop_find_dev_by_dd(di, dev, sizeof(dev));
 	if (ret == -1)
 		return SYSEXIT_SYS;
-	else if (ret == 0) {
-		online = 1;
-		ret = complete_running_operation(di, dev);
+
+	if (ret == 0) {
+		if (flags & SNAP_TYPE_OFFLINE) {
+			ret = get_image_param_online(dev, &size,
+					&blocksize, &version);
+		} else {
+			online = 1;
+			ret = complete_running_operation(di, dev);
+		}
 		if (ret)
 			return ret;
 	} else {
@@ -416,6 +426,22 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di,
 	return ret;
 }
 
+int ploop_create_snapshot_offline(struct ploop_disk_images_data *di,
+		struct ploop_snapshot_param *param)
+{
+	int ret;
+
+	if (ploop_lock_dd(di))
+		return SYSEXIT_LOCK;
+
+	ret = do_create_snapshot(di, param->guid, param->snap_dir,
+			SNAP_TYPE_OFFLINE);
+
+	ploop_unlock_dd(di);
+
+	return ret;
+}
+
 static int open_snap_holder(const char *device, int *holder_fd)
 {
 	*holder_fd = open(device, O_RDONLY);
@@ -450,7 +476,8 @@ int ploop_create_temporary_snapshot(struct ploop_disk_images_data *di,
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	ret = do_create_snapshot(di, param->guid, param->snap_dir, 1);
+	ret = do_create_snapshot(di, param->guid, param->snap_dir,
+			SNAP_TYPE_TEMPORARY);
 	if (ret)
 		goto err_unlock;
 

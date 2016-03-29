@@ -255,6 +255,38 @@ static PyObject *libploop_create_snapshot(PyObject *self, PyObject *args)
 	return PyString_FromString(param.guid);
 }
 
+static PyObject *libploop_create_snapshot_offline(PyObject *self, PyObject *args)
+{
+	int ret;
+	struct ploop_disk_images_data *di = NULL;
+	char *ddxml;
+	char guid[39];
+	struct ploop_snapshot_param param = {
+		.guid = guid
+	};
+
+	if (!PyArg_ParseTuple(args, "s:libploop_create_snapshot_offline", &ddxml)) {
+		PyErr_SetString(PyExc_ValueError, "An incorrect ddxml");
+		return NULL;
+	}
+
+	Py_BEGIN_ALLOW_THREADS
+	ploop_uuid_generate(guid, sizeof(guid));
+	ret = ploop_open_dd(&di, ddxml);
+	if (ret == 0) {
+		ret = ploop_create_snapshot_offline(di, &param);
+		ploop_close_dd(di);
+	}
+	Py_END_ALLOW_THREADS
+	if (ret) {
+		PyErr_Format(PyExc_RuntimeError, "create_snapshot %s",
+			ploop_get_last_error());
+		return NULL;
+	}
+
+	return PyString_FromString(param.guid);
+}
+
 static PyObject *libploop_delete_snapshot(PyObject *self, PyObject *args)
 {
 	int ret;
@@ -291,6 +323,8 @@ static PyMethodDef PloopMethods[] = {
 	{ "copy_deinit", libploop_copy_deinit, METH_VARARGS, "Free ploop copy handle" },
 	{ "start_receiver", libploop_start_receiver, METH_VARARGS, "Start ploop copy receiver" },
 	{ "create_snapshot", libploop_create_snapshot, METH_VARARGS, "Creaet snapshot" },
+	{ "create_snapshot_offline", libploop_create_snapshot_offline, METH_VARARGS, "Create snapshot offline" },
+
 	{ "delete_snapshot", libploop_delete_snapshot, METH_VARARGS, "Delete snapshot" },
 	{ NULL, NULL, 0, NULL }
 };

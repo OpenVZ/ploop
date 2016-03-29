@@ -446,6 +446,8 @@ PL_EXT int ploop_copy_next_iteration(struct ploop_copy_handle *h, struct ploop_c
 PL_EXT int ploop_copy_stop(struct ploop_copy_handle *h, struct ploop_copy_stat *stat);
 PL_EXT void ploop_copy_deinit(struct ploop_copy_handle *h);
 PL_EXT int ploop_copy_receiver(struct ploop_copy_receive_param *arg);
+PL_EXT int ploop_create_snapshot_offline(struct ploop_disk_images_data *di,
+		struct ploop_snapshot_param *param);
 int complete_running_operation(struct ploop_disk_images_data *di,
 		const char *device);
 #endif
