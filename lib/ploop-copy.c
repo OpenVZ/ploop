@@ -572,7 +572,7 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 	char device[64];
 	struct ploop_copy_handle  *_h = NULL;
 	int is_remote;
-	char mnt[PATH_MAX];
+	char mnt[PATH_MAX] = "";
 
 	is_remote = is_fd_socket(param->ofd);
 	if (is_remote < 0) {
@@ -599,8 +599,6 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 	if (ret)
 		goto err;
 
-	ploop_log(0, "Send image %s device=%s fmt=%s blocksize=%d local=%d",
-			image, device, format, blocksize, !is_remote);
 
 	_h = alloc_ploop_copy_handle(S2B(blocksize));
 	if (_h == NULL) {
@@ -626,12 +624,15 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 	if (err == -1)
 		goto err;
 	else if (ret == 0) {
-		_h->mntfd = open(mnt, O_RDONLY);
+		_h->mntfd = open(mnt, O_RDONLY|O_NONBLOCK|O_DIRECTORY);
 		if (_h->mntfd < 0) {
 			ploop_err(errno, "Can't open %s", mnt);
 			goto err;
 		}
 	}
+
+	ploop_log(0, "Send image %s dev=%s mnt=%s fmt=%s blocksize=%d local=%d",
+			image, device, mnt, format, blocksize, !is_remote);
 
 	if (open_delta_simple(&_h->idelta, image, O_RDONLY|O_DIRECT, OD_NOFLAGS)) {
 		ret = SYSEXIT_OPEN;
