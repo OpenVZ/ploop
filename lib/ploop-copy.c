@@ -451,8 +451,8 @@ static int send_async(struct ploop_copy_handle *h, void *data,
 	sd->len = size;
 	sd->pos = pos;
 
-	pthread_mutex_unlock(&sd->mutex);
 	pthread_cond_signal(&sd->cond);
+	pthread_mutex_unlock(&sd->mutex);
 
 	/* wait till sender start processing */
 	pthread_cond_wait(&sd->wait_cond, &sd->wait_mutex);
