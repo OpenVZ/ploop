@@ -430,8 +430,7 @@ PL_EXT int ploop_change_fmt_version(struct ploop_disk_images_data *di,
 int ploop_get_dev_by_delta(const char *delta, const char *topdelta,
 		const char *component_name, char **out[]);
 int check_snapshot_mount(struct ploop_disk_images_data *di,
-		int temporary, const char *parent_fname,
-		const char *child_fname, const char *child_guid);
+		const char *guid, const char *fname, int temp);
 int create_image(const char *file, __u32 blocksize, off_t size_sec, int mode,
 		int version);
 int do_replace_delta(int devfd, int level, int imgfd, __u32 blocksize,
