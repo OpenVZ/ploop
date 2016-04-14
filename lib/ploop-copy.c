@@ -623,7 +623,7 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 	err = ploop_get_mnt_by_dev(device, mnt, sizeof(mnt));
 	if (err == -1)
 		goto err;
-	else if (ret == 0) {
+	else if (err == 0) {
 		_h->mntfd = open(mnt, O_RDONLY|O_NONBLOCK|O_DIRECTORY);
 		if (_h->mntfd < 0) {
 			ploop_err(errno, "Can't open %s", mnt);
