@@ -33,7 +33,7 @@
 #include "ploop.h"
 #include "cleanup.h"
 
-#define ploop_dbg(level, format, ...)
+#define ploop_dbg(level, format, args...) ploop_log(level, format, ##args)
 
 typedef enum {
 	PCOPY_PKT_DATA,
@@ -272,7 +272,7 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 		return SYSEXIT_CREAT;
 	}
 
-	ploop_dbg(4, "RCV start %s", arg->file);
+	ploop_dbg(3, "RCV start %s", arg->file);
 	for (;;) {
 		if (nread(arg->ifd, &desc, sizeof(desc)) < 0) {
 			ploop_err(errno, "Error in nread(desc)");
@@ -356,7 +356,7 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 	if (ret)
 		goto out;
 
-	ploop_dbg(4, "RCV exited");
+	ploop_dbg(3, "RCV exited");
 	/* send final reply */
 	ret = 0;
 	if (nwrite(arg->ifd, &ret, sizeof(int))) {
@@ -488,7 +488,6 @@ void ploop_copy_release(struct ploop_copy_handle *h)
 {
 	if (h == NULL)
 		return;
-
 
 	if (h->fs_frozen) {
 		(void)ioctl_device(h->mntfd, FITHAW, 0);
@@ -674,7 +673,7 @@ int ploop_copy_start(struct ploop_copy_handle *h,
 		goto err;
 	}
 
-	ploop_dbg(4, "pcopy track init");
+	ploop_dbg(3, "pcopy track init");
 	ret = ioctl_device(h->devfd, PLOOP_IOC_TRACK_INIT, &e);
 	if (ret)
 		goto err;
@@ -794,7 +793,7 @@ static int freeze_fs(struct ploop_copy_handle *h)
 
 	if (h->mntfd != -1) {
 		/* Sync fs */
-		ploop_dbg(4, "SYNCFS");
+		ploop_dbg(3, "SYNCFS");
 		if (sys_syncfs(h->mntfd)) {
 			ploop_err(errno, "syncfs() failed");
 			ret = SYSEXIT_FSYNC;
@@ -802,7 +801,7 @@ static int freeze_fs(struct ploop_copy_handle *h)
 		}
 
 		/* Flush journal and freeze fs (this also clears the fs dirty bit) */
-		ploop_dbg(4, "FIFREEZE");
+		ploop_dbg(3, "FIFREEZE");
 		ret = ioctl_device(h->mntfd, FIFREEZE, 0);
 		if (ret)
 			goto err;
@@ -810,7 +809,7 @@ static int freeze_fs(struct ploop_copy_handle *h)
 		h->fs_frozen = 1;
 	}
 
-	ploop_dbg(4, "IOC_SYNC");
+	ploop_dbg(3, "IOC_SYNC");
 	ret = ioctl_device(h->devfd, PLOOP_IOC_SYNC, 0);
 	if (ret)
 		goto err;
@@ -857,7 +856,7 @@ int ploop_copy_stop(struct ploop_copy_handle *h,
 
 		vh->m_DiskInUse = 0;
 
-		ploop_dbg(4, "Update header");
+		ploop_dbg(3, "Update header");
 
 		ret = send_buf(h, vh, 4096, 0);
 		if (ret)
@@ -871,13 +870,13 @@ int ploop_copy_stop(struct ploop_copy_handle *h,
 
 	h->tracker_on = 0;
 
-	ploop_dbg(4, "SEND 0 0 (close)");
+	ploop_dbg(3, "SEND 0 0 (close)");
 	send_async(h, NULL, 0, 0);
 
 	pthread_join(h->send_th, NULL);
 	h->send_th = 0;
 
-	ploop_dbg(4, "pcopy stop done");
+	ploop_dbg(3, "pcopy stop done");
 
 err:
 	ploop_copy_release(h);
