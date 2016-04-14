@@ -418,6 +418,7 @@ int read_safe(int fd, void * buf, unsigned int size, off_t pos, char *msg);
 int write_safe(int fd, void * buf, unsigned int size, off_t pos, char *msg);
 const char *get_snap_str(int temporary);
 PL_EXT int ploop_restore_descriptor(const char *dir, char *delta_path, int raw, int blocksize);
+int is_device_inuse(const char *dev);
 // merge
 PL_EXT int get_delta_info(const char *device, struct merge_info *info);
 PL_EXT int merge_image(const char *device, int start_level, int end_level, int raw, int merge_top,

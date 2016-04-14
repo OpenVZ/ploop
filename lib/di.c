@@ -457,7 +457,7 @@ int ploop_di_merge_image(struct ploop_disk_images_data *di, const char *guid, ch
 
 	snap_id = find_snapshot_by_guid(di, guid);
 	if (snap_id == -1) {
-		ploop_err(0, "Unable to find snapshot by uuid %s",
+		ploop_err(0, "Can't find snapshot by uuid %s",
 				guid);
 		return SYSEXIT_PARAM;
 	}
@@ -465,20 +465,20 @@ int ploop_di_merge_image(struct ploop_disk_images_data *di, const char *guid, ch
 
 	image_id = find_image_idx_by_guid(di, guid);
 	if (image_id == -1) {
-		ploop_err(0, "Unable to find image by uuid %s",
+		ploop_err(0, "Can't find image by uuid %s",
 				guid);
 		return SYSEXIT_PARAM;
 	}
 	nr_ch = ploop_get_child_count_by_uuid(di, snapshot->parent_guid);
 	if (nr_ch > 1) {
-		ploop_err(0, "Unable to merge snapshot %s: "
+		ploop_err(0, "Can't merge to snapshot %s: "
 				"it has %d children",
-				guid, nr_ch);
+				snapshot->parent_guid, nr_ch);
 		return SYSEXIT_PARAM;
 	}
 	if (guidcmp(snapshot->parent_guid, NONE_UUID) == 0) {
-		ploop_err(0, "Unable to merge image %s: it is a base image",
-				guid);
+		ploop_err(0, "Can't merge snapshot %s: "
+				"it is a base image", guid);
 		return SYSEXIT_PARAM;
 	}
 	image = di->images[image_id];
