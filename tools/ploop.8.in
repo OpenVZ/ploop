@@ -123,6 +123,7 @@ ploop \- ploop device management utility
 .YS
 .SY ploop\ snapshot-merge
 .OP -u uuid\fR\ |\ \fB-A
+.OP -n new_delta
 .I DiskDescriptor.xml
 .YS
 .SY ploop\ snapshot-switch
@@ -526,6 +527,26 @@ their corresponding base images. With option
 .B -a
 it also shows a mount point (third column).
 
+.SS3 restore-descriptor
+
+Create DiskDescriptor.xml file suitable for \fIdelta_file\fR and put it into
+\fIdisk_dir\fR.
+
+.SY ploop\ restore-descriptor
+.B -f
+.I format
+.OP -b blocksize
+.I disk_dir
+.I delta_file
+.YS
+
+Read image header in case of ploop1 format or check raw image size and generate proper
+DiskDescriptor.xml file. You can specify blocksize for raw images. If it's not specified
+it will be choosen automatically - largest possible value between 32K and 1M. Raw image
+size must be aligned to blocksize.
+
+This command works only for base images. Snapshots are not supported.
+
 .SS Working with snapshots
 
 Ploop snapshots is a mechanism for creating and managing instant states of a
@@ -555,10 +576,15 @@ curly brackets.
 
 .SS3 snapshot-merge
 
-Merge a snapshot with its parent.
+Merge a snapshot with its parent. That is, contents of the delta file
+corresponding to the snapshot is merged to a parent delta, then the
+file is removed. Parent snapshot UUID is lost (as it is replaced with
+the \fIuuid\fR specified). All snapshots having the lost one as a parent
+are updated to have the \fIuuid\fR as its parent.
 
 .SY ploop\ snapshot-merge
 .OP -u uuid\fR\ |\ \fB-A
+.OP -n new_delta
 .I DiskDescriptor.xml
 .YS
 
@@ -568,6 +594,11 @@ If this option is not specified, the top delta will be used.
 .IP \fB-A\fR
 Merge all snapshots down to base delta. If some snapshots have more than
 a single child, they will be impossible to merge.
+.IP "\fB-n\fR \fInew_delta\fR"
+If this option is set, instead of merging the child delta into its parent,
+both the parent and the child deltas are merged into a newly created
+file \fInew_delta\fR, which replaces the parent delta. Both deltas are
+then removed.
 
 .SS3 snapshot-switch
 
@@ -755,26 +786,6 @@ whole discarding operation.
 Note that the same functionality is available by means of \fBvzctl compact\fR
 command.
 
-.SS3 restore descriptor
-
-Create DiskDescriptor.xml file suitable for \fIdelta_file\fR and put it into
-\fIdisk_dir\fR.
-
-.SY ploop\ restore-descriptor
-.B -f
-.I format
-.OP -b blocksize
-.I disk_dir
-.I delta_file
-.YS
-
-Read image header in case of ploop1 format or check raw image size and generate proper
-DiskDescriptor.xml file. You can specify blocksize for raw images. If it's not specified
-it will be choosen automatically - largest possible value between 32K and 1M. Raw image
-size must be aligned to blocksize.
-
-This command works only for base images. Snapshots are not supported.
-
 .SS Image formats
 The following image formats are currently supported.
 .TP
@@ -926,6 +937,9 @@ Ploop image is not mounted.
 .BR 41 ,\  SYSEXIT_FSCK
 Error from
 .BR fsck (8).
+.TP
+.BR 43 ,\  SYSEXIT_NOSNAP
+Can't find specified snapshot UUID.
 .SH SEE ALSO
 .BR vzctl (8),
 .BR vzmigrate (8),
