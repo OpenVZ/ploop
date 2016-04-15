@@ -1280,12 +1280,13 @@ static int plooptool_replace(int argc, char **argv)
 		if (param.cur_file) {
 			int ret;
 
-			level = find_level_by_delta(device, param.cur_file);
-			if (level < 0) {
+			ret = find_level_by_delta(device, param.cur_file,
+					&level);
+			if (ret) {
 				fprintf(stderr, "Can't find level by "
 						"delta file name %s",
 						param.cur_file);
-				return SYSEXIT_PARAM;
+				return ret;
 			}
 
 			ret = check_deltas_same(param.cur_file, param.file);
