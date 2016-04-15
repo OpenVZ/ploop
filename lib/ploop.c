@@ -1181,7 +1181,8 @@ static const char *get_top_delta_guid(struct ploop_disk_images_data *di)
 	return di->top_guid;
 }
 
-int ploop_get_top_delta_fname(struct ploop_disk_images_data *di, char *out, int len)
+int get_delta_fname(struct ploop_disk_images_data *di, const char *guid,
+	char *out, int len)
 {
 	int ret = 0;
 	const char *fname;
@@ -1189,7 +1190,7 @@ int ploop_get_top_delta_fname(struct ploop_disk_images_data *di, char *out, int 
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	fname = find_image_by_guid(di, get_top_delta_guid(di));
+	fname = find_image_by_guid(di, guid);
 	if (fname == NULL){
 		ploop_err(0, "Can't find image by uuid %s", di->top_guid);
 		ret = SYSEXIT_PARAM;
@@ -1203,6 +1204,16 @@ int ploop_get_top_delta_fname(struct ploop_disk_images_data *di, char *out, int 
 out:
 	ploop_unlock_dd(di);
 	return ret;
+}
+
+int ploop_get_top_delta_fname(struct ploop_disk_images_data *di, char *out, int len)
+{
+	return get_delta_fname(di, get_top_delta_guid(di), out, len);
+}
+
+int ploop_get_base_delta_fname(struct ploop_disk_images_data *di, char *out, int len)
+{
+	return get_delta_fname(di, get_base_delta_uuid(di), out, len);
 }
 
 int ploop_get_dev(struct ploop_disk_images_data *di, char *out, int len)

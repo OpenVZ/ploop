@@ -233,6 +233,7 @@ extern "C" {
 int ploop_set_component_name(struct ploop_disk_images_data *di,
 		const char *component_name);
 int ploop_get_top_delta_fname(struct ploop_disk_images_data *di, char *out, int len);
+int ploop_get_base_delta_fname(struct ploop_disk_images_data *di, char *out, int len);
 int ploop_find_dev(const char *component_name, const char *delta, char *buf, int size);
 int ploop_get_dev_by_mnt(const char *path, char *buf, int size);
 int ploop_get_mnt_by_dev(const char *dev, char *buf, int size);
