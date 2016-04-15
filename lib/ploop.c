@@ -1184,36 +1184,40 @@ static const char *get_top_delta_guid(struct ploop_disk_images_data *di)
 int get_delta_fname(struct ploop_disk_images_data *di, const char *guid,
 	char *out, int len)
 {
-	int ret = 0;
 	const char *fname;
-
-	if (ploop_lock_dd(di))
-		return SYSEXIT_LOCK;
 
 	fname = find_image_by_guid(di, guid);
 	if (fname == NULL){
-		ploop_err(0, "Can't find image by uuid %s", di->top_guid);
-		ret = SYSEXIT_PARAM;
-		goto out;
+		ploop_err(0, "Can't find image by uuid %s", guid);
+		return SYSEXIT_PARAM;
 	}
 	if (snprintf(out, len, "%s", fname) > len -1) {
 		ploop_err(0, "Not enough space to store data");
-		ret = SYSEXIT_PARAM;
+		return SYSEXIT_PARAM;
 	}
-
-out:
-	ploop_unlock_dd(di);
-	return ret;
+	return 0;
 }
 
 int ploop_get_top_delta_fname(struct ploop_disk_images_data *di, char *out, int len)
 {
-	return get_delta_fname(di, get_top_delta_guid(di), out, len);
+	int ret;
+	if (ploop_lock_dd(di))
+		return SYSEXIT_LOCK;
+
+	ret = get_delta_fname(di, get_top_delta_guid(di), out, len);
+	ploop_unlock_dd(di);
+	return ret;
 }
 
 int ploop_get_base_delta_fname(struct ploop_disk_images_data *di, char *out, int len)
 {
-	return get_delta_fname(di, get_base_delta_uuid(di), out, len);
+	int ret;
+	if (ploop_lock_dd(di))
+		return SYSEXIT_LOCK;
+
+	ret = get_delta_fname(di, get_base_delta_uuid(di), out, len);
+	ploop_unlock_dd(di);
+	return ret;
 }
 
 int ploop_get_dev(struct ploop_disk_images_data *di, char *out, int len)
