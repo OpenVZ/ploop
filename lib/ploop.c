@@ -1487,7 +1487,7 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 	char dev[PATH_MAX];
 	char *file = NULL, *oldfile, *tmp;
 	char conf[PATH_MAX], conf_tmp[PATH_MAX] = "";
-	int ret, level;
+	int ret, idx, level;
 	int keep_name = (param->flags & PLOOP_REPLACE_KEEP_NAME);
 	int offline = 0;
 
@@ -1513,69 +1513,79 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 		offline = 1;
 	}
 
-	/* Image to be replaced is specified by either guid or level */
+	/* Image to be replaced is specified by one of the following
+	 * (in the order of preference):
+	 *  1 guid
+	 *  2 current image file name
+	 *  3 level
+	 *
+	 * Try to find out level (if not set) and idx (as in di->images[idx])
+	 */
+	level = idx = -1;
 	if (param->guid) {
 		if (!is_valid_guid(param->guid)) {
 			ploop_err(0, "Invalid guid specified: %s", param->guid);
 			goto err;
 		}
 
-		level = find_image_idx_by_guid(di, param->guid);
-		if (level == -1) {
+		idx = find_image_idx_by_guid(di, param->guid);
+		if (idx == -1) {
 			ploop_err(0, "Can't find image by guid %s", param->guid);
 			goto err;
 		}
 	}
 	else if (param->cur_file) {
-		if (offline) {
-			char basedir[PATH_MAX];
-			char image[PATH_MAX];
-			const char *cur_file = param->cur_file;
-
-			/* First we need to normalize the image file name
-			 * to be the same as in struct ploop_disk_images_data
-			 * as filled in by ploop_read_dd() and parse_xml().
-			 */
-			get_basedir(di->runtime->xml_fname,
-					basedir, sizeof(basedir));
-			if (basedir[0] != 0 && cur_file[0] != '/')
-				snprintf(image, sizeof(image), "%s%s",
-						basedir, cur_file);
-			else
-				snprintf(image, sizeof(image), "%s",
-						cur_file);
-			level = find_image_idx_by_file(di, image);
-			if (level == -1) {
-				ploop_err(0, "Can't find file %s "
-						"in DiskDescriptor.xml",
-						image);
-				goto err;
-			}
-		} else {
-			level = find_level_by_delta(dev, param->cur_file);
-			if (level < 0) {
-				ploop_err(0, "Can't find level by image file "
-						"%s", param->cur_file);
-				goto err;
-			}
+		idx = find_image_idx_by_file(di, param->cur_file);
+		if (idx == -1) {
+			ploop_err(0, "Can't find image %s "
+					"in DiskDescriptor.xml",
+					param->cur_file);
+			goto err;
 		}
 	}
-	else {
-		/* by param->level */
+	else { /* by param->level */
+		char img[PATH_MAX];
+
 		if (offline) {
 			ploop_err(0, "Can't specify level for "
 					"offline replace");
-			ret = SYSEXIT_PARAM;
 			goto err;
 		}
 		level = param->level;
+		/* Proper level check (against top_level) is to be done later
+		 * in replace_delta(). Here is just some basic sanity check.
+		 */
+		if (level < 0 || level >= di->nimages) {
+			ploop_err(0, "Invalid level %d", level);
+			goto err;
+		}
+
+		/* get delta file name and figure out idx */
+		if (ploop_get_delta_attr_str(dev, level, "image",
+					img, sizeof(img))) {
+			ret = SYSEXIT_SYSFS;
+			goto err;
+		}
+
+		idx = find_image_idx_by_file(di, img);
+		if (idx < 0) {
+			ploop_err(0, "Can't find image %s "
+					"in DiskDescriptor.xml", img);
+			/* This could only happen if dd.xml is wrong/bad */
+			ret = SYSEXIT_DISKDESCR;
+			goto err;
+		}
 	}
-	/* Proper level check (against top_level) is to be done later
-	 * in replace_delta(). Here is just some basic sanity check.
-	 */
-	if (level < 0 || level >= di->nimages) {
-		ploop_err(0, "Invalid level %d", level);
-		goto err;
+
+	if (level < 0 && !offline) {
+		/* find level by idx */
+		ret = find_level_by_delta(dev, di->images[idx]->file, &level);
+		if (ret) {
+			ploop_log(0, "Can't find %s level by delta %s, "
+					"assuming offline replace",
+					dev, di->images[idx]->file);
+			offline = 1;
+		}
 	}
 
 	/* check a new image */
@@ -1584,7 +1594,7 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 		goto err;
 
 	/* check that images are identical */
-	oldfile = param->cur_file ? : di->images[level]->file;
+	oldfile = param->cur_file ? : di->images[idx]->file;
 	ret = check_deltas_same(file, oldfile);
 	if (ret)
 		goto err;
@@ -1597,16 +1607,16 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 	/* Write new dd.xml with changed image file */
 	get_disk_descriptor_fname(di, conf, sizeof(conf));
 	snprintf(conf_tmp, sizeof(conf_tmp), "%s.tmp", conf);
-	tmp = di->images[level]->file;
-	di->images[level]->file = file;
+	tmp = di->images[idx]->file;
+	di->images[idx]->file = file;
 	ret = ploop_store_diskdescriptor(conf_tmp, di);
-	di->images[level]->file = tmp;
+	di->images[idx]->file = tmp;
 	if (ret)
 		goto err;
 
 	/* Do replace */
-	ploop_log(0, "Replacing %s with %s (%s)", oldfile, file,
-			(offline) ? "offline" : "online");
+	ploop_log(0, "Replacing %s with %s (%s, level %d)", oldfile, file,
+			(offline) ? "offline" : "online", level);
 	if (!offline) {
 	       ret = replace_delta(dev, level, file);
 	       if (ret)
@@ -1684,8 +1694,8 @@ undo_keep:
 			goto err;
 		}
 		/* Change image in di */
-		free(di->images[level]->file);
-		di->images[level]->file = file; /* malloc()ed by realpath */
+		free(di->images[idx]->file);
+		di->images[idx]->file = file; /* malloc()ed by realpath */
 		file = NULL; /* prevent free(file) below */
 	}
 
