@@ -315,9 +315,6 @@ static int check_size(unsigned long long sectors, __u32 blocksize, int version)
 
 int check_blockdev_size(unsigned long long sectors, __u32 blocksize, int version)
 {
-	if (check_size(sectors, blocksize, version))
-		return -1;
-
 	if (sectors % blocksize) {
 		ploop_err(0, "An incorrect block device size is specified: %llu sectors."
 				" The block device size must be aligned to the cluster block size %d",
@@ -402,9 +399,6 @@ int create_snapshot_delta(const char *path, __u32 blocksize, off_t bdsize,
 	/* select version for new delta on top of RAW image */
 	if (version == PLOOP_FMT_UNDEFINED)
 		version = default_fmt_version();
-
-	if (do_check_size(bdsize, blocksize, version, 0))
-		return -1;
 
 	return do_create_delta(path, blocksize, bdsize, version);
 }
@@ -731,7 +725,8 @@ static int init_dd(struct ploop_disk_images_data **di,
 		return SYSEXIT_PARAM;
 	}
 
-	if (check_size(param->size, blocksize, fmt_version))
+	if (param->fstype != NULL &&
+			check_size(param->size, blocksize, fmt_version))
 		return SYSEXIT_PARAM;
 
 	if (!is_valid_blocksize(blocksize)) {
@@ -2410,9 +2405,6 @@ int ploop_grow_device(const char *device, off_t new_size)
 				(long)new_size, (long)size);
 		return SYSEXIT_PARAM;
 	}
-
-	if (check_size(new_size, blocksize, version))
-		return SYSEXIT_PARAM;
 
 	ploop_log(0, "Growing dev=%s size=%llu sectors (new size=%llu)",
 				device, (unsigned long long)size,
