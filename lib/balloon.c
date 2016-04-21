@@ -1342,8 +1342,25 @@ int ploop_discard(struct ploop_disk_images_data *di,
 	}
 	ploop_unlock_dd(di);
 
-	if (param->defrag && ploop_defrag(di, dev, mnt))
-		ploop_log(0, BIN_E4DEFRAG" exited with error");
+	if (param->defrag) {
+		struct ploop_discard_stat pds, pds_after;
+
+		ret = ploop_discard_get_stat_by_dev(dev, mnt, &pds);
+
+		if (ploop_defrag(di, dev, mnt))
+			ploop_log(0, BIN_E4DEFRAG" exited with error");
+
+		ret += ploop_discard_get_stat_by_dev(dev, mnt, &pds_after);
+		if (ret)
+			ploop_log(0, "Unable to get ploop stats");
+
+		/*
+		 * Take into account possible change of ploop image size caused
+		 * by defrag operation defrag operation.
+		 */
+		if (param->to_free && !ret)
+			param->to_free += pds_after.image_size - pds.image_size;
+	}
 
 	ret = do_ploop_discard(di, dev, mnt, param->minlen_b,
 			param->to_free, param->stop);
