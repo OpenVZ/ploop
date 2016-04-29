@@ -1176,7 +1176,7 @@ static const char *get_top_delta_guid(struct ploop_disk_images_data *di)
 	return di->top_guid;
 }
 
-int get_delta_fname(struct ploop_disk_images_data *di, const char *guid,
+static int get_delta_fname(struct ploop_disk_images_data *di, const char *guid,
 	char *out, int len)
 {
 	const char *fname;
