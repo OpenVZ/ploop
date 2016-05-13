@@ -164,6 +164,7 @@ ploop \- ploop device management utility
 .OP --automount
 .OP --to-free size
 .OP --min-block min_size
+.OP --defrag
 .I DiskDescriptor.xml
 .YS
 .SY ploop\ restore-descriptor
@@ -762,6 +763,7 @@ image size.
 .OP --automount
 .OP --to-free size
 .OP --min-block min_size
+.OP --defrag
 .I DiskDescriptor.xml
 .YS
 
@@ -772,6 +774,11 @@ Note that ploop device and its inner file system should be mounted.
 If not, one can use
 .B --automount
 option to automatically mount ploop for the duration of the operation.
+
+Option
+.B --defrag
+can be used to run a filesystem defragmentation utility
+(currently e4defrag2 on ext4 only) before the main operation.
 
 Option \fB--to-free\fR can be used to specify a maximum disk space to
 be freed. In other words, stop the process once freed space exceeded
