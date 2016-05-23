@@ -1355,8 +1355,8 @@ int ploop_discard(struct ploop_disk_images_data *di,
 			ploop_log(0, "Unable to get ploop stats");
 
 		/*
-		 * Take into account possible change of ploop image size caused
-		 * by defrag operation defrag operation.
+		 * Take into account possible change of ploop image size
+		 * caused by defrag operation.
 		 */
 		if (param->to_free && !ret)
 			param->to_free += pds_after.image_size - pds.image_size;
