@@ -1,0 +1,79 @@
+#!/bin/bash
+
+set -e
+. ./functions
+
+V=2
+BLOCKSIZE=2048
+DELTA=100000
+SIZE=65536
+if [ -f /sys/module/ploop/parameters/large_disk_support ]; then
+	SIZENEW=60485760000
+else
+	SIZENEW=2147482624
+fi
+
+while [ "${#}" -gt 0 ]; do
+case "${1}" in
+	"-v")
+		V=${2}
+		shift
+		shift
+		;;
+	*)
+		shift
+		;;
+	esac
+done
+
+test_cleanup
+UUID=`uuidgen`
+let bs=$BLOCKSIZE/2
+dd if=/dev/urandom bs=${bs}k count=1 of=$TEST_STORAGE/data
+
+ploop init -v $V -b $BLOCKSIZE -s ${SIZE}k -t none $TEST_IMAGE
+ploop snapshot -u $UUID -b $UUID $TEST_DDXML
+ploop mount -d /dev/ploop0 $TEST_DDXML
+
+size=$SIZE
+for ((i = 0; i < size; i += bs*DELTA)); do
+	progress Writing $i $size
+	dd if=$TEST_STORAGE/data of=/dev/ploop0 bs=1k seek=$i >/dev/null 2>&1
+done
+echo
+
+ploop-cbt show $TEST_DDXML > $TEST_STORAGE/data.cbt.1
+
+# OFFLINE
+ploop umount $TEST_DDXML
+ploop-cbt show $TEST_DDXML > $TEST_STORAGE/data.cbt.2
+diff  -u $TEST_STORAGE/data.cbt.1 $TEST_STORAGE/data.cbt.2
+ploop snapshot-delete -u $UUID $TEST_DDXML
+ploop-cbt show $TEST_DDXML > $TEST_STORAGE/data.cbt.3
+diff  -u $TEST_STORAGE/data.cbt.2 $TEST_STORAGE/data.cbt.3
+
+# ONLINE
+UUID=`uuidgen`
+ploop mount -d /dev/ploop0 $TEST_DDXML
+ploop-cbt show $TEST_DDXML > $TEST_STORAGE/data.cbt.1
+ploop snapshot -u $UUID $TEST_DDXML
+ploop-cbt show $TEST_DDXML > $TEST_STORAGE/data.cbt.2
+ploop snapshot-delete -u $UUID $TEST_DDXML
+ploop-cbt show $TEST_DDXML > $TEST_STORAGE/data.cbt.3
+diff  -u $TEST_STORAGE/data.cbt.2 $TEST_STORAGE/data.cbt.3
+ploop umount $TEST_DDXML
+ploop-cbt show $TEST_DDXML > $TEST_STORAGE/data.cbt.4
+diff  -u $TEST_STORAGE/data.cbt.3 $TEST_STORAGE/data.cbt.4
+
+if [ "$OFFLINE" = yes ]; then
+	echo "Offline resize"
+	ploop umount $TEST_DDXML
+else
+	echo "Online resize"
+fi
+test_cleanup
+
+rm -f $TEST_STORAGE/data_out
+rm -f $TEST_STORAGE/data
+
+echo "FINISHED"

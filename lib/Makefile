@@ -32,14 +32,15 @@ LIBOBJS=uuid.o \
 	cleanup.o \
 	deprecated.o \
 	snapshot.o \
-	symbols.o
+	symbols.o \
+	cbt.o
 
 SOURCES=$(LIBOBJS:.o=.c)
 GENERATED=symbols.c
 
 CFLAGS += $(shell pkg-config libxml-2.0 --cflags) -fPIC -fvisibility=hidden
 LDFLAGS+= -shared -Wl,-soname,$(LIBPLOOP_SO_X)
-LDLIBS += $(shell pkg-config libxml-2.0 --libs) -lpthread -lrt
+LDLIBS += $(shell pkg-config libxml-2.0 openssl uuid --libs) -lpthread -lrt
 
 all: $(LIBPLOOP) $(LIBPLOOP_SO) $(PC)
 .PHONY: all

@@ -25,8 +25,10 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <sys/ioctl.h>
+#include <uuid/uuid.h>
 
 #include "ploop.h"
+#include "cbt.h"
 
 /* lock temporary snapshot by mount */
 #define TSNAPSHOT_MOUNT_LOCK_MARK	"~"
@@ -179,7 +181,8 @@ static int create_snapshot_ioctl(int lfd, int fd, struct ploop_ctl_delta *req)
 	return 0;
 }
 
-int create_snapshot(const char *device, const char *delta, int syncfs)
+int create_snapshot(const char *device, const char *delta, int syncfs,
+		 const __u8 *cbt_u, const char *prev_delta)
 {
 	int ret;
 	int lfd = -1;
@@ -188,6 +191,7 @@ int create_snapshot(const char *device, const char *delta, int syncfs)
 	struct ploop_ctl_delta req;
 	__u32 blocksize;
 	int version;
+	void *or_data = NULL;
 
 	ret = get_image_param_online(device, &bdsize,
 			&blocksize, &version);
@@ -215,11 +219,33 @@ int create_snapshot(const char *device, const char *delta, int syncfs)
 	req.c.pctl_chunks = 1;
 	req.f.pctl_type = PLOOP_IO_AUTO;
 
+	if (cbt_u != NULL) {
+		if ((ret = cbt_snapshot_prepare(lfd, cbt_u, &or_data))) {
+			unlink(delta);
+			goto err;
+		}
+	}
+
 	ploop_log(0, "Creating snapshot dev=%s img=%s", device, delta);
 	ret = create_snapshot_ioctl(lfd, fd, &req);
-	if (ret)
+	if (ret) {
 		unlink(delta);
+		goto err;
+	}
+
+	if (cbt_u != NULL) {
+		ploop_log(0, "Saving cbt to img=%s and starting new cbt",
+				prev_delta);
+
+		if ((ret = cbt_snapshot(lfd, cbt_u, prev_delta, or_data))) {
+			unlink(delta);
+			goto err;
+		}
+	}
+
 err:
+	free(or_data);
+
 	if (lfd >= 0)
 		close(lfd);
 	if (fd >= 0)
@@ -243,7 +269,8 @@ static int get_snapshot_count(struct ploop_disk_images_data *di)
 }
 
 static int do_create_snapshot(struct ploop_disk_images_data *di,
-		const char *guid, const char *snap_dir, int flags)
+		const char *guid, const char *snap_dir,
+		const char *cbt_uuid, int flags)
 {
 	int ret;
 	int fd;
@@ -251,6 +278,7 @@ static int do_create_snapshot(struct ploop_disk_images_data *di,
 	char snap_guid[UUID_SIZE];
 	char file_guid[UUID_SIZE];
 	char fname[PATH_MAX];
+	const char *prev_fname = NULL;
 	char conf[PATH_MAX];
 	char conf_tmp[PATH_MAX];
 	int online = 0;
@@ -259,6 +287,18 @@ static int do_create_snapshot(struct ploop_disk_images_data *di,
 	off_t size;
 	__u32 blocksize;
 	int version;
+	uuid_t u;
+	const __u8 *cbt_u = NULL;
+
+	if (cbt_uuid != NULL) {
+		ploop_log(0, "CBT uuid=%s", cbt_uuid);
+		if (uuid_parse(cbt_uuid, u)) {
+			ploop_log(-1, "Incorrect cbt uuid is specified %s",
+					cbt_uuid);
+			return SYSEXIT_PARAM;
+		}
+		cbt_u = u;
+	}
 
 	if (guid != NULL && !is_valid_guid(guid)) {
 		ploop_err(0, "Incorrect guid %s", guid);
@@ -317,7 +357,7 @@ static int do_create_snapshot(struct ploop_disk_images_data *di,
 			char *topdelta[] = {find_image_by_guid(di, di->top_guid), NULL};
 			blocksize = di->blocksize;
 
-			ret = check_deltas(di, topdelta, 0, &blocksize);
+			ret = check_deltas(di, topdelta, 0, &blocksize, NULL);
 			if (ret)
 				return ret;
 
@@ -354,6 +394,13 @@ static int do_create_snapshot(struct ploop_disk_images_data *di,
 		snprintf(fname, sizeof(fname), "%s.%s",
 				di->images[0]->file, file_guid);
 
+	prev_fname = find_image_by_guid(di, di->top_guid);
+	if (prev_fname == NULL) {
+		ploop_err(0, "Unable to find image by uuid %s",
+				di->top_guid);
+		return SYSEXIT_PARAM;
+	}
+
 	ploop_di_change_guid(di, di->top_guid, snap_guid);
 	if (temporary)
 		ploop_di_set_temporary(di, snap_guid);
@@ -370,15 +417,23 @@ static int do_create_snapshot(struct ploop_disk_images_data *di,
 
 	if (!online) {
 		// offline snapshot
+		ret = 0;
 		fd = create_snapshot_delta(fname, blocksize, size, version);
 		if (fd < 0) {
 			ret = SYSEXIT_CREAT;
 			goto err;
 		}
 		close(fd);
+
+		if (cbt_u != NULL)
+			ret = write_empty_cbt_to_image(fname, prev_fname, cbt_u);
+		else if (di->mode != PLOOP_RAW_MODE)
+			ret = ploop_move_cbt(fname, prev_fname);
+		if (ret)
+			goto err;
 	} else {
 		// Always sync fs
-		ret = create_snapshot(dev, fname, 1);
+		ret = create_snapshot(dev, fname, 1, cbt_u, prev_fname);
 		if (ret)
 			goto err;
 	}
@@ -411,7 +466,8 @@ int ploop_create_snapshot(struct ploop_disk_images_data *di,
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	ret = do_create_snapshot(di, param->guid, param->snap_dir, 0);
+	ret = do_create_snapshot(di, param->guid, param->snap_dir,
+			param->cbt_uuid, 0);
 
 	ploop_unlock_dd(di);
 
@@ -427,7 +483,7 @@ int ploop_create_snapshot_offline(struct ploop_disk_images_data *di,
 		return SYSEXIT_LOCK;
 
 	ret = do_create_snapshot(di, param->guid, param->snap_dir,
-			SNAP_TYPE_OFFLINE);
+			param->cbt_uuid, SNAP_TYPE_OFFLINE);
 
 	ploop_unlock_dd(di);
 
@@ -469,7 +525,7 @@ int ploop_create_temporary_snapshot(struct ploop_disk_images_data *di,
 		return SYSEXIT_LOCK;
 
 	ret = do_create_snapshot(di, param->guid, param->snap_dir,
-			SNAP_TYPE_TEMPORARY);
+			param->cbt_uuid, SNAP_TYPE_TEMPORARY);
 	if (ret)
 		goto err_unlock;
 

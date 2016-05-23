@@ -151,5 +151,5 @@ int plooptool_check(int argc, char ** argv)
 		return SYSEXIT_PARAM;
 	}
 
-	return ploop_check(argv[0], flags, &blocksize);
+	return ploop_check(argv[0], flags, &blocksize, NULL);
 }

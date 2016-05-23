@@ -38,6 +38,7 @@
 
 #include "ploop.h"
 #include "cleanup.h"
+#include "cbt.h"
 
 static int ploop_mount_fs(struct ploop_mount_param *param, int need_balloon);
 
@@ -1599,7 +1600,7 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 	}
 
 	/* check a new image */
-	ret = ploop_check(file, CHECK_DETAILED | CHECK_READONLY, NULL);
+	ret = ploop_check(file, CHECK_DETAILED | CHECK_READONLY, NULL, NULL);
 	if (ret)
 		goto err;
 
@@ -1763,13 +1764,15 @@ static int set_max_delta_size(int fd, unsigned long long size)
 /* NB: caller will take care about *lfd_p even if we fail */
 static int add_deltas(struct ploop_disk_images_data *di,
 		char **images, struct ploop_mount_param *param,
-		int raw, __u32 blocksize, int *lfd_p)
+		int raw, __u32 blocksize, int *lfd_p, int *load_cbt)
 {
 	int lckfd = -1;
 	char *device = param->device;
 	int i;
 	int ret = 0;
 	struct ploop_ctl_delta req = {};
+	int format_extension_loaded = 0;
+	struct ext_context *ctx = NULL;
 
 	if (device[0] == '\0') {
 		char buf[64];
@@ -1817,6 +1820,28 @@ static int add_deltas(struct ploop_disk_images_data *di,
 		else
 			req.c.pctl_flags &= ~PLOOP_FMT_RDONLY;
 
+		/* we should load format extension here, before sending delta
+		 * to kernel by
+		 * add_delta
+		 * for now, if load_cbt == 0 no extensions will be loaded.
+		 * because we have only dirty bitmap (cbt) extension */
+		if (!ro && load_cbt && req.c.pctl_format == PLOOP_FMT_PLOOP1) {
+			int rc;
+
+			ctx = create_ext_context();
+			if (ctx == NULL) {
+				ret = SYSEXIT_MALLOC;
+				goto err1;
+			}
+
+			rc = read_optional_header_from_image(ctx, image, DIRTY_BITMAP_TRUNCATE);
+			if (rc)
+				ploop_log(0, "Error while loding optional header: %d", rc);
+			else
+				format_extension_loaded = 1;
+		}
+
+
 		ploop_log(0, "Adding delta dev=%s img=%s (%s)",
 				device, image, ro ? "ro" : "rw");
 		ret = add_delta(*lfd_p, image, &req);
@@ -1833,6 +1858,9 @@ static int add_deltas(struct ploop_disk_images_data *di,
 		ret = SYSEXIT_DEVIOC;
 		goto err1;
 	}
+
+	if (format_extension_loaded)
+		send_dirty_bitmap_to_kernel(ctx, *lfd_p, images[i-1]);
 
 	ret = check_and_repair_gpt(param->device, blocksize);
 	if (ret)
@@ -1856,6 +1884,9 @@ err1:
 err:
 	if (lckfd != -1)
 		close(lckfd);
+
+	free_ext_context(ctx);
+
 	return ret;
 }
 
@@ -2010,6 +2041,7 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 	struct stat st;
 	int ret = 0;
 	__u32 blocksize = 0;
+	int load_cbt;
 
 	if (images == NULL || images[0] == NULL) {
 		ploop_err(0, "ploop_mount: no deltas to mount");
@@ -2045,11 +2077,11 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 	if (di && (ret = check_and_restore_fmt_version(di)))
 		goto err;
 
-	ret = check_deltas(di, images, raw, &blocksize);
+	ret = check_deltas(di, images, raw, &blocksize, &load_cbt);
 	if (ret)
 		goto err;
 
-	ret = add_deltas(di, images, param, raw, blocksize, &lfd);
+	ret = add_deltas(di, images, param, raw, blocksize, &lfd, &load_cbt);
 	if (ret)
 		goto err;
 
@@ -2241,6 +2273,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 {
 	int ret;
 	char mnt[PATH_MAX] = "";
+	char image[PATH_MAX], format[PATH_MAX];
 
 	if (!device) {
 		ploop_err(0, "ploop_umount: device is not specified");
@@ -2253,7 +2286,35 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 			return ret;
 	}
 
+	/* this function should be called before device stop! */
+	ret = ploop_find_top_delta_name_and_format(device, image,
+			sizeof(image), format, sizeof(format));
+	if (ret) {
+		ploop_err(0, "Failed to find top delta name and format");
+		return ret;
+	}
+
 	ret = ploop_stop_device(device);
+
+	if (strcmp(format, "ploop1") == 0) {
+		int lfd = open(device, O_RDONLY);
+		int rc;
+
+		if (lfd < 0) {
+			ploop_err(errno, "Can't open dev %s", device);
+			return SYSEXIT_DEVICE;
+		}
+
+		rc = write_optional_header_to_image(lfd, image, NULL);
+		if (rc)
+			ploop_err(errno, "Warning: saving format extension failed: %d", rc);
+
+		rc = cbt_stop(lfd);
+		if (rc && rc != SYSEXIT_NOCBT)
+			ploop_err(errno, "Warning: stopping cbt failed: %d", rc);
+
+		close(lfd);
+	}
 
 	if (di != NULL) {
 		get_temp_mountpoint(di->images[0]->file, 0, mnt, sizeof(mnt));

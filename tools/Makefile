@@ -1,7 +1,8 @@
 include ../Makefile.inc
 
 PROGS =	ploop \
-	ploop-balloon
+	ploop-balloon \
+	ploop-cbt
 
 BINS	= $(PROGS)
 

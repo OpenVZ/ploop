@@ -32,6 +32,7 @@
 #include <assert.h>
 
 #include "ploop.h"
+#include "cbt.h"
 
 static int sync_cache(struct delta * delta)
 {
@@ -657,7 +658,11 @@ merge_done:
 close_lfd:
 		close(lfd);
 	}
+
 merge_done2:
+	if (!device && !raw && ret == 0)
+		ploop_move_cbt(images[1], images[0]);
+
 	free(data_cache);
 	deinit_delta_array(&da);
 	return ret;

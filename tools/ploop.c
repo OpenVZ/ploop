@@ -604,7 +604,7 @@ static int plooptool_snapshot(int argc, char **argv)
 	int syncfs = 0;
 	struct ploop_snapshot_param param = {};
 
-	while ((i = getopt(argc, argv, "Fd:u:")) != EOF) {
+	while ((i = getopt(argc, argv, "Fd:u:b:")) != EOF) {
 		switch (i) {
 		case 'd':
 			device = optarg;
@@ -616,6 +616,9 @@ static int plooptool_snapshot(int argc, char **argv)
 			param.guid = parse_uuid(optarg);
 			if (!param.guid)
 				return SYSEXIT_PARAM;
+			break;
+		case 'b':
+			param.cbt_uuid = optarg;
 			break;
 		default:
 			usage_snapshot();
@@ -645,7 +648,7 @@ static int plooptool_snapshot(int argc, char **argv)
 			usage_snapshot();
 			return SYSEXIT_PARAM;
 		}
-		ret = create_snapshot(device, argv[0], syncfs);
+		ret = create_snapshot(device, argv[0], syncfs, NULL, NULL);
 	}
 
 	return ret;

@@ -19,7 +19,7 @@
 #ifndef __PLOOP1_IMAGE_H__
 #define __PLOOP1_IMAGE_H__ 1
 
-/* Definition of PVD (Parallels Virtual Disk) format
+/* Definition of VD (Virtuozzo Virtual Disk) format
  *
  * 1. All the data are in ?little-endian? format.
  * 2. All the data except for the first cluster are aligned and padded
@@ -37,10 +37,23 @@
  *    until repair or image rebuild.
  */
 
+// Sign that the disk is in "using" state
+#define SIGNATURE_DISK_IN_USE		0x746F6E59
+
+// disk was closed by software which conformed specification 2.0
+#define SIGNATURE_DISK_CLOSED_V20 0
+// fourcc "v2.1", disk was closed by software which conformed specification 2.1
+#define SIGNATURE_DISK_CLOSED_V21 0x312e3276
+
+#define FORMAT_EXTENSION_MAGIC 0xAB234CEF23DCEA87ULL
+#define EXT_FLAGS_NECESSARY 0x1
+#define EXT_FLAGS_TRANSIT   0x2
+#define EXT_MAGIC_DIRTY_BITMAP 0x20385FAE252CB34AULL
+
+#pragma pack(push,1)
 /*
  * copy/paste of IMAGE_PARAMETERS from DiskImageComp.h
  */
-#pragma pack(push,1)
 struct ploop_pvd_header
 {
 	__u8  m_Sig[16];          /* Signature */
@@ -59,7 +72,42 @@ struct ploop_pvd_header
 	__u32 m_DiskInUse;        /* Disk in use */
 	__u32 m_FirstBlockOffset; /* First data block offset (in sectors) */
 	__u32 m_Flags;            /* Misc flags */
-	__u8  m_Reserved[8];      /* Reserved */
+	__u64 m_FormatExtensionOffset; /* Optional header offset in bytes */
+};
+
+/*
+ * copy/paste of BlockCheck from CompImageFormatExtension.h
+ */
+struct ploop_pvd_ext_block_check
+{
+	// Format Extension magic = 0xAB234CEF23DCEA87
+	__u64 m_Magic;
+	// Md5 checksum of the whole (without top 24 bytes of block check)
+	// Format Extension Block.
+	__u8 m_Md5[16];
+};
+
+/*
+ * copy/paste of BlockElementHeader from CompImageFormatExtension.h
+ */
+struct ploop_pvd_ext_block_element_header
+{
+	__u64 magic;
+	__u64 flags;
+	__u32 size;
+	__u32 unused32;
+};
+
+/*
+ * copy/paste of DirtyBitmapExtension::Raw from DirtyBitmapExtension.h
+ */
+struct ploop_pvd_dirty_bitmap_raw
+{
+	__u64 m_Size;
+	__u8 m_Id[16];
+	__u32 m_Granularity;
+	__u32 m_L1Size;
+	__u64 m_L1[0]; // array of m_L1Size elements
 };
 #pragma pack(pop)
 
@@ -81,8 +129,8 @@ struct ploop_pvd_header
 #define	CIF_NoFlags		0x00000000 /* No any flags */
 #define	CIF_Empty		0x00000001 /* No any data was written */
 #define	CIF_FmtVersionConvert	0x00000002 /* Version Convert in progree  */
+#define CIF_FlagsMask		(CIF_Empty | CIF_FmtVersionConvert)
 #define	CIF_Invalid		0xFFFFFFFF /* Invalid flag */
-
 
 #define PLOOP1_SECTOR_LOG	9
 #define PLOOP1_DEF_CLUSTER_LOG 11 /* 1M cluster-block */

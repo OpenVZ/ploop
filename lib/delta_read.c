@@ -160,7 +160,9 @@ int open_delta(struct delta * delta, const char * path, int rw, int od_flags)
 	}
 	delta->l2 = p;
 
-	if (vh->m_DiskInUse && !(od_flags & OD_ALLOW_DIRTY)) {
+	if ((vh->m_DiskInUse == SIGNATURE_DISK_IN_USE) &&
+			!(od_flags & OD_ALLOW_DIRTY))
+	{
 		ploop_err(0, "Image is in use %s", path);
 		err = EBUSY;
 		goto error;

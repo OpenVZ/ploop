@@ -62,6 +62,10 @@
 #define CHECK_TALKATIVE		0x40	/* be verbose, produce more output */
 #define CHECK_RAW		0x80	/* delta is in raw format */
 
+/* load/remove dirty bitmap flags */
+#define DIRTY_BITMAP_REMOVE	0x01
+#define DIRTY_BITMAP_TRUNCATE	0x02
+
 #define S2B(sec) ((off_t)(sec) << PLOOP1_SECTOR_LOG)
 #define B2S(sec) ((sec) >> PLOOP1_SECTOR_LOG)
 #define ROUNDUP(size, blocksize) \
@@ -273,9 +277,10 @@ struct relocmap *relocmap_alloc(int n);
 struct ploop_relocblks_ctl;
 int relocmap2relocblks(struct relocmap *relocmap, int lvl, __u32 a_h, __u32 n_scanned,
 			struct ploop_relocblks_ctl **relocblks_pp);
-PL_EXT int ploop_check(char *img, int flags, __u32 *blocksize_p);
+PL_EXT int ploop_check(char *img, int flags, __u32 *blocksize_p,
+		int *cbt_allowed);
 int check_deltas(struct ploop_disk_images_data *di, char **images,
-		int raw, __u32 *blocksize);
+		int raw, __u32 *blocksize, int *cbt_allowed);
 PL_EXT int check_dd(struct ploop_disk_images_data *di, const char *uuid);
 PL_EXT int check_deltas_same(const char *img1, const char *img2);
 /* Logging */
@@ -310,7 +315,8 @@ int mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *par
 PL_EXT int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		struct ploop_mount_param *param, int raw);
 PL_EXT int replace_delta(const char *device, int level, const char *image);
-PL_EXT int create_snapshot(const char *device, const char *delta, int syncfs);
+PL_EXT int create_snapshot(const char *device, const char *delta, int syncfs,
+		const __u8 *cbt_u, const char *prev_delta);
 int get_list_size(char **list);
 int normalize_image_name(const char *basedir, const char *image, char *out, int len);
 int PWRITE(struct delta * delta, void * buf, unsigned int size, off_t off);

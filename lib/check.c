@@ -350,7 +350,7 @@ out:
 	return ret;
 }
 
-int ploop_check(char *img, int flags, __u32 *blocksize_p)
+int ploop_check(char *img, int flags, __u32 *blocksize_p, int *cbt_allowed)
 {
 	struct ploop_check_desc d;
 	int i, j;
@@ -383,6 +383,7 @@ int ploop_check(char *img, int flags, __u32 *blocksize_p)
 	int hard_force = (flags & CHECK_HARDFORCE);
 	int check = (flags & CHECK_DETAILED);
 	int version;
+	int disk_in_use;
 
 	fd = open(img, O_RDONLY);
 	if (fd < 0) {
@@ -446,13 +447,18 @@ int ploop_check(char *img, int flags, __u32 *blocksize_p)
 	bd_size = get_SizeInSectors(vh);
 	alloc_head = l1_slots - 1;
 
-	if (!vh->m_DiskInUse && !force) {
+	/* 0 for old format */
+	disk_in_use = vh->m_DiskInUse == SIGNATURE_DISK_IN_USE;
+	if (cbt_allowed != NULL)
+		*cbt_allowed = !disk_in_use;
+
+	if (!disk_in_use && !force) {
 		if (verbose)
 			ploop_log(0, "Image is clean, check is skipped");
 		goto done;
 	}
 
-	if (vh->m_DiskInUse && (vh->m_Flags & CIF_FmtVersionConvert)) {
+	if (disk_in_use && (vh->m_Flags & CIF_FmtVersionConvert)) {
 		ploop_err(0, "Image %s is in the changing version state",
 				img);
 		ret = SYSEXIT_EBUSY;
@@ -506,7 +512,7 @@ int ploop_check(char *img, int flags, __u32 *blocksize_p)
 		if (ret)
 			goto done;
 
-		if (!ro && vh->m_DiskInUse) {
+		if (!ro && disk_in_use) {
 			ret = write_safe(fd, buf, cluster, i * cluster,
 				    "re-write index table");
 			if (ret)
@@ -570,7 +576,7 @@ int ploop_check(char *img, int flags, __u32 *blocksize_p)
 	else
 		m_Flags = vh->m_Flags | CIF_Empty;
 
-	if (vh->m_DiskInUse != 0) {
+	if (disk_in_use != 0) {
 		ploop_err(0, "Dirty flag is set");
 		if (!(flags & CHECK_DROPINUSE)) {
 			ret = SYSEXIT_PLOOPINUSE;
@@ -587,7 +593,7 @@ int ploop_check(char *img, int flags, __u32 *blocksize_p)
 	}
 
 	/* the content is clean, only header checks remained */
-	if (vh->m_DiskInUse == 0 && vh->m_Flags == m_Flags)
+	if (disk_in_use == 0 && vh->m_Flags == m_Flags)
 		goto done;
 
 	/* header needs fix but we can't */
@@ -618,10 +624,13 @@ done:
 }
 
 int check_deltas(struct ploop_disk_images_data *di, char **images,
-		int raw, __u32 *blocksize)
+		int raw, __u32 *blocksize, int *cbt_allowed)
 {
 	int i;
 	int ret = 0;
+
+	if (cbt_allowed != NULL)
+		*cbt_allowed = 1;
 
 	for (i = 0; images[i] != NULL; i++) {
 		int raw_delta = (raw && i == 0);
@@ -631,13 +640,19 @@ int check_deltas(struct ploop_disk_images_data *di, char **images,
 			(ro ? CHECK_READONLY : 0) |
 			(raw_delta ? CHECK_RAW : 0);
 		__u32 cur_blocksize = raw_delta ? *blocksize : 0;
+		int delta_cbt_allowed;
 
-		ret = ploop_check(images[i], flags, &cur_blocksize);
+		ret = ploop_check(images[i], flags, &cur_blocksize,
+				&delta_cbt_allowed);
 		if (ret) {
 			ploop_err(0, "%s : irrecoverable errors (%s)",
 					images[i], ro ? "ro" : "rw");
 			break;
 		}
+
+		if (cbt_allowed != NULL && !delta_cbt_allowed)
+			*cbt_allowed = 0;
+
 		if (*blocksize == 0)
 			*blocksize = cur_blocksize;
 		if (cur_blocksize != *blocksize) {
@@ -684,7 +699,7 @@ int check_dd(struct ploop_disk_images_data *di, const char *uuid)
 	blocksize = di->blocksize;
 	raw = (di->mode == PLOOP_RAW_MODE);
 
-	ret = check_deltas(di, images, raw, &blocksize);
+	ret = check_deltas(di, images, raw, &blocksize, NULL);
 
 	ploop_free_array(images);
 out:
