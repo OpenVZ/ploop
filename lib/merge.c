@@ -110,7 +110,7 @@ static int grow_lower_delta(const char *device, int top, int start_level, int en
 	char *fmt;
 	int dst_is_raw = 0;
 	void *buf = NULL;
-	struct delta odelta = {};
+	struct delta odelta = {.fd = -1};
 	int ret;
 	__u64 cluster;
 
