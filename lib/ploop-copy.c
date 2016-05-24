@@ -477,7 +477,8 @@ static int send_image_block(struct ploop_copy_handle *h, __u64 size,
 	if (*nread == 0)
 		return 0;
 	if (*nread < 0) {
-		ploop_err(errno, "Error from read");
+		ploop_err(errno, "Error from pread() size=%llu pos=%llu",
+				 size, pos);
 		return SYSEXIT_READ;
 	}
 
@@ -903,5 +904,5 @@ void ploop_copy_deinit(struct ploop_copy_handle *h)
 	ploop_copy_release(h);
 	free_ploop_copy_handle(h);
 
-	ploop_dbg(4, "pcopy deinit done");
+	ploop_dbg(3, "pcopy deinit done");
 }
