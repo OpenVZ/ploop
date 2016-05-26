@@ -38,6 +38,8 @@ int write_optional_header_to_image(int devfd, const char *img_name,
 		void *or_data);
 int send_dirty_bitmap_to_kernel(struct ext_context *ctx, int devfd,
 		const char *img_name);
+int save_dirty_bitmap(int devfd, struct delta *delta, off_t offcet, void *buf,
+		__u32 *size, void *or_data, writer_fn wr, void *data);
 int cbt_start(int devfd, const __u8 *uuid, __u32 blksize);
 int cbt_stop(int devfd);
 int cbt_get_dirty_bitmap_metadata(int devfd, __u8 *uuid, __u32 *blksize);

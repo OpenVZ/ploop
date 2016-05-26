@@ -29,9 +29,11 @@
 #include <linux/fs.h>
 #include <string.h>
 #include <pthread.h>
+#include <openssl/md5.h>
 
 #include "ploop.h"
 #include "cleanup.h"
+#include "cbt.h"
 
 #define ploop_dbg(level, format, args...) ploop_log(level, format, ##args)
 
@@ -84,6 +86,7 @@ struct ploop_copy_handle {
 	pthread_t send_th;
 	struct ploop_cleanup_hook *cl;
 	int cancelled;
+	off_t eof_offset;
 };
 
 /* Check what a file descriptor refers to.
@@ -634,7 +637,7 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 	ploop_log(0, "Send image %s dev=%s mnt=%s fmt=%s blocksize=%d local=%d",
 			image, device, mnt, format, blocksize, !is_remote);
 
-	if (open_delta_simple(&_h->idelta, image, O_RDONLY|O_DIRECT, OD_NOFLAGS)) {
+	if (open_delta(&_h->idelta, image, O_RDONLY|O_DIRECT, OD_ALLOW_DIRTY)) {
 		ret = SYSEXIT_OPEN;
 		goto err;
 	}
@@ -695,6 +698,8 @@ int ploop_copy_start(struct ploop_copy_handle *h,
 			break;
 
 		pos += n;
+		if (pos > h->eof_offset)
+			h->eof_offset = pos;
 	}
 
 	wait_sender(h);
@@ -766,6 +771,8 @@ int ploop_copy_next_iteration(struct ploop_copy_handle *h,
 			}
 
 			pos += n;
+			if (pos > h->eof_offset)
+				h->eof_offset = pos;
 		}
 	} while (!done);
 
@@ -821,6 +828,67 @@ err:
 	return ret;
 }
 
+static int cbt_writer(void *data, const void *buf, int len, off_t pos)
+{
+	struct ploop_copy_handle *h = (struct ploop_copy_handle *)data;
+
+	h->eof_offset += len;
+
+	return send_buf(h, buf, len, pos);
+}
+
+static int send_optional_header(struct ploop_copy_handle *copy_h)
+{
+	int ret;
+	struct ploop_pvd_header *vh;
+	size_t block_size;
+	struct ploop_pvd_ext_block_check *hc;
+	struct ploop_pvd_ext_block_element_header *h;
+	__u8 *block = NULL, *data;
+
+	vh = (struct ploop_pvd_header *)copy_h->idelta.hdr0;
+	block_size = vh->m_Sectors * SECTOR_SIZE;
+	if (p_memalign((void **)&block, 4096, block_size))
+		return SYSEXIT_MALLOC;
+
+	hc = (struct ploop_pvd_ext_block_check *)block;
+	h = (struct ploop_pvd_ext_block_element_header *)(hc + 1);
+	data = (__u8 *)(h + 1);
+	h->magic = EXT_MAGIC_DIRTY_BITMAP;
+
+	ret = save_dirty_bitmap(copy_h->devfd, &copy_h->idelta,
+			copy_h->eof_offset, data, &h->size,
+			NULL, cbt_writer, copy_h);
+	if (ret) {
+		if (ret == SYSEXIT_NOCBT)
+			ret = 0;
+		goto out;
+	}
+
+	vh->m_DiskInUse = SIGNATURE_DISK_CLOSED_V21;
+	vh->m_FormatExtensionOffset = (copy_h->eof_offset + SECTOR_SIZE - 1) / SECTOR_SIZE;
+	if (send_buf(copy_h, vh, sizeof(*vh), 0)) {
+		ploop_err(errno, "Can't write header");
+		ret = SYSEXIT_WRITE;
+		goto out;
+	}
+	ploop_log(3, "Send extension header offset=%llu size=%d",
+			vh->m_FormatExtensionOffset * SECTOR_SIZE, h->size);
+	hc->m_Magic = FORMAT_EXTENSION_MAGIC;
+	MD5((const unsigned char *)(hc + 1), block_size - sizeof(*hc), hc->m_Md5);
+
+	if (send_buf(copy_h, block, block_size, vh->m_FormatExtensionOffset * SECTOR_SIZE)) {
+		ploop_err(errno, "Can't write optional header");
+		ret = SYSEXIT_WRITE;
+		goto out;
+	}
+
+out:
+	free(block);
+
+	return ret;
+}
+
 int ploop_copy_stop(struct ploop_copy_handle *h,
 		struct ploop_copy_stat *stat)
 {
@@ -846,8 +914,8 @@ int ploop_copy_stop(struct ploop_copy_handle *h,
 		}
 	}
 
-	/* Must clear dirty flag on ploop1 image. */
 	if (!h->raw) {
+		/* Must clear dirty flag on ploop1 image. */
 		struct ploop_pvd_header *vh = get_free_iobuf(h);
 
 		if (PREAD(&h->idelta, vh, 4096, 0)) {
@@ -860,6 +928,10 @@ int ploop_copy_stop(struct ploop_copy_handle *h,
 		ploop_dbg(3, "Update header");
 
 		ret = send_buf(h, vh, 4096, 0);
+		if (ret)
+			goto err;
+
+		ret = send_optional_header(h);
 		if (ret)
 			goto err;
 	}

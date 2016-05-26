@@ -339,9 +339,9 @@ static int cbt_get_dirty_bitmap_part(int devfd, void *buf, __u64 size,
 	do {
 		struct blk_user_cbt_extent *last;
 		info->ci_mapped_extents = 0;
-
 		if (ioctl(devfd, BLKCBTGET, info)) {
-			ploop_err(errno, "BLKCBTGET");
+			ploop_err(errno, "BLKCBTGET start=%llu length=%llu",
+					info->ci_start, info->ci_length);
 			ret = SYSEXIT_DEVIOC;
 			goto out;
 		}
@@ -509,8 +509,9 @@ int cbt_set_uuid(int devfd, const __u8 *uuid)
 	return 0;
 }
 
-static int save_dirty_bitmap(int devfd, struct delta *delta, void *buf,
-		__u32 *size, void *or_data)
+int save_dirty_bitmap(int devfd, struct delta *delta, off_t offset,
+		void *buf, __u32 *size, void *or_data, writer_fn wr,
+		void *data)
 {
 	int ret = 0;
 	struct ploop_pvd_header *vh;
@@ -519,14 +520,7 @@ static int save_dirty_bitmap(int devfd, struct delta *delta, void *buf,
 	__u32 byte_granularity;
 	void *block;
 	struct ploop_pvd_dirty_bitmap_raw *raw = (struct ploop_pvd_dirty_bitmap_raw *)buf;
-	struct stat stat;
-	__u64 offset;
-
-	if (fstat(delta->fd, &stat)) {
-		ploop_err(errno, "fstat");
-		return SYSEXIT_READ;
-	}
-	offset = stat.st_size;
+	char x[50];
 
 	vh = (struct ploop_pvd_header *)delta->hdr0;
 
@@ -545,6 +539,10 @@ static int save_dirty_bitmap(int devfd, struct delta *delta, void *buf,
 	bits = ((raw->m_Size + raw->m_Granularity - 1) / raw->m_Granularity);
 	bytes = (bits + 7) >> 3;
 	raw->m_L1Size = (bytes + block_size - 1) / block_size;
+
+	ploop_log(3, "Store CBT uuid=%s L1Size=%d bytes=%llu blocksize=%llu offset=%llu",
+		uuid2str(raw->m_Id, x), raw->m_L1Size, bytes,
+		(unsigned long long)block_size, (unsigned long long)offset);
 	for (p = raw->m_L1; p < raw->m_L1 + raw->m_L1Size; ++p) {
 		__u64 cur_size = MIN(block_size, bytes);
 		bytes -= cur_size;
@@ -559,7 +557,9 @@ static int save_dirty_bitmap(int devfd, struct delta *delta, void *buf,
 		*p = offset / SECTOR_SIZE;
 
 		/// TODO: truncate instead of less write (blk size to cur_size)
-		if (PWRITE(delta, block, block_size, offset)) {
+		ret = wr ? wr(data, block, block_size, offset) :
+				PWRITE(delta, block, block_size, offset);
+		if (ret) {
 			ploop_err(errno, "Can't write dirty_bitmap block");
 			ret = SYSEXIT_WRITE;
 			goto out;
@@ -652,7 +652,15 @@ static int delta_save_optional_header(int devfd, struct delta *delta,
 
 	h->magic = EXT_MAGIC_DIRTY_BITMAP;
 	if (raw == NULL) {
-		if ((ret = save_dirty_bitmap(devfd, delta, data, &h->size, or_data))) {
+		if (fstat(delta->fd, &stat)) {
+			ploop_err(errno, "fstat");
+			ret = SYSEXIT_READ;
+			goto out;
+		}
+
+		ret = save_dirty_bitmap(devfd, delta, stat.st_size, data,
+			&h->size, or_data, NULL, NULL);
+		if (ret) {
 			/* no we have no extensions except dirty bitmap extension, so, if
 			 * there are no cbt it is the end (but not an error) */
 			if (ret == SYSEXIT_NOCBT)
@@ -664,7 +672,6 @@ static int delta_save_optional_header(int devfd, struct delta *delta,
 			goto out;
 		}
 	}
-
 
 	if (fstat(delta->fd, &stat)) {
 		ploop_err(errno, "fstat");

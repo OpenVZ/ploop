@@ -23,7 +23,7 @@ def hashfile(afile, hasher, blocksize=65536):
 def start_image_filller():
 	pid = os.fork()
 	if pid == 0:
-		os.execl('/bin/dd',  'dd', 'if=/dev/urandom', "of=/dev/ploop0", 'bs=4096', 'count=131072', 'oflag=direct')
+		os.execl('/bin/dd',  'dd', 'if=/dev/urandom', "of=/dev/ploop0", 'bs=4096', 'count=1310720', 'oflag=direct')
 		os._exit(1)
 	else:
 		print "Start filler pid=%d" % pid
@@ -61,6 +61,14 @@ def ploop_mount(ddxml):
 def ploop_umount(ddxml):
 	return sp.call(["ploop", "umount", "-d/dev/ploop0"])
 
+def dump_cbt(img):
+	fout = img + ".cbt"
+	
+	with open(fout, "w") as f:
+		sp.Popen(["ploop-cbt", "show", img], stdout=f)
+
+	return fout;
+
 def do_ploop_copy(ddxml, fd):
 
 	print "do_ploop_copy"
@@ -82,10 +90,9 @@ def do_ploop_copy(ddxml, fd):
 	os.kill(pid, 15)
 	os.waitpid(pid, 0)
 
-	print "Stop sopy"
+	print "Stop copy"
 	pc.copy_stop()
 	ploop_umount(ddxml)
-
 
 class testPcopy(unittest.TestCase):
 	def setUp(self):
@@ -132,6 +139,24 @@ class testPcopy(unittest.TestCase):
 		f = open(self.out, 'wb')
 
 		do_ploop_copy(self.ddxml, f.fileno())
+
+		src = hashfile(open(get_image(), 'rb'), hashlib.md5())
+		dst = hashfile(open(self.out, 'rb'), hashlib.md5())
+
+		self.assertEqual(src, dst)
+
+	def test_local_cbt(self):
+		print "Start local CBT dst=%s" % self.out
+
+		sp.call(["ploop", "snapshot", "-u262178fe-49d7-4c8b-b47c-4c0799dbf02a", "-b262178fe-49d7-4c8b-b47c-4c0799dbf02a", self.ddxml])
+		sp.call(["ploop", "snapshot-delete", "-u262178fe-49d7-4c8b-b47c-4c0799dbf02a", self.ddxml])
+
+		f = open(self.out, 'wb')
+		do_ploop_copy(self.ddxml, f.fileno())
+		
+		f1 = dump_cbt(get_image())
+		f2 = dump_cbt(self.out)
+		sp.call(["diff", "-u", f1, f2])
 
 		src = hashfile(open(get_image(), 'rb'), hashlib.md5())
 		dst = hashfile(open(self.out, 'rb'), hashlib.md5())

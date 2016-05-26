@@ -79,6 +79,8 @@
 #define DEF_PATH_LIST	{ "/sbin", "/bin", "/usr/sbin", "/usr/bin", \
 			"/usr/local/sbin", "/usr/bin", NULL }
 
+typedef int (*writer_fn) (void *h, const void *iobuf, int len, off_t pos);
+
 struct delta
 {
 	int    fd;
