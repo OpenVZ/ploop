@@ -139,7 +139,7 @@ static int show(int argc, char **argv)
 
 		ploop_close_dd(di);
 	} else
-		ret = ploop_cbt_dump_info_from_image(fname);
+		ret = ploop_cbt_dump_info_from_image(fname ?:argv[0]);
 
 	return ret;
 }
