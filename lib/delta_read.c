@@ -74,7 +74,8 @@ void close_delta(struct delta *delta)
 	delta->hdr0 = NULL;
 	free(delta->l2);
 	delta->l2 = NULL;
-	close(delta->fd);
+	if (delta->fd != -1)
+		close(delta->fd);
 	delta->fd = -1;
 	errno = err;
 }
