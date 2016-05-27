@@ -747,7 +747,7 @@ int ploop_copy_next_iteration(struct ploop_copy_handle *h,
 
 		for (pos = e.start; pos < e.end; ) {
 			ssize_t n;
-			int copy = e.end - pos;
+			__u64 copy = e.end - pos;
 
 			if (copy > h->cluster)
 				copy = h->cluster;
