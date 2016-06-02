@@ -86,8 +86,9 @@ struct ploop_functions {
 	int (*set_max_delta_size)(struct ploop_disk_images_data *di, unsigned long long size);
 	/* VZ7 7.0.27 */
 	int (*get_base_delta_fname)(struct ploop_disk_images_data *di, char *out, int len);
+	int (*read_dd)(struct ploop_disk_images_data *di);
 	/* padding for up to 64 pointers */
-	void *padding[11];
+	void *padding[10];
 }; /* struct ploop_functions */
 
 __attribute__ ((visibility("default")))

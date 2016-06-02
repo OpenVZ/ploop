@@ -296,6 +296,7 @@ int ploop_discard(struct ploop_disk_images_data *di,
 int ploop_open_dd(struct ploop_disk_images_data **di, const char *fname);
 void ploop_close_dd(struct ploop_disk_images_data *di);
 int ploop_create_dd(const char *ddxml, struct ploop_create_param *param);
+int ploop_read_dd(struct ploop_disk_images_data *di);
 
 /* deprecated */
 PLOOP_DEPRECATED char *ploop_get_base_delta_uuid(struct ploop_disk_images_data *di);
