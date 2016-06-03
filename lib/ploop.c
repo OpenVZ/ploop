@@ -1120,16 +1120,28 @@ static int get_dev_by_mnt(const char *path, int dev, char *buf, int size)
 	FILE *fp;
 	struct mntent *ent;
 	int len;
+	struct stat st1, st2;
 
 	fp = fopen("/proc/mounts", "r");
 	if (fp == NULL) {
 		ploop_err(errno, "Can't open /proc/mounts");
 		return -1;
 	}
+
+	if (stat(path, &st1)) {
+		ploop_err(errno, "Can't stat %s", path);
+		return -1;
+	}
 	while ((ent = getmntent(fp))) {
 		if (strncmp(ent->mnt_fsname, "/dev/ploop", 10) != 0)
 			continue;
-		if (ploop_fname_cmp(path, ent->mnt_dir) == 0 ) {
+
+		if (stat(ent->mnt_dir, &st2))
+			continue;
+
+	        if (st1.st_dev == st2.st_dev &&
+		            st1.st_ino == st2.st_ino)
+		{
 			fclose(fp);
 			len = strlen(ent->mnt_fsname);
 			if (dev) {
