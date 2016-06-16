@@ -66,7 +66,7 @@ int store_statfs_info(const char *mnt, char *image)
 	if (get_statfs_info(mnt, &info))
 		return -1;
 
-	fd = open(fname, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+	fd = open(fname, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (fd == -1) {
 		ploop_err(errno, "Can't create file %s",
 				fname);

@@ -38,7 +38,7 @@ static int create_file(char *fname)
 {
 	int fd;
 
-	fd = open(fname, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+	fd = open(fname, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (fd == -1) {
 		ploop_err(errno, "Can't create file %s",
 				fname);
