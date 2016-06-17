@@ -44,6 +44,9 @@ static int create_file(char *fname)
 				fname);
 		return -1;
 	}
+	if (fchmod(fd, 0644))
+		ploop_err(errno, "Can't chmod(0644) on %s", fname);
+
 	close(fd);
 	return 0;
 }

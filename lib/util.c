@@ -72,6 +72,9 @@ int store_statfs_info(const char *mnt, char *image)
 				fname);
 		return -1;
 	}
+	if (fchmod(fd, 0644))
+		ploop_err(errno, "Cant't chmod(644) on %s", fname);
+
 	ret = write(fd, &info, sizeof(info));
 	if (ret != sizeof(struct ploop_info)) {
 		ploop_err(ret == -1 ? errno : 0, "Can't write to %s",
