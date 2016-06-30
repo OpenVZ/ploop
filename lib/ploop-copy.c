@@ -269,7 +269,7 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 		return SYSEXIT_PARAM;
 	}
 
-	ofd = open(arg->file, O_WRONLY|O_CREAT, 0600);
+	ofd = open(arg->file, O_WRONLY|O_CREAT|O_TRUNC, 0600);
 	if (ofd < 0) {
 		ploop_err(errno, "Can't open %s", arg->file);
 		return SYSEXIT_CREAT;
