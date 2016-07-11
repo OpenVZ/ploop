@@ -150,6 +150,19 @@ static int parse_xml(const char *basedir, xmlNode *root_node, struct ploop_disk_
 		if (parse_ul(data, &val) == 0)
 			di->sectors= (unsigned)val;
 	}
+
+	cur_node = seek(root_node, "/Disk_Parameters/Encryption");
+	if (cur_node) {
+		node = seek(cur_node, "KeyId");
+		if (node != NULL) {
+			data = get_element_txt(node);
+			if (ploop_set_encryption_keyid(di, data)) {
+				ploop_err(0, "ploop_set_encryption");
+				return -1;
+			}
+		}
+	}
+
 	cur_node = seek(root_node, "/StorageData/Storage");
 	ERR(cur_node, "/StorageData/Storage");
 	for (n = 0; cur_node; cur_node = cur_node->next, n++) {
@@ -538,6 +551,29 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 	if (rc < 0) {
 		ploop_err(0, "Error at xmlTextWriter Padding");
 		goto err;
+	}
+
+	if (di->enc != NULL) {
+		rc = xmlTextWriterStartElement(writer, BAD_CAST "Encryption");
+		if (rc < 0) {
+			ploop_err(0, "Error at xmlTextWriter Encryption");
+			goto err;
+		}
+
+		rc = xmlTextWriterWriteFormatElement(writer, BAD_CAST "KeyId",
+				"%s", di->enc->keyid);
+		if (rc < 0) {
+			ploop_err(0, "Error at xmlTextWriter Sectors");
+			goto err;
+		}
+
+		/* Close Encryption */
+		rc = xmlTextWriterEndElement(writer);
+		if (rc < 0) {
+			ploop_err(0, "Error at xmlTextWriterEndElement");
+			goto err;
+
+		}
 	}
 
 	/* Close   Disk_Parameters */

@@ -459,4 +459,6 @@ PL_EXT int ploop_create_snapshot_offline(struct ploop_disk_images_data *di,
 		struct ploop_snapshot_param *param);
 int complete_running_operation(struct ploop_disk_images_data *di,
 		const char *device);
+int ploop_set_encryption_keyid(struct ploop_disk_images_data *di,
+		const char *keyid);
 #endif

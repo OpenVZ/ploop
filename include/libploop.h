@@ -98,6 +98,10 @@ struct ploop_snapshot_data {
 
 struct ploop_disk_images_runtime_data;
 
+struct encryption_data {
+	char *keyid;
+};
+
 struct ploop_disk_images_data {
 	unsigned long long size;
 	unsigned int heads;
@@ -112,6 +116,7 @@ struct ploop_disk_images_data {
 	struct ploop_disk_images_runtime_data *runtime;
 	unsigned int blocksize;
 	unsigned long long max_delta_size;
+	struct encryption_data *enc;
 	char dummy[32];
 };
 

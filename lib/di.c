@@ -36,6 +36,35 @@ static void free_image_data(struct ploop_image_data *data)
 	}
 }
 
+static void free_encryption_data(struct ploop_disk_images_data *di)
+{
+	if (di->enc != NULL) {
+		free(di->enc->keyid);
+		free(di->enc);
+		di->enc = NULL;
+	}
+}
+
+int ploop_set_encryption_keyid(struct ploop_disk_images_data *di,
+		const char *keyid)
+{
+	if (di->enc == NULL) {
+		di->enc = calloc(1, sizeof(*di->enc));
+		if (di->enc == NULL)
+			return SYSEXIT_MALLOC;
+	}
+
+	free(di->enc->keyid);
+	di->enc->keyid = strdup(keyid);
+	if (di->enc->keyid == NULL) {
+		free(di->enc);
+		di->enc = NULL;
+		return SYSEXIT_MALLOC;
+	}
+
+	return 0;
+}
+
 int guidcmp(const char *p1, const char *p2)
 {
 	return strcasecmp(p1, p2);
@@ -232,6 +261,8 @@ void ploop_clear_dd(struct ploop_disk_images_data *di)
 
 	free(di->top_guid);
 	di->top_guid = NULL;
+
+	free_encryption_data(di);
 }
 
 void ploop_close_dd(struct ploop_disk_images_data *di)
