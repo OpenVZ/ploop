@@ -82,6 +82,7 @@ struct ploop_copy_handle {
 	__u64 trackend;
 	int tracker_on;
 	int fs_frozen;
+	int dev_frozen;
 	int raw;
 	pthread_t send_th;
 	struct ploop_cleanup_hook *cl;
@@ -493,6 +494,11 @@ void ploop_copy_release(struct ploop_copy_handle *h)
 	if (h == NULL)
 		return;
 
+	if (h->dev_frozen) {
+		(void)ioctl_device(h->devfd, PLOOP_IOC_THAW, 0);
+		h->dev_frozen = 0;
+	}
+
 	if (h->fs_frozen) {
 		(void)ioctl_device(h->mntfd, FITHAW, 0);
 		h->fs_frozen = 0;
@@ -801,20 +807,40 @@ static int freeze_fs(struct ploop_copy_handle *h)
 
 	if (h->mntfd != -1) {
 		/* Sync fs */
-		ploop_dbg(3, "SYNCFS");
+		ploop_log(0, "Freezing fs...");
 		if (sys_syncfs(h->mntfd)) {
 			ploop_err(errno, "syncfs() failed");
-			ret = SYSEXIT_FSYNC;
-			goto err;
+			return SYSEXIT_FSYNC;
 		}
 
 		/* Flush journal and freeze fs (this also clears the fs dirty bit) */
 		ploop_dbg(3, "FIFREEZE");
 		ret = ioctl_device(h->mntfd, FIFREEZE, 0);
 		if (ret)
-			goto err;
+			return ret;
 
 		h->fs_frozen = 1;
+	}
+
+	return 0;
+}
+
+static int freeze(struct ploop_copy_handle *h)
+{
+	int ret;
+
+	ret = ioctl(h->devfd, PLOOP_IOC_FREEZE);
+	if (ret) {
+		if (errno == EINVAL)
+			ret = freeze_fs(h);
+		else
+			ploop_err(errno, "Failed to freeze device");
+		if (ret)
+			goto err;
+
+	} else {
+		ploop_log(0, "Freezing device...");
+		h->dev_frozen = 1;
 	}
 
 	ploop_dbg(3, "IOC_SYNC");
@@ -897,7 +923,7 @@ int ploop_copy_stop(struct ploop_copy_handle *h,
 
 	ploop_log(3, "pcopy last");
 
-	ret = freeze_fs(h);
+	ret = freeze(h);
 	if (ret)
 		goto err;
 
