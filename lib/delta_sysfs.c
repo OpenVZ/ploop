@@ -363,8 +363,8 @@ int ploop_get_dev_by_delta(const char *delta, const char *topdelta,
 		return 1;
 
 	if (realpath(delta, delta_r) == NULL) {
-		ploop_err(errno, "Can't resolve %s", delta);
-		return -1;
+		ploop_err(errno, "Warning: can't resolve %s", delta);
+		snprintf(delta_r, sizeof(delta_r), "%s", delta);
 	}
 
 	lckfd = ploop_global_lock();
