@@ -71,6 +71,7 @@ struct ploop_copy_handle {
 	struct sender_data sd;
 	struct delta idelta;
 	int devfd;
+	int partfd;
 	int ofd;
 	int is_remote;
 	int mntfd;
@@ -495,7 +496,8 @@ void ploop_copy_release(struct ploop_copy_handle *h)
 		return;
 
 	if (h->dev_frozen) {
-		(void)ioctl_device(h->devfd, PLOOP_IOC_THAW, 0);
+		if (ioctl_device(h->partfd, PLOOP_IOC_THAW, 0))
+			ploop_err(errno, "Failed to PLOOP_IOC_THAW");
 		h->dev_frozen = 0;
 	}
 
@@ -517,6 +519,11 @@ void ploop_copy_release(struct ploop_copy_handle *h)
 	if (h->devfd != -1) {
 		close(h->devfd);
 		h->devfd = -1;
+	}
+
+	if (h->partfd != -1) {
+		close(h->partfd);
+		h->partfd = -1;
 	}
 
 	if (h->idelta.fd != -1)
@@ -579,6 +586,7 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 	char *image = NULL;
 	char *format = NULL;
 	char device[64];
+	char partdev[64];
 	struct ploop_copy_handle  *_h = NULL;
 	int is_remote;
 	char mnt[PATH_MAX] = "";
@@ -627,6 +635,17 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 		goto err;
 	}
 	fcntl(_h->devfd, F_SETFD, FD_CLOEXEC);
+
+	ret = get_partition_device_name(device, partdev, sizeof(partdev));
+	if (ret)
+		goto err;
+
+	_h->partfd = open(partdev, O_RDONLY|FD_CLOEXEC);
+	if (_h->partfd == -1) {
+		ploop_err(errno, "Can't open device %s", partdev);
+		ret = SYSEXIT_DEVICE;
+		goto err;
+	}
 
 	ret = SYSEXIT_OPEN;
 	err = ploop_get_mnt_by_dev(device, mnt, sizeof(mnt));
@@ -829,7 +848,7 @@ static int freeze(struct ploop_copy_handle *h)
 {
 	int ret;
 
-	ret = ioctl(h->devfd, PLOOP_IOC_FREEZE);
+	ret = ioctl(h->partfd, PLOOP_IOC_FREEZE);
 	if (ret) {
 		if (errno == EINVAL)
 			ret = freeze_fs(h);
