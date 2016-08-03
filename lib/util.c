@@ -254,25 +254,26 @@ static void cleanup_kill_process(void *data)
 	kill(pid, SIGTERM);
 }
 
-static int ploop_execvp(const char *file, char *const argv[])
+static int ploop_execvp(char *const argv[], char *const env[])
 {
 	char *const paths[] = DEF_PATH_LIST;
 	int i, ret;
 
-	if (file[0] == '/')
-		return execv(file, argv);
+	if (*(argv[0]) == '/')
+		return env ? execvpe(argv[0], argv, env) : execv(argv[0], argv);
 
 	for (i = 0; paths[i] != NULL; i++) {
 		char cmd[PATH_MAX];
 
-		snprintf(cmd, sizeof(cmd), "%s/%s", paths[i], file);
-		ret = execv(cmd, argv);
+		snprintf(cmd, sizeof(cmd), "%s/%s", paths[i], argv[0]);
+
+		ret = env ? execvpe(cmd, argv, env) : execv(cmd, argv);
 	}
 
 	return ret;
 }
 
-int run_prg_rc(char *const argv[], int hide_mask, int *rc)
+int run_prg_rc(char *const argv[], char *const env[], int hide_mask, int *rc)
 {
 	int pid, ret, status;
 	char cmd[512];
@@ -299,7 +300,7 @@ int run_prg_rc(char *const argv[], int hide_mask, int *rc)
 			return -1;
 		}
 
-		ploop_execvp(argv[0], argv);
+		ploop_execvp(argv, env);
 
 		ploop_err(errno, "Can't exec %s", argv[0]);
 		return 127;
@@ -335,7 +336,7 @@ int run_prg_rc(char *const argv[], int hide_mask, int *rc)
 
 int run_prg(char *const argv[])
 {
-	return run_prg_rc(argv, 0, NULL);
+	return run_prg_rc(argv, NULL, 0, NULL);
 }
 
 int p_memalign(void **memptr, size_t alignment, size_t size)

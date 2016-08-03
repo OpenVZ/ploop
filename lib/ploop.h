@@ -414,7 +414,7 @@ int is_valid_blocksize(__u32 blocksize);
 int run_prg(char *const argv[]);
 #define HIDE_STDOUT	1 << 0	/* hide process' stdout */
 #define HIDE_STDERR	1 << 1	/* hide process' stderr */
-int run_prg_rc(char *const argv[], int hide_mask, int *rc);
+int run_prg_rc(char *const argv[], char *const env[], int hide_mask, int *rc);
 int p_memalign(void **memptr, size_t alignment, size_t size);
 PL_EXT int guidcmp(const char *p1, const char *p2);
 int auto_mount_image(struct ploop_disk_images_data *di,
