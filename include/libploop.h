@@ -308,6 +308,8 @@ int ploop_read_dd(struct ploop_disk_images_data *di);
 
 int ploop_set_encryption_keyid(struct ploop_disk_images_data *di,
 		const char *keyid);
+int ploop_encrypt_image(struct ploop_disk_images_data *di, const char *keyid,
+		int wipe);
 
 /* deprecated */
 PLOOP_DEPRECATED char *ploop_get_base_delta_uuid(struct ploop_disk_images_data *di);

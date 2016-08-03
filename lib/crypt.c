@@ -19,7 +19,14 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/param.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 
+#include "libploop.h"
 #include "ploop.h"
 
 #define CRYPT_BIN	"/usr/libexec/ploop/crypt.sh"
@@ -100,4 +107,149 @@ int crypt_close(const char *part)
 int crypt_resize(const char *part)
 {
 	return do_crypt("resize", NULL, part, NULL);
+}
+
+static int do_copy(char *src, char *dst)
+{
+	char s[PATH_MAX];
+	char *arg[] = {"rsync", "-a", "--acls", "--xattrs", "--hard-links",
+			s, dst, NULL};
+
+	snprintf(s, sizeof(s), "%s/", src);
+
+	return run_prg(arg);
+}
+
+int ploop_encrypt_image(struct ploop_disk_images_data *di, const char *keyid,
+		int wipe)
+{
+	int ret;
+	char dir[PATH_MAX];
+	char ddxml[PATH_MAX];
+	char image[PATH_MAX];
+	char bak[PATH_MAX] = "";
+	struct ploop_mount_param m = {};
+	struct ploop_mount_param m_enc = {};
+	struct ploop_disk_images_data *di_enc = NULL;
+
+	if (ploop_lock_dd(di))
+		return SYSEXIT_LOCK;
+
+	if (di->images == NULL) {
+		ploop_unlock_dd(di);
+		return SYSEXIT_PARAM;
+	}
+
+	ploop_log(0, "Encrypt ploop image %s", di->images[0]->file);
+	struct ploop_create_param c = {
+		.size = di->size,
+		.image = image,
+		.fstype = DEFAULT_FSTYPE,
+		.blocksize = di->blocksize,
+		.keyid = keyid,
+	};
+
+	get_basedir(di->images[0]->file, dir, sizeof(dir) - 4);
+	strcat(dir, "enc");
+	if (mkdir(dir, 0755 ) && errno != EEXIST) {
+		ploop_err(errno, "mkdir %s", dir);
+		ploop_unlock_dd(di);
+		return SYSEXIT_MKDIR;
+	}
+
+	snprintf(image, sizeof(image), "%s/%s", dir,
+			get_basename(di->images[0]->file));
+	ret = ploop_create_image(&c);
+	if (ret)
+		goto err;
+
+	snprintf(ddxml, sizeof(ddxml), "%s/" DISKDESCRIPTOR_XML, dir);
+	ret = ploop_open_dd(&di_enc, ddxml);
+	if (ret)
+		goto err;
+
+	ret = ploop_read_dd(di_enc);
+	if (ret)
+		goto err;
+
+	ret = auto_mount_image(di_enc, &m_enc);
+	if (ret)
+		goto err;
+
+	ret = auto_mount_image(di, &m);
+	if (ret)
+		goto err;
+
+	ret = do_copy(m.target, m_enc.target);
+	if (ret)
+		goto err;
+
+	ret = ploop_umount(m.device, di);
+	if (ret)
+		goto err;
+
+	ret = ploop_umount(m_enc.device, di_enc);
+	if (ret)
+		goto err;
+
+	if (wipe && di->enc == NULL && keyid != NULL) {
+		snprintf(bak, sizeof(bak), "%s.orig", di->images[0]->file);
+		if (rename(di->images[0]->file, bak)) {
+			ploop_err(errno, "Can't rename %s to %s",
+					di->images[0]->file, bak);
+			ret = SYSEXIT_RENAME;
+			goto err;
+		}
+	}
+
+	if (rename(image, di->images[0]->file)) {
+		ploop_err(errno, "Can't rename %s to %s",
+				image, di->images[0]->file);
+		ret = SYSEXIT_RENAME;
+		goto err;
+	}
+
+	if (rename(ddxml, di->runtime->xml_fname)) {
+		ploop_err(errno, "Can't rename %s to %s",
+				ddxml, di->runtime->xml_fname);
+		ret = SYSEXIT_RENAME;
+		goto err;
+	}
+
+	if (bak[0] != '\0') {
+		char *cmd[] = {"shred", "-n1", bak, NULL};
+		run_prg(cmd);
+		if (unlink(bak))
+			ploop_err(errno, "Can't unlink %s", bak);
+	}
+
+	ploop_log(0, "Ploop image %s has been successfully encrypted",
+				di->images[0]->file);
+
+	free_mount_param(&m);
+	free_mount_param(&m_enc);
+	if (di_enc)
+		ploop_close_dd(di_enc);
+
+	ploop_unlock_dd(di);
+
+	return 0;
+
+err:
+	if (m.device[0] != '\0')
+		ploop_umount(m.device, di);
+	if (m_enc.device[0] != '\0')
+		ploop_umount(m_enc.device, di_enc);
+
+	char *cmd[] = {"rm", "-rf", dir, NULL};
+	run_prg(cmd);
+
+	free_mount_param(&m);
+	free_mount_param(&m_enc);
+	if (di_enc)
+		ploop_close_dd(di_enc);
+
+	ploop_unlock_dd(di);
+
+	return ret;
 }
