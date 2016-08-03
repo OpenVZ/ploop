@@ -16,6 +16,7 @@ LIBOBJS=uuid.o \
 	delta_sysfs.o \
 	balloon_util.o \
 	check.o \
+	crypt.o \
 	ploop.o \
 	xml.o \
 	logger.o \

@@ -97,11 +97,10 @@ int create_gpt_partition(const char *device, off_t size, __u32 blocksize)
 	return 0;
 }
 
-int make_fs(const char *device, const char *fstype, unsigned int fsblocksize,
+int make_fs(const char *part_device, const char *fstype, unsigned int fsblocksize,
 		unsigned int flags)
 {
 	int i;
-	char part_device[64];
 	char fsblock_size[14];
 	char *argv[10];
 	char ext_opts[1024];
@@ -109,9 +108,6 @@ int make_fs(const char *device, const char *fstype, unsigned int fsblocksize,
 	const int lazy = !(flags & PLOOP_CREATE_NOLAZY);
 
 	fsblocksize = fsblocksize != 0 ? fsblocksize : 4096;
-
-	if (get_partition_device_name(device, part_device, sizeof(part_device)))
-		return SYSEXIT_MKFS;
 
 	i = 0;
 	argv[i++] = "mkfs";
@@ -135,7 +131,7 @@ int make_fs(const char *device, const char *fstype, unsigned int fsblocksize,
 	*/
 	argv[i++] = "-Jsize=128";
 	argv[i++] = "-i16384"; /* 1 inode per 16K disk space */
-	argv[i++] = part_device;
+	argv[i++] = (char *)part_device;
 	argv[i++] = NULL;
 
 	if (run_prg(argv))
@@ -147,7 +143,7 @@ int make_fs(const char *device, const char *fstype, unsigned int fsblocksize,
 	argv[i++] = "-c0";
 	argv[i++] = "-i0";
 	argv[i++] = "-eremount-ro";
-	argv[i++] = part_device;
+	argv[i++] = (char *)part_device;
 	argv[i++] = NULL;
 
 	if (run_prg(argv))

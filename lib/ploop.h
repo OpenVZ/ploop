@@ -461,4 +461,11 @@ int complete_running_operation(struct ploop_disk_images_data *di,
 		const char *device);
 int ploop_set_encryption_keyid(struct ploop_disk_images_data *di,
 		const char *keyid);
+
+const char *crypt_get_device_name(const char *part, char *out, int len);
+int crypt_init(const char *device, const char *keyid);
+int crypt_open(const char *device, const char *part, const char *keyid);
+int crypt_close(const char *part);
+int crypt_resize(const char *part);
+
 #endif

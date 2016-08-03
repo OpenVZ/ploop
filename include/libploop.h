@@ -66,6 +66,7 @@ struct ploop_create_param {
 	unsigned int fsblocksize;
 	int fmt_version;
 	unsigned int flags;
+	const char *keyid;
 	char dummy[32];
 };
 
