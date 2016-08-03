@@ -1299,6 +1299,14 @@ int ploop_get_dev(struct ploop_disk_images_data *di, char *out, int len)
 	return ret;
 }
 
+int ploop_get_part(struct ploop_disk_images_data *di, const char *dev,
+		char *partname, int len)
+{
+	char t[64];
+
+	return get_part_devname(di, dev, t, sizeof(t), partname, len);
+}
+
 int ploop_is_mounted(struct ploop_disk_images_data *di)
 {
 	int ret;

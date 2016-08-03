@@ -246,6 +246,8 @@ int ploop_find_dev(const char *component_name, const char *delta, char *buf, int
 int ploop_get_dev_by_mnt(const char *path, char *buf, int size);
 int ploop_get_mnt_by_dev(const char *dev, char *buf, int size);
 int ploop_get_dev(struct ploop_disk_images_data *di, char *out, int len);
+int ploop_get_part(struct ploop_disk_images_data *di, const char *dev,
+                char *partname, int len);
 int ploop_get_devs(struct ploop_disk_images_data *di, char **out[]);
 int ploop_is_mounted(struct ploop_disk_images_data *di);
 void ploop_free_array(char *array[]);
