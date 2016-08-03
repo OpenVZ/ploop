@@ -306,6 +306,9 @@ void ploop_close_dd(struct ploop_disk_images_data *di);
 int ploop_create_dd(const char *ddxml, struct ploop_create_param *param);
 int ploop_read_dd(struct ploop_disk_images_data *di);
 
+int ploop_set_encryption_keyid(struct ploop_disk_images_data *di,
+		const char *keyid);
+
 /* deprecated */
 PLOOP_DEPRECATED char *ploop_get_base_delta_uuid(struct ploop_disk_images_data *di);
 PLOOP_DEPRECATED int ploop_send(const char *device, int ofd, const char *flush_cmd, int is_pipe);

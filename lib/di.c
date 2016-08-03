@@ -45,7 +45,7 @@ static void free_encryption_data(struct ploop_disk_images_data *di)
 	}
 }
 
-int ploop_set_encryption_keyid(struct ploop_disk_images_data *di,
+int set_encryption_keyid(struct ploop_disk_images_data *di,
 		const char *keyid)
 {
 	if (di->enc == NULL) {
@@ -63,6 +63,20 @@ int ploop_set_encryption_keyid(struct ploop_disk_images_data *di,
 	}
 
 	return 0;
+}
+
+int ploop_set_encryption_keyid(struct ploop_disk_images_data *di,
+		const char *keyid)
+{
+	int ret;
+	char ddxml[PATH_MAX];
+
+	ret = set_encryption_keyid(di, keyid);
+	if (ret)
+		return ret;
+
+	get_disk_descriptor_fname(di, ddxml, sizeof(ddxml));
+	return ploop_store_diskdescriptor(ddxml, di);
 }
 
 int guidcmp(const char *p1, const char *p2)

@@ -670,14 +670,7 @@ static int ploop_init_image(struct ploop_disk_images_data *di,
 		goto err;
 
 	if (param->keyid != NULL) {
-		char ddxml[PATH_MAX];
-
 		ret = ploop_set_encryption_keyid(di, param->keyid);
-		if (ret)
-			goto err;
-
-		get_disk_descriptor_fname(di, ddxml, sizeof(ddxml));
-		ret = ploop_store_diskdescriptor(ddxml, di);
 		if (ret)
 			goto err;
 	}
