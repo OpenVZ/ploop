@@ -1108,11 +1108,14 @@ static int get_mntns_mount_dir(const char *device, int pid, char *out, int size)
 	int n;
 	char buf[PATH_MAX];
 	char target[4097];
-	unsigned _major, _minor, minor, u;
-	dev_t dev;
+	unsigned _major, _minor, major, minor, u;
+	struct stat st;
 
-	if (get_dev_by_name(device, &dev))
-		return -1;
+	if (stat(device, &st)) {
+		ploop_err(errno, "get_mntns_mount_dir stat(%s)", device);
+		return SYSEXIT_SYS;
+	}
+
 
 	if (pid > 0)
 		snprintf(buf, sizeof(buf), "/proc/%d/mountinfo", pid);
@@ -1124,15 +1127,13 @@ static int get_mntns_mount_dir(const char *device, int pid, char *out, int size)
 		return -1;
 	}
 
-	minor = minor(dev);
+	major = major(st.st_rdev);
+	minor = minor(st.st_rdev);
 	while (fgets(buf, sizeof(buf), fp)) {
 		n = sscanf(buf, "%u %u %u:%u %*s %4096s", &u, &u, &_major, &_minor, target);
 		if (n != 5)
 			continue;
-		// check for /dev/ploopN or /dev/ploopNp1
-		if (_major == PLOOP_DEV_MAJOR &&
-				(_minor == minor || _minor == minor + 1))
-		{
+		if (_major == major && _minor == minor)	{
 			if (out != NULL)
 				unmangle_to_buffer(target, out, size);
 			ret = 0;
