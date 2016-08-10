@@ -21,6 +21,7 @@ MANDIR=/usr/share/man
 MAN8DIR=$(MANDIR)/man8
 TMPFILESDIR=/usr/lib/tmpfiles.d
 LOGROTATEDIR=/etc/logrotate.d
+LIBSCRIPTDIR=/usr/libexec/ploop
 DEBUG=yes
 
 CFLAGS := $(if $(DEBUG),-g -O0 -DDEBUG,-O2) $(CFLAGS)
