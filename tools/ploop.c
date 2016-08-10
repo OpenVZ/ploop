@@ -111,7 +111,7 @@ static int plooptool_init(int argc, char **argv)
 	};
 
 
-	while ((i = getopt_long(argc, argv, "s:b:B:f:t:v:n",
+	while ((i = getopt_long(argc, argv, "s:b:B:f:t:v:nk:",
 					long_opts, NULL)) != EOF) {
 		switch (i) {
 		case 's':
@@ -164,6 +164,9 @@ static int plooptool_init(int argc, char **argv)
 			break;
 		case 'n':
 			param.flags |= PLOOP_CREATE_NOLAZY;
+			break;
+		case 'k':
+			param.keyid = optarg;
 			break;
 		default:
 			usage_init();
