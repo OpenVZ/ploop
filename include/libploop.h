@@ -66,6 +66,7 @@ struct ploop_create_param {
 	unsigned int fsblocksize;
 	int fmt_version;
 	unsigned int flags;
+	const char *keyid;
 	char dummy[32];
 };
 
@@ -245,6 +246,8 @@ int ploop_find_dev(const char *component_name, const char *delta, char *buf, int
 int ploop_get_dev_by_mnt(const char *path, char *buf, int size);
 int ploop_get_mnt_by_dev(const char *dev, char *buf, int size);
 int ploop_get_dev(struct ploop_disk_images_data *di, char *out, int len);
+int ploop_get_part(struct ploop_disk_images_data *di, const char *dev,
+                char *partname, int len);
 int ploop_get_devs(struct ploop_disk_images_data *di, char **out[]);
 int ploop_is_mounted(struct ploop_disk_images_data *di);
 void ploop_free_array(char *array[]);
@@ -302,6 +305,11 @@ int ploop_open_dd(struct ploop_disk_images_data **di, const char *fname);
 void ploop_close_dd(struct ploop_disk_images_data *di);
 int ploop_create_dd(const char *ddxml, struct ploop_create_param *param);
 int ploop_read_dd(struct ploop_disk_images_data *di);
+
+int ploop_set_encryption_keyid(struct ploop_disk_images_data *di,
+		const char *keyid);
+int ploop_encrypt_image(struct ploop_disk_images_data *di, const char *keyid,
+		int wipe);
 
 /* deprecated */
 PLOOP_DEPRECATED char *ploop_get_base_delta_uuid(struct ploop_disk_images_data *di);

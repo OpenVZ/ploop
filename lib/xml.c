@@ -156,7 +156,7 @@ static int parse_xml(const char *basedir, xmlNode *root_node, struct ploop_disk_
 		node = seek(cur_node, "KeyId");
 		if (node != NULL) {
 			data = get_element_txt(node);
-			if (ploop_set_encryption_keyid(di, data)) {
+			if (set_encryption_keyid(di, data)) {
 				ploop_err(0, "ploop_set_encryption");
 				return -1;
 			}

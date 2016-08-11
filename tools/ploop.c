@@ -111,7 +111,7 @@ static int plooptool_init(int argc, char **argv)
 	};
 
 
-	while ((i = getopt_long(argc, argv, "s:b:B:f:t:v:n",
+	while ((i = getopt_long(argc, argv, "s:b:B:f:t:v:nk:",
 					long_opts, NULL)) != EOF) {
 		switch (i) {
 		case 's':
@@ -164,6 +164,9 @@ static int plooptool_init(int argc, char **argv)
 			break;
 		case 'n':
 			param.flags |= PLOOP_CREATE_NOLAZY;
+			break;
+		case 'k':
+			param.keyid = optarg;
 			break;
 		default:
 			usage_init();
@@ -1352,6 +1355,53 @@ static int plooptool_restore_descriptor(int argc, char **argv)
 	return ploop_restore_descriptor(argv[0], argv[1], raw, blocksize);
 }
 
+static void usage_encrypt(void)
+{
+	fprintf(stderr, "Usage: ploop encrypt [-k KEY] [-w] DiskDescriptor.xml\n\n"
+			"       -w   wipe data\n"
+		);
+}
+
+static int plooptool_encrypt(int argc, char **argv)
+{
+	int ret, i;
+	struct ploop_disk_images_data *di;
+	const char *keyid = NULL;
+	int wipe = 0;
+
+	while ((i = getopt(argc, argv, "k:w")) != EOF) {
+		switch (i) {
+		case 'k':
+			keyid = optarg;
+			break;
+		case 'w':
+			wipe = 1;
+			break;
+		default:
+			usage_encrypt();
+			return SYSEXIT_PARAM;
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc != 1) {
+		usage_encrypt();
+		return SYSEXIT_PARAM;
+	}
+
+	ret = ploop_open_dd(&di, argv[0]);
+	if (ret)
+		return ret;
+
+	ret = ploop_encrypt_image(di, keyid, wipe);
+
+	ploop_close_dd(di);
+
+	return ret;
+}
+
 int main(int argc, char **argv)
 {
 	char * cmd;
@@ -1450,6 +1500,8 @@ int main(int argc, char **argv)
 		return plooptool_replace(argc, argv);
 	if (strcmp(cmd, "restore-descriptor") == 0)
 		return plooptool_restore_descriptor(argc, argv);
+	if (strcmp(cmd, "encrypt") == 0)
+		return plooptool_encrypt(argc, argv);
 
 	if (cmd[0] != '-') {
 		char ** nargs;

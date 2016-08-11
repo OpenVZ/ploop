@@ -414,7 +414,7 @@ int is_valid_blocksize(__u32 blocksize);
 int run_prg(char *const argv[]);
 #define HIDE_STDOUT	1 << 0	/* hide process' stdout */
 #define HIDE_STDERR	1 << 1	/* hide process' stderr */
-int run_prg_rc(char *const argv[], int hide_mask, int *rc);
+int run_prg_rc(char *const argv[], char *const env[], int hide_mask, int *rc);
 int p_memalign(void **memptr, size_t alignment, size_t size);
 PL_EXT int guidcmp(const char *p1, const char *p2);
 int auto_mount_image(struct ploop_disk_images_data *di,
@@ -459,6 +459,11 @@ PL_EXT int ploop_create_snapshot_offline(struct ploop_disk_images_data *di,
 		struct ploop_snapshot_param *param);
 int complete_running_operation(struct ploop_disk_images_data *di,
 		const char *device);
-int ploop_set_encryption_keyid(struct ploop_disk_images_data *di,
-		const char *keyid);
+int set_encryption_keyid(struct ploop_disk_images_data *di, const char *keyid);
+const char *crypt_get_device_name(const char *part, char *out, int len);
+int crypt_init(const char *device, const char *keyid);
+int crypt_open(const char *device, const char *part, const char *keyid);
+int crypt_close(const char *part);
+int crypt_resize(const char *part);
+
 #endif

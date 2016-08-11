@@ -88,7 +88,10 @@ struct ploop_functions {
 	int (*get_base_delta_fname)(struct ploop_disk_images_data *di, char *out, int len);
 	int (*read_dd)(struct ploop_disk_images_data *di);
 	/* padding for up to 64 pointers */
-	void *padding[10];
+	int (*get_part)(struct ploop_disk_images_data *di, const char *dev, char *partname, int len);
+	int (*set_encryption_keyid)(struct ploop_disk_images_data *di, const char *keyid);
+	int (*encrypt_image)(struct ploop_disk_images_data *di, const char *keyid, int wipe);
+	void *padding[7];
 }; /* struct ploop_functions */
 
 __attribute__ ((visibility("default")))
