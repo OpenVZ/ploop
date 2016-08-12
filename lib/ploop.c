@@ -2155,8 +2155,7 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		goto err_stop;
 
 	/* Dummy call to recreate devices */
-	if (param->target == NULL && !param->fsck)
-		reread_part(param->device);
+	reread_part(param->device);
 
 	if (di && di->enc) {
 		ret = crypt_open(devname, partname, di->enc->keyid);
