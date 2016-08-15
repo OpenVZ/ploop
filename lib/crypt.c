@@ -112,7 +112,7 @@ int crypt_resize(const char *part)
 static int do_copy(char *src, char *dst)
 {
 	char s[PATH_MAX];
-	char *arg[] = {"rsync", "-a", "--acls", "--xattrs", "--hard-links",
+	char *arg[] = {"rsync", "-a", "--acls", /*"--xattrs",*/ "--hard-links",
 			s, dst, NULL};
 
 	snprintf(s, sizeof(s), "%s/", src);
