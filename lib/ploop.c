@@ -3604,7 +3604,15 @@ static int ploop_get_info(struct ploop_disk_images_data *di, struct ploop_info *
 		goto err;
 	}
 	if (ret == 0) {
-		ret = get_mount_dir(dev, mnt, sizeof(mnt));
+		char devname[64];
+		char partname[64];
+
+		ret = get_part_devname(di, dev, devname, sizeof(devname),
+				partname, sizeof(partname));
+		if (ret)
+			return ret;
+
+		ret = get_mount_dir(partname, mnt, sizeof(mnt));
 		if (ret)
 			goto err;
 		ret = get_statfs_info(mnt, info);
