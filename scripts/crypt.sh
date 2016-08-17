@@ -23,7 +23,7 @@ init()
 open()
 {
 	loadkey
-	echo -n "$KEY" | $CRYPTSETUP luksOpen $DEVICE $DEVICE_NAME
+	echo -n "$KEY" | $CRYPTSETUP --allow-discards luksOpen $DEVICE $DEVICE_NAME
 	if [ $? -ne 0 ]; then
 		echo "Cannot open $DEVICE $DEVICE_NAME"
 		exit 1
