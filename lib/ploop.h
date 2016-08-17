@@ -464,5 +464,6 @@ int crypt_init(const char *device, const char *keyid);
 int crypt_open(const char *device, const char *part, const char *keyid);
 int crypt_close(const char *part);
 int crypt_resize(const char *part);
+int get_dir_entry(const char *path, char *out, int size);
 
 #endif

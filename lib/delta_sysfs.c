@@ -266,47 +266,60 @@ static int get_dev_start(const char *path, __u32 *start)
 	return 0;
 }
 
+int get_dir_entry(const char *path, char *out, int size)
+{
+	DIR *dp;
+	struct stat st;
+	char buf[PATH_MAX];
+	struct dirent *de;
+	int ret = 0;
+
+	dp = opendir(path);
+	if (dp == NULL) {
+		ploop_err(errno, "Can't opendir %s", path);
+		return -1;
+	}
+
+	out[0] = '\0';
+	while ((de = readdir(dp)) != NULL) {
+		if (!strcmp(de->d_name, ".") ||
+				!strcmp(de->d_name, ".."))
+			continue;
+
+		snprintf(buf, sizeof(buf), "%s/%s", path, de->d_name);
+		if (stat(buf, &st)) {
+			ploop_err(errno, "Can't lstat %s", buf);
+			ret = -1;
+			break;
+		}
+
+		if (S_ISDIR(st.st_mode)) {
+			snprintf(out, size, "%s", de->d_name);
+			break;
+		}
+	}
+	closedir(dp);
+
+	return ret;
+}
+
 int dev_num2dev_start(dev_t dev_num, __u32 *dev_start)
 {
 	int ret;
 	char path[PATH_MAX];
-	DIR *dp;
-	struct dirent *de;
 	__u32 offset = 0;
 
 	snprintf(path, sizeof(path), "/sys/dev/block/%d:%d/start",
 			major(dev_num), minor(dev_num));
 	if (access(path, F_OK)) {
+		char buf[PATH_MAX] = "";
+
 		snprintf(path, sizeof(path), "/sys/dev/block/%d:%d/slaves",
 			major(dev_num), minor(dev_num));
-		dp = opendir(path);
-		if (dp == NULL) {
-			ploop_err(errno, "Can't opendir %s", path);
+		if (get_dir_entry(path, buf, sizeof(buf)))
 			return -1;
-		}
 
-		while ((de = readdir(dp)) != NULL) {
-			struct stat st;
-			char buf[PATH_MAX];
-
-			if (!strcmp(de->d_name, ".") ||
-					!strcmp(de->d_name, ".."))
-				continue;
-
-			snprintf(buf, sizeof(buf), "%s/%s", path, de->d_name);
-			if (stat(buf, &st)) {
-				ploop_err(errno, "Can't lstat %s", buf);
-				return -1;
-			}
-
-			if (!S_ISDIR(st.st_mode))
-				continue;
-
-			snprintf(path, sizeof(path), "%s/start", buf);
-			break;
-		}
-		closedir(dp);
-
+		snprintf(path, sizeof(path), "%s/start", buf);
 		/* FIXME: get dm-crypt offset */
 		offset = 4096;
 	}
