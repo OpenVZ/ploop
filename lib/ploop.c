@@ -2694,19 +2694,16 @@ static int ploop_raw_discard(struct ploop_disk_images_data *di, const char *devi
  *	part_dev_size=/dev/ploopNp1
  */
 static int shrink_device(struct ploop_disk_images_data *di,
-		const char *device, const char *part_device,
+		const char *device, const char *part_device, dev_t part_dev,
 		off_t part_dev_size, off_t new_size, __u32 blocksize)
 {
 	struct dump2fs_data data;
-	char buf[PATH_MAX];
 	__u32 part_start;
 	int ret;
 	int top, raw;
 	off_t start, end;
 
-	snprintf(buf, sizeof(buf), "/sys/block/%s/%s/start",
-			basename(device), basename(part_device));
-	if (get_dev_start(buf, &part_start)) {
+	if (dev_num2dev_start(part_dev, &part_start)) {
 		ploop_err(0, "Can't find out offset from start of ploop device (%s)",
 				part_device);
 		return SYSEXIT_SYSFS;
@@ -2945,7 +2942,8 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			if (ret)
 				goto err;
 
-			ret = shrink_device(di, mount_param.device, partname, part_dev_size,
+			ret = shrink_device(di, mount_param.device, partname,
+					st.st_dev, part_dev_size,
 					new_fs_size, blocksize);
 			if (ret)
 				goto err;

@@ -230,9 +230,8 @@ PL_EXT int ploop_get_attr(const char * device, const char * attr, int * res);
 int ploop_get_delta_attr(const char * device, int level, const char * attr, int * res);
 int ploop_get_delta_attr_str(const char *device, int level, const char *attr, char *out, int len);
 int ploop_get_size(const char * device, off_t * res);
-int dev_num2dev_start(const char *device, dev_t dev_num, __u32 *dev_start);
 int get_dev_by_name(const char *name, dev_t *dev);
-int get_dev_start(const char *path, __u32 *start);
+int dev_num2dev_start(dev_t dev_num, __u32 *dev_start);
 
 void init_delta_array(struct delta_array *);
 void deinit_delta_array(struct delta_array * p);

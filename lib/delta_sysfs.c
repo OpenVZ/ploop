@@ -251,7 +251,7 @@ int get_dev_by_name(const char *device, dev_t *dev)
 	return get_dev_num(nbuf, dev);
 }
 
-int get_dev_start(const char *path, __u32 *start)
+static int get_dev_start(const char *path, __u32 *start)
 {
 	char nbuf[4096];
 
@@ -266,69 +266,58 @@ int get_dev_start(const char *path, __u32 *start)
 	return 0;
 }
 
-int dev_num2dev_start(const char *device, dev_t dev_num, __u32 *dev_start)
+int dev_num2dev_start(dev_t dev_num, __u32 *dev_start)
 {
-	char nbuf[4096];
-	dev_t dev;
-	DIR * dp;
+	int ret;
+	char path[PATH_MAX];
+	DIR *dp;
 	struct dirent *de;
+	__u32 offset = 0;
 
-	if (memcmp(device, "/dev/", 5) == 0)
-		device += 5;
-
-	snprintf(nbuf, sizeof(nbuf) - 1, "/sys/block/%s/dev", device);
-
-	if (get_dev_num(nbuf, &dev))
-		return -1;
-	if (dev == dev_num) {
-		*dev_start = 0;
-		return 0;
-	}
-
-	snprintf(nbuf, sizeof(nbuf) - 1, "/sys/block/%s", device);
-	dp = opendir(nbuf);
-	if (dp == NULL) {
-		ploop_err(errno, "Can't opendir %s", nbuf);
-		return -1;
-	}
-
-	while ((de = readdir(dp)) != NULL) {
-		struct stat st;
-
-		if (strlen(de->d_name) <= strlen(device) + 1 ||
-		    memcmp(de->d_name, device, strlen(device)) ||
-		    de->d_name[strlen(device)] != 'p')
-			continue;
-
-		snprintf(nbuf, sizeof(nbuf) - 1, "/sys/block/%s/%s",
-			 device, de->d_name);
-		if (lstat(nbuf, &st)) {
-			ploop_err(errno, "Can't lstat %s", nbuf);
-			goto close_dir;
+	snprintf(path, sizeof(path), "/sys/dev/block/%d:%d/start",
+			major(dev_num), minor(dev_num));
+	if (access(path, F_OK)) {
+		snprintf(path, sizeof(path), "/sys/dev/block/%d:%d/slaves",
+			major(dev_num), minor(dev_num));
+		dp = opendir(path);
+		if (dp == NULL) {
+			ploop_err(errno, "Can't opendir %s", path);
+			return -1;
 		}
 
-		if (!S_ISDIR(st.st_mode))
-			continue;
+		while ((de = readdir(dp)) != NULL) {
+			struct stat st;
+			char buf[PATH_MAX];
 
-		snprintf(nbuf, sizeof(nbuf) - 1, "/sys/block/%s/%s/dev",
-			 device, de->d_name);
-		if (get_dev_num(nbuf, &dev))
-			goto close_dir;
+			if (!strcmp(de->d_name, ".") ||
+					!strcmp(de->d_name, ".."))
+				continue;
 
-		if (dev == dev_num) {
-			snprintf(nbuf, sizeof(nbuf) - 1,
-				 "/sys/block/%s/%s/start",
-				 device, de->d_name);
-			closedir(dp);
-			return get_dev_start(nbuf, dev_start);
+			snprintf(buf, sizeof(buf), "%s/%s", path, de->d_name);
+			if (stat(buf, &st)) {
+				ploop_err(errno, "Can't lstat %s", buf);
+				return -1;
+			}
+
+			if (!S_ISDIR(st.st_mode))
+				continue;
+
+			snprintf(path, sizeof(path), "%s/start", buf);
+			break;
 		}
+		closedir(dp);
+
+		/* FIXME: get dm-crypt offset */
+		offset = 4096;
 	}
 
-	ploop_err(0, "Can't find entry under /sys/block/%s with dev=%llx",
-		device, (unsigned long long)dev_num);
-close_dir:
-	closedir(dp);
-	return -1;
+	ret = get_dev_start(path, dev_start);
+	if (ret)
+		return ret;
+
+	*dev_start += offset;
+
+	return 0;
 }
 
 /* Find device(s) by base ( & top ) delta and return name(s)
