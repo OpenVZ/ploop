@@ -116,7 +116,7 @@ static int plooptool_init(int argc, char **argv)
 	};
 
 
-	while ((i = getopt_long(argc, argv, "s:b:B:f:t:v:nk:",
+	while ((i = getopt_long(argc, argv, "s:b:B:f:t:v:n:k:",
 					long_opts, NULL)) != EOF) {
 		switch (i) {
 		case 's':
