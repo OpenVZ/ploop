@@ -292,13 +292,14 @@ err:
 	return -1;
 }
 
-int get_dir_entry(const char *path, char *out, int size)
+int get_dir_entry(const char *path, char **out[])
 {
 	DIR *dp;
 	struct stat st;
 	char buf[PATH_MAX];
 	struct dirent *de;
 	int ret = 0;
+	int nelem = 1;
 
 	dp = opendir(path);
 	if (dp == NULL) {
@@ -314,17 +315,26 @@ int get_dir_entry(const char *path, char *out, int size)
 
 		snprintf(buf, sizeof(buf), "%s/%s", path, de->d_name);
 		if (stat(buf, &st)) {
-			ploop_err(errno, "Can't lstat %s", buf);
+			ploop_err(errno, "Can't stat %s", buf);
 			ret = -1;
 			break;
 		}
 
-		if (S_ISDIR(st.st_mode)) {
-			snprintf(out, size, "%s", de->d_name);
+		if (!S_ISDIR(st.st_mode))
+			continue;
+
+		nelem = append_array_entry(de->d_name, out, nelem);
+		if (nelem == -1) {
+			ret = -1;
 			break;
 		}
 	}
 	closedir(dp);
+
+	if (ret) {
+		ploop_free_array(*out);
+		*out = NULL;
+	}
 
 	return ret;
 }
@@ -338,16 +348,25 @@ int dev_num2dev_start(dev_t dev_num, __u32 *dev_start)
 	snprintf(path, sizeof(path), "/sys/dev/block/%d:%d/start",
 			major(dev_num), minor(dev_num));
 	if (access(path, F_OK)) {
-		char buf[PATH_MAX] = "";
+		char **dirs = NULL;
 
 		snprintf(path, sizeof(path), "/sys/dev/block/%d:%d/slaves",
 			major(dev_num), minor(dev_num));
-		if (get_dir_entry(path, buf, sizeof(buf)))
+		if (get_dir_entry(path, &dirs))
 			return -1;
 
-		snprintf(path, sizeof(path), "%s/start", buf);
+		if (dirs == NULL) {
+			ploop_err(0, "No slaves found in %s", path);
+			return -1;
+		}
+
+		snprintf(path, sizeof(path), "/sys/class/block/%s/start",
+				dirs[0]);
+
 		/* FIXME: get dm-crypt offset */
 		offset = 4096;
+
+		ploop_free_array(dirs);
 	}
 
 	ret = get_dev_start(path, dev_start);

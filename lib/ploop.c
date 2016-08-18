@@ -1147,15 +1147,17 @@ int ploop_get_mnt_by_dev(const char *dev, char *buf, int size)
 	int ret;
 	char path[PATH_MAX];
 	char partname[64];
-	char x[64];
+	char **dirs = NULL;
 
 	ret = get_partition_device_name(dev, partname, sizeof(partname));
 	if (ret)
 		return ret;
 
 	snprintf(path, sizeof(path), "/sys/class/block/%s/holders", partname+5);
-	if (get_dir_entry(path, x, sizeof(x)) == 0 && x[0] != '\0')
-		snprintf(partname, sizeof(partname), "/dev/%s", x);
+	if (get_dir_entry(path, &dirs) == 0) {
+		snprintf(partname, sizeof(partname), "/dev/%s", dirs[0]);
+		ploop_free_array(dirs);
+	}
 
 	return get_mount_dir(partname, buf, size);
 }
