@@ -2365,7 +2365,6 @@ static int ploop_umount_fs(const char *mnt, struct ploop_disk_images_data *di)
 int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 {
 	int ret;
-	char devname[64];
 	char partname[64];
 	char mnt[PATH_MAX] = "";
 	char image[PATH_MAX], format[PATH_MAX];
@@ -2375,8 +2374,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 		return SYSEXIT_SYS; /* internal error */
 	}
 
-	ret = get_part_devname(di, device, devname, sizeof(devname),
-			partname, sizeof(partname));
+	ret = get_part_devname_from_sys(device, partname, sizeof(partname));
 	if (ret)
 		return ret;
 

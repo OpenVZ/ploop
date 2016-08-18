@@ -61,7 +61,7 @@ static char **get_param(const char *devname, const char *partname,
 	}
 
 	if (partname) {
-		snprintf(x, sizeof(x), "DEVICE_NAME=%s", get_basename(partname));
+		snprintf(x, sizeof(x), "DEVICE_NAME=%s", partname);
 		env[i++] = strdup(x);
 	}
 	if (keyid) {
@@ -96,7 +96,7 @@ int crypt_init(const char *device, const char *keyid)
 
 int crypt_open(const char *device, const char *part, const char *keyid)
 {
-	return do_crypt("open", device, part, keyid);
+	return do_crypt("open", device, get_basename(part), keyid);
 }
 
 int crypt_close(const char *part)

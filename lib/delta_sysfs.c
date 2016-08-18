@@ -526,3 +526,43 @@ int ploop_find_dev(const char *component_name, const char *delta,
 
 	return ret;
 }
+
+int get_part_devname_from_sys(const char *device, char *out, int size)
+{
+	char path[PATH_MAX];
+	char **dirs = NULL;
+	char **p = NULL;
+	int len;
+
+	if (memcmp(device, "/dev/", 5) == 0)
+		device += 5;
+
+	snprintf(path, sizeof(path), "/sys/block/%s", device);
+	if (get_dir_entry(path, &dirs))
+		return -1;
+
+	if (dirs == NULL)
+		return -1;
+
+	len = strlen(device);
+	for (p = dirs; *p != NULL; p++) {
+		if (memcmp(device, *p, len) == 0)
+			break;
+	}
+
+	if (*p == NULL) {
+		snprintf(out, size, "/dev/%s", device);
+	} else {
+
+		snprintf(out, size, "/dev/%s", *p);
+
+		snprintf(path, sizeof(path), "/sys/class/block/%s/holders", *p);
+		ploop_free_array(dirs);
+		dirs = NULL;
+		if (get_dir_entry(path, &dirs) == 0 && dirs != NULL)
+			snprintf(out, size, "/dev/%s", dirs[0]);
+	}
+	ploop_free_array(dirs);
+
+	return 0;
+}
