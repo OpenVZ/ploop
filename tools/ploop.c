@@ -60,6 +60,10 @@ static void usage_summary(void)
 			"       ploop snapshot-merge [-u UUID] DiskDescriptor.xml\n"
 			"       ploop snapshot-switch -u UUID DiskDescriptor.xml\n"
 			"       ploop snapshot-list [-o field[,field...]] [-u UUID] DiskDescriptor.xml\n"
+			"       ploop tsnapshot -u UUID -c COMPONENT DiskDescriptor.xml\n"
+			"       ploop restore-descriptor [-f FORMAT] [-b BLOCKSIZE] IMAGE_DIR BASE_DELTA\n"
+			"       ploop replace -i DELTA DiskDescriptor.xml\n"
+			"       ploop encrypt [-k KEY] [-w] DiskDescriptor.xml\n"
 			"Also:  ploop { start | stop | delete | clear | merge | grow | copy |\n"
 			"               stat | info | list} ...\n"
 			"\n"
@@ -71,7 +75,7 @@ static void usage_init(void)
 {
 	fprintf(stderr,
 "Usage: ploop init -s SIZE [-f FORMAT] [-v VERSION] [-t FSTYPE]\n"
-"                 [-b BLOCKSIZE] [-B FSBLOCKSIZE] [-n|--nolazy] DELTA\n"
+"                 [-b BLOCKSIZE] [-B FSBLOCKSIZE] [-n|--nolazy] [-k KEY] DELTA\n"
 "\n"
 "       SIZE        := NUMBER[KMGT]\n"
 "       FORMAT      := " USAGE_FORMATS "\n"
@@ -80,6 +84,7 @@ static void usage_init(void)
 "       BLOCKSIZE   := cluster block size, sectors\n"
 "       FSBLOCKSIZE := file system block size, bytes\n"
 "       -n, --nolazy - do not use lazy initialization during mkfs\n"
+"       KEY         := encryption keyid\n"
 "       DELTA       := path to a new image file\n"
 	);
 }
@@ -1357,8 +1362,9 @@ static int plooptool_restore_descriptor(int argc, char **argv)
 
 static void usage_encrypt(void)
 {
-	fprintf(stderr, "Usage: ploop encrypt [-k KEY] [-w] DiskDescriptor.xml\n\n"
-			"       -w   wipe data\n"
+	fprintf(stderr, "Usage: ploop encrypt [-k KEY] [-w] DiskDescriptor.xml\n"
+			"       KEY := encryption keyid\n"
+			"       -w     wipe data\n"
 		);
 }
 
