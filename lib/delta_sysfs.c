@@ -266,6 +266,32 @@ static int get_dev_start(const char *path, __u32 *start)
 	return 0;
 }
 
+static int append_array_entry(const char *entry, char **ar[], int nelem)
+{
+	char **t;
+
+	t = realloc(*ar, (nelem+1) * sizeof(char *));
+	if (t == NULL) {
+		ploop_err(ENOMEM, "Memory allocation failed");
+		goto err;
+	}
+
+	*ar = t;
+	if ((t[nelem-1] = strdup(entry)) == NULL) {
+		ploop_err(ENOMEM, "Memory allocation failed");
+		goto err;
+	}
+	t[nelem++] = NULL;
+
+	return nelem;
+
+err:
+	ploop_free_array(*ar);
+	*ar = NULL;
+
+	return -1;
+}
+
 int get_dir_entry(const char *path, char *out, int size)
 {
 	DIR *dp;
@@ -382,7 +408,6 @@ int ploop_get_dev_by_delta(const char *delta, const char *topdelta,
 
 	while ((de = readdir(dp)) != NULL) {
 		int err;
-		char **t;
 
 		if (strncmp("ploop", de->d_name, 5))
 			continue;
@@ -430,20 +455,12 @@ int ploop_get_dev_by_delta(const char *delta, const char *topdelta,
 			continue;
 
 		snprintf(dev, sizeof(dev), "/dev/%s", de->d_name);
-		t = realloc(*out, (nelem+1) * sizeof(char *));
-		if (t == NULL) {
-			ploop_err(ENOMEM, "Memory allocation failed");
+		nelem = append_array_entry(dev, out, nelem);
+		if (nelem == -1)
 			goto err;
-		}
-		*out = t;
-		if ((t[nelem-1] = strdup(dev)) == NULL) {
-			ploop_err(ENOMEM, "Memory allocation failed");
-			goto err;
-		}
-		t[nelem++] = NULL;
+
 		if (component_name)
 			break;
-
 	}
 	ret = 0;
 
