@@ -241,6 +241,11 @@ err:
 	if (m_enc.device[0] != '\0')
 		ploop_umount(m_enc.device, di_enc);
 
+	if (wipe && di->enc != NULL && keyid == NULL ) {
+		char *cmd[] = {"shred", "-n1", image, NULL};
+		run_prg(cmd);
+	}
+
 	char *cmd[] = {"rm", "-rf", dir, NULL};
 	run_prg(cmd);
 
