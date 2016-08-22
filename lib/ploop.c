@@ -1154,7 +1154,7 @@ int ploop_get_mnt_by_dev(const char *dev, char *buf, int size)
 		return ret;
 
 	snprintf(path, sizeof(path), "/sys/class/block/%s/holders", partname+5);
-	if (get_dir_entry(path, &dirs) == 0) {
+	if (get_dir_entry(path, &dirs) == 0 && dirs != NULL) {
 		snprintf(partname, sizeof(partname), "/dev/%s", dirs[0]);
 		ploop_free_array(dirs);
 	}
