@@ -112,7 +112,7 @@ int crypt_resize(const char *part)
 static int do_copy(char *src, char *dst)
 {
 	char s[PATH_MAX];
-	char *arg[] = {"rsync", "-a", "--acls", /*"--xattrs",*/ "--hard-links",
+	char *arg[] = {"rsync", "-a", "--acls", "--xattrs", "--hard-links",
 			s, dst, NULL};
 
 	snprintf(s, sizeof(s), "%s/", src);
@@ -128,8 +128,12 @@ int ploop_encrypt_image(struct ploop_disk_images_data *di,
 	char ddxml[PATH_MAX];
 	char image[PATH_MAX];
 	char bak[PATH_MAX] = "";
-	struct ploop_mount_param m = {};
-	struct ploop_mount_param m_enc = {};
+	struct ploop_mount_param m = {
+		.mount_data = (char *)param->mnt_opts,
+	};
+	struct ploop_mount_param m_enc = {
+		.mount_data = (char *)param->mnt_opts,
+	};
 	struct ploop_disk_images_data *di_enc = NULL;
 
 	if (ploop_lock_dd(di))

@@ -232,6 +232,7 @@ struct ploop_copy_stat {
 struct ploop_encrypt_param {
 	const char *keyid;
 	int wipe;
+	const char *mnt_opts;
 	void *pad[4];
 };
 
