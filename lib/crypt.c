@@ -120,8 +120,8 @@ static int do_copy(char *src, char *dst)
 	return run_prg(arg);
 }
 
-int ploop_encrypt_image(struct ploop_disk_images_data *di, const char *keyid,
-		int wipe)
+int ploop_encrypt_image(struct ploop_disk_images_data *di,
+		struct ploop_encrypt_param *param)
 {
 	int ret;
 	char dir[PATH_MAX];
@@ -146,7 +146,7 @@ int ploop_encrypt_image(struct ploop_disk_images_data *di, const char *keyid,
 		.image = image,
 		.fstype = DEFAULT_FSTYPE,
 		.blocksize = di->blocksize,
-		.keyid = keyid,
+		.keyid = param->keyid,
 	};
 
 	get_basedir(di->images[0]->file, dir, sizeof(dir) - 4);
@@ -192,7 +192,7 @@ int ploop_encrypt_image(struct ploop_disk_images_data *di, const char *keyid,
 	if (ret)
 		goto err;
 
-	if (wipe && di->enc == NULL && keyid != NULL) {
+	if (param->wipe && di->enc == NULL && param->keyid != NULL) {
 		snprintf(bak, sizeof(bak), "%s.orig", di->images[0]->file);
 		if (rename(di->images[0]->file, bak)) {
 			ploop_err(errno, "Can't rename %s to %s",
@@ -241,7 +241,7 @@ err:
 	if (m_enc.device[0] != '\0')
 		ploop_umount(m_enc.device, di_enc);
 
-	if (wipe && di->enc != NULL && keyid == NULL ) {
+	if (param->wipe && di->enc != NULL && param->keyid == NULL ) {
 		char *cmd[] = {"shred", "-n1", image, NULL};
 		run_prg(cmd);
 	}

@@ -1372,16 +1372,15 @@ static int plooptool_encrypt(int argc, char **argv)
 {
 	int ret, i;
 	struct ploop_disk_images_data *di;
-	const char *keyid = NULL;
-	int wipe = 0;
+	struct ploop_encrypt_param param = {};
 
 	while ((i = getopt(argc, argv, "k:w")) != EOF) {
 		switch (i) {
 		case 'k':
-			keyid = optarg;
+			param.keyid = optarg;
 			break;
 		case 'w':
-			wipe = 1;
+			param.wipe = 1;
 			break;
 		default:
 			usage_encrypt();
@@ -1401,7 +1400,7 @@ static int plooptool_encrypt(int argc, char **argv)
 	if (ret)
 		return ret;
 
-	ret = ploop_encrypt_image(di, keyid, wipe);
+	ret = ploop_encrypt_image(di, &param);
 
 	ploop_close_dd(di);
 

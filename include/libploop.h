@@ -229,6 +229,12 @@ struct ploop_copy_stat {
 	__u64 xferred;
 };
 
+struct ploop_encrypt_param {
+	const char *keyid;
+	int wipe;
+	void *pad[4];
+};
+
 /* Constants for ploop_set_verbose_level(): */
 #define PLOOP_LOG_NOCONSOLE	-2	/* disable all console logging */
 #define PLOOP_LOG_NOSTDOUT	-1	/* disable all but errors to stderr */
@@ -308,8 +314,8 @@ int ploop_read_dd(struct ploop_disk_images_data *di);
 
 int ploop_set_encryption_keyid(struct ploop_disk_images_data *di,
 		const char *keyid);
-int ploop_encrypt_image(struct ploop_disk_images_data *di, const char *keyid,
-		int wipe);
+int ploop_encrypt_image(struct ploop_disk_images_data *di,
+		struct ploop_encrypt_param *param);
 
 /* deprecated */
 PLOOP_DEPRECATED char *ploop_get_base_delta_uuid(struct ploop_disk_images_data *di);

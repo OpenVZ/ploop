@@ -90,7 +90,7 @@ struct ploop_functions {
 	/* padding for up to 64 pointers */
 	int (*get_part)(struct ploop_disk_images_data *di, const char *dev, char *partname, int len);
 	int (*set_encryption_keyid)(struct ploop_disk_images_data *di, const char *keyid);
-	int (*encrypt_image)(struct ploop_disk_images_data *di, const char *keyid, int wipe);
+	int (*encrypt_image)(struct ploop_disk_images_data *di, struct ploop_encrypt_param *param);
 	void *padding[7];
 }; /* struct ploop_functions */
 
