@@ -646,6 +646,49 @@ out:
 	return ret;
 }
 
+int ploop_init_device(const char *device, struct ploop_create_param *param)
+{
+	int ret;
+	off_t size;
+	unsigned int blocksize;
+	char devname[PATH_MAX];
+	char partname[PATH_MAX];
+
+	blocksize = param->blocksize ?
+		param->blocksize : (1 << PLOOP1_DEF_CLUSTER_LOG);
+
+	if (!is_valid_blocksize(blocksize)) {
+		ploop_err(0, "Incorrect blocksize specified: %d",
+		blocksize);
+		return SYSEXIT_PARAM;
+	}
+
+	if (access(device, F_OK)) {
+		ploop_err(errno, "Can't open device %s", device);
+		return SYSEXIT_DEVICE;
+	}
+
+	if (!param->without_partition) {
+		ret = ploop_get_size(device, &size);
+		if (ret)
+			return ret;
+
+		ret = create_gpt_partition(device, size, blocksize);
+		if (ret)
+			return ret;
+	}
+
+	ret = get_part_devname(NULL, device, devname, sizeof(devname),
+			partname, sizeof(partname));
+	if (ret)
+		return ret;
+
+	ret = make_fs(partname, param->fstype, param->fsblocksize,
+			param->flags);
+
+	return ret;
+}
+
 static int ploop_init_image(struct ploop_disk_images_data *di,
 		struct ploop_create_param *param)
 {

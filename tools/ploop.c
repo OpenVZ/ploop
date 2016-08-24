@@ -47,7 +47,7 @@ extern int plooptool_copy(int argc, char ** argv);
 
 static void usage_summary(void)
 {
-	fprintf(stderr, "Usage: ploop init -s SIZE [-f FORMAT] NEW_DELTA\n"
+	fprintf(stderr, "Usage: ploop init -s SIZE [-f FORMAT] NEW_DELTA | DEVICE\n"
 			"       ploop mount [-r] [-m DIR] DiskDescriptor.xml\n"
 			"       ploop umount { -d DEVICE | -m DIR | DELTA | DiskDescriptor.xml }\n"
 			"       ploop check [-fFcrsdS] [-R -b BLOCKSIZE] { DELTA | DiskDescriptor.xml }\n"
@@ -75,7 +75,7 @@ static void usage_init(void)
 {
 	fprintf(stderr,
 "Usage: ploop init -s SIZE [-f FORMAT] [-v VERSION] [-t FSTYPE]\n"
-"                 [-b BLOCKSIZE] [-B FSBLOCKSIZE] [-n|--nolazy] [-k KEY] DELTA\n"
+"                 [-b BLOCKSIZE] [-B FSBLOCKSIZE] [-n|--nolazy] [-k KEY] DELTA | DEVICE\n"
 "\n"
 "       SIZE        := NUMBER[KMGT]\n"
 "       FORMAT      := " USAGE_FORMATS "\n"
@@ -86,6 +86,7 @@ static void usage_init(void)
 "       -n, --nolazy - do not use lazy initialization during mkfs\n"
 "       KEY         := encryption keyid\n"
 "       DELTA       := path to a new image file\n"
+"       DEVICE      := path to a block device\n"
 	);
 }
 
@@ -105,6 +106,8 @@ static int plooptool_init(int argc, char **argv)
 	int i, f, ret;
 	off_t size_sec = 0;
 	char * endptr;
+	struct stat st;
+	char real_path[PATH_MAX];
 	struct ploop_create_param param = {
 		.fstype		= "ext4",
 		.mode		= PLOOP_EXPANDED_MODE,
@@ -182,7 +185,29 @@ static int plooptool_init(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if (argc != 1 || size_sec == 0) {
+	if (argc != 1) {
+		usage_init();
+		return SYSEXIT_PARAM;
+	}
+
+	if (!access(argv[0],F_OK)) {
+
+		if (realpath(argv[0], real_path) == NULL) {
+			fprintf(stderr, "failed realpath(%s)\n", argv[0]);
+			return SYSEXIT_PARAM;
+		}
+
+		if (stat(real_path, &st)) {
+			fprintf(stderr, "failed stat(%s)\n", real_path);
+			return SYSEXIT_OPEN;
+		}
+
+		if (S_ISBLK(st.st_mode)) {
+			return ploop_init_device(real_path, &param);
+		}
+	}
+
+	if (size_sec == 0) {
 		usage_init();
 		return SYSEXIT_PARAM;
 	}
