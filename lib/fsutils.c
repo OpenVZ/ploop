@@ -70,30 +70,69 @@ static char *get_prog(char *progs[])
 
 int create_gpt_partition(const char *device, off_t size, __u32 blocksize)
 {
+	int ret;
 	unsigned long long start = blocksize;
 	unsigned long long end = (size - blocksize) / blocksize * blocksize;
-	char *argv[7];
-	char s1[22], s2[22];
 
 	if (size <= start + blocksize) {
 		ploop_err(0, "Image size should be greater than %llu", start);
 		return SYSEXIT_PARAM;
 	}
+
+	ret = parted_mklabel_gpt(device);
+	if (ret)
+		return ret;
+
+	ret = sgdisk_mkpart(device, 1, start, end);
+
+	return ret;
+}
+
+int parted_mklabel_gpt(const char *device)
+{
+	char *argv[5];
+
 	argv[0] = "parted";
 	argv[1] = "-s";
 	argv[2] = (char *)device;
-	argv[3] = "mklabel gpt mkpart primary";
-	snprintf(s1, sizeof(s1), "%llub", start << PLOOP1_SECTOR_LOG);
-	argv[4] = s1;
-	snprintf(s2, sizeof(s2), "%llub", (end << PLOOP1_SECTOR_LOG)-1);
-	argv[5] = s2;
-	argv[6] = NULL;
+	argv[3] = "mklabel gpt";
+	argv[4] = NULL;
 
 	if (run_prg(argv)) {
-		ploop_err(0, "Failed to create partition");
+		ploop_err(0, "Failed to create GPT table");
 		return SYSEXIT_SYS;
 	}
 
+	return 0;
+}
+
+/* Create partition
+ * device - path to a device
+ * part_num - partition number
+ * part_start - beginning of the partition in sectors
+ * part_end - end of the partition in sectors
+ */
+int sgdisk_mkpart(const char *device,
+			int part_num,
+			unsigned long long part_start,
+			unsigned long long part_end)
+{
+	char *argv[5];
+	char s1[100];
+
+	snprintf(s1, sizeof(s1), "%d:%llu:%llu",
+			part_num, part_start, part_end);
+
+	argv[0] = "sgdisk";
+	argv[1] = "-n";
+	argv[2] = s1;
+	argv[3] = (char *)device;
+	argv[4] = NULL;
+
+	if (run_prg(argv)) {
+		ploop_err(0, "Failed to create partition %d", part_num);
+		return SYSEXIT_SYS;
+	}
 	return 0;
 }
 
