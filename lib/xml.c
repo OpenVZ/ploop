@@ -542,7 +542,8 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 		goto err;
 	}
 	rc = xmlTextWriterWriteFormatElement(writer, BAD_CAST "Sectors", "%llu",
-			di->size /(di->cylinders * di->heads));
+			(di->cylinders == 0 || di->heads == 0) ? 0 :
+				di->size/(di->cylinders * di->heads));
 	if (rc < 0) {
 		ploop_err(0, "Error at xmlTextWriter Sectors");
 		goto err;
