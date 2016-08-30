@@ -221,7 +221,7 @@ int PREAD(struct delta * delta, void *buf, unsigned int size, off_t off)
 		return 0;
 	if (res >= 0)
 		errno = EIO;
-	ploop_err(errno, "pread %d", size);
+	ploop_err(errno, "pread off=%lu size=%d", off, size);
 
 	return -1;
 }
