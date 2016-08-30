@@ -646,6 +646,8 @@ static int delta_save_optional_header(int devfd, struct delta *delta,
 	if (p_memalign((void **)&block, 4096, block_size))
 		return SYSEXIT_MALLOC;
 
+	memset(block, 0 , block_size);
+
 	hc = (struct ploop_pvd_ext_block_check *)block;
 	h = (struct ploop_pvd_ext_block_element_header *)(hc + 1);
 	data = (__u8 *)(h + 1);
