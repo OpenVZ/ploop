@@ -398,6 +398,11 @@ int check_and_repair_gpt(const char *device, __u32 blocksize512);
 int parted_mklabel_gpt(const char *device);
 int sgdisk_mkpart(const char *device, int part_num,
 		unsigned long long part_start, unsigned long long part_end);
+int sgdisk_rmpart(const char *device, int part_num);
+int sgdisk_move_gpt_header(const char *device);
+int get_partition_range(const char *device, int part_num,
+		unsigned long long *part_start, unsigned long long *part_end);
+int get_last_partition_num(const char *device, int *part_num);
 
 // misc
 void get_basedir(const char *fname, char *out, int len);

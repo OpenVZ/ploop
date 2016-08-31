@@ -3074,6 +3074,54 @@ err:
 	return ret;
 }
 
+int ploop_resize_blkdev(const char *dev, off_t new_size)
+{
+	int ret;
+	int part_num;
+	unsigned long long part_start = 0;
+	unsigned long long part_end = 0;
+	unsigned long long new_end = 0;
+	char partname[PATH_MAX];
+	char devname[PATH_MAX];
+
+	ret = get_last_partition_num(dev, &part_num);
+	if (ret)
+		return ret;
+
+	ret = get_partition_range(dev, part_num, &part_start, &part_end);
+	if (ret)
+		return ret;
+
+	ret = sgdisk_move_gpt_header(dev);
+	if (ret)
+		return ret;
+
+	ret = sgdisk_rmpart(dev, part_num);
+	if (ret)
+		return ret;
+
+	if (new_size != 0)
+		new_end = part_start + new_size;
+
+	ret = sgdisk_mkpart(dev, part_num, part_start, new_end);
+	if (ret) {
+		sgdisk_mkpart(dev, part_num, part_start, part_end);
+		return ret;
+	}
+
+	ret = get_part_devname(NULL, dev, devname, sizeof(devname),
+			partname, sizeof(partname));
+	if (ret)
+		return ret;
+
+	ret = e2fsck(partname, E2FSCK_FORCE | E2FSCK_PREEN, NULL);
+	if (ret)
+		return ret;
+
+	ret = resize_fs(partname, 0);
+	return ret;
+}
+
 static int expanded2raw(struct ploop_disk_images_data *di)
 {
 	struct delta delta = {};

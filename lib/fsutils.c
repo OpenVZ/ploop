@@ -136,6 +136,136 @@ int sgdisk_mkpart(const char *device,
 	return 0;
 }
 
+int sgdisk_rmpart(const char *device, int part_num)
+{
+	char *argv[5];
+	char s1[4];
+
+	snprintf(s1, sizeof(s1), "%d", part_num);
+
+	argv[0] = "sgdisk";
+	argv[1] = "-d";
+	argv[2] = s1;
+	argv[3] = (char *)device;
+	argv[4] = NULL;
+
+	if (run_prg(argv)) {
+		ploop_err(0, "Failed to delete partition %d", part_num);
+		return SYSEXIT_SYS;
+	}
+	return 0;
+}
+
+int sgdisk_move_gpt_header(const char *device)
+{
+	char *argv[4];
+
+	argv[0] = "sgdisk";
+	argv[1] = "-e";
+	argv[2] = (char *)device;
+	argv[3] = NULL;
+
+	if (run_prg(argv)) {
+		ploop_err(0, "Failed to move GPT header to the end of the device");
+		return SYSEXIT_SYS;
+	}
+	return 0;
+}
+
+#define FOUND_START_SECTOR_BIT 1
+#define FOUND_END_SECTOR_BIT 2
+
+int get_partition_range(const char *device,
+		int part_num,
+		unsigned long long *part_start,
+		unsigned long long *part_end)
+{
+	char cmd[PATH_MAX];
+	char buf[512];
+	FILE *fp;
+	int ret = SYSEXIT_SYS;
+	int found = FOUND_START_SECTOR_BIT | FOUND_END_SECTOR_BIT;
+
+	snprintf(cmd, sizeof(cmd), "LANG=C " DEF_PATH_ENV " sgdisk -i %d %s",
+			part_num, device);
+	fp = popen(cmd, "r");
+	if (fp == NULL) {
+		ploop_err(0, "Failed %s", cmd);
+		return SYSEXIT_SYS;
+	}
+
+	while (fgets(buf, sizeof(buf), fp) != NULL) {
+		if ((found & FOUND_START_SECTOR_BIT) &&
+				sscanf(buf, "First sector: %llu", part_start) == 1)
+			found &= ~FOUND_START_SECTOR_BIT;
+		else if ((found & FOUND_END_SECTOR_BIT) &&
+				sscanf(buf, "Last sector: %llu", part_end) == 1)
+			found &= ~FOUND_END_SECTOR_BIT;
+	}
+
+	if (found) {
+		ploop_err(0, "Can't get a range of partition %d", part_num);
+		goto out;
+	}
+
+	ret = 0;
+out:
+	if (pclose(fp)) {
+		ploop_err(0, "Error in pclose() for %s", cmd);
+		return SYSEXIT_SYS;
+	}
+
+	return ret;
+}
+
+int get_last_partition_num(const char *device, int *part_num)
+{
+	char cmd[PATH_MAX];
+	char buf[512];
+	FILE *fp;
+	int ret = SYSEXIT_SYS;
+	int found_title = 0;
+	unsigned long long start = 0;
+	unsigned long long end = 0;
+	int num = 0;
+	int last_part = 0;
+	char title[] = "Number ";
+
+	snprintf(cmd, sizeof(cmd), "LANG=C " DEF_PATH_ENV " parted -s %s unit b print",
+			device);
+	fp = popen(cmd, "r");
+	if (fp == NULL) {
+		ploop_err(0, "Failed %s", cmd);
+		return SYSEXIT_SYS;
+	}
+
+	while (fgets(buf, sizeof(buf), fp) != NULL) {
+		if (!found_title) {
+			if (!strncmp(buf, title, sizeof(title) - 1))
+				found_title = 1;
+			continue;
+		}
+		if (3 != sscanf(buf, "%d %lluB %lluB", &num, &start, &end))
+			continue;
+		last_part = num;
+	}
+
+	if (!last_part) {
+		ploop_err(0, "Can't find the last partition");
+		goto out;
+	}
+
+	*part_num = last_part;
+	ret = 0;
+out:
+	if (pclose(fp)) {
+		ploop_err(0, "Error in pclose() for %s", cmd);
+		return SYSEXIT_SYS;
+	}
+
+	return ret;
+}
+
 int make_fs(const char *part_device, const char *fstype, unsigned int fsblocksize,
 		unsigned int flags)
 {
