@@ -276,7 +276,7 @@ static int ploop_execvp(char *const argv[], char *const env[])
 int run_prg_rc(char *const argv[], char *const env[], int hide_mask, int *rc)
 {
 	int pid, ret, status;
-	char cmd[512];
+	char cmd[PATH_MAX];
 	struct ploop_cleanup_hook *h;
 
 	arg2str(argv, cmd, sizeof(cmd));

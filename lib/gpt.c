@@ -137,7 +137,9 @@ int get_partition_device_name(const char *device, char *out, int size)
 		p = device;
 		if (strncmp(device, "/dev/", 5) == 0)
 			p += 5;
-
+		snprintf(out, size, "/dev/%s1", p);
+		if (access(out, F_OK) == 0)
+			return 0;
 		snprintf(out, size, "/dev/%sp1", p);
 		if (access(out, F_OK) == 0)
 			return 0;
