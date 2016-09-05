@@ -872,6 +872,7 @@ int ploop_create_image(struct ploop_create_param *param)
 	char fname[PATH_MAX];
 	int ret;
 	int fmt_version;
+	int image_created = 0;
 
 	if (param->image == NULL) {
 		ploop_err(0, "Image file name not specified");
@@ -890,6 +891,7 @@ int ploop_create_image(struct ploop_create_param *param)
 			param->mode, fmt_version);
 	if (ret)
 		goto out;
+	image_created = 1;
 
 	if (realpath(param->image, fname) == NULL) {
 		ploop_err(errno, "failed realpath(%s)", param->image);
@@ -916,7 +918,8 @@ out:
 	if (ret) {
 		if (di)
 			ploop_drop_image(di);
-		unlink(param->image);
+		if (image_created)
+			unlink(param->image);
 		unlink(ddxml);
 	}
 
