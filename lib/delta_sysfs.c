@@ -303,11 +303,12 @@ int get_dir_entry(const char *path, char **out[])
 
 	dp = opendir(path);
 	if (dp == NULL) {
+		if (errno == ENOENT)
+			return 0;
 		ploop_err(errno, "Can't opendir %s", path);
 		return -1;
 	}
 
-	out[0] = '\0';
 	while ((de = readdir(dp)) != NULL) {
 		if (!strcmp(de->d_name, ".") ||
 				!strcmp(de->d_name, ".."))
