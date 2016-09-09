@@ -713,7 +713,7 @@ static int ploop_init_image(struct ploop_disk_images_data *di,
 		goto err;
 
 	if (param->keyid != NULL) {
-		ret = ploop_set_encryption_keyid(di, param->keyid);
+		ret = store_encryption_keyid(di, param->keyid);
 		if (ret)
 			goto err;
 	}
