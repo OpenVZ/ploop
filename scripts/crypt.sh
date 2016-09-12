@@ -5,7 +5,7 @@ CRYPTSETUP=/usr/sbin/cryptsetup
 
 loadkey()
 {
-	local id=$(keyctl request2 user vdisk:$KEYID '')
+	local id=$(keyctl request2 user vdisk:$KEYID @us)
 	[ -z "$id" ] && exit 1
 	KEY=`keyctl print $id | sed 's/^:hex://'`
 }
