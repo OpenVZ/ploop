@@ -403,6 +403,9 @@ int sgdisk_move_gpt_header(const char *device);
 int get_partition_range(const char *device, int part_num,
 		unsigned long long *part_start, unsigned long long *part_end);
 int get_last_partition_num(const char *device, int *part_num);
+int reread_part(const char *device);
+int partprobe(const char *device);
+int get_major_by_driver_name(const char* device_driver);
 
 // misc
 void get_basedir(const char *fname, char *out, int len);
