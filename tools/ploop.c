@@ -1142,6 +1142,12 @@ static int plooptool_info(int argc, char **argv)
 			}
 
 			printf("device:\t\t%s\n", dev);
+			if (ploop_get_part(di, dev, dev, sizeof(dev)) == -1) {
+				ret = SYSEXIT_SYS;
+				goto exit;
+			}
+
+			printf("partition:\t%s\n", dev);
 		}
 
 exit:
