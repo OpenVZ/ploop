@@ -230,7 +230,7 @@ struct ploop_copy_stat {
 };
 
 enum {
-	PLOOP_ENC_CHANGEKEY	= 0x01,
+	PLOOP_ENC_REENCRYPT	= 0x01,
 	PLOOP_ENC_WIPE		= 0x02,
 };
 
