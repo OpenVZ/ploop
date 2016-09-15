@@ -141,8 +141,6 @@ static int encrypt_image(struct ploop_disk_images_data *di,
 		.mount_data = (char *)param->mnt_opts,
 	};
 	struct ploop_disk_images_data *di_enc = NULL;
-
-	ploop_log(0, "Encrypt ploop image %s", di->images[0]->file);
 	struct ploop_create_param c = {
 		.size = di->size,
 		.image = image,
@@ -150,7 +148,9 @@ static int encrypt_image(struct ploop_disk_images_data *di,
 		.blocksize = di->blocksize,
 		.keyid = param->keyid,
 	};
+	int wipe = param->flags & PLOOP_ENC_WIPE;
 
+	ploop_log(0, "Encrypt ploop image %s", di->images[0]->file);
 	get_basedir(di->images[0]->file, dir, sizeof(dir) - 4);
 	strcat(dir, "enc");
 	if (mkdir(dir, 0755 ) && errno != EEXIST) {
@@ -194,7 +194,7 @@ static int encrypt_image(struct ploop_disk_images_data *di,
 	if (ret)
 		goto err;
 
-	if (param->wipe && di->enc == NULL && param->keyid != NULL) {
+	if (wipe && di->enc == NULL && param->keyid != NULL) {
 		snprintf(bak, sizeof(bak), "%s.orig", di->images[0]->file);
 		if (rename(di->images[0]->file, bak)) {
 			ploop_err(errno, "Can't rename %s to %s",
@@ -243,7 +243,7 @@ err:
 	if (m_enc.device[0] != '\0')
 		ploop_umount(m_enc.device, di_enc);
 
-	if (param->wipe && di->enc != NULL && param->keyid == NULL ) {
+	if (wipe && di->enc != NULL && param->keyid == NULL ) {
 		char *cmd[] = {"shred", "-n1", image, NULL};
 		run_prg(cmd);
 	}

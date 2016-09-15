@@ -1448,7 +1448,7 @@ static int plooptool_encrypt(int argc, char **argv)
 			param.keyid = optarg;
 			break;
 		case 'w':
-			param.wipe = 1;
+			param.flags |= PLOOP_ENC_WIPE;
 			break;
 		case 'c':
 			param.flags |= PLOOP_ENC_CHANGEKEY;
