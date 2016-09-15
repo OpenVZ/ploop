@@ -109,6 +109,12 @@ int crypt_resize(const char *part)
 	return do_crypt("resize", NULL, part, NULL);
 }
 
+int crypt_changekey(const char *device, const char *keyid,
+		const char *new_keyid)
+{
+	return do_crypt("changekey", device, new_keyid, keyid);
+}
+
 static int do_copy(char *src, char *dst)
 {
 	char s[PATH_MAX];
@@ -120,7 +126,7 @@ static int do_copy(char *src, char *dst)
 	return run_prg(arg);
 }
 
-int ploop_encrypt_image(struct ploop_disk_images_data *di,
+static int encrypt_image(struct ploop_disk_images_data *di,
 		struct ploop_encrypt_param *param)
 {
 	int ret;
@@ -135,14 +141,6 @@ int ploop_encrypt_image(struct ploop_disk_images_data *di,
 		.mount_data = (char *)param->mnt_opts,
 	};
 	struct ploop_disk_images_data *di_enc = NULL;
-
-	if (ploop_lock_dd(di))
-		return SYSEXIT_LOCK;
-
-	if (di->images == NULL) {
-		ploop_unlock_dd(di);
-		return SYSEXIT_PARAM;
-	}
 
 	ploop_log(0, "Encrypt ploop image %s", di->images[0]->file);
 	struct ploop_create_param c = {
@@ -258,7 +256,91 @@ err:
 	if (di_enc)
 		ploop_close_dd(di_enc);
 
-	ploop_unlock_dd(di);
 
+	return ret;
+}
+
+static int change_key(struct ploop_disk_images_data *di,
+		struct ploop_encrypt_param *param)
+{
+	int ret, rc;
+	char ddxml[PATH_MAX];
+	char tmp[PATH_MAX];
+	char devname[64];
+	int was_mounted = 0;
+	struct ploop_mount_param m = {};
+	char *keyid;
+
+	if (di->enc == NULL || di->enc->keyid == NULL)
+		return encrypt_image(di, param);
+
+	keyid = strdupa(di->enc->keyid);
+
+	ploop_log(0, "Change encryption key %s -> %s",
+			keyid, param->keyid);
+	rc = ploop_find_dev_by_dd(di, m.device, sizeof(m.device));
+	if (rc == -1) {
+		ret = SYSEXIT_SYS;
+	} else if (rc != 0) {
+		ret = mount_image(di, &m);
+		if (ret)
+			return ret;
+		was_mounted = 1;
+	}
+
+	ret = get_partition_device_name(m.device, devname, sizeof(devname));
+	if (ret)
+		goto err;
+
+	get_disk_descriptor_fname(di, ddxml, sizeof(ddxml));
+	snprintf(tmp, sizeof(tmp), "%s.tmp", ddxml);
+	ret = set_encryption_keyid(di, param->keyid);
+	if (ret)
+		goto err;
+	ret = ploop_store_diskdescriptor(tmp, di);
+	if (ret)
+		goto err;
+
+	ret = crypt_changekey(devname, keyid, param->keyid);
+	if (ret)
+		goto err;
+
+	if (rename(tmp, ddxml)) {
+		ploop_err(errno, "Cannot rename %s -> %s", tmp, ddxml);
+		ret = SYSEXIT_RENAME;
+		goto err;
+	}
+
+	ret = 0;
+err:
+	if (was_mounted)
+		ploop_umount(m.device, di);
+	unlink(tmp);
+
+	return ret;
+}
+
+int ploop_encrypt_image(struct ploop_disk_images_data *di,
+		struct ploop_encrypt_param *param)
+{
+	int ret;
+
+	if (param->keyid == NULL) {
+		ploop_err(9, "Keyid is not specified");
+		return SYSEXIT_PARAM;
+	}
+
+	if (ploop_lock_dd(di))
+		return SYSEXIT_LOCK;
+
+	if (di->images == NULL) {
+		ploop_unlock_dd(di);
+		return SYSEXIT_PARAM;
+	}
+
+	ret = param->flags & PLOOP_ENC_CHANGEKEY ?
+			change_key(di, param) : encrypt_image(di, param);
+
+	ploop_unlock_dd(di);
 	return ret;
 }

@@ -1431,6 +1431,7 @@ static void usage_encrypt(void)
 {
 	fprintf(stderr, "Usage: ploop encrypt [-k KEY] [-w] DiskDescriptor.xml\n"
 			"       KEY := encryption keyid\n"
+			"	-c     change key\n"
 			"       -w     wipe data\n"
 		);
 }
@@ -1441,13 +1442,16 @@ static int plooptool_encrypt(int argc, char **argv)
 	struct ploop_disk_images_data *di;
 	struct ploop_encrypt_param param = {};
 
-	while ((i = getopt(argc, argv, "k:w")) != EOF) {
+	while ((i = getopt(argc, argv, "k:wc")) != EOF) {
 		switch (i) {
 		case 'k':
 			param.keyid = optarg;
 			break;
 		case 'w':
 			param.wipe = 1;
+			break;
+		case 'c':
+			param.flags |= PLOOP_ENC_CHANGEKEY;
 			break;
 		default:
 			usage_encrypt();

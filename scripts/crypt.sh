@@ -49,6 +49,21 @@ resize()
 	fi
 }
 
+changekey()
+{
+	loadkey
+	CUR_KEY=$KEY
+	# load new key
+	KEYID=$DEVICE_NAME
+	loadkey
+	echo -n "${CUR_KEY}
+${KEY}" | $CRYPTSETUP luksChangeKey $DEVICE -
+	if [ $? -ne 0 ]; then
+		echo "Cannot change key $KEYID"
+		exit 1
+	fi
+}
+
 case "$1" in
 init)
 	init
@@ -61,6 +76,9 @@ resize)
 	;;
 close)
 	close
+	;;
+changekey)
+	changekey
 	;;
 *)
 	exit 1

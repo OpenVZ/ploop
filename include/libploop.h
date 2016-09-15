@@ -229,10 +229,15 @@ struct ploop_copy_stat {
 	__u64 xferred;
 };
 
+enum {
+	PLOOP_ENC_CHANGEKEY	= 0x01,
+};
+
 struct ploop_encrypt_param {
 	const char *keyid;
 	int wipe;
 	const char *mnt_opts;
+	int flags;
 	void *pad[4];
 };
 
