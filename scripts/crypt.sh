@@ -6,7 +6,7 @@ CRYPTSETUP=/usr/sbin/cryptsetup
 loadkey()
 {
 	local id=$(keyctl request2 user vdisk:$KEYID '' @u)
-	[ -z "$id" ] && exit 1
+	[ -z "$id" ] && exit 2
 	KEY=`keyctl print $id | sed 's/^:hex://'`
 }
 
@@ -16,7 +16,7 @@ init()
 	echo -n "$KEY" | $CRYPTSETUP luksFormat $DEVICE -
 	if [ $? -ne 0 ]; then
 		echo "Cannot format $DEVICE"
-		exit 1
+		exit 3
 	fi
 }
 
@@ -26,7 +26,7 @@ open()
 	echo -n "$KEY" | $CRYPTSETUP --allow-discards luksOpen $DEVICE $DEVICE_NAME
 	if [ $? -ne 0 ]; then
 		echo "Cannot open $DEVICE $DEVICE_NAME"
-		exit 1
+		exit 4
 	fi
 }
 
@@ -35,7 +35,7 @@ close()
 	$CRYPTSETUP luksClose $DEVICE_NAME
 	if [ $? -ne 0 ]; then
 		echo "Cannot close $DEVICE_NAME"
-		exit 1
+		exit 5
 	fi
 }
 
@@ -45,7 +45,7 @@ resize()
 	$CRYPTSETUP resize $DEVICE_NAME
 	if [ $? -ne 0 ]; then
 		echo "Cannot resize $DEVICE_NAME"
-		exit 1
+		exit 6
 	fi
 }
 
@@ -60,7 +60,7 @@ changekey()
 ${KEY}" | $CRYPTSETUP luksChangeKey $DEVICE -
 	if [ $? -ne 0 ]; then
 		echo "Cannot change key $KEYID"
-		exit 1
+		exit 7
 	fi
 }
 
