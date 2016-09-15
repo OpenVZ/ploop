@@ -271,7 +271,7 @@ static int change_key(struct ploop_disk_images_data *di,
 	struct ploop_mount_param m = {};
 	char *keyid;
 
-	if (di->enc == NULL || di->enc->keyid == NULL)
+	if (di->enc == NULL || param->keyid[0] == '\0')
 		return encrypt_image(di, param);
 
 	keyid = strdupa(di->enc->keyid);
@@ -338,8 +338,10 @@ int ploop_encrypt_image(struct ploop_disk_images_data *di,
 		return SYSEXIT_PARAM;
 	}
 
-	ret = param->flags & PLOOP_ENC_CHANGEKEY ?
-			change_key(di, param) : encrypt_image(di, param);
+	if (param->flags & PLOOP_ENC_REENCRYPT)
+		ret = encrypt_image(di, param);
+	else
+		ret = change_key(di, param);
 
 	ploop_unlock_dd(di);
 	return ret;
