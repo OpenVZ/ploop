@@ -231,11 +231,11 @@ struct ploop_copy_stat {
 
 enum {
 	PLOOP_ENC_CHANGEKEY	= 0x01,
+	PLOOP_ENC_WIPE		= 0x02,
 };
 
 struct ploop_encrypt_param {
 	const char *keyid;
-	int wipe;
 	const char *mnt_opts;
 	int flags;
 	void *pad[4];
