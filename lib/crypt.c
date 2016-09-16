@@ -85,9 +85,13 @@ static int do_crypt(const char *action, const char *devname,
 	if (run_prg_rc(arg, env, 0, &rc))
 		ret = SYSEXIT_CRYPT;
 
-	if (rc == 2)
-		print_output(-1, "keyctl show; cat /proc/keys", "");
-
+	if (rc) {
+		if (rc == 2)
+			print_output(-1, "keyctl show; cat /proc/keys", "");
+		ploop_err(0, "Command %s %s exited with code %d",
+				arg[0], arg[1], rc);
+		ret = SYSEXIT_CRYPT;
+	}
 	ploop_free_array(env);
 
 	return ret;
