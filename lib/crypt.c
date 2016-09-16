@@ -77,12 +77,13 @@ static char **get_param(const char *devname, const char *partname,
 static int do_crypt(const char *action, const char *devname,
 		const char *partname, const char *keyid)
 {
-	int ret;
+	int ret = 0;
 	char *const arg[] = {CRYPT_BIN,(char *) action, NULL};
 	char **env = get_param(devname, partname, keyid);
 
 	ploop_log(0, "Crypt %s", action);
-	ret = run_prg_rc(arg, env, 0, NULL);
+	if (run_prg_rc(arg, env, 0, NULL))
+		ret = SYSEXIT_CRYPT;
 
 	ploop_free_array(env);
 

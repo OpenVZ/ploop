@@ -382,6 +382,7 @@ enum
 	SYSEXIT_RESERVED_42,
 	SYSEXIT_NOSNAP,
 	SYSEXIT_NOCBT	= 44,
+	SYSEXIT_CRYPT,
 };
 
 #pragma GCC visibility pop
