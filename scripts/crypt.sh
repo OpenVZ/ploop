@@ -32,11 +32,16 @@ open()
 
 close()
 {
-	$CRYPTSETUP luksClose $DEVICE_NAME
-	if [ $? -ne 0 ]; then
-		echo "Cannot close $DEVICE_NAME"
-		exit 5
-	fi
+	for ((i=0; i<60; i++)); do
+		$CRYPTSETUP luksClose $DEVICE_NAME
+		if [ $? -eq 0 ]; then
+			break
+		elif [ $? -ne 5 ]; then
+			echo "Cannot close $DEVICE_NAME"
+			exit 5
+		fi
+		sleep 1
+	done
 }
 
 resize()
