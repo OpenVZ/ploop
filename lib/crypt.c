@@ -77,13 +77,16 @@ static char **get_param(const char *devname, const char *partname,
 static int do_crypt(const char *action, const char *devname,
 		const char *partname, const char *keyid)
 {
-	int ret = 0;
+	int ret = 0, rc = 0;
 	char *const arg[] = {CRYPT_BIN,(char *) action, NULL};
 	char **env = get_param(devname, partname, keyid);
 
 	ploop_log(0, "Crypt %s", action);
-	if (run_prg_rc(arg, env, 0, NULL))
+	if (run_prg_rc(arg, env, 0, &rc))
 		ret = SYSEXIT_CRYPT;
+
+	if (rc == 2)
+		print_output(-1, "keyctl show; cat /proc/keys", "");
 
 	ploop_free_array(env);
 
