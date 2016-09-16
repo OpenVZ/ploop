@@ -84,6 +84,7 @@ int create_gpt_partition(const char *device, off_t size, __u32 blocksize)
 		return ret;
 
 	ret = sgdisk_mkpart(device, 1, start, end);
+	reread_part(device);
 
 	return ret;
 }
@@ -216,6 +217,17 @@ out:
 	}
 
 	return ret;
+}
+
+int partprobe(const char *device)
+{
+	char *argv[] = {"partprobe", (char *)device, NULL};
+
+	if (run_prg(argv)) {
+		ploop_err(0, "Failed to run partprobe %s", device);
+		return SYSEXIT_SYS;
+	}
+	return 0;
 }
 
 int get_last_partition_num(const char *device, int *part_num)
@@ -460,4 +472,36 @@ int e2fsck(const char *device, int flags, int *rc)
 	}
 
 	return 0;
+}
+
+int get_major_by_driver_name(const char* device_driver)
+{
+	FILE *fd;
+	char buf[512];
+	char title[] = "Block devices:";
+	int found_title = 0;
+	char name[512];
+	int major = -1;
+
+	fd = fopen ("/proc/devices", "r");
+	if (fd == NULL) {
+		ploop_err(errno, "Failed to read /proc/devices");
+		return major;
+	}
+
+	while (fgets(buf, sizeof(buf), fd) != NULL) {
+		if (!found_title) {
+			if (!strncmp(buf, title, sizeof(title) - 1))
+				found_title = 1;
+			continue;
+		}
+		if (2 == sscanf(buf, "%d %s", &major, name) &&
+				!strcmp(name, device_driver)) {
+			break;
+		}
+		major = -1;
+	}
+
+	pclose(fd);
+	return major;
 }

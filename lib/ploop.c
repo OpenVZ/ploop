@@ -1382,10 +1382,24 @@ int ploop_get_devs(struct ploop_disk_images_data *di, char ***out)
 	return ploop_get_dev_by_delta(di->images[0]->file, NULL, NULL, out);
 }
 
-static int reread_part(const char *device)
+int reread_part(const char *device)
 {
 	int fd;
+	struct stat st;
+	int mapper_major;
 
+	mapper_major = get_major_by_driver_name("device-mapper");
+	if (mapper_major > 0) {
+		if (stat(device, &st)) {
+			ploop_err(errno, "Failed stat(%s)", device);
+			return -1;
+		}
+
+		if (major(st.st_rdev) == mapper_major)
+			return partprobe(device);
+	} else {
+		ploop_log(1, "Module device-mapper is not found");
+	}
 	fd = open(device, O_RDONLY);
 	if (fd == -1) {
 		ploop_err(errno, "Can't open %s", device);
@@ -3112,6 +3126,7 @@ int ploop_resize_blkdev(const char *dev, off_t new_size)
 		sgdisk_mkpart(dev, part_num, part_start, part_end);
 		return ret;
 	}
+	reread_part(dev);
 
 	ret = get_part_devname(NULL, dev, devname, sizeof(devname),
 			partname, sizeof(partname));

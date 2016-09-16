@@ -107,7 +107,6 @@ static int plooptool_init(int argc, char **argv)
 	off_t size_sec = 0;
 	char * endptr;
 	struct stat st;
-	char real_path[PATH_MAX];
 	struct ploop_create_param param = {
 		.fstype		= "ext4",
 		.mode		= PLOOP_EXPANDED_MODE,
@@ -192,18 +191,13 @@ static int plooptool_init(int argc, char **argv)
 
 	if (!access(argv[0],F_OK)) {
 
-		if (realpath(argv[0], real_path) == NULL) {
-			fprintf(stderr, "failed realpath(%s)\n", argv[0]);
-			return SYSEXIT_PARAM;
-		}
-
-		if (stat(real_path, &st)) {
-			fprintf(stderr, "failed stat(%s)\n", real_path);
+		if (stat(argv[0], &st)) {
+			fprintf(stderr, "failed stat(%s)\n", argv[0]);
 			return SYSEXIT_OPEN;
 		}
 
 		if (S_ISBLK(st.st_mode)) {
-			return ploop_init_device(real_path, &param);
+			return ploop_init_device(argv[0], &param);
 		}
 	}
 
@@ -932,7 +926,6 @@ static int plooptool_resize(int argc, char **argv)
 	};
 	struct ploop_disk_images_data *di;
 	struct stat st;
-	char real_path[PATH_MAX];
 	char fname[PATH_MAX];
 	char *dev_name;
 
@@ -962,22 +955,17 @@ static int plooptool_resize(int argc, char **argv)
 		return SYSEXIT_PARAM;
 	}
 
-	if (realpath(argv[0], real_path) == NULL) {
-		fprintf(stderr, "failed realpath(%s)\n", argv[0]);
-		return SYSEXIT_PARAM;
-	}
-
-	if (stat(real_path, &st)) {
-		fprintf(stderr, "failed stat(%s)\n", real_path);
+	if (stat(argv[0], &st)) {
+		fprintf(stderr, "failed stat(%s)\n", argv[0]);
 		return SYSEXIT_OPEN;
 	}
 
 	if (S_ISBLK(st.st_mode)) {
-		dev_name = strrchr(real_path, '/');
+		dev_name = strrchr(argv[0], '/');
 		if (dev_name != NULL)
 			dev_name++;
 		else
-			dev_name = real_path;
+			dev_name = argv[0];
 
 		snprintf(fname, sizeof(fname),
 			"/sys/block/%s/pdelta/0/image", dev_name);
@@ -987,7 +975,7 @@ static int plooptool_resize(int argc, char **argv)
 			return SYSEXIT_OPEN;
 		}
 
-		return ploop_resize_blkdev(real_path, new_size);
+		return ploop_resize_blkdev(argv[0], new_size);
 	} else {
 		if ((new_size == 0 && !max_balloon_size) ||
 			!is_xml_fname(argv[0]))
