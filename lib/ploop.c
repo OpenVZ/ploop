@@ -2757,12 +2757,12 @@ static int shrink_device(struct ploop_disk_images_data *di,
 		off_t part_dev_size, off_t new_size, __u32 blocksize)
 {
 	struct dump2fs_data data;
-	__u32 part_start;
+	__u32 part_start, start_offset = 0;
 	int ret;
 	int top, raw;
 	off_t start, end;
 
-	if (dev_num2dev_start(part_dev, &part_start)) {
+	if (dev_num2dev_start(part_dev, &part_start, &start_offset)) {
 		ploop_err(0, "Can't find out offset from start of ploop device (%s)",
 				part_device);
 		return SYSEXIT_SYSFS;
@@ -2772,9 +2772,10 @@ static int shrink_device(struct ploop_disk_images_data *di,
 		return SYSEXIT_SYSFS;
 
 	raw = (di->mode == PLOOP_RAW_MODE && top == 0);
-	ploop_log(0, "Offline shrink %s dev=%s size=%lu new_size=%lu, start=%u",
+	ploop_log(0, "Offline shrink %s dev=%s size=%lu new_size=%lu, start=%u/%u",
 			(raw) ? "raw" : "",
-			part_device, (long)part_dev_size, (long)new_size, part_start);
+			part_device, (long)part_dev_size, (long)new_size,
+			part_start, start_offset);
 	ret = e2fsck(part_device, E2FSCK_FORCE | E2FSCK_PREEN, NULL);
 	if (ret)
 		return ret;
@@ -2789,7 +2790,7 @@ static int shrink_device(struct ploop_disk_images_data *di,
 		return ret;
 
 	start = part_start + B2S(data.block_count * data.block_size);
-	end = part_start + part_dev_size;
+	end = part_start + part_dev_size - start_offset;
 	if (raw)
 		ret = ploop_raw_discard(di, device, blocksize, start, end);
 	else

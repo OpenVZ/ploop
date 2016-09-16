@@ -340,7 +340,7 @@ int get_dir_entry(const char *path, char **out[])
 	return ret;
 }
 
-int dev_num2dev_start(dev_t dev_num, __u32 *dev_start)
+int dev_num2dev_start(dev_t dev_num, __u32 *dev_start, __u32 *start_offset)
 {
 	int ret;
 	char path[PATH_MAX];
@@ -375,6 +375,8 @@ int dev_num2dev_start(dev_t dev_num, __u32 *dev_start)
 		return ret;
 
 	*dev_start += offset;
+	if (start_offset)
+		*start_offset = offset;
 
 	return 0;
 }
