@@ -6,16 +6,31 @@ CRYPTSETUP=/usr/sbin/cryptsetup
 loadkey()
 {
 	local id=$(keyctl request2 user vdisk:$KEYID '' @u)
-	[ -z "$id" ] && exit 2
-	KEY=`keyctl print $id | sed 's/^:hex://'`
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		echo "Cannot request the key $KEYID rc=$rc"
+		exit 2
+	fi
+
+	KEY=`keyctl print $id`
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		echo "Cannot read the key=$KEYID id=$id rc=$rc"
+		keyctl show
+		cat /proc/keys
+		exit 2
+	fi
+
+	KEY=`echo "$KEY" | sed 's/^:hex://'`
 }
 
 init()
 {
 	loadkey
 	echo -n "$KEY" | $CRYPTSETUP luksFormat $DEVICE -
-	if [ $? -ne 0 ]; then
-		echo "Cannot format $DEVICE"
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		echo "Cannot format $DEVICE rc=$rc"
 		exit 3
 	fi
 }
@@ -24,8 +39,9 @@ open()
 {
 	loadkey
 	echo -n "$KEY" | $CRYPTSETUP --allow-discards luksOpen $DEVICE $DEVICE_NAME
-	if [ $? -ne 0 ]; then
-		echo "Cannot open $DEVICE $DEVICE_NAME"
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		echo "Cannot open $DEVICE $DEVICE_NAME rc=$rc"
 		exit 4
 	fi
 }
@@ -34,14 +50,16 @@ close()
 {
 	for ((i=0; i<60; i++)); do
 		$CRYPTSETUP luksClose $DEVICE_NAME
-		if [ $? -eq 0 ]; then
-			break
-		elif [ $? -ne 5 ]; then
-			echo "Cannot close $DEVICE_NAME"
+		rc=$?
+		if [ $rc -eq 0 ]; then
+			exit 0
+		elif [ $rc -ne 5 ]; then
+			echo "Cannot close $DEVICE_NAME rc=$rc"
 			exit 5
 		fi
 		sleep 1
 	done
+	exit 5
 }
 
 resize()

@@ -81,13 +81,12 @@ static int do_crypt(const char *action, const char *devname,
 	char *const arg[] = {CRYPT_BIN,(char *) action, NULL};
 	char **env = get_param(devname, partname, keyid);
 
-	ploop_log(0, "Crypt %s", action);
+	ploop_log(0, "Crypt %s dev=%s part=%s",
+			action, devname ?: "", partname ?: "");
 	if (run_prg_rc(arg, env, 0, &rc))
 		ret = SYSEXIT_CRYPT;
 
 	if (rc) {
-		if (rc == 2)
-			print_output(-1, "keyctl show; cat /proc/keys", "");
 		ploop_err(0, "Command %s %s exited with code %d",
 				arg[0], arg[1], rc);
 		ret = SYSEXIT_CRYPT;
