@@ -5,14 +5,14 @@ CRYPTSETUP=/usr/sbin/cryptsetup
 
 loadkey()
 {
-	local id=$(keyctl request2 user vdisk:$KEYID '' @u)
+	id=$(keyctl request2 user vdisk:$KEYID '' @u)
 	rc=$?
 	if [ $rc -ne 0 ]; then
 		echo "Cannot request the key $KEYID rc=$rc"
 		exit 2
 	fi
 
-	KEY=`keyctl print $id`
+	KEY=`keyctl print "$id"`
 	rc=$?
 	if [ $rc -ne 0 ]; then
 		echo "Cannot read the key=$KEYID id=$id rc=$rc"
