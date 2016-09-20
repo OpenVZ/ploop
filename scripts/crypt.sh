@@ -12,8 +12,14 @@ loadkey()
 		exit 2
 	fi
 
-	KEY=`keyctl print "$id"`
-	rc=$?
+	for ((i=0; i<30; i++)); do
+		KEY=`keyctl print "$id"`
+		rc=$?
+		if [ $rc -eq 0 ]; then
+			break
+		fi
+		sleep 1
+	done
 	if [ $rc -ne 0 ]; then
 		echo "Cannot read the key=$KEYID id=$id rc=$rc"
 		keyctl show
