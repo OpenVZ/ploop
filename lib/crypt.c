@@ -159,6 +159,12 @@ static int encrypt_image(struct ploop_disk_images_data *di,
 	};
 	int wipe = param->flags & PLOOP_ENC_WIPE;
 
+
+	if (ploop_is_mounted(di)) {
+		ploop_err(0, "Encryption of running ploop is prohobited");
+		return SYSEXIT_PARAM;
+	}
+
 	ploop_log(0, "Encrypt ploop image %s", di->images[0]->file);
 	get_basedir(di->images[0]->file, dir, sizeof(dir) - 4);
 	strcat(dir, "enc");
