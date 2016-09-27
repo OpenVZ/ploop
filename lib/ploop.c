@@ -3046,8 +3046,13 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 				 * overhead is inodes * inode size
 				 */
 				reserved_blocks = B2S(fs.f_files * 256);
-				new_balloon_size -= new_balloon_size > reserved_blocks ?
-							reserved_blocks : 0;
+				if (reserved_blocks > new_balloon_size) {
+					ret = ploop_balloon_change_size(mount_param.device,
+							balloonfd, 0);
+					goto err;
+				}
+
+				new_balloon_size -= reserved_blocks;
 				available_balloon_size = balloon_size + (fs.f_bfree * B2S(fs.f_bsize));
 				if (available_balloon_size < new_balloon_size) {
 					ploop_err(0, "Unable to change image size to %lu "
