@@ -174,6 +174,12 @@ ploop \- ploop device management utility
 .I disk_dir
 .I delta_file
 .YS
+.SY ploop\ encrypt
+.B -k KEYID
+.OP -r
+.OP -w
+.I DiskDescriptor.xml
+.YS
 
 .SH DESCRIPTION
 
@@ -486,6 +492,23 @@ is a raw ploop image.
 Image cluster block size, in sectors (for raw images).
 .IP "\fB-S\fR, \fB--repair-sparse\fR"
 Repair sparse image(s).
+
+.SS3 encrypt
+Encrypt the ploop image contents with an encryption key
+
+.SY ploop\ encrypt
+.I -k keyid
+.OP -r
+.OP -w
+.I DiskDescriptor.xml
+.YS
+
+.IP "\fB-k\fR \fIkeyid\fR
+The identifier of a key used to encrypt the ploop image
+.IP "\fB-r\fR
+Re-encrypt the entire disk contents when changing the encryption key identifier.
+.IP "\fB-w\fR
+Securely remove the original ploop image after it had been encrypted.
 
 .SS Miscellaneous commands
 
