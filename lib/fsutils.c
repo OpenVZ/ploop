@@ -505,3 +505,22 @@ int get_major_by_driver_name(const char* device_driver)
 	pclose(fd);
 	return major;
 }
+
+int is_device_from_devmapper(const char *device)
+{
+	struct stat st;
+	int mapper_major;
+
+	mapper_major = get_major_by_driver_name("device-mapper");
+	if (mapper_major > 0) {
+		if (stat(device, &st)) {
+			ploop_err(errno, "Failed stat(%s)", device);
+			return -1;
+		}
+		if (major(st.st_rdev) == mapper_major)
+			return 1;
+	} else {
+		ploop_log(1, "Module device-mapper is not found");
+	}
+	return 0;
+}

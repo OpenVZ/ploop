@@ -385,6 +385,7 @@ void ploop_unlock(int *lckfd);
 
 // fs util
 int get_partition_device_name(const char *device, char *out, int size);
+int get_partition_device_name_by_num(const char *device, int part_num, char *out, int size);
 int make_fs(const char *device, const char *fstype, unsigned int fsblocksize,
 		unsigned int flags);
 void tune_fs(int balloonfd, const char *device, unsigned long long size);
@@ -404,7 +405,7 @@ int get_partition_range(const char *device, int part_num,
 int get_last_partition_num(const char *device, int *part_num);
 int reread_part(const char *device);
 int partprobe(const char *device);
-int get_major_by_driver_name(const char* device_driver);
+int is_device_from_devmapper(const char *device);
 
 // misc
 void get_basedir(const char *fname, char *out, int len);
