@@ -628,19 +628,18 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 	_h->ofd = param->ofd;
 	_h->is_remote = is_remote;
 
-	_h->devfd = open(device, O_RDONLY);
+	_h->devfd = open(device, O_RDONLY|O_CLOEXEC);
 	if (_h->devfd == -1) {
 		ploop_err(errno, "Can't open device %s", device);
 		ret = SYSEXIT_DEVICE;
 		goto err;
 	}
-	fcntl(_h->devfd, F_SETFD, FD_CLOEXEC);
 
 	ret = get_partition_device_name(device, partdev, sizeof(partdev));
 	if (ret)
 		goto err;
 
-	_h->partfd = open(partdev, O_RDONLY|FD_CLOEXEC);
+	_h->partfd = open(partdev, O_RDONLY|O_CLOEXEC);
 	if (_h->partfd == -1) {
 		ploop_err(errno, "Can't open device %s", partdev);
 		ret = SYSEXIT_DEVICE;

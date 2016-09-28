@@ -1926,7 +1926,7 @@ static int add_deltas(struct ploop_disk_images_data *di,
 			goto err;
 	}
 
-	*lfd_p = open(device, O_RDONLY);
+	*lfd_p = open(device, O_RDONLY|O_CLOEXEC);
 	if (*lfd_p < 0) {
 		ploop_err(errno, "Can't open device %s", device);
 		ret = SYSEXIT_DEVICE;
@@ -2394,7 +2394,7 @@ static int ploop_stop_device(const char *device)
 	int lfd, ret;
 
 	ploop_log(0, "Unmounting device %s", device);
-	lfd = open(device, O_RDONLY);
+	lfd = open(device, O_RDONLY|O_CLOEXEC);
 	if (lfd < 0) {
 		ploop_err(errno, "Can't open dev %s", device);
 		return SYSEXIT_DEVICE;
