@@ -3097,7 +3097,7 @@ err:
 	return ret;
 }
 
-int ploop_resize_blkdev(const char *dev, off_t new_size)
+int ploop_resize_blkdev(const char *device, off_t new_size)
 {
 	int ret;
 	int part_num;
@@ -3107,33 +3107,33 @@ int ploop_resize_blkdev(const char *dev, off_t new_size)
 	char partname[PATH_MAX];
 	char devname[PATH_MAX];
 
-	ret = get_last_partition_num(dev, &part_num);
+	ret = get_last_partition_num(device, &part_num);
 	if (ret)
 		return ret;
 
-	ret = get_partition_range(dev, part_num, &part_start, &part_end);
+	ret = get_partition_range(device, part_num, &part_start, &part_end);
 	if (ret)
 		return ret;
 
-	ret = sgdisk_move_gpt_header(dev);
+	ret = sgdisk_move_gpt_header(device);
 	if (ret)
 		return ret;
 
-	ret = sgdisk_rmpart(dev, part_num);
+	ret = sgdisk_rmpart(device, part_num);
 	if (ret)
 		return ret;
 
 	if (new_size != 0)
 		new_end = part_start + new_size;
 
-	ret = sgdisk_mkpart(dev, part_num, part_start, new_end);
+	ret = sgdisk_mkpart(device, part_num, part_start, new_end);
 	if (ret) {
-		sgdisk_mkpart(dev, part_num, part_start, part_end);
+		sgdisk_mkpart(device, part_num, part_start, part_end);
 		return ret;
 	}
-	reread_part(dev);
+	reread_part(device);
 
-	ret = get_part_devname(NULL, dev, devname, sizeof(devname),
+	ret = get_part_devname(NULL, device, devname, sizeof(devname),
 			partname, sizeof(partname));
 	if (ret)
 		return ret;
