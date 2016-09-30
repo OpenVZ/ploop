@@ -16,8 +16,6 @@ loadkey()
 	rc=$?
 	if [ $rc -ne 0 ]; then
 		echo "Cannot read the key=$KEYID id=$id rc=$rc"
-		keyctl show
-		cat /proc/keys
 		exit 2
 	fi
 
