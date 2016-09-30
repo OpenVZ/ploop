@@ -5,7 +5,7 @@ CRYPTSETUP=/usr/sbin/cryptsetup
 
 loadkey()
 {
-	id=$(keyctl request2 user vdisk:$KEYID '' @s)
+	id=$(keyctl request2 user vdisk:$KEYID '' @u)
 	rc=$?
 	if [ $rc -ne 0 ]; then
 		echo "Cannot request the key $KEYID rc=$rc"
