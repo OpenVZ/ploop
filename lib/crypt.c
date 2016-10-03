@@ -161,7 +161,7 @@ static int encrypt_image(struct ploop_disk_images_data *di,
 
 
 	if (ploop_is_mounted(di)) {
-		ploop_err(0, "Encryption of running ploop is prohobited");
+		ploop_err(0, "Encryption of mounted disk image is prohibited");
 		return SYSEXIT_PARAM;
 	}
 
