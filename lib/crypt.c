@@ -29,7 +29,7 @@
 #include "libploop.h"
 #include "ploop.h"
 
-#define CRYPT_BIN	"/usr/libexec/ploop/crypt.sh"
+#define CRYPT_BIN	"/usr/libexec/ploop/crypthelper"
 
 static const char *get_basename(const char *path)
 {
