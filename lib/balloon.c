@@ -917,13 +917,21 @@ static int blk_discard(int fd, __u32 cluster, __u64 start, __u64 len)
 	return 0;
 }
 
-static int wait_pid(pid_t pid, const char *mes)
+static int wait_pid(pid_t pid, const char *mes, const int *stop)
 {
 	int err, status;
+	int flags = stop != NULL ? WNOHANG : 0;
 
-	while ((err = waitpid(pid, &status, 0)))
-		 if (errno != EINTR)
+	while ((err = waitpid(pid, &status, flags)) <= 0) {
+		if (stop && err == 0) {
+			if (*stop) {
+				kill(pid, SIGTERM);
+				flags = 0;
+			} else
+				sleep(1);
+		} else if (errno != EINTR)
 			break;
+	}
 	if (err == -1) {
 		if (errno != ECHILD)
 			ploop_err(errno, "wait() failed");
@@ -1074,7 +1082,7 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 
 	unregister_cleanup_hook(h);
 
-	return wait_pid(tpid, "trim");
+	return wait_pid(tpid, "trim", NULL);
 }
 
 static int do_ploop_discard(struct ploop_disk_images_data *di,
@@ -1251,7 +1259,7 @@ static int create_pidfile(const char *fname, pid_t pid)
 }
 
 static int ploop_defrag(struct ploop_disk_images_data *di,
-		const char *dev, const char *mnt)
+		const char *dev, const char *mnt, const int *stop)
 {
 	int ret;
 	int blocksize;
@@ -1293,7 +1301,7 @@ static int ploop_defrag(struct ploop_disk_images_data *di,
 	defrag_pidfile(dev, pidfile, sizeof(pidfile));
 	create_pidfile(pidfile, pid);
 
-	ret = wait_pid(pid, arg[0]);
+	ret = wait_pid(pid, arg[0], stop);
 
 	unlink(pidfile);
 
@@ -1348,7 +1356,7 @@ int ploop_discard(struct ploop_disk_images_data *di,
 
 		ret = ploop_discard_get_stat_by_dev(dev, mnt, &pds);
 
-		if (ploop_defrag(di, dev, mnt))
+		if (ploop_defrag(di, dev, mnt, param->stop))
 			ploop_log(0, BIN_E4DEFRAG" exited with error");
 
 		ret += ploop_discard_get_stat_by_dev(dev, mnt, &pds_after);
