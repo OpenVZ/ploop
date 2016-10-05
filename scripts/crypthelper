@@ -2,20 +2,21 @@
 
 export PATH="/usr/bin:/usr/sbin:/bin:/sbin"
 CRYPTSETUP=/usr/sbin/cryptsetup
+CRYPT_D=/usr/libexec/ploop/crypt.d
 
 loadkey()
 {
-	id=$(keyctl request2 user vdisk:$KEYID '' @u)
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		echo "Cannot request the key $KEYID rc=$rc"
+	local getkey=$CRYPT_D/getkey
+
+	if [ ! -e $getkey ]; then
+		echo "The key request plugin '$getkey' is not installed"
 		exit 2
 	fi
 
-	KEY=`keyctl print "$id"`
+	KEY=`$getkey $KEYID`
 	rc=$?
 	if [ $rc -ne 0 ]; then
-		echo "Cannot read the key=$KEYID id=$id rc=$rc"
+		echo "Cannot request the key $KEYID rc=$rc"
 		exit 2
 	fi
 
