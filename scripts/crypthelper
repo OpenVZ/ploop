@@ -1,48 +1,52 @@
 #!/bin/sh
-
 export PATH="/usr/bin:/usr/sbin:/bin:/sbin"
 CRYPTSETUP=/usr/sbin/cryptsetup
 CRYPT_D=/usr/libexec/ploop/crypt.d
+GETKEY=$CRYPT_D/getkey
+KEY_FNAME=
 
-loadkey()
+cleanup()
 {
-	local getkey=$CRYPT_D/getkey
+	if [ -n "$KEY_FNAME" ]; then
+		rm -f $KEY_FNAME
+	fi
+}
 
-	if [ ! -e $getkey ]; then
-		echo "The key request plugin '$getkey' is not installed"
+check_key()
+{
+	if [ ! -e $GETKEY ]; then
+		echo "The key request plugin '$GETKEY' is not installed"
 		exit 2
 	fi
+}
 
-	KEY=`$getkey $KEYID`
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		echo "Cannot request the key $KEYID rc=$rc"
-		exit 2
+check_rc()
+{
+	if [ $1 -ne 0 ]; then
+		echo "$2 rc=$1" >&2
+		exit $3
 	fi
+}
 
-	KEY=`echo "$KEY" | sed 's/^:hex://'`
+check_pipe_rc()
+{
+	rc=${PIPESTATUS[0]}
+	check_rc $1 "$1" "$2"
+	check_rc $rc "$1" "$2"
 }
 
 init()
 {
-	loadkey
-	echo -n "$KEY" | $CRYPTSETUP luksFormat $DEVICE -
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		echo "Cannot format $DEVICE rc=$rc"
-		exit 3
-	fi
+	check_key
+	$GETKEY $KEYID | $CRYPTSETUP luksFormat $DEVICE -
+	check_pipe_rc $? "Cannot format $DEVICE" 3
 }
 
 open()
 {
-	loadkey
-	echo -n "$KEY" | $CRYPTSETUP --allow-discards luksOpen $DEVICE $DEVICE_NAME
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		echo "Cannot open $DEVICE $DEVICE_NAME rc=$rc"
-		exit 4
-	fi
+	check_key
+	$GETKEY $KEYID | $CRYPTSETUP --key-file - --allow-discards luksOpen $DEVICE $DEVICE_NAME
+	check_pipe_rc $? "Cannot open $DEVICE $DEVICE_NAME" 4
 }
 
 close()
@@ -63,27 +67,20 @@ close()
 
 resize()
 {
-	
 	$CRYPTSETUP resize $DEVICE_NAME
-	if [ $? -ne 0 ]; then
-		echo "Cannot resize $DEVICE_NAME"
-		exit 6
-	fi
+	check_rc $? "Cannot resize $DEVICE_NAME" 6
 }
 
 changekey()
 {
-	loadkey
-	CUR_KEY=$KEY
-	# load new key
-	KEYID=$DEVICE_NAME
-	loadkey
-	echo -n "${CUR_KEY}
-${KEY}" | $CRYPTSETUP luksChangeKey $DEVICE -
-	if [ $? -ne 0 ]; then
-		echo "Cannot change key $KEYID"
-		exit 7
-	fi
+	check_key
+	KEY_FNAME=`mktemp`
+	check_rc $? "Cannot mktemp" 7
+	trap cleanup EXIT
+	$GETKEY $KEYID > $KEY_FNAME
+	check_rc $? "Cannot store key at $FNAME" 7
+	$GETKEY $DEVICE_NAME | $CRYPTSETUP --key-file $KEY_FNAME luksChangeKey $DEVICE -
+	check_pipe_rc $? "Cannot change the key $KEYID" 7
 }
 
 case "$1" in
