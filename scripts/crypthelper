@@ -1,104 +1,96 @@
-#!/bin/sh
-export PATH="/usr/bin:/usr/sbin:/bin:/sbin"
-CRYPTSETUP=/usr/sbin/cryptsetup
-CRYPT_D=/usr/libexec/ploop/crypt.d
-GETKEY=$CRYPT_D/getkey
-KEY_FNAME=
+#!/usr/bin/python
 
-cleanup()
-{
-	if [ -n "$KEY_FNAME" ]; then
-		rm -f $KEY_FNAME
-	fi
-}
+from __future__ import print_function
+import sys
+import os
+import subprocess
+from time import sleep
 
-check_key()
-{
-	if [ ! -e $GETKEY ]; then
-		echo "The key request plugin '$GETKEY' is not installed"
-		exit 2
-	fi
-}
+def error(msg):
+    print(msg, file = sys.stderr)
 
-check_rc()
-{
-	if [ $1 -ne 0 ]; then
-		echo "$2 rc=$1" >&2
-		exit $3
-	fi
-}
+def get_key(key_id):
+    exe = '/usr/libexec/ploop/crypt.d/getkey'
+    if not os.path.exists(exe):
+        error('The key request plugin %r is not installed' % exe)
+        sys.exit(2)
+    try:
+        return subprocess.check_output(('%s %s' % (exe, key_id)).split())
+    except subprocess.CalledProcessError as e:
+        error('Failed to request key with %r: rc=%d' % (exe, e.returncode))
+        sys.exit(2)
 
-check_pipe_rc()
-{
-	rc=${PIPESTATUS[0]}
-	check_rc $1 "$1" "$2"
-	check_rc $rc "$1" "$2"
-}
+def run_cryptsetup(cmdline, data = None):
+    proc = subprocess.Popen(['/usr/sbin/cryptsetup'] + cmdline,
+        stdin = subprocess.PIPE)
+    proc.communicate(data)
+    return proc.returncode
 
-init()
-{
-	check_key
-	$GETKEY $KEYID | $CRYPTSETUP luksFormat $DEVICE -
-	check_pipe_rc $? "Cannot format $DEVICE" 3
-}
+def crypt_init(key_id, device):
+    rc = run_cryptsetup(('luksFormat %s -' % device).split(), get_key(key_id))
+    if rc != 0:
+        error('Cannot format %r rc=%d' % (device, rc))
+        return 3
+    return 0
 
-open()
-{
-	check_key
-	$GETKEY $KEYID | $CRYPTSETUP --key-file - --allow-discards luksOpen $DEVICE $DEVICE_NAME
-	check_pipe_rc $? "Cannot open $DEVICE $DEVICE_NAME" 4
-}
+def crypt_open(key_id, device, name):
+    rc = run_cryptsetup(('--key-file - --allow-discards luksOpen %s %s'
+        % (device, name)).split(), get_key(key_id))
+    if rc != 0:
+        error('Cannot open %r %r rc=%d' % (device, name, rc))
+        return 4
+    return 0
+    
+def crypt_close(name):
+    for i in xrange(60):
+        rc = run_cryptsetup(('luksClose %s' % name).split())
+        if rc == 0:
+            return 0
+        elif rc != 5:
+            error('Cannot close %r rc=%d' % (name, rc))
+            return 5
+        sleep(1)
+    return 5
 
-close()
-{
-	for ((i=0; i<60; i++)); do
-		$CRYPTSETUP luksClose $DEVICE_NAME
-		rc=$?
-		if [ $rc -eq 0 ]; then
-			exit 0
-		elif [ $rc -ne 5 ]; then
-			echo "Cannot close $DEVICE_NAME rc=$rc"
-			exit 5
-		fi
-		sleep 1
-	done
-	exit 5
-}
+def crypt_resize(name):
+    rc = run_cryptsetup(('resize %s' % name).split())
+    if rc != 0:
+        error('Cannot resize %r rc=%d' % (name, rc))
+        return 6
+    return 0
 
-resize()
-{
-	$CRYPTSETUP resize $DEVICE_NAME
-	check_rc $? "Cannot resize $DEVICE_NAME" 6
-}
+def crypt_change_key(old_key_id, new_key_id, device):
+    old_key = get_key(old_key_id)
+    # Here we pass the old key and the new key as a binary data in one stream.
+    # Old key length is used to separate the keys on the cryptsetup side.
+    rc = run_cryptsetup(('--key-file - --keyfile-size %d luksChangeKey %s -'
+        % (len(old_key), device)).split(), old_key + get_key(new_key_id))
+    if rc != 0:
+        error('Cannot change the key %r for %r rc=%d'
+            % (old_key_id, device, rc))
+        return 7
+    return 0
 
-changekey()
-{
-	check_key
-	KEY_FNAME=`mktemp`
-	check_rc $? "Cannot mktemp" 7
-	trap cleanup EXIT
-	$GETKEY $KEYID > $KEY_FNAME
-	check_rc $? "Cannot store key at $FNAME" 7
-	$GETKEY $DEVICE_NAME | $CRYPTSETUP --key-file $KEY_FNAME luksChangeKey $DEVICE -
-	check_pipe_rc $? "Cannot change the key $KEYID" 7
-}
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        sys.exit(1)
+    action = sys.argv[1]
 
-case "$1" in
-init)
-	init
-	;;
-open)
-	open
-	;;
-resize)
-	resize
-	;;
-close)
-	close
-	;;
-changekey)
-	changekey
-	;;
-*)
-	exit 1
-esac
+    rc = 1
+    try:
+        if action == 'init':
+            rc = crypt_init(os.environ['KEYID'], os.environ['DEVICE'])
+        elif action == 'open':
+            rc = crypt_open(os.environ['KEYID'], os.environ['DEVICE'],
+                os.environ['DEVICE_NAME'])
+        elif action == 'close':
+            rc = crypt_close(os.environ['DEVICE_NAME'])
+        elif action == 'resize':
+            rc = crypt_resize(os.environ['DEVICE_NAME'])
+        elif action == 'changekey':
+            rc = crypt_change_key(os.environ['KEYID'], os.environ['DEVICE_NAME'],
+                os.environ['DEVICE'])
+    except KeyError as e:
+        error('Environment variable %s is not set' % e)
+    sys.exit(rc)
+
