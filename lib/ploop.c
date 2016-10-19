@@ -3074,7 +3074,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 				tune_fs(balloonfd, partname, new_fs_size);
 			}
 
-			if (new_balloon_size == 0) {
+			if (new_fs_size > blocks) {
 				ret = resize_fs(partname, new_fs_size);
 				if (ret)
 					goto err;
