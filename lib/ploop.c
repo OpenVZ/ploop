@@ -1152,9 +1152,8 @@ static int get_mntns_mount_dir(const char *device, int pid, char *out, int size)
 
 	if (stat(device, &st)) {
 		ploop_err(errno, "get_mntns_mount_dir stat(%s)", device);
-		return SYSEXIT_SYS;
+		return -1;
 	}
-
 
 	if (pid > 0)
 		snprintf(buf, sizeof(buf), "/proc/%d/mountinfo", pid);
