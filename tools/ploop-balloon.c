@@ -512,6 +512,7 @@ static int pb_discard(int argc, char **argv)
 	if (stat) {
 		struct ploop_discard_stat d_stat;
 
+		ploop_set_verbose_level(PLOOP_LOG_NOCONSOLE);
 		if (di)
 			ret = ploop_discard_get_stat(di, &d_stat);
 		else
