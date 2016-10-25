@@ -383,6 +383,7 @@ enum
 	SYSEXIT_NOSNAP,
 	SYSEXIT_NOCBT	= 44,
 	SYSEXIT_CRYPT,
+	SYSEXIT_UMOUNT_BUSY,
 };
 
 #pragma GCC visibility pop

@@ -1043,8 +1043,10 @@ retry:
 	if (umount(mnt) == 0)
 		return 0;
 
-	if (errno != EBUSY)
-		goto err;
+	if (errno != EBUSY) {
+		ploop_err(errno, "Failed to umount %s", mnt);
+		return SYSEXIT_UMOUNT;
+	}
 
 	if (i++ < 6) {
 		if (ploop_get_log_level() >= 3 && ret != 127)
@@ -1058,10 +1060,9 @@ retry:
 	if (ret != 127)
 		print_output(-1, "lsof", mnt);
 
-err:
 	ploop_err(errno, "Failed to umount %s", mnt);
 
-	return SYSEXIT_UMOUNT;
+	return SYSEXIT_UMOUNT_BUSY;
 }
 
 static int delete_deltas(int devfd, const char *devname)
