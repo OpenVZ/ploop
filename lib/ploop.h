@@ -12,7 +12,6 @@
 #include "ploop1_image.h"
 #include "libploop.h"
 
-#define PLOOP_MAX_FS_SIZE	16ULL*1024*1024*1024*1024
 #define PLOOP_DEV_MAJOR 182
 
 #ifndef __NR_fallocate
