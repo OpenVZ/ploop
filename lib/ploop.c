@@ -4012,11 +4012,12 @@ int ploop_restore_descriptor(const char *dir, char *delta_path, int raw, int blo
 
 			param.blocksize = blocksize;
 		} else {
-			param.blocksize = select_best_blocksize(st.st_size);
-			if (param.blocksize < 0) {
+			blocksize = select_best_blocksize(st.st_size);
+			if (blocksize < 0) {
 				ploop_err(0, "Image size must be aligned to 32K");
 				return SYSEXIT_PARAM;
 			}
+			param.blocksize = blocksize;
 		}
 
 		param.size = st.st_size / SECTOR_SIZE;
