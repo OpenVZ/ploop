@@ -13,7 +13,7 @@
 .TH ploop 8 "26 May 2014" "OpenVZ" "Containers"
 .SH NAME
 ploop \- ploop device management utility
-.SH SYNOPSYS
+.SH SYNOPSIS
 .SY ploop\ init
 .B -s
 .I size
@@ -204,18 +204,18 @@ to use the form with DiskDescriptor.xml.
 
 Run
 .B ploop
-without any options to show a short synopsys, including a list of commands.
+without any options to show a short synopsis, including a list of commands.
 
 Run
 .B ploop
 .I command
-to show synopsys and a short description for a particular \fIcommand\fR.
+to show synopsis and a short description for a particular \fIcommand\fR.
 
 .SS Basic commands
 
 .SS3 init
 
-Create and initalize a ploop image file and a corresponding
+Create and initialize a ploop image file and a corresponding
 .B DiskDescriptor.xml
 file.
 
@@ -566,7 +566,7 @@ Create DiskDescriptor.xml file suitable for \fIdelta_file\fR and put it into
 
 Read image header in case of ploop1 format or check raw image size and generate proper
 DiskDescriptor.xml file. You can specify blocksize for raw images. If it's not specified
-it will be choosen automatically - largest possible value between 32K and 1M. Raw image
+it will be chosen automatically - largest possible value between 32K and 1M. Raw image
 size must be aligned to blocksize.
 
 This command works only for base images. Snapshots are not supported.
