@@ -651,7 +651,6 @@ int ploop_init_device(const char *device, struct ploop_create_param *param)
 	int ret;
 	off_t size;
 	unsigned int blocksize;
-	char devname[PATH_MAX];
 	char partname[PATH_MAX];
 
 	blocksize = param->blocksize ?
@@ -678,8 +677,7 @@ int ploop_init_device(const char *device, struct ploop_create_param *param)
 			return ret;
 	}
 
-	ret = get_part_devname(NULL, device, devname, sizeof(devname),
-			partname, sizeof(partname));
+	ret = get_partition_device_name(device, partname, sizeof(partname));
 	if (ret)
 		return ret;
 
@@ -1385,21 +1383,13 @@ int ploop_get_devs(struct ploop_disk_images_data *di, char ***out)
 int reread_part(const char *device)
 {
 	int fd;
-	struct stat st;
-	int mapper_major;
+	int ret;
 
-	mapper_major = get_major_by_driver_name("device-mapper");
-	if (mapper_major > 0) {
-		if (stat(device, &st)) {
-			ploop_err(errno, "Failed stat(%s)", device);
-			return -1;
-		}
-
-		if (major(st.st_rdev) == mapper_major)
-			return partprobe(device);
-	} else {
-		ploop_log(1, "Module device-mapper is not found");
-	}
+	ret = is_device_from_devmapper(device);
+	if (ret < 0)
+		return ret;
+	if (ret)
+		return partprobe(device);
 	fd = open(device, O_RDONLY);
 	if (fd == -1) {
 		ploop_err(errno, "Can't open %s", device);
@@ -3097,7 +3087,7 @@ err:
 	return ret;
 }
 
-int ploop_resize_blkdev(const char *dev, off_t new_size)
+int ploop_resize_blkdev(const char *device, off_t new_size)
 {
 	int ret;
 	int part_num;
@@ -3105,36 +3095,34 @@ int ploop_resize_blkdev(const char *dev, off_t new_size)
 	unsigned long long part_end = 0;
 	unsigned long long new_end = 0;
 	char partname[PATH_MAX];
-	char devname[PATH_MAX];
 
-	ret = get_last_partition_num(dev, &part_num);
+	ret = get_last_partition_num(device, &part_num);
 	if (ret)
 		return ret;
 
-	ret = get_partition_range(dev, part_num, &part_start, &part_end);
+	ret = get_partition_range(device, part_num, &part_start, &part_end);
 	if (ret)
 		return ret;
 
-	ret = sgdisk_move_gpt_header(dev);
+	ret = sgdisk_move_gpt_header(device);
 	if (ret)
 		return ret;
 
-	ret = sgdisk_rmpart(dev, part_num);
+	ret = sgdisk_rmpart(device, part_num);
 	if (ret)
 		return ret;
 
 	if (new_size != 0)
 		new_end = part_start + new_size;
 
-	ret = sgdisk_mkpart(dev, part_num, part_start, new_end);
+	ret = sgdisk_mkpart(device, part_num, part_start, new_end);
 	if (ret) {
-		sgdisk_mkpart(dev, part_num, part_start, part_end);
+		sgdisk_mkpart(device, part_num, part_start, part_end);
 		return ret;
 	}
-	reread_part(dev);
+	reread_part(device);
 
-	ret = get_part_devname(NULL, dev, devname, sizeof(devname),
-			partname, sizeof(partname));
+	ret = get_partition_device_name_by_num(device, part_num, partname, sizeof(partname));
 	if (ret)
 		return ret;
 

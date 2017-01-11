@@ -273,7 +273,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di);
 int ploop_umount_image(struct ploop_disk_images_data *di);
 int ploop_replace_image(struct ploop_disk_images_data *di, struct ploop_replace_param *param);
 int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_param *param);
-int ploop_resize_blkdev(const char *dev, off_t new_size);
+int ploop_resize_blkdev(const char *device, off_t new_size);
 int ploop_convert_image(struct ploop_disk_images_data *di, int mode, int flags);
 int ploop_get_info_by_descr(const char *descr, struct ploop_info *info);
 int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapshot_param *param);
