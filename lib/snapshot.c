@@ -586,7 +586,7 @@ int is_device_inuse(const char *dev)
 
 	if (!strncmp(cookie, TSNAPSHOT_MOUNT_LOCK_MARK,
 				sizeof(TSNAPSHOT_MOUNT_LOCK_MARK)-1))
-		return 1;
+		return 0;
 
 	/* snap holder + mount */
 	if (count >= 2)
