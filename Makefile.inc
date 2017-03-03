@@ -25,7 +25,7 @@ LIBSCRIPTDIR=/usr/libexec/ploop
 DEBUG=yes
 
 CFLAGS := $(if $(DEBUG),-g -O0 -DDEBUG,-O2) $(CFLAGS)
-CFLAGS += -I. -I../include -fno-strict-aliasing \
+CFLAGS += -I. -I../include -fno-strict-aliasing -fsanitize=address \
 	-Wall -Wstrict-prototypes -Werror -Wformat-security \
 	-D_GNU_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64
 CFLAGS += $(RPM_OPT_FLAGS) $(CPPFLAGS)

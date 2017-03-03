@@ -549,7 +549,7 @@ int get_part_devname_from_sys(const char *device, char *out, int size)
 
 	len = strlen(device);
 	for (p = dirs; *p != NULL; p++) {
-		if (memcmp(device, *p, len) == 0)
+		if (strncmp(device, *p, len) == 0)
 			break;
 	}
 
