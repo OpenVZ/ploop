@@ -1,4 +1,6 @@
-include ../Makefile.inc
+PLOOPROOT = ..
+
+include $(PLOOPROOT)/Makefile.inc
 
 V_MAJOR := $(word 1,$(subst ., ,$(VERSION)))
 V_MINOR := $(patsubst $(V_MAJOR).%,%,$(VERSION))
@@ -64,6 +66,7 @@ $(LIBPLOOP): $(LIBOBJS)
 	$(Q) ranlib $@
 
 $(LIBPLOOP_SO_X_Y): $(LIBOBJS)
+	$(E) $(LDLIBS)
 	$(E) "  LINK    " $@
 	$(Q) $(CC) $(CFLAGS) $(LDFLAGS) $^ ${LDLIBS} -o $@
 

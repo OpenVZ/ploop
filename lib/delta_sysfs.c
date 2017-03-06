@@ -468,7 +468,7 @@ int ploop_get_dev_by_delta(const char *delta, const char *topdelta,
 			ploop_err(err, "Can't open or read %s", fname);
 			if ((errno == ENOENT) && component_name)
 				/* Using component_name on old kernel is bad */
-				ploop_err(0, "ERROR: OpenVZ kernel with ploop cookie support "
+				ploop_err(0, "ERROR: " PRODUCT_NAME_SHORT " kernel with ploop cookie support "
 						"(i.e. 042stab061.1 or greater) is required");
 			goto err;
 		}

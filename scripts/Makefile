@@ -1,4 +1,6 @@
-include ../Makefile.inc
+PLOOPROOT = ..
+
+include $(PLOOPROOT)/Makefile.inc
 
 SCRIPTS=mount.ploop umount.ploop
 

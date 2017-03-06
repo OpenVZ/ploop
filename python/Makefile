@@ -1,4 +1,6 @@
-include ../Makefile.inc
+PLOOPROOT = ..
+
+include $(PLOOPROOT)/Makefile.inc
 
 all:
 	$(Q) CFLAGS= python setup.py build

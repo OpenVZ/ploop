@@ -1,5 +1,9 @@
+PLOOPROOT ?= .
+
+include $(PLOOPROOT)/Makefile.incl
+
 NAME=ploop
-VERSION=$(shell cat ../Makefile.version)
+VERSION=$(shell cat $(PLOOPROOT)/Makefile.version)
 RELEASE=
 
 CC=gcc
@@ -18,6 +22,9 @@ LIBDIR=/usr/lib64
 endif
 LOCKDIR=/var/lock/ploop
 MANDIR=/usr/share/man
+DOCDIR=/usr/share/doc/$(NAME)-$(VERSION)
+LDOCDIR=/usr/share/doc/$(NAME)-lib-$(VERSION)
+DDOCDIR=/usr/share/doc/$(NAME)-devel-$(VERSION)
 MAN8DIR=$(MANDIR)/man8
 TMPFILESDIR=/usr/lib/tmpfiles.d
 LOGROTATEDIR=/etc/logrotate.d
@@ -27,7 +34,8 @@ DEBUG=yes
 CFLAGS := $(if $(DEBUG),-g -O0 -DDEBUG,-O2) $(CFLAGS)
 CFLAGS += -I. -I../include -fno-strict-aliasing -fsanitize=address \
 	-Wall -Wstrict-prototypes -Werror -Wformat-security \
-	-D_GNU_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64
+	-D_GNU_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 \
+	-DPRODUCT_NAME_SHORT=\"$(PRODUCT_NAME_SHORT)\"
 CFLAGS += $(RPM_OPT_FLAGS) $(CPPFLAGS)
 CFLAGS += $(if $(PLOOP_LOG_FILE), -DPLOOP_LOG_FILE=\"$(PLOOP_LOG_FILE)\")
 #CFLAGS += -DDEBUG_TIMES

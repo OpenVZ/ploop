@@ -10,7 +10,7 @@
 .P
 ..
 .
-.TH ploop 8 "26 May 2014" "OpenVZ" "Containers"
+.TH ploop 8 "26 May 2014" "@PRODUCT_NAME_SHORT@" "Containers"
 .SH NAME
 ploop \- ploop device management utility
 .SH SYNOPSIS
@@ -973,4 +973,4 @@ Can't find specified snapshot UUID.
 .SH SEE ALSO
 .BR vzctl (8),
 .BR vzmigrate (8),
-.BR http://openvz.org/Ploop .
+.BR @PRODUCT_URL@ .

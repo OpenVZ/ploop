@@ -1,4 +1,6 @@
-include ../Makefile.inc
+PLOOPROOT = ..
+
+include $(PLOOPROOT)/Makefile.inc
 
 PROGS =	ploop \
 	ploop-balloon \
@@ -24,6 +26,11 @@ CFLAGS	+= -I../lib
 LDFLAGS	+= -L../lib
 LDLIBS	= -lploop
 
+define do_rebrand
+	sed -e "s,@PRODUCT_NAME_SHORT@,$(PRODUCT_NAME_SHORT),g" -i $(1) || exit 1;
+	sed -e "s,@PRODUCT_URL@,$(PRODUCT_URL),g" -i $(1) || exit 1;
+endef
+
 all: $(PROGS) $(MANS)
 .PHONY: all
 
@@ -46,6 +53,7 @@ install-man: $(MANS)
 	$(E) "  INSTALL " $(MAN8)
 	$(Q) $(INSTALL) -d $(DESTDIR)$(MAN8DIR)
 	$(Q) $(INSTALL) -m 644 $(MAN8) $(DESTDIR)$(MAN8DIR)/
+	$(Q) $(call do_rebrand,$(DESTDIR)$(MAN8DIR)/$(MAN8))
 
 install-bin: $(BINS)
 	$(Q) $(INSTALL) -d $(DESTDIR)$(USRSBINDIR)
