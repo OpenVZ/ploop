@@ -1,4 +1,6 @@
-include ../Makefile.inc
+PLOOPROOT = ..
+
+include $(PLOOPROOT)/Makefile.inc
 
 all clean distclean:
 .PHONY: all clean distclean

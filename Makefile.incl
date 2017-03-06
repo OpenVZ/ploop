@@ -1,0 +1,2 @@
+PRODUCT_NAME_SHORT?=OpenVZ
+PRODUCT_URL?=http://openvz.org/Ploop

@@ -2,6 +2,8 @@ include Makefile.inc
 
 NAMEVER=$(NAME)-$(VERSION)$(RELEASE)
 TARBALL=$(NAMEVER).tar.bz2
+LICENSES=COPYING GPL-2.0
+LLICENSES=$(LICENSES) LGPL-2.1
 
 SUBDIRS=include lib tools scripts etc python
 
@@ -39,6 +41,18 @@ cov: clean
 	rm -rf cov-int
 	git describe --tags HEAD
 .PHONY: cov
+
+install-licenses:
+	for f in $(LLICENSES); do \
+		for tdir in $(DDOCDIR) $(LDOCDIR); do \
+			mkdir -p $(DESTDIR)$$tdir; \
+			install -m 644 $$f $(DESTDIR)$$tdir; \
+		done; \
+	done
+	mkdir -p $(DESTDIR)$(DOCDIR); \
+	for f in $(LICENSES); do \
+		install -m 644 $$f $(DESTDIR)$(DOCDIR); \
+	done
 
 # Add optional local rules
 -include Makefile.local
