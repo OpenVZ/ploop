@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2005-2016 Parallels IP Holdings GmbH
+* Copyright (c) 2005-2017 Parallels IP Holdings GmbH
 *
 * This file is part of Virtuozzo Core Libraries. Virtuozzo Core
 * Libraries is free software; you can redistribute it and/or modify it
@@ -1367,8 +1367,11 @@ int cbt_dump(struct ploop_disk_images_data *di, const char *dev,
 	}
 
 	ret = cbt_get_dirty_bitmap_metadata(fd, NULL, NULL);
-	if (ret)
+	if (ret) {
+		if (ret == SYSEXIT_NOCBT)
+			ret = 0;
 		goto err;
+	}
 
 	ret = write_optional_header_to_image(fd, fname, NULL);
 
