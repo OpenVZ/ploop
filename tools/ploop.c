@@ -628,10 +628,10 @@ static int plooptool_snapshot(int argc, char **argv)
 {
 	int i, ret;
 	char *device = NULL;
-	int syncfs = 0;
+	int syncfs = 0, offline = 0;
 	struct ploop_snapshot_param param = {};
 
-	while ((i = getopt(argc, argv, "Fd:u:b:")) != EOF) {
+	while ((i = getopt(argc, argv, "Fd:u:b:o")) != EOF) {
 		switch (i) {
 		case 'd':
 			device = optarg;
@@ -646,6 +646,9 @@ static int plooptool_snapshot(int argc, char **argv)
 			break;
 		case 'b':
 			param.cbt_uuid = optarg;
+			break;
+		case 'o':
+			offline = 1;
 			break;
 		default:
 			usage_snapshot();
@@ -667,7 +670,8 @@ static int plooptool_snapshot(int argc, char **argv)
 		if (ret)
 			return ret;
 
-		ret = ploop_create_snapshot(di, &param);
+		ret = offline ? ploop_create_snapshot_offline(di, &param) :
+			ploop_create_snapshot(di, &param);
 
 		ploop_close_dd(di);
 	} else {
