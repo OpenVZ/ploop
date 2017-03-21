@@ -234,9 +234,6 @@ int create_snapshot(const char *device, const char *delta, int syncfs,
 	}
 
 	if (cbt_u != NULL) {
-		ploop_log(0, "Saving cbt to img=%s and starting new cbt",
-				prev_delta);
-
 		if ((ret = cbt_snapshot(lfd, cbt_u, prev_delta, or_data))) {
 			unlink(delta);
 			goto err;
@@ -272,7 +269,7 @@ static int do_create_snapshot(struct ploop_disk_images_data *di,
 		const char *guid, const char *snap_dir,
 		const char *cbt_uuid, int flags)
 {
-	int ret;
+	int ret, rc;
 	int fd;
 	char dev[64];
 	char snap_guid[UUID_SIZE];
@@ -336,11 +333,11 @@ static int do_create_snapshot(struct ploop_disk_images_data *di,
 		return SYSEXIT_PARAM;
 	}
 
-	ret = ploop_find_dev_by_dd(di, dev, sizeof(dev));
-	if (ret == -1)
+	rc = ploop_find_dev_by_dd(di, dev, sizeof(dev));
+	if (rc == -1)
 		return SYSEXIT_SYS;
 
-	if (ret == 0) {
+	if (rc == 0) {
 		if (flags & SNAP_TYPE_OFFLINE) {
 			ret = get_image_param_online(dev, &size,
 					&blocksize, &version);
@@ -427,8 +424,12 @@ static int do_create_snapshot(struct ploop_disk_images_data *di,
 
 		if (cbt_u != NULL)
 			ret = write_empty_cbt_to_image(fname, prev_fname, cbt_u);
-		else if (di->mode != PLOOP_RAW_MODE)
-			ret = ploop_move_cbt(fname, prev_fname);
+		else if (di->mode != PLOOP_RAW_MODE) {
+			if (rc == 0)
+				ret = cbt_dump(di, dev, fname);
+			else
+				ret = ploop_move_cbt(fname, prev_fname);
+		}
 		if (ret)
 			goto err;
 	} else {

@@ -49,6 +49,8 @@ int cbt_snapshot_prepare(int lfd, const unsigned char *cbt_uuid,
 		void **or_data);
 int cbt_snapshot(int lfd, const unsigned char *cbt_uuid, const char *prev_delta,
 		void *or_data);
+int cbt_dump(struct ploop_disk_images_data *di, const char *dev,
+		const char *fname);
 PL_EXT int ploop_move_cbt(const char *dst, const char *src);
 PL_EXT int ploop_cbt_dump_info_from_image(const char *image);
 PL_EXT int ploop_cbt_dump_info(struct ploop_disk_images_data *di);

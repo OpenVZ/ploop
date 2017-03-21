@@ -1325,6 +1325,7 @@ int ploop_move_cbt(const char *dst, const char *src)
 		return SYSEXIT_PARAM;
 	}
 
+	ploop_log(0, "Move CBT %s -> %s", src, dst);
 	ctx = create_ext_context();
 	if (ctx == NULL)
 		return SYSEXIT_MALLOC;
@@ -1338,7 +1339,6 @@ int ploop_move_cbt(const char *dst, const char *src)
 		goto err;
 	}
 
-	ploop_log(0, "Move CBT %s -> %s", src, dst);
 	ret = remove_optional_header_from_image(dst);
 	if (ret)
 		goto err;
@@ -1353,26 +1353,12 @@ err:
 	return ret;
 }
 
-int ploop_dump_cbt(struct ploop_disk_images_data *di, const char *fname)
+int cbt_dump(struct ploop_disk_images_data *di, const char *dev,
+		const char *fname)
 {
-	int ret, fd = -1;
-	char dev[64];
+	int fd, ret;
 
-	ret = ploop_lock_dd(di);
-	if (ret)
-		return ret;
-
-	ret = ploop_find_dev_by_cn(di, di->runtime->component_name, 0, dev,
-			sizeof(dev));
-	if (ret == -1) {
-		ret = SYSEXIT_SYS;
-		goto err;
-	} else if (ret != 0) {
-		ploop_err(0, "Image is not mounted");
-		ret = SYSEXIT_DEV_NOT_MOUNTED;
-		goto err;
-	}
-
+	ploop_log(0, "Dump CBT to %s", fname);
 	fd = open(dev, O_RDONLY);
 	if (fd < 0) {
 		ploop_err(errno, "Can't open dev %s", dev);
@@ -1384,6 +1370,24 @@ int ploop_dump_cbt(struct ploop_disk_images_data *di, const char *fname)
 	if (ret)
 		goto err;
 
+	ret = write_optional_header_to_image(fd, fname, NULL);
+
+err:
+	if (fd != -1)
+		close(fd);
+
+	return ret;
+}
+
+int ploop_dump_cbt(struct ploop_disk_images_data *di, const char *fname)
+{
+	int ret;
+	char dev[64];
+
+	ret = ploop_lock_dd(di);
+	if (ret)
+		return ret;
+
 	ret = create_snapshot_delta(fname, di->blocksize, di->size,
 			PLOOP_FMT_UNDEFINED);
 	if (ret < 0) {
@@ -1392,17 +1396,21 @@ int ploop_dump_cbt(struct ploop_disk_images_data *di, const char *fname)
 	}
 	close(ret);
 
-	ret = write_optional_header_to_image(fd, fname, NULL);
-	if (ret)
-		goto err;
+	ret = ploop_find_dev_by_cn(di, di->runtime->component_name, 0, dev,
+			sizeof(dev));
+	if (ret == -1) {
+		ret = SYSEXIT_SYS;
+	} else if (ret != 0) {
+		ploop_err(0, "Image is not mounted");
+		ret = SYSEXIT_DEV_NOT_MOUNTED;
+	} else {
+		ret = cbt_dump(di, dev, fname);
+	}
 
 err:
-	ploop_unlock_dd(di);
 	if (ret)
 		unlink(fname);
-
-	if (fd != -1)
-		close(fd);
+	ploop_unlock_dd(di);
 
 	return ret;
 }
