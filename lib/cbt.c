@@ -1367,8 +1367,11 @@ int cbt_dump(struct ploop_disk_images_data *di, const char *dev,
 	}
 
 	ret = cbt_get_dirty_bitmap_metadata(fd, NULL, NULL);
-	if (ret)
+	if (ret) {
+		if (ret == SYSEXIT_NOCBT)
+			ret = 0;
 		goto err;
+	}
 
 	ret = write_optional_header_to_image(fd, fname, NULL);
 
