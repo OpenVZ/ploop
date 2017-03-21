@@ -40,6 +40,12 @@ static void usage_summary(void)
 
 }
 
+static void usage_dump(void)
+{
+	fprintf(stderr, "Usage: ploop-cbt dump --dst <to> DiskDescriptor.xml\n"
+		"\t\tdump --src <from> --dst <to>\n");
+}
+
 static int dump(int argc, char **argv)
 {
 	int ret, i;
@@ -70,7 +76,8 @@ static int dump(int argc, char **argv)
 	if (argc == 0 && src != NULL && dst != NULL)
 		return ploop_move_cbt(dst, src);
 
-	if (argc != 1 || !is_xml_fname(argv[0])) {
+	if (argc != 1 || !is_xml_fname(argv[0]) || dst == NULL) {
+		usage_dump();
 		return SYSEXIT_PARAM;
 	}
 
@@ -158,6 +165,7 @@ int main(int argc, char **argv)
 	argv++;
 
 	init_signals();
+	ploop_set_verbose_level(3);
 
 	if (strcmp(cmd, "dump") == 0)
 		return dump(argc, argv);
@@ -165,8 +173,6 @@ int main(int argc, char **argv)
 		return drop(argc, argv);
 	if (strcmp(cmd, "show") == 0)
 		return show(argc, argv);
-
-
 
 	usage_summary();
 
