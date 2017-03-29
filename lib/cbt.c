@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2005-2016 Parallels IP Holdings GmbH
+* Copyright (c) 2005-2017 Parallels IP Holdings GmbH
 *
 * This file is part of Virtuozzo Core Libraries. Virtuozzo Core
 * Libraries is free software; you can redistribute it and/or modify it
