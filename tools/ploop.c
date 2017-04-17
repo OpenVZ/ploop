@@ -47,7 +47,7 @@ extern int plooptool_copy(int argc, char ** argv);
 
 static void usage_summary(void)
 {
-	fprintf(stderr, "Usage: ploop init -s SIZE [-f FORMAT] NEW_DELTA | DEVICE\n"
+	fprintf(stderr, "Usage: ploop init -s SIZE [-f FORMAT | -L LABEL] NEW_DELTA | DEVICE\n"
 			"       ploop mount [-r] [-m DIR] DiskDescriptor.xml\n"
 			"       ploop umount { -d DEVICE | -m DIR | DELTA | DiskDescriptor.xml }\n"
 			"       ploop check [-fFcrsdS] [-R -b BLOCKSIZE] { DELTA | DiskDescriptor.xml }\n"
@@ -75,7 +75,7 @@ static void usage_init(void)
 {
 	fprintf(stderr,
 "Usage: ploop init -s SIZE [-f FORMAT] [-v VERSION] [-t FSTYPE]\n"
-"                 [-b BLOCKSIZE] [-B FSBLOCKSIZE] [-n|--nolazy] [-k KEY] DELTA | DEVICE\n"
+"                 [-b BLOCKSIZE] [-B FSBLOCKSIZE] [-L LABEL] [-n|--nolazy] [-k KEY] DELTA | DEVICE\n"
 "\n"
 "       SIZE        := NUMBER[KMGT]\n"
 "       FORMAT      := " USAGE_FORMATS "\n"
@@ -83,6 +83,7 @@ static void usage_init(void)
 "       FSTYPE      := { none | ext3 | ext4 } (create filesystem, default ext4)\n"
 "       BLOCKSIZE   := cluster block size, sectors\n"
 "       FSBLOCKSIZE := file system block size, bytes\n"
+"       LABEL       := label for the filesystem\n"
 "       -n, --nolazy - do not use lazy initialization during mkfs\n"
 "       KEY         := encryption keyid\n"
 "       DELTA       := path to a new image file\n"
@@ -118,7 +119,7 @@ static int plooptool_init(int argc, char **argv)
 	};
 
 
-	while ((i = getopt_long(argc, argv, "s:b:B:f:t:v:n:k:",
+	while ((i = getopt_long(argc, argv, "s:b:B:f:t:L:v:n:k:",
 					long_opts, NULL)) != EOF) {
 		switch (i) {
 		case 's':
@@ -160,6 +161,9 @@ static int plooptool_init(int argc, char **argv)
 						"specified: %s\n", optarg);
 				return SYSEXIT_PARAM;
 			}
+			break;
+		case 'L':
+			param.fslabel = strdup(optarg);
 			break;
 		case 'v':
 			f = parse_version_opt(optarg);

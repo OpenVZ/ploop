@@ -279,11 +279,11 @@ out:
 }
 
 int make_fs(const char *part_device, const char *fstype, unsigned int fsblocksize,
-		unsigned int flags)
+		unsigned int flags, const char *fslabel)
 {
 	int i;
 	char fsblock_size[14];
-	char *argv[10];
+	char *argv[12];
 	char ext_opts[1024];
 	uint64_t max_online_resize;
 	const int lazy = !(flags & PLOOP_CREATE_NOLAZY);
@@ -295,6 +295,10 @@ int make_fs(const char *part_device, const char *fstype, unsigned int fsblocksiz
 	argv[i++] = "-t";
 	argv[i++] = (char*)fstype;
 	argv[i++] = "-j";
+	if (fslabel != NULL) {
+		argv[i++] = "-L";
+		argv[i++] = (char*)fslabel;
+	}
 	snprintf(fsblock_size, sizeof(fsblock_size), "-b%u",
 			fsblocksize);
 	argv[i++] = fsblock_size;
