@@ -68,6 +68,7 @@ struct ploop_create_param {
 	int fmt_version;
 	unsigned int flags;
 	const char *keyid;
+	char *fslabel;
 	char dummy[32];
 };
 

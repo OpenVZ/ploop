@@ -682,7 +682,7 @@ int ploop_init_device(const char *device, struct ploop_create_param *param)
 		return ret;
 
 	ret = make_fs(partname, param->fstype, param->fsblocksize,
-			param->flags);
+			param->flags, param->fslabel);
 
 	return ret;
 }
@@ -743,7 +743,7 @@ static int ploop_init_image(struct ploop_disk_images_data *di,
 	}
 
 	ret = make_fs(partname, param->fstype, param->fsblocksize,
-			param->flags);
+			param->flags, param->fslabel);
 	if (ret)
 		goto err;
 
