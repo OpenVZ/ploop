@@ -315,7 +315,6 @@ int make_fs(const char *part_device, const char *fstype, unsigned int fsblocksiz
 	 * independly on the initial image size
 	*/
 	argv[i++] = "-Jsize=128";
-	argv[i++] = "-i16384"; /* 1 inode per 16K disk space */
 	argv[i++] = (char *)part_device;
 	argv[i++] = NULL;
 
