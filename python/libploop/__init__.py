@@ -47,6 +47,8 @@ class snapshot():
 	def create_offline(self):
 		return libploopapi.create_snapshot_offline(self.ddxml);
 
-
 	def delete(self, guid):
 		return libploopapi.delete_snapshot(self.ddxml, guid);
+
+	def get_top_delta_fname(self):
+		return libploopapi.get_top_delta_fname(self.ddxml);

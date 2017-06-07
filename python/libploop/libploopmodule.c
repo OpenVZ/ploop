@@ -313,6 +313,35 @@ static PyObject *libploop_delete_snapshot(PyObject *self, PyObject *args)
 
 	Py_RETURN_NONE;
 }
+
+static PyObject *libploop_get_top_delta_fname(PyObject *self, PyObject *args)
+{
+	int ret;
+	struct ploop_disk_images_data *di = NULL;
+	char *ddxml;
+	char buf[PATH_MAX];
+
+	if (!PyArg_ParseTuple(args, "s:libploop_get_top_delta_fname,:", &ddxml)) {
+		PyErr_SetString(PyExc_ValueError, "An incorrect ddxml");
+		return NULL;
+	}
+
+	Py_BEGIN_ALLOW_THREADS
+	ret = ploop_open_dd(&di, ddxml);
+	if (ret == 0) {
+		ret = ploop_get_top_delta_fname(di, buf, sizeof(buf));
+		ploop_close_dd(di);
+	}
+	Py_END_ALLOW_THREADS
+	if (ret) {
+		PyErr_Format(PyExc_RuntimeError, "get_top_delta_fname %s",
+			ploop_get_last_error());
+		return NULL;
+	}
+
+	return PyString_FromString(buf);
+}
+
 static PyMethodDef PloopMethods[] = {
 	{ "open_dd", libploop_open_dd, METH_VARARGS, "Open DiskDescriptor.xml" },
 	{ "close_dd", libploop_close_dd, METH_VARARGS, "Close DiskDescriptor.xml" },
@@ -326,6 +355,8 @@ static PyMethodDef PloopMethods[] = {
 	{ "create_snapshot_offline", libploop_create_snapshot_offline, METH_VARARGS, "Create snapshot offline" },
 
 	{ "delete_snapshot", libploop_delete_snapshot, METH_VARARGS, "Delete snapshot" },
+	{ "get_top_delta_fname", libploop_get_top_delta_fname, METH_VARARGS, "Get top delta file name" },
+
 	{ NULL, NULL, 0, NULL }
 };
 
