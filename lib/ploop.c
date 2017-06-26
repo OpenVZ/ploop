@@ -2453,6 +2453,8 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	}
 
 	ret = ploop_stop_device(device, di);
+	if (ret)
+		return ret;
 
 	if (strcmp(format, "ploop1") == 0) {
 		int lfd = open(device, O_RDONLY);
