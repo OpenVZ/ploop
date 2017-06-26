@@ -12,6 +12,7 @@
 #include "ploop1_image.h"
 #include "libploop.h"
 
+#define PLOOP_UMOUNT_TIMEOUT	60
 #define PLOOP_DEV_MAJOR 182
 
 #ifndef __NR_fallocate
@@ -171,6 +172,7 @@ struct ploop_disk_images_runtime_data {
 	int lckfd;
 	char *xml_fname;
 	char *component_name;
+	int umount_timeout;
 };
 
 struct dump2fs_data {

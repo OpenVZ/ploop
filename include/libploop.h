@@ -254,6 +254,7 @@ extern "C" {
 
 int ploop_set_component_name(struct ploop_disk_images_data *di,
 		const char *component_name);
+void ploop_set_umount_timeout(struct ploop_disk_images_data *di,	int timeout);
 int ploop_get_top_delta_fname(struct ploop_disk_images_data *di, char *out, int len);
 int ploop_get_base_delta_fname(struct ploop_disk_images_data *di, char *out, int len);
 int ploop_find_dev(const char *component_name, const char *delta, char *buf, int size);

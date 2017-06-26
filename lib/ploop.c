@@ -957,12 +957,12 @@ int ploop_getdevice(int *minor)
  * kernel returns EBUSY and we need to retry ioctl() after some delay.
  * Start with a small delay, increasing it exponentially.
  */
-static int do_ioctl(int fd, int req, const char *dev)
+static int do_ioctl_tm(int fd, int req, const char *dev, int tm_sec)
 {
 	useconds_t total = 0;
 	useconds_t wait = 10000; // initial wait time 0.01s
 	useconds_t maxwait = 500000; // max wait time per iteration 0.5s
-	const useconds_t maxtotal = 60000000; // max total wait time 60s
+	useconds_t maxtotal = tm_sec * 1000000; // max total wait time
 
 	do {
 		int ret = ioctl(fd, req, 0);
@@ -978,6 +978,11 @@ static int do_ioctl(int fd, int req, const char *dev)
 		if (wait > maxwait)
 			wait = maxwait;
 	} while (1);
+}
+
+static int do_ioctl(int fd, int req, const char *dev)
+{
+	return do_ioctl_tm(fd, req, dev, PLOOP_UMOUNT_TIMEOUT);
 }
 
 int print_output(int level, const char *cmd, const char *arg)
@@ -1032,35 +1037,33 @@ out:
 	return ret;
 }
 
-static int do_umount(const char *mnt)
+static int do_umount(const char *mnt, int tmo_sec)
 {
-	int i = 0;
-	int ret = 0;
+	useconds_t total = 0;
+	useconds_t wait = 10000; // initial wait time 0.01s
+	useconds_t maxwait = 500000; // max wait time per iteration 0.5s
+	useconds_t maxtotal = tmo_sec * 1000000; // max total wait
 
-retry:
-	if (umount(mnt) == 0)
-		return 0;
+	do {
+		if (umount(mnt) == 0)
+			return 0;
 
-	if (errno != EBUSY) {
-		ploop_err(errno, "Failed to umount %s", mnt);
-		return SYSEXIT_UMOUNT;
-	}
+		if (errno != EBUSY) {
+			ploop_err(errno, "Failed to umount %s", mnt);
+			return SYSEXIT_UMOUNT;
+		}
 
-	if (i++ < 6) {
-		if (ploop_get_log_level() >= 3 && ret != 127)
-			ret = print_output(3, "lsof", mnt);
+		if (total > maxtotal) {
+			print_output(-1, "lsof", mnt);
+			return SYSEXIT_UMOUNT_BUSY;
+		}
 
-		sleep(1);
-		ploop_log(3, "Retrying umount %s", mnt);
-		goto retry;
-	}
-
-	if (ret != 127)
-		print_output(-1, "lsof", mnt);
-
-	ploop_err(errno, "Failed to umount %s", mnt);
-
-	return SYSEXIT_UMOUNT_BUSY;
+		usleep(wait);
+		total += wait;
+		wait *= 2;
+		if (wait > maxwait)
+			wait = maxwait;
+	} while (1);
 }
 
 static int delete_deltas(int devfd, const char *devname)
@@ -1082,9 +1085,11 @@ static int delete_deltas(int devfd, const char *devname)
 	return 0;
 }
 
-static int ploop_stop(int fd, const char *devname)
+static int ploop_stop(int fd, const char *devname,
+		struct ploop_disk_images_data *di)
 {
-	if (do_ioctl(fd, PLOOP_IOC_STOP, devname) < 0) {
+	if (do_ioctl_tm(fd, PLOOP_IOC_STOP, devname,
+		di ? di->runtime->umount_timeout : PLOOP_UMOUNT_TIMEOUT) < 0) {
 		if (errno != EINVAL) {
 			ploop_err(errno, "PLOOP_IOC_STOP");
 			return errno == EBUSY ?
@@ -2240,7 +2245,7 @@ err_stop:
 		if (di && di->enc) {
 			crypt_close(partname);
 		}
-		ploop_stop(lfd, param->device);
+		ploop_stop(lfd, param->device, di);
 	}
 
 err:
@@ -2380,7 +2385,8 @@ int ploop_mount_snapshot(struct ploop_disk_images_data *di, struct ploop_mount_p
 	return ploop_mount_image(di, param);
 }
 
-static int ploop_stop_device(const char *device)
+static int ploop_stop_device(const char *device,
+		struct ploop_disk_images_data *di)
 {
 	int lfd, ret;
 
@@ -2391,7 +2397,7 @@ static int ploop_stop_device(const char *device)
 		return SYSEXIT_DEVICE;
 	}
 
-	ret = ploop_stop(lfd, device);
+	ret = ploop_stop(lfd, device, di);
 	close(lfd);
 
 	return ret;
@@ -2408,7 +2414,7 @@ static int ploop_umount_fs(const char *mnt, struct ploop_disk_images_data *di)
 		store_statfs_info(mnt, di->images[0]->file);
 
 	ploop_log(0, "Unmounting file system at %s", mnt);
-	ret = do_umount(mnt);
+	ret = do_umount(mnt, di ? di->runtime->umount_timeout : PLOOP_UMOUNT_TIMEOUT);
 
 	return ret;
 }
@@ -2446,7 +2452,9 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 		return ret;
 	}
 
-	ret = ploop_stop_device(device);
+	ret = ploop_stop_device(device, di);
+	if (ret)
+		return ret;
 
 	if (strcmp(format, "ploop1") == 0) {
 		int lfd = open(device, O_RDONLY);
@@ -2732,7 +2740,7 @@ static int ploop_raw_discard(struct ploop_disk_images_data *di, const char *devi
 	if (ret)
 		return ret;
 
-	ret = ploop_stop_device(device);
+	ret = ploop_stop_device(device, di);
 	if (ret)
 		return ret;
 
@@ -2940,7 +2948,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		balloonfd = -1;
 		if (!mounted && param->offline_resize) {
 			/* offline */
-			ret = do_umount(mount_param.target);
+			ret = ploop_umount_fs(mount_param.target, di);
 			if (ret)
 				goto err;
 			ret = e2fsck(partname, E2FSCK_FORCE | E2FSCK_PREEN, NULL);
@@ -3003,7 +3011,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			close(balloonfd); /* close to make umount possible */
 			balloonfd = -1;
 
-			ret = do_umount(mount_param.target);
+			ret = ploop_umount_fs(mount_param.target, di);
 			if (ret)
 				goto err;
 
