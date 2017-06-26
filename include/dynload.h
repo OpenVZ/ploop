@@ -93,7 +93,8 @@ struct ploop_functions {
 	int (*encrypt_image)(struct ploop_disk_images_data *di, struct ploop_encrypt_param *param);
 	int (*init_device)(const char *device, struct ploop_create_param *param);
 	int (*resize_blkdev)(const char *device, off_t new_size);
-	void *padding[5];
+	void (*set_umount_timeout)(struct ploop_disk_images_data *di, int timeout);
+	void *padding[4];
 }; /* struct ploop_functions */
 
 __attribute__ ((visibility("default")))

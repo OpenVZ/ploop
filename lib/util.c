@@ -232,6 +232,11 @@ int ploop_set_component_name(struct ploop_disk_images_data *di,
 	return 0;
 }
 
+void ploop_set_umount_timeout(struct ploop_disk_images_data *di, int timeout)
+{
+	di->runtime->umount_timeout = timeout;
+}
+
 static void arg2str(char *const argv[], char *buf, int len)
 {
 	int i, r;

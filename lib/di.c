@@ -266,6 +266,7 @@ struct ploop_disk_images_data *alloc_diskdescriptor(void)
 		return NULL;
 	}
 	p->runtime->lckfd = -1;
+	p->runtime->umount_timeout = PLOOP_UMOUNT_TIMEOUT;
 
 	return p;
 }
