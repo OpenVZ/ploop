@@ -1087,7 +1087,8 @@ static int ploop_stop(int fd, const char *devname)
 	if (do_ioctl(fd, PLOOP_IOC_STOP, devname) < 0) {
 		if (errno != EINVAL) {
 			ploop_err(errno, "PLOOP_IOC_STOP");
-			return SYSEXIT_DEVIOC;
+			return errno == EBUSY ?
+					SYSEXIT_UMOUNT_BUSY : SYSEXIT_DEVIOC;
 		}
 		if (delete_deltas(fd, devname))
 			return SYSEXIT_DEVIOC;
