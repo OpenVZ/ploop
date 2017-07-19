@@ -2298,8 +2298,16 @@ int mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *par
 
 static int mount_fs(const char *part, const char *target)
 {
+	int n = 0;
+
 	ploop_log(0, "Mounting %s at %s", part, target);
+
+retry:
 	if (mount(part, target, DEFAULT_FSTYPE, 0, 0)) {
+		if (errno == EBUSY && n++ < 6) {
+			sleep(1);
+			goto retry;
+		}
 		ploop_err(errno, "Can't mount dev=%s target=%s",
 				part, target);
 		return SYSEXIT_MOUNT;
