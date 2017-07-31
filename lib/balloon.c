@@ -1381,6 +1381,7 @@ static int do_mntn_merge(struct ploop_disk_images_data *di, const char *device,
 	char x[PATH_MAX];
 	char conf[PATH_MAX];
 	char *top_delta = NULL;
+	struct stat st;
 
 	if (di == NULL) {
 		ploop_err(0, "Unable to complete on-going merge operation:"
@@ -1400,8 +1401,13 @@ static int do_mntn_merge(struct ploop_disk_images_data *di, const char *device,
 	if (ret)
 		return ret;
 
+	if (stat(top_delta, &st)) {
+		ploop_err(errno, "Can't stat %s", top_delta);
+		return SYSEXIT_FSTAT;
+	}
+
 	ploop_log(0, "Repair %s: merge top delta %s", conf, top_delta);
-	if (ploop_fname_cmp(x, top_delta)) {
+	if (fname_cmp(x, &st)) {
 		ploop_err(0, "Config %s inconsistent with device state: "
 				"top delta file differs "
 				"(device='%s' config='%s')\n",

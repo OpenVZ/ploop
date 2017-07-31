@@ -36,7 +36,8 @@ LIBOBJS=uuid.o \
 	deprecated.o \
 	snapshot.o \
 	symbols.o \
-	cbt.o
+	cbt.o \
+	volume.o
 
 SOURCES=$(LIBOBJS:.o=.c)
 GENERATED=symbols.c

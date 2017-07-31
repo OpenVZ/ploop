@@ -432,6 +432,8 @@ void get_basedir(const char *fname, char *out, int len)
 /* Convert to new format with constant TopGUID */
 static int convert_disk_descriptor(struct ploop_disk_images_data *di)
 {
+	return 0;
+
 	if (di->vol->parent != NULL)
 		return 0;
 
