@@ -398,6 +398,7 @@ int ploop_get_dev_by_delta(const char *delta, const char *topdelta,
 {
 	char fname[PATH_MAX];
 	char delta_r[PATH_MAX];
+	char topdelta_r[PATH_MAX];
 	char image[PATH_MAX];
 	char dev[64];
 	DIR *dp;
@@ -415,6 +416,11 @@ int ploop_get_dev_by_delta(const char *delta, const char *topdelta,
 	if (realpath(delta, delta_r) == NULL) {
 		ploop_err(errno, "Warning: can't resolve %s", delta);
 		snprintf(delta_r, sizeof(delta_r), "%s", delta);
+	}
+
+	if (topdelta && realpath(topdelta, topdelta_r) == NULL) {
+		ploop_err(errno, "Warning: can't resolve %s", topdelta);
+		snprintf(topdelta_r, sizeof(topdelta_r), "%s", topdelta);
 	}
 
 	lckfd = ploop_global_lock();
@@ -451,7 +457,7 @@ int ploop_get_dev_by_delta(const char *delta, const char *topdelta,
 		if (topdelta != NULL) {
 			if (!(ploop_find_top_delta_name_and_format(
 					de->d_name, image, sizeof(image), NULL, 0) == 0 &&
-					strcmp(image, topdelta) == 0))
+					strcmp(image, topdelta_r) == 0))
 				continue;
 		}
 
@@ -512,13 +518,18 @@ void ploop_free_array(char *array[])
 	free(array);
 }
 
-int ploop_find_dev(const char *component_name, const char *delta,
-		char *out, int size)
+int find_dev_by_delta(const char *component_name, const char *delta,
+		const char *topdelta, char *out, int size)
 {
 	int ret;
 	char **devs;
 
-	ret = ploop_get_dev_by_delta(delta, NULL,
+	if (delta == NULL) {
+		ploop_err(0, "find_dev_by_delta: base delta image name is not specified");
+		return SYSEXIT_PARAM;
+	}
+
+	ret = ploop_get_dev_by_delta(delta, topdelta,
 			/* We only need one device, so
 			 * always set component_name */
 			component_name ? component_name : "",
@@ -528,6 +539,12 @@ int ploop_find_dev(const char *component_name, const char *delta,
 	ploop_free_array(devs);
 
 	return ret;
+}
+
+int ploop_find_dev(const char *component_name, const char *delta,
+		char *out, int size)
+{
+	return find_dev_by_delta(component_name, delta, NULL, out, size);
 }
 
 int get_part_devname_from_sys(const char *device, char *out, int size)

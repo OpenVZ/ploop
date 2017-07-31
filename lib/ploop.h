@@ -480,5 +480,8 @@ int crypt_close(const char *part);
 int crypt_resize(const char *part);
 int get_dir_entry(const char *path, char **out[]);
 int get_part_devname_from_sys(const char *device, char *out, int size);
-
+const char *get_base_delta_uuid(struct ploop_disk_images_data *di);
+const char *get_top_delta_guid(struct ploop_disk_images_data *di);
+int find_dev_by_delta(const char *component_name, const char *delta,
+		const char *topdelta, char *out, int size);
 #endif
