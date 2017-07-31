@@ -484,4 +484,6 @@ const char *get_base_delta_uuid(struct ploop_disk_images_data *di);
 const char *get_top_delta_guid(struct ploop_disk_images_data *di);
 int find_dev_by_delta(const char *component_name, const char *delta,
 		const char *topdelta, char *out, int size);
+int read_dd(struct ploop_disk_images_data *di);
+void normalize_path(const char *path, char *out);
 #endif

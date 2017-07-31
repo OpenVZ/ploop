@@ -91,12 +91,14 @@ struct ploop_replace_param {
 struct ploop_image_data {
 	char *guid;
 	char *file;
+	int alien;
 };
 
 struct ploop_snapshot_data {
 	char *guid;
 	char *parent_guid;
 	int temporary;
+	int alien;
 };
 
 struct ploop_disk_images_runtime_data;

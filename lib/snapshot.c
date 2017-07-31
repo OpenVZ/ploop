@@ -57,7 +57,7 @@ static int do_delete_snapshot(struct ploop_disk_images_data *di, const char *gui
 	char dev[64];
 	int snap_id;
 
-	if (is_old_snapshot_format(di))
+	if (is_old_snapshot_format(di) || guid == NULL)
 		return SYSEXIT_PARAM;
 
 	snap_id = find_snapshot_by_guid(di, guid);
@@ -256,6 +256,8 @@ static int get_snapshot_count(struct ploop_disk_images_data *di)
 	int n;
 	char **images;
 
+	if (di->top_guid == NULL)
+		return 0;
 	images = make_images_list(di, di->top_guid, 1);
 	if (images == NULL)
 		return -1;

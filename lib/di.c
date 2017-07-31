@@ -590,11 +590,15 @@ int ploop_di_merge_image(struct ploop_disk_images_data *di, const char *guid, ch
 			strcpy(di->snapshots[i]->guid, guid);
 			/* preserve temporary flag */
 			di->snapshots[i]->temporary = snapshot->temporary;
+			di->snapshots[i]->alien = snapshot->alien;
 		}
 	}
-	for (i = 0; i < di->nimages; i++)
-		if (guidcmp(di->images[i]->guid, snapshot->parent_guid) == 0)
+	for (i = 0; i < di->nimages; i++) {
+		if (guidcmp(di->images[i]->guid, snapshot->parent_guid) == 0) {
 			strcpy(di->images[i]->guid, guid);
+			di->images[i]->alien = snapshot->alien;
+		}
+	}
 	remove_data_from_array((void**)di->snapshots, di->nsnapshots, snap_id);
 	di->nsnapshots--;
 	remove_data_from_array((void**)di->images, di->nimages, image_id);
