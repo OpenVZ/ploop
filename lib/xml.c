@@ -163,6 +163,25 @@ static int parse_xml(const char *basedir, xmlNode *root_node, struct ploop_disk_
 		}
 	}
 
+	cur_node = seek(root_node, "/StorageData/Volume");
+	if (cur_node) {
+		node = seek(cur_node, "Parent");
+		if (node != NULL) {
+			data = get_element_txt(node);
+			ERR(data, "Path");
+			di->vol->parent = strdup(data);
+		}
+		node = seek(cur_node, "SnapshotGUID");
+		if (node != NULL) {
+			data = get_element_txt(node);
+			ERR(data, "GUID");
+			di->vol->snap_guid = strdup(data);
+		}
+		node = seek(cur_node, "ReadOnly");
+		if (node != NULL)
+			di->vol->ro = 1;
+	}
+
 	cur_node = seek(root_node, "/StorageData/Storage");
 	ERR(cur_node, "/StorageData/Storage");
 	for (n = 0; cur_node; cur_node = cur_node->next, n++) {
@@ -303,6 +322,9 @@ void get_basedir(const char *fname, char *out, int len)
 /* Convert to new format with constant TopGUID */
 static int convert_disk_descriptor(struct ploop_disk_images_data *di)
 {
+	if (di->vol->parent != NULL)
+		return 0;
+
 	if (di->top_guid == NULL) {
 		ploop_err(0, "Invalid DiskDescriptor.xml: TopGUID not found");
 		return -1;
@@ -590,6 +612,47 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 	if (rc < 0) {
 		ploop_err(0, "Error at xmlTextWriter StorageData");
 		goto err;
+	}
+
+	if ((di->vol->parent && di->vol->snap_guid) || di->vol->ro) {
+		rc = xmlTextWriterStartElement(writer, BAD_CAST "Volume");
+		if (rc < 0) {
+			ploop_err(0, "Error at xmlTextWriter Volume");
+			goto err;
+		}
+
+		if (di->vol->parent) {
+			rc = xmlTextWriterWriteFormatElement(writer, BAD_CAST "Parent",
+					"%s", di->vol->parent);
+			if (rc < 0) {
+				ploop_err(0, "Error at xmlTextWriter Parent");
+				goto err;
+			}
+		}
+
+		if (di->vol->snap_guid) {
+			rc = xmlTextWriterWriteFormatElement(writer, BAD_CAST "SnapshotGUID",
+					"%s", di->vol->snap_guid);
+			if (rc < 0) {
+				ploop_err(0, "Error at xmlTextWriter SnapshotGUID");
+				goto err;
+			}
+		}
+		if (di->vol->ro) {
+			rc = xmlTextWriterWriteFormatElement(writer, BAD_CAST "ReadOnly", "%d",
+					di->vol->ro);
+			if (rc < 0) {
+				ploop_err(0, "Error at xmlTextWriter ReadOnly");
+				goto err;
+			}
+		}
+
+		rc = xmlTextWriterEndElement(writer);
+		if (rc < 0) {
+			ploop_err(0, "Error at xmlTextWriterEndElement");
+			goto err;
+
+		}
 	}
 	/* Start an element named "Storage" as child of StorageData. */
 	rc = xmlTextWriterStartElement(writer, BAD_CAST "Storage");

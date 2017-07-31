@@ -105,6 +105,12 @@ struct encryption_data {
 	char *keyid;
 };
 
+struct volume_data {
+	char *parent;
+	char *snap_guid;
+	int ro;
+};
+
 struct ploop_disk_images_data {
 	unsigned long long size;
 	unsigned int heads;
@@ -120,6 +126,7 @@ struct ploop_disk_images_data {
 	unsigned int blocksize;
 	unsigned long long max_delta_size;
 	struct encryption_data *enc;
+	struct volume_data *vol;
 	char dummy[32];
 };
 
