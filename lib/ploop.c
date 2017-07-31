@@ -40,7 +40,8 @@
 #include "cleanup.h"
 #include "cbt.h"
 
-static int ploop_mount_fs(const char *partname,	struct ploop_mount_param *param,
+static int ploop_mount_fs(struct ploop_disk_images_data *di,
+		const char *partname,	struct ploop_mount_param *param,
 		int need_balloon);
 
 static off_t round_bdsize(off_t size, __u32 blocksize, int version)
@@ -626,7 +627,7 @@ static int create_balloon_file(struct ploop_disk_images_data *di,
 		return ret;
 	strcpy(mount_param.device, device);
 	mount_param.target = mnt;
-	ret = ploop_mount_fs(partname, &mount_param, 0);
+	ret = ploop_mount_fs(di, partname, &mount_param, 0);
 	if (ret)
 		goto out;
 	snprintf(fname, sizeof(fname), "%s/"BALLOON_FNAME, mnt);
@@ -1408,12 +1409,13 @@ int reread_part(const char *device)
 	return 0;
 }
 
-static int ploop_mount_fs(const char *partname, struct ploop_mount_param *param,
+static int ploop_mount_fs(struct ploop_disk_images_data *di,
+		const char *partname, struct ploop_mount_param *param,
 		int need_balloon)
 {
 	unsigned long flags =
 		(param->flags & MS_NOATIME) |
-		(param->ro ? MS_RDONLY : 0);
+		(param->ro | di->vol->ro ? MS_RDONLY : 0);
 	char buf[PATH_MAX + sizeof(BALLOON_FNAME)];
 	struct stat st;
 	char *fstype = param->fstype == NULL ? DEFAULT_FSTYPE : param->fstype;
@@ -2235,7 +2237,7 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 	}
 
 	if (param->target != NULL || param->fsck) {
-		ret = ploop_mount_fs(partname, param, 1);
+		ret = ploop_mount_fs(di, partname, param, 1);
 		if (ret)
 			goto err_stop;
 	}
@@ -2275,7 +2277,7 @@ int mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *par
 	} else
 		guid = di->top_guid;
 
-	if (!param->ro) {
+	if (!param->ro && !di->vol->ro) {
 		int nr_ch = ploop_get_child_count_by_uuid(di, guid);
 		if (nr_ch != 0) {
 			ploop_err(0, "Unable to mount (rw) snapshot %s: "
@@ -2337,7 +2339,7 @@ static int auto_mount_fs(struct ploop_disk_images_data *di, pid_t mntns_pid,
 			return mount_fs(partname, target);
 	}
 
-	return ploop_mount_fs(partname, param, 1);
+	return ploop_mount_fs(di, partname, param, 1);
 }
 
 int auto_mount_image(struct ploop_disk_images_data *di,
