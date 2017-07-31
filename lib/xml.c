@@ -92,6 +92,118 @@ static int parse_ul(const char *str, __u64 *val)
 	return 0;
 }
 
+void normalize_path(const char *path, char *out)
+{
+	const char *s;
+
+	for (s = path; *s != '\0'; out++, s++) {
+		*out = *s;
+		if (*s == '/')
+			while (*(s + 1) == '/')
+				s++;
+	}
+
+	if (*(out - 1) == '/')
+		out--;
+	*out = '\0';
+
+}
+
+static int get_num_dir(const char *dir)
+{
+	int n;
+
+	for (n = 0; *dir != '\0'; dir++)
+		if (*dir == '/')
+			n++;
+
+	return n;
+}
+
+static void get_relative_path(const char *dir, const char *path, char *out,
+		int len)
+{
+	int n;
+	const char *b, *i, *b_d, *i_d;
+	char *basedir, *fname;
+
+	fname = alloca(strlen(path) + 1);
+	normalize_path(path, fname);
+
+	n = strlen(dir);
+	basedir = alloca(n + 2);
+	normalize_path(dir, basedir);
+	n = strlen(basedir);
+	if (basedir[n - 1] != '/')
+		strcat(basedir, "/");
+
+	b_d = basedir;
+	i_d = fname;
+
+	/* skip the same base */
+	for (b = b_d, i = i_d; *b != '\0' && *i != '\0' && *b == *i;
+			b++, i++)
+	{
+		if (*b == '/')
+			b_d = b;
+		if (*i == '/')
+			i_d = i;
+	}
+
+	*out = '\0'; 
+	if (i_d == fname) {
+		snprintf(out, len, "%s", fname);
+		return;
+	}
+
+	if (*b != '\0') {
+		int i, n = get_num_dir(b_d + 1);
+
+		for (i = 0; i < n; i++)
+			strcat(out, "../");
+	}
+	strcat(out, i_d + 1);
+}
+
+static void get_full_path(const char *dir, const char *path, char *out,
+		int len)
+{
+	char *basedir, *fname;
+	int n;
+
+	fname = alloca(strlen(path) + 1);
+	normalize_path(path, fname);
+
+	n = strlen(dir);
+	basedir = alloca(n + 2);
+	normalize_path(dir, basedir);
+	n = strlen(basedir);
+	if (basedir[n - 1] != '/')
+		strcat(basedir, "/");
+
+	if (*fname == '/') {
+		snprintf(out, len, "%s", fname);
+		return;
+	}
+
+	const char *s = fname;
+	const char *image_base = s;
+	for (n = 0; (s = strstr(s, "../")) != NULL; n++) {
+		s += 3;
+		image_base = s;
+	}
+
+	const char *p = basedir + strlen(basedir) - 1;
+	int i;
+	for(i = 0; p != basedir; p--) {
+		if (*p == '/' && i++ == n)
+			break;
+	}
+
+	snprintf(out, p - basedir + 2, "%s", basedir);
+	strcat(out, image_base);
+}
+
 #define ERR(var, name)							\
 	do {								\
 		if (var == NULL) {					\
@@ -169,7 +281,8 @@ static int parse_xml(const char *basedir, xmlNode *root_node, struct ploop_disk_
 		if (node != NULL) {
 			data = get_element_txt(node);
 			ERR(data, "Path");
-			di->vol->parent = strdup(data);
+			get_full_path(basedir, data, image, sizeof(image));
+			di->vol->parent = strdup(image);
 		}
 		node = seek(cur_node, "SnapshotGUID");
 		if (node != NULL) {
@@ -239,12 +352,8 @@ static int parse_xml(const char *basedir, xmlNode *root_node, struct ploop_disk_
 		node = seek(cur_node, "File");
 		if (node != NULL) {
 			file = get_element_txt(node);
-			if (file != NULL) {
-				if (basedir[0] != 0 && file[0] != '/')
-					snprintf(image, sizeof(image), "%s%s", basedir, file);
-				else
-					snprintf(image, sizeof(image), "%s", file);
-			}
+			if (file != NULL)
+				get_full_path(basedir, file, image, sizeof(image));
 		}
 		ERR(file, "File");
 
@@ -622,8 +731,9 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 		}
 
 		if (di->vol->parent) {
+			get_relative_path(basedir, di->vol->parent, tmp, sizeof(tmp));
 			rc = xmlTextWriterWriteFormatElement(writer, BAD_CAST "Parent",
-					"%s", di->vol->parent);
+					"%s", tmp);
 			if (rc < 0) {
 				ploop_err(0, "Error at xmlTextWriter Parent");
 				goto err;
@@ -707,7 +817,7 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 			goto err;
 		}
 
-		normalize_image_name(basedir, di->images[i]->file, tmp, sizeof(tmp));
+		get_relative_path(basedir, di->images[i]->file, tmp, sizeof(tmp));
 		rc = xmlTextWriterWriteElement(writer, BAD_CAST "File",
 				BAD_CAST tmp);
 		if (rc < 0) {
