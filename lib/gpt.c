@@ -101,7 +101,7 @@ static int has_partition(const char *device, int *res)
 	int fd, sector_size, ret;
 	__u64 signature;
 
-	fd = open(device, O_RDONLY);
+	fd = open(device, O_RDONLY|O_CLOEXEC);
 	if (fd == -1) {
 		ploop_err(errno, "Can't open %s", device);
 		return SYSEXIT_OPEN;
@@ -364,7 +364,7 @@ int resize_gpt_partition(const char *device, __u64 new_size512, __u32 blocksize5
 	if (!part)
 		return 0;
 
-	fd = open(device, O_RDWR);
+	fd = open(device, O_RDWR|O_CLOEXEC);
 	if (fd == -1) {
 		ploop_err(errno, "Failed to open %s", device);
 		return SYSEXIT_OPEN;
@@ -421,7 +421,7 @@ int check_and_repair_gpt(const char *device, __u32 blocksize512)
 	int image_sector_size, sector_size;
 	__u64 signature;
 
-	fd = open(device, O_RDWR);
+	fd = open(device, O_RDWR|O_CLOEXEC);
 	if (fd == -1) {
 		ploop_err(errno, "Failed to open %s", device);
 		return SYSEXIT_OPEN;

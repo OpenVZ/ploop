@@ -1105,7 +1105,7 @@ static int read_optional_header_from_kernel(struct ext_context *ctx,
 	void *block = NULL;
 	struct ploop_pvd_dirty_bitmap_raw *raw;
 
-	fd = open(dev, O_RDONLY);
+	fd = open(dev, O_RDONLY|O_CLOEXEC);
 	if (fd == -1) {
 		ploop_err(errno, "failed to open %s", dev);
 		return -1;
@@ -1359,7 +1359,7 @@ int cbt_dump(struct ploop_disk_images_data *di, const char *dev,
 	int fd, ret;
 
 	ploop_log(0, "Dump CBT to %s", fname);
-	fd = open(dev, O_RDONLY);
+	fd = open(dev, O_RDONLY|O_CLOEXEC);
 	if (fd < 0) {
 		ploop_err(errno, "Can't open dev %s", dev);
 		ret = SYSEXIT_DEVICE;
@@ -1434,7 +1434,7 @@ int ploop_drop_cbt(struct ploop_disk_images_data *di)
 	} else if (ret == 0) {
 		/* online */
 		ploop_log(0, "Drop CBT dev=%s", dev);
-		lfd = open(dev, O_RDONLY);
+		lfd = open(dev, O_RDONLY|O_CLOEXEC);
 		if (lfd < 0) {
 			ploop_err(errno, "Can't open device %s", dev);
 			ret = SYSEXIT_DEVICE;

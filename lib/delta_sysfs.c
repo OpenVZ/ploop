@@ -255,7 +255,7 @@ int ploop_get_size(const char * device, off_t * res)
 {
 	int fd;
 
-	fd = open(device, O_RDONLY, 0);
+	fd = open(device, O_RDONLY|O_CLOEXEC, 0);
 	if (fd == -1) {
 		ploop_err(errno, "Can't open %s", device);
 		return SYSEXIT_OPEN;

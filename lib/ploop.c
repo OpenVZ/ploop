@@ -2478,7 +2478,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 		return ret;
 
 	if (strcmp(format, "ploop1") == 0) {
-		int lfd = open(device, O_RDONLY);
+		int lfd = open(device, O_RDONLY|O_CLOEXEC);
 		int rc;
 
 		if (lfd < 0) {
@@ -2652,7 +2652,7 @@ int ploop_grow_device(const char *device, off_t new_size)
 				device, (unsigned long long)size,
 				(unsigned long long)new_size);
 
-	fd = open(device, O_RDONLY);
+	fd = open(device, O_RDONLY|O_CLOEXEC);
 	if (fd < 0) {
 		ploop_err(errno, "Can't open device %s", device);
 		return SYSEXIT_DEVICE;
@@ -3829,7 +3829,7 @@ int ploop_set_max_delta_size(struct ploop_disk_images_data *di, unsigned long lo
 		rc = SYSEXIT_SYS;
 		goto err;
 	} else if (rc == 0) {
-		fd = open(dev, O_RDONLY);
+		fd = open(dev, O_RDONLY|O_CLOEXEC);
 		if (fd == -1) {
 			ploop_err(errno, "Can't open device %s", dev);
 			rc = SYSEXIT_DEVICE;

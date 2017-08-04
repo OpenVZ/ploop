@@ -197,7 +197,7 @@ int create_snapshot(const char *device, const char *delta, int syncfs,
 	if (ret)
 		return ret;
 
-	lfd = open(device, O_RDONLY);
+	lfd = open(device, O_RDONLY|O_CLOEXEC);
 	if (lfd < 0) {
 		ploop_err(errno, "Can't open device %s", device);
 		return SYSEXIT_DEVICE;

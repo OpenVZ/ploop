@@ -70,7 +70,7 @@ char *mntn2str(int mntn_type)
 
 static int open_device(const char *device)
 {
-	int fd = open(device, O_RDONLY);
+	int fd = open(device, O_RDONLY|O_CLOEXEC);
 	if (fd < 0) {
 		ploop_err(errno, "Can't open ploop device %s",
 			device);
@@ -100,7 +100,7 @@ int get_balloon(const char *mount_point, struct stat *st, int *outfd)
 	if (mount_point == NULL)
 		return SYSEXIT_PARAM;
 
-	fd = open(mount_point, O_RDONLY);
+	fd = open(mount_point, O_RDONLY|O_CLOEXEC);
 	if (fd < 0) {
 		ploop_err(errno, "Can't open mount point %s", mount_point);
 		return(SYSEXIT_OPEN);
@@ -848,7 +848,7 @@ static int ploop_trim(const char *mount_point, __u64 minlen_b, __u64 cluster)
 		exit(1);
 	}
 
-	fd = open(mount_point, O_RDONLY);
+	fd = open(mount_point, O_RDONLY|O_CLOEXEC);
 	if (fd < 0) {
 		ploop_err(errno, "Can't open mount point %s", mount_point);
 		return -1;
@@ -1134,7 +1134,7 @@ int ploop_blk_discard(const char* device, __u32 blocksize, off_t start, off_t en
 	range[0] = start;
 	range[1] = end - start;
 
-	fd = open(device, O_RDWR);
+	fd = open(device, O_RDWR|O_CLOEXEC);
 	if (fd < 0) {
 		ploop_err(errno, "Can't open ploop device %s",
 				device);

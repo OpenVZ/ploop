@@ -170,7 +170,7 @@ static int grow_lower_delta(const char *device, int top,
 		goto done;
 	}
 
-	devfd = open(device, O_RDONLY);
+	devfd = open(device, O_RDONLY|O_CLOEXEC);
 	if (devfd < 0) {
 		ploop_err(errno, "open dev");
 		ret = SYSEXIT_DEVICE;
@@ -342,7 +342,7 @@ int merge_image(const char *device, int start_level, int end_level, int raw,
 					goto rm_delta;
 			}
 			ploop_log(0, "Merging top delta");
-			lfd = open(device, O_RDONLY);
+			lfd = open(device, O_RDONLY|O_CLOEXEC);
 			if (lfd < 0) {
 				ploop_err(errno, "open dev %s", device);
 				ret = SYSEXIT_DEVICE;
@@ -617,7 +617,7 @@ merge_done:
 		int lfd;
 		__u32 level;
 
-		lfd = open(device, O_RDONLY);
+		lfd = open(device, O_RDONLY|O_CLOEXEC);
 		if (lfd < 0) {
 			ploop_err(errno, "open dev");
 			ret = SYSEXIT_DEVICE;
@@ -627,7 +627,7 @@ merge_done:
 		if (new_image) {
 			int fd;
 
-			fd = open(new_image, O_DIRECT | O_RDONLY);
+			fd = open(new_image, O_DIRECT|O_RDONLY|O_CLOEXEC);
 			if (fd < 0) {
 				ploop_err(errno, "Can't open %s", new_image);
 				ret = SYSEXIT_OPEN;
