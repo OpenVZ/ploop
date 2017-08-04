@@ -259,16 +259,24 @@ struct ploop_disk_images_data *alloc_diskdescriptor(void)
 		return NULL;
 	}
 
+	p->vol = calloc(1, sizeof(struct volume_data));
+	if (p->vol == NULL)
+		goto err;
+
 	p->runtime = calloc(1, sizeof(struct ploop_disk_images_runtime_data));
-	if (p->runtime == NULL) {
-		free(p);
-		ploop_err(ENOMEM, "calloc failed");
-		return NULL;
-	}
+	if (p->runtime == NULL)
+		goto err;
+
 	p->runtime->lckfd = -1;
 	p->runtime->umount_timeout = PLOOP_UMOUNT_TIMEOUT;
 
 	return p;
+err:
+	
+	ploop_err(ENOMEM, "calloc failed");
+	ploop_close_dd(p);
+
+	return NULL;
 }
 
 void ploop_clear_dd(struct ploop_disk_images_data *di)
@@ -293,6 +301,14 @@ void ploop_clear_dd(struct ploop_disk_images_data *di)
 	di->top_guid = NULL;
 
 	free_encryption_data(di);
+
+	if (di->vol) {
+		free(di->vol->parent);
+		di->vol->parent = NULL;
+		free(di->vol->snap_guid);
+		di->vol->snap_guid = 0;
+		di->vol->ro = 0;
+	}
 }
 
 void ploop_close_dd(struct ploop_disk_images_data *di)
@@ -305,6 +321,7 @@ void ploop_close_dd(struct ploop_disk_images_data *di)
 	free(di->runtime->xml_fname);
 	free(di->runtime->component_name);
 	free(di->runtime);
+	free(di->vol);
 
 	free(di);
 }
@@ -573,11 +590,15 @@ int ploop_di_merge_image(struct ploop_disk_images_data *di, const char *guid, ch
 			strcpy(di->snapshots[i]->guid, guid);
 			/* preserve temporary flag */
 			di->snapshots[i]->temporary = snapshot->temporary;
+			di->snapshots[i]->alien = snapshot->alien;
 		}
 	}
-	for (i = 0; i < di->nimages; i++)
-		if (guidcmp(di->images[i]->guid, snapshot->parent_guid) == 0)
+	for (i = 0; i < di->nimages; i++) {
+		if (guidcmp(di->images[i]->guid, snapshot->parent_guid) == 0) {
 			strcpy(di->images[i]->guid, guid);
+			di->images[i]->alien = snapshot->alien;
+		}
+	}
 	remove_data_from_array((void**)di->snapshots, di->nsnapshots, snap_id);
 	di->nsnapshots--;
 	remove_data_from_array((void**)di->images, di->nimages, image_id);

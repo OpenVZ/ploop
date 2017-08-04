@@ -33,11 +33,10 @@
 /* lock temporary snapshot by mount */
 #define TSNAPSHOT_MOUNT_LOCK_MARK	"~"
 
-#define SNAP_TYPE_TEMPORARY	0x1
-#define SNAP_TYPE_OFFLINE	0x2
-
 static int is_old_snapshot_format(struct ploop_disk_images_data *di)
 {
+	return 0;
+
 	if (di->top_guid != NULL && !guidcmp(di->top_guid, TOPDELTA_UUID))
 		return 0;
 
@@ -49,7 +48,7 @@ static int is_old_snapshot_format(struct ploop_disk_images_data *di)
  * 1) if guid is not active and last -> delete guid
  * 2) if guid is not last merge with child -> delete child
  */
-static int do_delete_snapshot(struct ploop_disk_images_data *di, const char *guid)
+int do_delete_snapshot(struct ploop_disk_images_data *di, const char *guid)
 {
 	int ret;
 	char conf[PATH_MAX];
@@ -57,7 +56,7 @@ static int do_delete_snapshot(struct ploop_disk_images_data *di, const char *gui
 	char dev[64];
 	int snap_id;
 
-	if (is_old_snapshot_format(di))
+	if (is_old_snapshot_format(di) || guid == NULL)
 		return SYSEXIT_PARAM;
 
 	snap_id = find_snapshot_by_guid(di, guid);
@@ -256,6 +255,8 @@ static int get_snapshot_count(struct ploop_disk_images_data *di)
 	int n;
 	char **images;
 
+	if (di->top_guid == NULL)
+		return 0;
 	images = make_images_list(di, di->top_guid, 1);
 	if (images == NULL)
 		return -1;
@@ -265,7 +266,7 @@ static int get_snapshot_count(struct ploop_disk_images_data *di)
 	return n;
 }
 
-static int do_create_snapshot(struct ploop_disk_images_data *di,
+int do_create_snapshot(struct ploop_disk_images_data *di,
 		const char *guid, const char *snap_dir,
 		const char *cbt_uuid, int flags)
 {
@@ -273,6 +274,7 @@ static int do_create_snapshot(struct ploop_disk_images_data *di,
 	int fd;
 	char dev[64];
 	char snap_guid[UUID_SIZE];
+	char top_guid[UUID_SIZE];
 	char file_guid[UUID_SIZE];
 	char fname[PATH_MAX];
 	const char *prev_fname = NULL;
@@ -307,10 +309,15 @@ static int do_create_snapshot(struct ploop_disk_images_data *di,
 
 	ret = gen_uuid_pair(snap_guid, sizeof(snap_guid),
 			file_guid, sizeof(file_guid));
-	if (ret) {
-		ploop_err(errno, "Can't generate uuid");
+	if (ret)
 		return ret;
-	}
+
+	if (di->vol->parent) {
+	        ret = ploop_uuid_generate(top_guid, sizeof(top_guid));
+        	if (ret)
+                	return ret;
+	} else
+		strcpy(top_guid, TOPDELTA_UUID);
 
 	if (guid != NULL) {
 		if (find_snapshot_by_guid(di, guid) != -1) {
@@ -402,7 +409,7 @@ static int do_create_snapshot(struct ploop_disk_images_data *di,
 	if (temporary)
 		ploop_di_set_temporary(di, snap_guid);
 
-	ret = ploop_di_add_image(di, fname, TOPDELTA_UUID, snap_guid);
+	ret = ploop_di_add_image(di, fname, top_guid, snap_guid);
 	if (ret)
 		return ret;
 

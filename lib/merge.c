@@ -98,12 +98,12 @@ static int locate_l2_entry(struct delta_array *p, int level, int i, __u32 k, int
 	return 0;
 }
 
-static int grow_lower_delta(const char *device, int top, int start_level, int end_level)
+static int grow_lower_delta(const char *device, int top,
+		const char *src_image, const char *dst_image,
+		int start_level)
 {
 	off_t src_size = 0; /* bdsize of source delta to merge */
 	off_t dst_size = 0; /* bdsize of destination delta for merge */
-	char *src_image = NULL;
-	char *dst_image = NULL;
 	int i, devfd;
 	struct ploop_pvd_header *vh;
 	struct grow_maps grow_maps;
@@ -117,20 +117,10 @@ static int grow_lower_delta(const char *device, int top, int start_level, int en
 	if (top) {
 		if ((ret = ploop_get_size(device, &src_size)))
 			return ret;
-	} else {
-		if (find_delta_names(device, end_level, end_level,
-				     &src_image, &fmt)) {
-			ploop_err(errno, "find_delta_names");
-			ret = SYSEXIT_SYSFS;
-			goto done;
-		}
+	} else if ((ret = read_size_from_image(src_image, 0, &src_size)))
+		goto done;
 
-		if ((ret = read_size_from_image(src_image, 0, &src_size)))
-			goto done;
-	}
-
-	if (find_delta_names(device, start_level, start_level,
-			     &dst_image, &fmt)) {
+	if (find_delta_names(device, start_level, start_level, NULL, &fmt)) {
 		ploop_err(errno, "find_delta_names");
 		ret = SYSEXIT_SYSFS;
 		goto done;
@@ -223,8 +213,6 @@ static int grow_lower_delta(const char *device, int top, int start_level, int en
 
 done:
 	free(buf);
-	free(src_image);
-	free(dst_image);
 	close_delta(&odelta);
 	return ret;
 }
@@ -272,21 +260,27 @@ int get_delta_info(const char *device, struct merge_info *info)
 				info->merge_top = 1;
 		}
 	}
-	info->names = calloc(1, (info->end_level - info->start_level + 2) * sizeof(char*));
-	if (info->names == NULL) {
+
+	int n = info->end_level - info->start_level + 1;
+	info->names = calloc(1, (n + 1) * sizeof(char *));
+	info->info = calloc(1, n * sizeof(struct image_info));
+	if (info->names == NULL || info->info == NULL) {
 		ploop_err(errno, "malloc");
 		return SYSEXIT_MALLOC;
 	}
-	if (find_delta_names(device, info->start_level, info->end_level, info->names, &fmt))
+
+	if (find_delta_info(device, info->start_level, info->end_level,
+			info->names, info->info, &fmt))
 		return SYSEXIT_SYSFS;
+
 	if (strcmp(fmt, "raw") == 0)
 		info->raw = 1;
 
 	return 0;
 }
 
-int merge_image(const char *device, int start_level, int end_level, int raw, int merge_top,
-		      char **images, const char *new_image)
+int merge_image(const char *device, int start_level, int end_level, int raw,
+		int merge_top, char **images, const char *new_image)
 {
 	int last_delta = 0;
 	char **names = NULL;
@@ -313,6 +307,14 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 					start_level, end_level);
 			return SYSEXIT_PARAM;
 		}
+
+		if (!new_image)
+			if ((ret = grow_lower_delta(device, merge_top,
+						images[0],
+						images[end_level - start_level],
+						start_level)))
+				return ret;
+
 		if (merge_top) {
 			/* top delta is in running state merged
 			by means of PLOOP_IOC_MERGE */
@@ -323,10 +325,6 @@ int merge_image(const char *device, int start_level, int end_level, int raw, int
 		} else
 			names = images;
 
-		if (!new_image)
-			if ((ret = grow_lower_delta(device, merge_top,
-						start_level, end_level)))
-				return ret;
 
 		if (end_level == 0) {
 			int lfd;
@@ -795,6 +793,20 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di,
 		online = 1;
 
 	if (online) {
+		struct stat st_child, st_parent;
+
+		if (stat(child_fname, &st_child)) {
+			ploop_err(errno, "Can't stat %s", child_fname);
+			ret = SYSEXIT_FSTAT;
+			goto err;
+		}
+
+		if (stat(parent_fname, &st_parent)) {
+			ploop_err(errno, "Can't stat %s", parent_fname);
+			ret = SYSEXIT_FSTAT;
+			goto err;
+		}
+
 		ret = complete_running_operation(di, dev);
 		if (ret)
 			goto err;
@@ -802,21 +814,27 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di,
 			goto err;
 		nelem = get_list_size(info.names);
 		for (i = 0; info.names[i] != NULL; i++) {
-			ret = ploop_fname_cmp(info.names[i], child_fname);
+			if (info.info[i].ino) {
+				ret = (st_child.st_dev != info.info[i].dev ||
+					st_child.st_ino != info.info[i].ino);
+			} else
+				ret = fname_cmp(info.names[i], &st_child);
 			if (ret == -1) {
 				goto err;
 			} else if (ret == 0) {
-				child_fname = info.names[i];
 				end_level = nelem - i - 1;
 				continue;
 			}
-			ret = ploop_fname_cmp(info.names[i], parent_fname);
+
+			if (info.info[i].ino) {
+				ret = (st_parent.st_dev != info.info[i].dev ||
+					st_parent.st_ino != info.info[i].ino);
+			} else
+				ret = fname_cmp(info.names[i], &st_parent);
 			if (ret == -1)
 				goto err;
-			else if (ret == 0) {
-				parent_fname = info.names[i];
+			else if (ret == 0)
 				start_level = nelem - i - 1;
-			}
 		}
 
 		if (end_level != -1 && start_level != -1) {
@@ -960,6 +978,7 @@ err:
 
 	free(delete_fname);
 	ploop_free_array(info.names);
+	free(info.info);
 
 	return ret;
 }

@@ -91,18 +91,26 @@ struct ploop_replace_param {
 struct ploop_image_data {
 	char *guid;
 	char *file;
+	int alien;
 };
 
 struct ploop_snapshot_data {
 	char *guid;
 	char *parent_guid;
 	int temporary;
+	int alien;
 };
 
 struct ploop_disk_images_runtime_data;
 
 struct encryption_data {
 	char *keyid;
+};
+
+struct volume_data {
+	char *parent;
+	char *snap_guid;
+	int ro;
 };
 
 struct ploop_disk_images_data {
@@ -120,6 +128,7 @@ struct ploop_disk_images_data {
 	unsigned int blocksize;
 	unsigned long long max_delta_size;
 	struct encryption_data *enc;
+	struct volume_data *vol;
 	char dummy[32];
 };
 

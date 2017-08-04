@@ -31,7 +31,7 @@
 
 #define CRYPT_BIN	"/usr/libexec/ploop/crypthelper"
 
-static const char *get_basename(const char *path)
+const char *get_basename(const char *path)
 {
 	char *x = strrchr(path, '/');
 

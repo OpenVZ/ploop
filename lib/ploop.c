@@ -40,7 +40,8 @@
 #include "cleanup.h"
 #include "cbt.h"
 
-static int ploop_mount_fs(const char *partname,	struct ploop_mount_param *param,
+static int ploop_mount_fs(struct ploop_disk_images_data *di,
+		const char *partname,	struct ploop_mount_param *param,
 		int need_balloon);
 
 static off_t round_bdsize(off_t size, __u32 blocksize, int version)
@@ -626,7 +627,7 @@ static int create_balloon_file(struct ploop_disk_images_data *di,
 		return ret;
 	strcpy(mount_param.device, device);
 	mount_param.target = mnt;
-	ret = ploop_mount_fs(partname, &mount_param, 0);
+	ret = ploop_mount_fs(di, partname, &mount_param, 0);
 	if (ret)
 		goto out;
 	snprintf(fname, sizeof(fname), "%s/"BALLOON_FNAME, mnt);
@@ -805,11 +806,6 @@ static int init_dd(struct ploop_disk_images_data **di,
 	blocksize = param->blocksize ?
 		param->blocksize : (1 << PLOOP1_DEF_CLUSTER_LOG);
 
-	if (param->image == NULL) {
-		ploop_err(0, "Image file name not specified");
-		return SYSEXIT_PARAM;
-	}
-
 	if (!is_fmt_version_valid(fmt_version)) {
 		ploop_err(0, "Unknown ploop image version: %d",
 				fmt_version);
@@ -863,21 +859,44 @@ err:
 	return ret;
 }
 
-int ploop_create_image(struct ploop_create_param *param)
+int ploop_create(const char *path, const char *ipath,
+		 struct ploop_create_param *param)
 {
 	struct ploop_disk_images_data *di = NULL;
 	char ddxml[PATH_MAX];
 	char fname[PATH_MAX];
+	char image[PATH_MAX];
 	int ret;
 	int fmt_version;
 	int image_created = 0;
+	char *basedir;
 
-	if (param->image == NULL) {
-		ploop_err(0, "Image file name not specified");
-		return SYSEXIT_PARAM;
+	if (path != NULL) {
+		snprintf(ddxml, sizeof(ddxml), "%s/"DISKDESCRIPTOR_XML, path);
+		if (ipath)
+			snprintf(image, sizeof(image), "%s", ipath);
+		else
+			snprintf(image, sizeof(image), "%s/image.hds", path);
+	} else {
+		if (param->image == NULL) {
+			ploop_err(0, "Image file name not specified");
+			return SYSEXIT_PARAM;
+		}
+
+		get_disk_descriptor_fname_by_image(param->image, ddxml,
+				sizeof(ddxml));
+		snprintf(image, sizeof(image), "%s", param->image);
 	}
 
-	get_disk_descriptor_fname_by_image(param->image, ddxml, sizeof(ddxml));
+	get_basedir(ddxml, fname, sizeof(fname));
+	basedir = realpath(*fname != '\0' ? fname : "./", NULL);
+	if (basedir == NULL) {
+		ploop_err(errno, "Can't resolve %s", fname);
+		return SYSEXIT_CREAT;
+	}
+	snprintf(ddxml, sizeof(ddxml), "%s/"DISKDESCRIPTOR_XML, basedir);
+	free(basedir);
+
 	ret = init_dd(&di, ddxml, param);
 	if (ret)
 		return ret;
@@ -885,14 +904,14 @@ int ploop_create_image(struct ploop_create_param *param)
 	fmt_version = param->fmt_version == PLOOP_FMT_UNDEFINED ?
 		default_fmt_version() : param->fmt_version;
 
-	ret = create_image(param->image, di->blocksize, di->size,
+	ret = create_image(image, di->blocksize, di->size,
 			param->mode, fmt_version);
 	if (ret)
 		goto out;
 	image_created = 1;
 
-	if (realpath(param->image, fname) == NULL) {
-		ploop_err(errno, "failed realpath(%s)", param->image);
+	if (realpath(image, fname) == NULL) {
+		ploop_err(errno, "failed realpath(%s)", image);
 		ret = SYSEXIT_CREAT;
 		goto out;
 	}
@@ -905,7 +924,6 @@ int ploop_create_image(struct ploop_create_param *param)
 	if (ret)
 		goto out;
 
-
 	if (param->fstype != NULL) {
 		ret = ploop_init_image(di, param);
 		if (ret)
@@ -917,13 +935,18 @@ out:
 		if (di)
 			ploop_drop_image(di);
 		if (image_created)
-			unlink(param->image);
+			unlink(image);
 		unlink(ddxml);
 	}
 
 	ploop_close_dd(di);
 
 	return ret;
+}
+
+int ploop_create_image(struct ploop_create_param *param)
+{
+	return ploop_create(NULL, param->image, param);
 }
 
 #define PROC_PLOOP_MINOR	"/proc/vz/ploop_minor"
@@ -1212,20 +1235,17 @@ int ploop_get_mnt_by_dev(const char *dev, char *buf, int size)
 	return get_mount_dir(partname, buf, size);
 }
 
-int ploop_fname_cmp(const char *p1, const char *p2)
+int fname_cmp(const char *p1, struct stat *st)
 {
-	struct stat st1, st2;
+	struct stat st1;
 
 	if (stat(p1, &st1)) {
-		ploop_err(errno, "stat %s", p1);
+		ploop_err(errno, "Can't stat %s", p1);
 		return -1;
 	}
-	if (stat(p2, &st2)) {
-		ploop_err(errno, "stat %s", p2);
-		return -1;
-	}
-	if (st1.st_dev == st2.st_dev &&
-	    st1.st_ino == st2.st_ino)
+
+	if (st1.st_dev == st->st_dev &&
+	    st1.st_ino == st->st_ino)
 		return 0;
 	return 1;
 }
@@ -1288,7 +1308,7 @@ int ploop_get_dev_by_mnt(const char *path, char *buf, int size)
 	return get_dev_by_mnt(path, 1, buf, size);
 }
 
-static char *get_base_delta_uuid(struct ploop_disk_images_data *di)
+const char *get_base_delta_uuid(struct ploop_disk_images_data *di)
 {
 	int i;
 
@@ -1299,12 +1319,12 @@ static char *get_base_delta_uuid(struct ploop_disk_images_data *di)
 	return NULL;
 }
 
-static const char *get_top_delta_guid(struct ploop_disk_images_data *di)
+const char *get_top_delta_guid(struct ploop_disk_images_data *di)
 {
 	return di->top_guid;
 }
 
-static int get_delta_fname(struct ploop_disk_images_data *di, const char *guid,
+int get_delta_fname(struct ploop_disk_images_data *di, const char *guid,
 	char *out, int len)
 {
 	const char *fname;
@@ -1408,12 +1428,13 @@ int reread_part(const char *device)
 	return 0;
 }
 
-static int ploop_mount_fs(const char *partname, struct ploop_mount_param *param,
+static int ploop_mount_fs(struct ploop_disk_images_data *di,
+		const char *partname, struct ploop_mount_param *param,
 		int need_balloon)
 {
 	unsigned long flags =
 		(param->flags & MS_NOATIME) |
-		(param->ro ? MS_RDONLY : 0);
+		(param->ro | di->vol->ro ? MS_RDONLY : 0);
 	char buf[PATH_MAX + sizeof(BALLOON_FNAME)];
 	struct stat st;
 	char *fstype = param->fstype == NULL ? DEFAULT_FSTYPE : param->fstype;
@@ -1942,7 +1963,7 @@ static int add_deltas(struct ploop_disk_images_data *di,
 	req.f.pctl_type = PLOOP_IO_AUTO;
 
 	for (i = 0; images[i] != NULL; i++) {
-		int ro = (images[i+1] != NULL || param->ro) ? 1: 0;
+		int ro = (images[i+1] != NULL || param->ro || di->vol->ro) ? 1: 0;
 		char *image = images[i];
 
 		req.c.pctl_format = PLOOP_FMT_PLOOP1;
@@ -2235,7 +2256,7 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 	}
 
 	if (param->target != NULL || param->fsck) {
-		ret = ploop_mount_fs(partname, param, 1);
+		ret = ploop_mount_fs(di, partname, param, 1);
 		if (ret)
 			goto err_stop;
 	}
@@ -2275,7 +2296,7 @@ int mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *par
 	} else
 		guid = di->top_guid;
 
-	if (!param->ro) {
+	if (!param->ro && !di->vol->ro) {
 		int nr_ch = ploop_get_child_count_by_uuid(di, guid);
 		if (nr_ch != 0) {
 			ploop_err(0, "Unable to mount (rw) snapshot %s: "
@@ -2298,16 +2319,8 @@ int mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *par
 
 static int mount_fs(const char *part, const char *target)
 {
-	int n = 0;
-
 	ploop_log(0, "Mounting %s at %s", part, target);
-
-retry:
 	if (mount(part, target, DEFAULT_FSTYPE, 0, 0)) {
-		if (errno == EBUSY && n++ < 6) {
-			sleep(1);
-			goto retry;
-		}
 		ploop_err(errno, "Can't mount dev=%s target=%s",
 				part, target);
 		return SYSEXIT_MOUNT;
@@ -2337,7 +2350,7 @@ static int auto_mount_fs(struct ploop_disk_images_data *di, pid_t mntns_pid,
 			return mount_fs(partname, target);
 	}
 
-	return ploop_mount_fs(partname, param, 1);
+	return ploop_mount_fs(di, partname, param, 1);
 }
 
 int auto_mount_image(struct ploop_disk_images_data *di,

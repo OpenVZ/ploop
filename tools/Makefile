@@ -4,7 +4,8 @@ include $(PLOOPROOT)/Makefile.inc
 
 PROGS =	ploop \
 	ploop-balloon \
-	ploop-cbt
+	ploop-cbt \
+	ploop-volume
 
 BINS	= $(PROGS)
 
@@ -22,7 +23,7 @@ PLOOP_OBJS = \
 
 OBJS	= $(addsuffix .o,$(PROGS)) $(PLOOP_OBJS)
 SOURCES	= $(OBJS:.o=.c)
-CFLAGS	+= -I../lib
+CFLAGS	+= -I../lib -I ../include
 LDFLAGS	+= -L../lib
 LDLIBS	= -lploop
 

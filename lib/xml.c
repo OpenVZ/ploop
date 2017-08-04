@@ -92,6 +92,118 @@ static int parse_ul(const char *str, __u64 *val)
 	return 0;
 }
 
+void normalize_path(const char *path, char *out)
+{
+	const char *s;
+
+	for (s = path; *s != '\0'; out++, s++) {
+		*out = *s;
+		if (*s == '/')
+			while (*(s + 1) == '/')
+				s++;
+	}
+
+	if (*(out - 1) == '/')
+		out--;
+	*out = '\0';
+
+}
+
+static int get_num_dir(const char *dir)
+{
+	int n;
+
+	for (n = 0; *dir != '\0'; dir++)
+		if (*dir == '/')
+			n++;
+
+	return n;
+}
+
+static void get_relative_path(const char *dir, const char *path, char *out,
+		int len)
+{
+	int n;
+	const char *b, *i, *b_d, *i_d;
+	char *basedir, *fname;
+
+	fname = alloca(strlen(path) + 1);
+	normalize_path(path, fname);
+
+	n = strlen(dir);
+	basedir = alloca(n + 2);
+	normalize_path(dir, basedir);
+	n = strlen(basedir);
+	if (basedir[n - 1] != '/')
+		strcat(basedir, "/");
+
+	b_d = basedir;
+	i_d = fname;
+
+	/* skip the same base */
+	for (b = b_d, i = i_d; *b != '\0' && *i != '\0' && *b == *i;
+			b++, i++)
+	{
+		if (*b == '/')
+			b_d = b;
+		if (*i == '/')
+			i_d = i;
+	}
+
+	*out = '\0'; 
+	if (i_d == fname) {
+		snprintf(out, len, "%s", fname);
+		return;
+	}
+
+	if (*b != '\0') {
+		int i, n = get_num_dir(b_d + 1);
+
+		for (i = 0; i < n; i++)
+			strcat(out, "../");
+	}
+	strcat(out, i_d + 1);
+}
+
+static void get_full_path(const char *dir, const char *path, char *out,
+		int len)
+{
+	char *basedir, *fname;
+	int n;
+
+	fname = alloca(strlen(path) + 1);
+	normalize_path(path, fname);
+
+	n = strlen(dir);
+	basedir = alloca(n + 2);
+	normalize_path(dir, basedir);
+	n = strlen(basedir);
+	if (basedir[n - 1] != '/')
+		strcat(basedir, "/");
+
+	if (*fname == '/') {
+		snprintf(out, len, "%s", fname);
+		return;
+	}
+
+	const char *s = fname;
+	const char *image_base = s;
+	for (n = 0; (s = strstr(s, "../")) != NULL; n++) {
+		s += 3;
+		image_base = s;
+	}
+
+	const char *p = basedir + strlen(basedir) - 1;
+	int i;
+	for(i = 0; p != basedir; p--) {
+		if (*p == '/' && i++ == n)
+			break;
+	}
+
+	snprintf(out, p - basedir + 2, "%s", basedir);
+	strcat(out, image_base);
+}
+
 #define ERR(var, name)							\
 	do {								\
 		if (var == NULL) {					\
@@ -163,6 +275,26 @@ static int parse_xml(const char *basedir, xmlNode *root_node, struct ploop_disk_
 		}
 	}
 
+	cur_node = seek(root_node, "/StorageData/Volume");
+	if (cur_node) {
+		node = seek(cur_node, "Parent");
+		if (node != NULL) {
+			data = get_element_txt(node);
+			ERR(data, "Path");
+			get_full_path(basedir, data, image, sizeof(image));
+			di->vol->parent = strdup(image);
+		}
+		node = seek(cur_node, "SnapshotGUID");
+		if (node != NULL) {
+			data = get_element_txt(node);
+			ERR(data, "GUID");
+			di->vol->snap_guid = strdup(data);
+		}
+		node = seek(cur_node, "ReadOnly");
+		if (node != NULL)
+			di->vol->ro = 1;
+	}
+
 	cur_node = seek(root_node, "/StorageData/Storage");
 	ERR(cur_node, "/StorageData/Storage");
 	for (n = 0; cur_node; cur_node = cur_node->next, n++) {
@@ -197,8 +329,9 @@ static int parse_xml(const char *basedir, xmlNode *root_node, struct ploop_disk_
 		}
 	}
 
+	cur_node = seek(root_node, "/StorageData/Storage");
+	ERR(cur_node, "/StorageData/Storage");
 	cur_node = seek(root_node, "/StorageData/Storage/Image");
-	ERR(cur_node, "/StorageData/Storage/Image");
 	for (; cur_node; cur_node = cur_node->next) {
 		if (cur_node->type != XML_ELEMENT_NODE)
 			continue;
@@ -220,12 +353,8 @@ static int parse_xml(const char *basedir, xmlNode *root_node, struct ploop_disk_
 		node = seek(cur_node, "File");
 		if (node != NULL) {
 			file = get_element_txt(node);
-			if (file != NULL) {
-				if (basedir[0] != 0 && file[0] != '/')
-					snprintf(image, sizeof(image), "%s%s", basedir, file);
-				else
-					snprintf(image, sizeof(image), "%s", file);
-			}
+			if (file != NULL)
+				get_full_path(basedir, file, image, sizeof(image));
 		}
 		ERR(file, "File");
 
@@ -303,6 +432,11 @@ void get_basedir(const char *fname, char *out, int len)
 /* Convert to new format with constant TopGUID */
 static int convert_disk_descriptor(struct ploop_disk_images_data *di)
 {
+	return 0;
+
+	if (di->vol->parent != NULL)
+		return 0;
+
 	if (di->top_guid == NULL) {
 		ploop_err(0, "Invalid DiskDescriptor.xml: TopGUID not found");
 		return -1;
@@ -328,6 +462,9 @@ static int convert_disk_descriptor(struct ploop_disk_images_data *di)
 
 static int validate_disk_descriptor(struct ploop_disk_images_data *di)
 {
+	if (di->vol->ro)
+		return 0;
+
 	if (di->nimages == 0) {
 		ploop_err(0, "No images found in %s",
 				di->runtime->xml_fname);
@@ -382,7 +519,7 @@ static int validate_disk_descriptor(struct ploop_disk_images_data *di)
 	return 0;
 }
 
-int ploop_read_dd(struct ploop_disk_images_data *di)
+int read_dd(struct ploop_disk_images_data *di)
 {
 	int ret;
 	char basedir[PATH_MAX];
@@ -426,6 +563,80 @@ int ploop_read_dd(struct ploop_disk_images_data *di)
 	xmlFreeDoc(doc);
 
 	return ret;
+}
+
+int append_dd(struct ploop_disk_images_data *src,
+		struct ploop_disk_images_data *dst)
+{
+	int i, rc;
+
+	for (i = 0; i < src->nimages; i++) {
+		rc = ploop_add_image_entry(dst,
+				src->images[i]->file, src->images[i]->guid);
+		if (rc)
+			return rc;
+
+		dst->images[dst->nimages - 1]->alien = 1;
+	}
+
+	for (i = 0; i < src->nsnapshots; i++) {
+		rc = ploop_add_snapshot_entry(dst,
+				src->snapshots[i]->guid,
+				src->snapshots[i]->parent_guid,
+				src->snapshots[i]->temporary);
+
+		if (rc)
+			return rc;
+
+		dst->snapshots[dst->nsnapshots - 1]->alien = 1;
+	}
+
+	return 0;
+}
+
+int ploop_read_dd(struct ploop_disk_images_data *di)
+{
+	int rc, n = 0;
+	struct ploop_disk_images_data *d;
+	char xml_fname[PATH_MAX];
+
+	rc = read_dd(di);
+	if (rc)
+		return rc;
+
+	if (di->vol->parent == NULL)
+		return 0;
+
+	ploop_log(2, "read %s", di->runtime->xml_fname);
+	snprintf(xml_fname, sizeof(xml_fname), "%s/" DISKDESCRIPTOR_XML,
+			di->vol->parent);
+	do {
+		d = alloc_diskdescriptor();
+		if (d == NULL)
+			return SYSEXIT_MALLOC;
+
+		ploop_log(3, "read parent %s", xml_fname);
+		d->runtime->xml_fname = strdup(xml_fname);
+		rc = read_dd(d);
+		if (rc)
+			break;
+
+		rc = append_dd(d, di);
+		if (rc)
+			break;
+
+		if (d->vol->parent == NULL)
+			break;
+
+		snprintf(xml_fname, sizeof(xml_fname), "%s/" DISKDESCRIPTOR_XML,
+				d->vol->parent);
+		ploop_close_dd(d);
+		d = NULL;
+	} while (n++ < 256);
+
+	ploop_close_dd(d);
+	
+	return rc;
 }
 
 int ploop_read_disk_descr(struct ploop_disk_images_data **di, const char *file)
@@ -591,6 +802,48 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 		ploop_err(0, "Error at xmlTextWriter StorageData");
 		goto err;
 	}
+
+	if ((di->vol->parent && di->vol->snap_guid) || di->vol->ro) {
+		rc = xmlTextWriterStartElement(writer, BAD_CAST "Volume");
+		if (rc < 0) {
+			ploop_err(0, "Error at xmlTextWriter Volume");
+			goto err;
+		}
+
+		if (di->vol->parent) {
+			get_relative_path(basedir, di->vol->parent, tmp, sizeof(tmp));
+			rc = xmlTextWriterWriteFormatElement(writer, BAD_CAST "Parent",
+					"%s", tmp);
+			if (rc < 0) {
+				ploop_err(0, "Error at xmlTextWriter Parent");
+				goto err;
+			}
+		}
+
+		if (di->vol->snap_guid) {
+			rc = xmlTextWriterWriteFormatElement(writer, BAD_CAST "SnapshotGUID",
+					"%s", di->vol->snap_guid);
+			if (rc < 0) {
+				ploop_err(0, "Error at xmlTextWriter SnapshotGUID");
+				goto err;
+			}
+		}
+		if (di->vol->ro) {
+			rc = xmlTextWriterWriteFormatElement(writer, BAD_CAST "ReadOnly", "%d",
+					di->vol->ro);
+			if (rc < 0) {
+				ploop_err(0, "Error at xmlTextWriter ReadOnly");
+				goto err;
+			}
+		}
+
+		rc = xmlTextWriterEndElement(writer);
+		if (rc < 0) {
+			ploop_err(0, "Error at xmlTextWriterEndElement");
+			goto err;
+
+		}
+	}
 	/* Start an element named "Storage" as child of StorageData. */
 	rc = xmlTextWriterStartElement(writer, BAD_CAST "Storage");
 	if (rc < 0) {
@@ -625,6 +878,9 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 	 *	Images
 	 ****************************************/
 	for (i = 0; i < di->nimages; i++) {
+		if (di->images[i]->alien)
+			continue;
+
 		rc = xmlTextWriterStartElement(writer, BAD_CAST "Image");
 		if (rc < 0) {
 			ploop_err(0, "Error at xmlTextWriter Image");
@@ -644,7 +900,7 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 			goto err;
 		}
 
-		normalize_image_name(basedir, di->images[i]->file, tmp, sizeof(tmp));
+		get_relative_path(basedir, di->images[i]->file, tmp, sizeof(tmp));
 		rc = xmlTextWriterWriteElement(writer, BAD_CAST "File",
 				BAD_CAST tmp);
 		if (rc < 0) {
@@ -694,6 +950,9 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 	 *      Shot
 	 ****************************************/
 	for (i = 0; i < di->nsnapshots; i++) {
+		if (di->snapshots[i]->alien)
+			continue;
+
 		rc = xmlTextWriterStartElement(writer, BAD_CAST "Shot");
 		if (rc < 0) {
 			ploop_err(0, "Error at xmlTextWriter Shot");
