@@ -2,7 +2,7 @@ PLOOPROOT = ..
 
 include $(PLOOPROOT)/Makefile.inc
 
-INCLUDES=libploop.h ploop_if.h ploop1_image.h dynload.h
+INCLUDES=libploop.h libvolume.h ploop_if.h ploop1_image.h dynload.h
 
 all: $(INCLUDES) check-api
 .PHONY: all
