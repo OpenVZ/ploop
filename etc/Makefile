@@ -13,6 +13,10 @@ install_logrotate:
 	$(Q) $(INSTALL) -d $(DESTDIR)/$(LOGROTATEDIR)
 	$(Q) $(INSTALL) -m 644 logrotate.d/ploop $(DESTDIR)/$(LOGROTATEDIR)
 
-install: install_tmpfiles $(if $(PLOOP_LOG_FILE), install_logrotate)
+install_modulesload:
+	$(Q) $(INSTALL) -d $(DESTDIR)/$(MODULESLOADDIR)
+	$(Q) $(INSTALL) -m 644 modules-load.d/ploop.conf $(DESTDIR)/$(MODULESLOADDIR)
 
-.PHONY: install install_tmpfiles install_logrotate
+install: install_tmpfiles install_modulesload $(if $(PLOOP_LOG_FILE), install_logrotate)
+
+.PHONY: install install_tmpfiles install_logrotate install_modulesload
