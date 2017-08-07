@@ -1963,7 +1963,8 @@ static int add_deltas(struct ploop_disk_images_data *di,
 	req.f.pctl_type = PLOOP_IO_AUTO;
 
 	for (i = 0; images[i] != NULL; i++) {
-		int ro = (images[i+1] != NULL || param->ro || di->vol->ro) ? 1: 0;
+		int ro = (images[i+1] != NULL || param->ro ||
+				(di && di->vol->ro)) ? 1: 0;
 		char *image = images[i];
 
 		req.c.pctl_format = PLOOP_FMT_PLOOP1;
