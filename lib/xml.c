@@ -277,6 +277,12 @@ static int parse_xml(const char *basedir, xmlNode *root_node, struct ploop_disk_
 
 	cur_node = seek(root_node, "/StorageData/Volume");
 	if (cur_node) {
+		di->vol = calloc(1, sizeof(struct volume_data));
+		if (di->vol == NULL) {
+			ploop_err(ENOMEM, "calloc failed");
+			return -1;
+		}
+
 		node = seek(cur_node, "Parent");
 		if (node != NULL) {
 			data = get_element_txt(node);
@@ -432,9 +438,7 @@ void get_basedir(const char *fname, char *out, int len)
 /* Convert to new format with constant TopGUID */
 static int convert_disk_descriptor(struct ploop_disk_images_data *di)
 {
-	return 0;
-
-	if (di->vol->parent != NULL)
+	if (di->vol != NULL)
 		return 0;
 
 	if (di->top_guid == NULL) {
@@ -462,7 +466,7 @@ static int convert_disk_descriptor(struct ploop_disk_images_data *di)
 
 static int validate_disk_descriptor(struct ploop_disk_images_data *di)
 {
-	if (di->vol->ro)
+	if (di->vol)
 		return 0;
 
 	if (di->nimages == 0) {
@@ -604,7 +608,7 @@ int ploop_read_dd(struct ploop_disk_images_data *di)
 	if (rc)
 		return rc;
 
-	if (di->vol->parent == NULL)
+	if (di->vol == NULL || di->vol->parent == NULL)
 		return 0;
 
 	ploop_log(2, "read %s", di->runtime->xml_fname);
@@ -625,7 +629,7 @@ int ploop_read_dd(struct ploop_disk_images_data *di)
 		if (rc)
 			break;
 
-		if (d->vol->parent == NULL)
+		if (d->vol == NULL || d->vol->parent == NULL)
 			break;
 
 		snprintf(xml_fname, sizeof(xml_fname), "%s/" DISKDESCRIPTOR_XML,
@@ -803,7 +807,7 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 		goto err;
 	}
 
-	if ((di->vol->parent && di->vol->snap_guid) || di->vol->ro) {
+	if (di->vol != NULL) {
 		rc = xmlTextWriterStartElement(writer, BAD_CAST "Volume");
 		if (rc < 0) {
 			ploop_err(0, "Error at xmlTextWriter Volume");

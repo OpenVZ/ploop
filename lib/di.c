@@ -36,6 +36,16 @@ static void free_image_data(struct ploop_image_data *data)
 	}
 }
 
+static void free_volume(struct ploop_disk_images_data *di)
+{
+	if (di->vol != NULL) {
+		free(di->vol->parent);
+		free(di->vol->snap_guid);
+		free(di->vol);
+		di->vol = NULL;
+	}
+}
+
 static void free_encryption_data(struct ploop_disk_images_data *di)
 {
 	if (di->enc != NULL) {
@@ -259,10 +269,6 @@ struct ploop_disk_images_data *alloc_diskdescriptor(void)
 		return NULL;
 	}
 
-	p->vol = calloc(1, sizeof(struct volume_data));
-	if (p->vol == NULL)
-		goto err;
-
 	p->runtime = calloc(1, sizeof(struct ploop_disk_images_runtime_data));
 	if (p->runtime == NULL)
 		goto err;
@@ -301,14 +307,7 @@ void ploop_clear_dd(struct ploop_disk_images_data *di)
 	di->top_guid = NULL;
 
 	free_encryption_data(di);
-
-	if (di->vol) {
-		free(di->vol->parent);
-		di->vol->parent = NULL;
-		free(di->vol->snap_guid);
-		di->vol->snap_guid = 0;
-		di->vol->ro = 0;
-	}
+	free_volume(di);
 }
 
 void ploop_close_dd(struct ploop_disk_images_data *di)
@@ -321,8 +320,6 @@ void ploop_close_dd(struct ploop_disk_images_data *di)
 	free(di->runtime->xml_fname);
 	free(di->runtime->component_name);
 	free(di->runtime);
-	free(di->vol);
-
 	free(di);
 }
 

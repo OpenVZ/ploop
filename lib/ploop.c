@@ -788,8 +788,8 @@ static int ploop_drop_image(struct ploop_disk_images_data *di)
 	return 0;
 }
 
-static int init_dd(struct ploop_disk_images_data **di,
-		const char *ddxml, struct ploop_create_param *param)
+static int init_dd(struct ploop_disk_images_data **di, const char *ddxml,
+		const char *path, struct ploop_create_param *param)
 {
 	struct ploop_pvd_header vh = {};
 	int fmt_version;
@@ -826,6 +826,14 @@ static int init_dd(struct ploop_disk_images_data **di,
 	if (*di == NULL)
 		return SYSEXIT_MALLOC;
 
+	if (path != NULL) {
+		(*di)->vol = calloc(1, sizeof(struct volume_data));
+		if ((*di)->vol == NULL) {
+			ploop_close_dd(*di);
+			return SYSEXIT_MALLOC;
+		}
+	}
+
 	(*di)->size = round_bdsize(param->size, blocksize, fmt_version);
 	(*di)->blocksize = blocksize;
 	(*di)->mode = param->mode;
@@ -841,7 +849,7 @@ int ploop_create_dd(const char *ddxml, struct ploop_create_param *param)
 	int ret;
 	struct ploop_disk_images_data *di = NULL;
 
-	ret = init_dd(&di, ddxml, param);
+	ret = init_dd(&di, ddxml, NULL, param);
 	if (ret)
 		return ret;
 
@@ -897,7 +905,7 @@ int ploop_create(const char *path, const char *ipath,
 	snprintf(ddxml, sizeof(ddxml), "%s/"DISKDESCRIPTOR_XML, basedir);
 	free(basedir);
 
-	ret = init_dd(&di, ddxml, param);
+	ret = init_dd(&di, ddxml, path, param);
 	if (ret)
 		return ret;
 
@@ -1434,7 +1442,7 @@ static int ploop_mount_fs(struct ploop_disk_images_data *di,
 {
 	unsigned long flags =
 		(param->flags & MS_NOATIME) |
-		(param->ro | di->vol->ro ? MS_RDONLY : 0);
+		(param->ro | (di && di->vol && di->vol->ro) ? MS_RDONLY : 0);
 	char buf[PATH_MAX + sizeof(BALLOON_FNAME)];
 	struct stat st;
 	char *fstype = param->fstype == NULL ? DEFAULT_FSTYPE : param->fstype;
@@ -1964,7 +1972,7 @@ static int add_deltas(struct ploop_disk_images_data *di,
 
 	for (i = 0; images[i] != NULL; i++) {
 		int ro = (images[i+1] != NULL || param->ro ||
-				(di && di->vol->ro)) ? 1: 0;
+				(di && di->vol && di->vol->ro)) ? 1: 0;
 		char *image = images[i];
 
 		req.c.pctl_format = PLOOP_FMT_PLOOP1;
@@ -2297,7 +2305,7 @@ int mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *par
 	} else
 		guid = di->top_guid;
 
-	if (!param->ro && !di->vol->ro) {
+	if (!param->ro && di && di->vol && !di->vol->ro) {
 		int nr_ch = ploop_get_child_count_by_uuid(di, guid);
 		if (nr_ch != 0) {
 			ploop_err(0, "Unable to mount (rw) snapshot %s: "
@@ -4053,7 +4061,7 @@ int ploop_restore_descriptor(const char *dir, char *delta_path, int raw, int blo
 		close_delta(&delta);
 	}
 
-	ret = init_dd(&di, ddxml, &param);
+	ret = init_dd(&di, ddxml, NULL, &param);
 	if (ret)
 		return ret;
 

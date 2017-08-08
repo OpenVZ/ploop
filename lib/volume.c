@@ -469,11 +469,11 @@ static int create_volume(const char *src, const char *dst, const char *snap_dir,
 		return rc;
 
 	ploop_clear_dd(*d);
+	(*d)->vol = calloc(1, sizeof(struct volume_data));
+	if ((*d)->vol == NULL)
+		return SYSEXIT_MALLOC;
 
-	free((*d)->vol->parent);
 	(*d)->vol->parent = strdup(src);
-
-	free((*d)->vol->snap_guid);
 	(*d)->vol->snap_guid = strdup(guid);
 
 	free((*d)->runtime->xml_fname);

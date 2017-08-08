@@ -312,7 +312,7 @@ int do_create_snapshot(struct ploop_disk_images_data *di,
 	if (ret)
 		return ret;
 
-	if (di->vol->parent) {
+	if (di->vol && di->vol->parent) {
 	        ret = ploop_uuid_generate(top_guid, sizeof(top_guid));
         	if (ret)
                 	return ret;
