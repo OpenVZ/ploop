@@ -183,7 +183,7 @@ int ploop_find_dev_by_cn(struct ploop_disk_images_data *di,
 {
 	int ret;
 	int running = 0;
-	char *basedelta, *topdelta;
+	char *basedelta, *topdelta = NULL;
 
 	if (di->nimages <= 0) {
 		ploop_err(0, "No images found in " DISKDESCRIPTOR_XML);
@@ -191,7 +191,8 @@ int ploop_find_dev_by_cn(struct ploop_disk_images_data *di,
 	}
 
 	basedelta = find_image_by_guid(di, get_base_delta_uuid(di));
-	topdelta = find_image_by_guid(di, get_top_delta_guid(di));
+	if (di->vol != NULL)
+		topdelta = find_image_by_guid(di, get_top_delta_guid(di));
 
 	ret = find_dev_by_delta(component_name, basedelta, topdelta, out, len);
 	if (ret == 0 && check_state) {
