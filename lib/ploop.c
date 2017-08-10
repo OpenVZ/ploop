@@ -2427,7 +2427,11 @@ static int ploop_stop_device(const char *device,
 		return SYSEXIT_DEVICE;
 	}
 
+retry:
 	ret = ploop_stop(lfd, device, di);
+	if (ret == SYSEXIT_UMOUNT_BUSY)
+		goto retry;
+
 	close(lfd);
 
 	return ret;
