@@ -2419,7 +2419,6 @@ static int ploop_stop_device(const char *device,
 		struct ploop_disk_images_data *di)
 {
 	int lfd, ret;
-	int busy = 0;
 
 	ploop_log(0, "Unmounting device %s", device);
 	lfd = open(device, O_RDONLY|O_CLOEXEC);
@@ -2428,16 +2427,10 @@ static int ploop_stop_device(const char *device,
 		return SYSEXIT_DEVICE;
 	}
 
-retry:
 	ret = ploop_stop(lfd, device, di);
-	if (ret == SYSEXIT_UMOUNT_BUSY) {
-		busy = 1;
-		goto retry;
-	}
-
 	close(lfd);
 
-	return busy ? SYSEXIT_UMOUNT_BUSY : ret;
+	return ret;
 }
 
 static int ploop_umount_fs(const char *mnt, struct ploop_disk_images_data *di)
