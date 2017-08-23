@@ -550,7 +550,8 @@ int ploop_get_dev_by_delta(const char *delta, const char *topdelta,
 			err = check_dev_by_info(de->d_name, &st_delta,
 					topdelta ? &st_topdelta : NULL);
 		else
-			err = check_dev_by_name(de->d_name, delta_r, topdelta_r);
+			err = check_dev_by_name(de->d_name, delta_r,
+					topdelta ? topdelta_r : NULL);
 		if (err == -1)
 			goto err;
 		else if (err == 1)
