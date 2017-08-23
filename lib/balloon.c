@@ -837,6 +837,7 @@ static int ploop_trim(const char *mount_point, __u64 minlen_b, __u64 cluster)
 {
 	struct fstrim_range range = {};
 	int fd, ret = -1, last = 0;
+	__u64 trim_minlen;
 
 	struct sigaction sa = {
 		.sa_handler     = stop_trim_handler,
@@ -867,6 +868,7 @@ static int ploop_trim(const char *mount_point, __u64 minlen_b, __u64 cluster)
 
 		/* range.len is reseted by FITRIM */
 		range.len = ULLONG_MAX;
+		trim_minlen = range.minlen;
 		ret = ioctl(fd, FITRIM, &range);
 		if (ret < 0) {
 			if (trim_stop)
@@ -879,8 +881,11 @@ static int ploop_trim(const char *mount_point, __u64 minlen_b, __u64 cluster)
 		if (last)
 			break;
 
+		if (range.minlen > trim_minlen)
+			minlen_b = range.minlen;
+
 		/* last iteration should go with range.minlen == minlen_b */
-		if (range.minlen != minlen_b && range.minlen / 2 < minlen_b) {
+		if (range.minlen / 2 < minlen_b) {
 			range.minlen = minlen_b * 2;
 			last = 1;
 		}
