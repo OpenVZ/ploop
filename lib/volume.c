@@ -578,6 +578,44 @@ err_unlock:
 	return rc;
 }
 
+int ploop_volume_get_info(const char *path, struct ploop_volume_info *info)
+{
+	int rc;
+	struct ploop_disk_images_data *d = NULL;
+	char buf[PATH_MAX];
+	struct stat st;
+
+	get_ddxml_fname(path, buf, sizeof(buf));
+	rc = ploop_open_dd(&d, buf);
+	if (rc)
+		return rc;
+
+	rc = read_dd(d);
+	if (rc)
+		goto err;
+
+	char *fname = find_image_by_guid(d, d->top_guid);
+	if (fname == NULL) {
+		ploop_err(0, "Unable to find image by top_uuid %s in %s\n",
+				d->top_guid, d->runtime->xml_fname);
+		rc = SYSEXIT_PARAM;
+		goto err;
+	}
+
+
+	if (stat(fname, &st)) {
+		ploop_err(errno, "Can't stat %s", fname);
+		rc = -1;
+		goto err;
+	}
+
+	info->size = st.st_size;
+
+err:
+	ploop_close_dd(d);
+	return rc;
+}
+
 int ploop_volume_snapshot(const char *src, struct ploop_volume_data *snap)
 {
 	int rc;

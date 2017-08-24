@@ -180,6 +180,41 @@ static int clone(int argc, char **argv)
 	return ploop_volume_clone(argv[0], &vol);
 }
 
+static void usage_info(void)
+{
+	fprintf(stderr, "Usage: ploop-voulume info <VOL>\n");
+}
+
+static int print_info(int argc, char **argv)
+{
+	int i, rc;
+	static struct option opts[] = {
+		{}
+	};
+	struct ploop_volume_info info;
+
+	while ((i = getopt_long(argc, argv, "", opts, NULL)) != EOF) {
+		switch (i) {
+		default:
+			return SYSEXIT_PARAM;
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc != 1) {
+		usage_info();
+		return SYSEXIT_PARAM;
+	}
+
+	if ((rc = ploop_volume_get_info(argv[0], &info)))
+		return rc;
+
+	printf("Size: %ju\n", (uintmax_t)info.size);
+	return 0;
+}
+
 static void usage_snapshot(void)
 {
 	fprintf(stderr, "Usage: ploop-volume snapshot <SRC> <DST>\n");
@@ -281,6 +316,8 @@ int main(int argc, char **argv)
 		return create(argc, argv);
 	if (strcmp(cmd, "clone") == 0)
 		return clone(argc, argv);
+	if (strcmp(cmd, "info") == 0)
+		return print_info(argc, argv);
 	if (strcmp(cmd, "snapshot") == 0)
 		return snapshot(argc, argv);
 	if (strcmp(cmd, "switch") == 0)
