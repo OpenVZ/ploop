@@ -616,6 +616,100 @@ err:
 	return rc;
 }
 
+void ploop_volume_clear_tree(struct ploop_volume_list_head *head)
+{
+	struct ploop_volume_tree_element *vol;
+
+	while (!SLIST_EMPTY(head)) {
+		vol = SLIST_FIRST(head);
+		SLIST_REMOVE_HEAD(head, next);
+		ploop_volume_clear_tree(&vol->children);
+		free(vol->path);
+		free(vol);
+	}
+}
+
+int ploop_volume_get_tree(const char *path, struct ploop_volume_list_head *out)
+{
+	DIR *dir;
+	char spath[PATH_MAX];
+	char buf[PATH_MAX];
+	struct dirent *de;
+	int rc = 0;
+	struct ploop_volume_tree_element *vol;
+	struct ploop_volume_list_head *children, head;
+	struct ploop_disk_images_data *d = NULL;
+
+	SLIST_INIT(&head);
+
+	get_ddxml_fname(path, buf, sizeof(buf));
+	rc = ploop_open_dd(&d, buf);
+	if (rc)
+		return rc;
+
+	rc = read_dd(d);
+	if (rc)
+		goto err;
+
+	vol = calloc(1, sizeof(struct ploop_volume_tree_element));
+	if (vol == NULL) {
+		rc = SYSEXIT_MALLOC;
+		goto err;
+	}
+
+	vol->path = strdup(path);
+	children = &vol->children;
+
+	SLIST_INSERT_HEAD(&head, vol, next);
+
+	snprintf(spath, sizeof(spath), "%s/"SNAP_DIR, path);
+	errno = 0;
+	dir = opendir(spath);
+	if (dir == NULL) {
+		if (errno == ENOENT)
+			goto exit;
+		ploop_err(errno, "Cannot open %s", path);
+		rc = SYSEXIT_SYS;
+		goto err;
+	}
+
+	while ((de = readdir(dir)) != NULL) {
+		if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, ".."))
+			continue;
+
+		if (de->d_type != DT_LNK)
+			continue;
+
+		snprintf(buf, sizeof(buf), "%s/%s", spath, de->d_name);
+		char *f = realpath(buf, NULL);
+		if (f == NULL) {
+			ploop_err(errno, "realpath(%s)", buf);
+			rc = -1;
+			goto err;
+		}
+
+		vol = calloc(1, sizeof(struct ploop_volume_tree_element));
+		if (vol == NULL) {
+			free(f);
+			rc = SYSEXIT_MALLOC;
+			goto err;
+		}
+
+		vol->path = f;
+		SLIST_INSERT_HEAD(children, vol, next);
+	}
+
+exit:
+	SLIST_INSERT_HEAD(out, SLIST_FIRST(&head), next);
+	SLIST_INIT(&head);
+
+err:
+	closedir(dir);
+	ploop_volume_clear_tree(&head);
+	ploop_close_dd(d);
+	return rc;
+}
+
 int ploop_volume_snapshot(const char *src, struct ploop_volume_data *snap)
 {
 	int rc;

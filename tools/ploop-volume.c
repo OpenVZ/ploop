@@ -266,6 +266,50 @@ static int volume_switch(int argc, char **argv)
 	return ploop_volume_switch(argv[1], argv[2]);
 }
 
+static void usage_tree(void)
+{
+	fprintf(stderr, "Usage: ploop-voulume tree <VOL>\n");
+}
+
+static int print_tree(int argc, char **argv)
+{
+	int i, rc;
+	static struct option opts[] = {
+		{}
+	};
+	struct ploop_volume_list_head head, *children;
+	struct ploop_volume_tree_element *vol;
+
+	while ((i = getopt_long(argc, argv, "", opts, NULL)) != EOF) {
+		switch (i) {
+		default:
+			return SYSEXIT_PARAM;
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc != 1) {
+		usage_tree();
+		return SYSEXIT_PARAM;
+	}
+
+	SLIST_INIT(&head);
+	rc = ploop_volume_get_tree(argv[0], &head);
+	if (rc)
+		return rc;
+
+	vol = SLIST_FIRST(&head);
+	printf("%s\n", vol->path);
+	children = &vol->children;
+	SLIST_FOREACH(vol, children, next) {
+		printf("%s\n", vol->path);
+	}
+	ploop_volume_clear_tree(&head);
+	return 0;
+}
+
 static void usage_delete(void)
 {
 	fprintf(stderr, "Usage: ploop-voulume delete <VOL>\n");
@@ -322,6 +366,8 @@ int main(int argc, char **argv)
 		return snapshot(argc, argv);
 	if (strcmp(cmd, "switch") == 0)
 		return volume_switch(argc, argv);
+	if (strcmp(cmd, "tree") == 0)
+		return print_tree(argc, argv);
 	if (strcmp(cmd, "delete") == 0)
 		return delete(argc, argv);
 
