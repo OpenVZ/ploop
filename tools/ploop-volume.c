@@ -30,6 +30,8 @@
 #include <string.h>
 #include <limits.h>
 
+#include <json/json.h>
+
 #include "ploop.h"
 #include "libvolume.h"
 #include "common.h"
@@ -192,6 +194,7 @@ static int print_info(int argc, char **argv)
 		{}
 	};
 	struct ploop_volume_info info;
+	struct json_object *result;
 
 	while ((i = getopt_long(argc, argv, "", opts, NULL)) != EOF) {
 		switch (i) {
@@ -211,7 +214,10 @@ static int print_info(int argc, char **argv)
 	if ((rc = ploop_volume_get_info(argv[0], &info)))
 		return rc;
 
-	printf("Size: %ju\n", (uintmax_t)info.size);
+	result = json_object_new_object();
+	json_object_object_add(result, "size", json_object_new_int64((int64_t) info.size));
+	printf("%s\n", json_object_to_json_string_ext(result, JSON_C_TO_STRING_PRETTY));
+	json_object_put(result);
 	return 0;
 }
 
@@ -279,6 +285,7 @@ static int print_tree(int argc, char **argv)
 	};
 	struct ploop_volume_list_head head, *children;
 	struct ploop_volume_tree_element *vol;
+	struct json_object *json_result, *json_children;
 
 	while ((i = getopt_long(argc, argv, "", opts, NULL)) != EOF) {
 		switch (i) {
@@ -301,11 +308,19 @@ static int print_tree(int argc, char **argv)
 		return rc;
 
 	vol = SLIST_FIRST(&head);
-	printf("%s\n", vol->path);
 	children = &vol->children;
+
+	json_result = json_object_new_object();
+	json_children = json_object_new_array();
+	json_object_object_add(json_result, "path", json_object_new_string(vol->path));
 	SLIST_FOREACH(vol, children, next) {
-		printf("%s\n", vol->path);
+		struct json_object *child = json_object_new_object();
+		json_object_object_add(child, "path", json_object_new_string(vol->path));
+		json_object_array_add(json_children, child);
 	}
+	json_object_object_add(json_result, "children", json_children);
+	printf("%s\n", json_object_to_json_string_ext(json_result, JSON_C_TO_STRING_PRETTY));
+	json_object_put(json_result);
 	ploop_volume_clear_tree(&head);
 	return 0;
 }
