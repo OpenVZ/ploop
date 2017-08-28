@@ -25,7 +25,7 @@ OBJS	= $(addsuffix .o,$(PROGS)) $(PLOOP_OBJS)
 SOURCES	= $(OBJS:.o=.c)
 CFLAGS	+= -I../lib -I ../include
 LDFLAGS	+= -L../lib
-LDLIBS	= -lploop
+LDLIBS	= -lploop -ljson-c
 
 define do_rebrand
 	sed -e "s,@PRODUCT_NAME_SHORT@,$(PRODUCT_NAME_SHORT),g" -i $(1) || exit 1;

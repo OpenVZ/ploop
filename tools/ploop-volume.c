@@ -30,6 +30,8 @@
 #include <string.h>
 #include <limits.h>
 
+#include <json/json.h>
+
 #include "ploop.h"
 #include "libvolume.h"
 #include "common.h"
@@ -180,6 +182,45 @@ static int clone(int argc, char **argv)
 	return ploop_volume_clone(argv[0], &vol);
 }
 
+static void usage_info(void)
+{
+	fprintf(stderr, "Usage: ploop-voulume info <VOL>\n");
+}
+
+static int print_info(int argc, char **argv)
+{
+	int i, rc;
+	static struct option opts[] = {
+		{}
+	};
+	struct ploop_volume_info info;
+	struct json_object *result;
+
+	while ((i = getopt_long(argc, argv, "", opts, NULL)) != EOF) {
+		switch (i) {
+		default:
+			return SYSEXIT_PARAM;
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc != 1) {
+		usage_info();
+		return SYSEXIT_PARAM;
+	}
+
+	if ((rc = ploop_volume_get_info(argv[0], &info, sizeof(info))))
+		return rc;
+
+	result = json_object_new_object();
+	json_object_object_add(result, "size", json_object_new_int64((int64_t) info.size));
+	printf("%s\n", json_object_to_json_string_ext(result, JSON_C_TO_STRING_PRETTY));
+	json_object_put(result);
+	return 0;
+}
+
 static void usage_snapshot(void)
 {
 	fprintf(stderr, "Usage: ploop-volume snapshot <SRC> <DST>\n");
@@ -229,6 +270,59 @@ static int volume_switch(int argc, char **argv)
 	}
 
 	return ploop_volume_switch(argv[1], argv[2]);
+}
+
+static void usage_tree(void)
+{
+	fprintf(stderr, "Usage: ploop-voulume tree <VOL>\n");
+}
+
+static int print_tree(int argc, char **argv)
+{
+	int i, rc;
+	static struct option opts[] = {
+		{}
+	};
+	struct ploop_volume_list_head head, *children;
+	struct ploop_volume_tree_element *vol;
+	struct json_object *json_result, *json_children;
+
+	while ((i = getopt_long(argc, argv, "", opts, NULL)) != EOF) {
+		switch (i) {
+		default:
+			return SYSEXIT_PARAM;
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc != 1) {
+		usage_tree();
+		return SYSEXIT_PARAM;
+	}
+
+	SLIST_INIT(&head);
+	rc = ploop_volume_get_tree(argv[0], &head, sizeof(head));
+	if (rc)
+		return rc;
+
+	vol = SLIST_FIRST(&head);
+	children = &vol->children;
+
+	json_result = json_object_new_object();
+	json_children = json_object_new_array();
+	json_object_object_add(json_result, "path", json_object_new_string(vol->path));
+	SLIST_FOREACH(vol, children, next) {
+		struct json_object *child = json_object_new_object();
+		json_object_object_add(child, "path", json_object_new_string(vol->path));
+		json_object_array_add(json_children, child);
+	}
+	json_object_object_add(json_result, "children", json_children);
+	printf("%s\n", json_object_to_json_string_ext(json_result, JSON_C_TO_STRING_PRETTY));
+	json_object_put(json_result);
+	ploop_volume_clear_tree(&head);
+	return 0;
 }
 
 static void usage_delete(void)
@@ -281,10 +375,14 @@ int main(int argc, char **argv)
 		return create(argc, argv);
 	if (strcmp(cmd, "clone") == 0)
 		return clone(argc, argv);
+	if (strcmp(cmd, "info") == 0)
+		return print_info(argc, argv);
 	if (strcmp(cmd, "snapshot") == 0)
 		return snapshot(argc, argv);
 	if (strcmp(cmd, "switch") == 0)
 		return volume_switch(argc, argv);
+	if (strcmp(cmd, "tree") == 0)
+		return print_tree(argc, argv);
 	if (strcmp(cmd, "delete") == 0)
 		return delete(argc, argv);
 

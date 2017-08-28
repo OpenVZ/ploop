@@ -21,10 +21,28 @@
 
 #pragma GCC visibility push(default)
 
+#include <sys/queue.h>
+
+struct ploop_volume_tree_element;
+
+SLIST_HEAD(ploop_volume_list_head, ploop_volume_tree_element);
+
+struct ploop_volume_tree_element {
+	SLIST_ENTRY(ploop_volume_tree_element) next;
+	struct ploop_volume_list_head children;
+
+	char* path;
+};
+
 struct ploop_volume_data {
         const char *m_path;
         const char *i_path;
 };
+
+struct ploop_volume_info {
+	off_t size;
+};
+
 struct ploop_create_param;
 #ifdef __cplusplus
 extern "C" {
@@ -36,6 +54,9 @@ int ploop_volume_clone(const char *src, struct ploop_volume_data *vol);
 int ploop_volume_snapshot(const char *src, struct ploop_volume_data *vol);
 int ploop_volume_delete(const char *path);
 int ploop_volume_switch(const char *from, const char *to);
+int ploop_volume_get_info(const char *path, struct ploop_volume_info *info, int size);
+int ploop_volume_get_tree(const char *path, struct ploop_volume_list_head *root, int size);
+void ploop_volume_clear_tree(struct ploop_volume_list_head *root);
 
 #ifdef __cplusplus
 }
