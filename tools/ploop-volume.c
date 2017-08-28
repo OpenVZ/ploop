@@ -211,7 +211,7 @@ static int print_info(int argc, char **argv)
 		return SYSEXIT_PARAM;
 	}
 
-	if ((rc = ploop_volume_get_info(argv[0], &info)))
+	if ((rc = ploop_volume_get_info(argv[0], &info, sizeof(info))))
 		return rc;
 
 	result = json_object_new_object();
@@ -303,7 +303,7 @@ static int print_tree(int argc, char **argv)
 	}
 
 	SLIST_INIT(&head);
-	rc = ploop_volume_get_tree(argv[0], &head);
+	rc = ploop_volume_get_tree(argv[0], &head, sizeof(head));
 	if (rc)
 		return rc;
 

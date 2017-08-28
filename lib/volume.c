@@ -578,12 +578,13 @@ err_unlock:
 	return rc;
 }
 
-int ploop_volume_get_info(const char *path, struct ploop_volume_info *info)
+int ploop_volume_get_info(const char *path, struct ploop_volume_info *info, int size)
 {
 	int rc;
 	struct ploop_disk_images_data *d = NULL;
 	char buf[PATH_MAX];
 	struct stat st;
+	struct ploop_volume_info tmp;
 
 	get_ddxml_fname(path, buf, sizeof(buf));
 	rc = ploop_open_dd(&d, buf);
@@ -609,7 +610,8 @@ int ploop_volume_get_info(const char *path, struct ploop_volume_info *info)
 		goto err;
 	}
 
-	info->size = st.st_size;
+	tmp.size = st.st_size;
+	memcpy(info, &tmp, size);
 
 err:
 	ploop_close_dd(d);
@@ -629,7 +631,7 @@ void ploop_volume_clear_tree(struct ploop_volume_list_head *head)
 	}
 }
 
-int ploop_volume_get_tree(const char *path, struct ploop_volume_list_head *out)
+int ploop_volume_get_tree(const char *path, struct ploop_volume_list_head *out, int size)
 {
 	DIR *dir;
 	char spath[PATH_MAX];
