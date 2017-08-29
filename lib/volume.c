@@ -651,7 +651,7 @@ void ploop_volume_clear_tree(struct ploop_volume_list_head *head)
 
 int ploop_volume_get_tree(const char *path, struct ploop_volume_list_head *out, int size)
 {
-	DIR *dir;
+	DIR *dir = NULL;
 	char spath[PATH_MAX];
 	char buf[PATH_MAX];
 	struct dirent *de;
