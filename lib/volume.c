@@ -38,6 +38,16 @@ static const char *get_ddxml_fname(const char *dir, char *buf, int size)
 	return buf;
 }
 
+static int check_volume_layout(struct ploop_disk_images_data *d)
+{
+	if (d->vol == NULL) {
+		ploop_err(0, "Volume management is prohibited on non volume layout");
+		return SYSEXIT_PARAM;
+	}
+		
+	return 0;
+}
+
 static int create_dir(const char *dir, const char *name)
 {
 	char buf[PATH_MAX];
@@ -375,6 +385,10 @@ int ploop_volume_delete(const char *path)
 	if (rc)
 		goto err;
 
+	rc = check_volume_layout(d);
+	if (rc)
+		goto err;
+
 	rc = ploop_find_dev_by_cn(d, NULL, 1, buf, sizeof(buf));
 	if (rc == -1) {
 		rc = SYSEXIT_SYS;
@@ -528,6 +542,10 @@ int ploop_volume_clone(const char *src, struct ploop_volume_data *dst)
 		return rc;
 
 	rc = ploop_lock_dd(d_src);
+	if (rc)
+		goto err_unlock;
+
+	rc = check_volume_layout(d_src);
 	if (rc)
 		goto err_unlock;
 
@@ -738,6 +756,10 @@ int ploop_volume_snapshot(const char *src, struct ploop_volume_data *snap)
 	if (rc)
 		goto err_unlock;
 
+	rc = check_volume_layout(d);
+	if (rc)
+		goto err_unlock;
+
 	if (d->vol->ro) {
 		ploop_err(0, "Creating a snapshot from snapshot is prohibited");
 		rc = SYSEXIT_PARAM;
@@ -826,6 +848,10 @@ int ploop_volume_switch(const char *from, const char *to)
 	if (rc)
 		goto err_unlock;
 
+	rc = check_volume_layout(d_from);
+	if (rc)
+		goto err_unlock;
+
 	if (d_from->vol->ro) {
 		ploop_err(0, "Switching from snapshot is prohibited");
 		rc = SYSEXIT_PARAM;
@@ -867,6 +893,10 @@ int ploop_volume_switch(const char *from, const char *to)
 		goto err_unlock;
 
 	rc = ploop_lock_dd(d_to);
+	if (rc)
+		goto err_unlock;
+
+	rc = check_volume_layout(d_to);
 	if (rc)
 		goto err_unlock;
 
