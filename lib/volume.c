@@ -54,7 +54,7 @@ static int create_dir(const char *dir, const char *name)
 
 	snprintf(buf, sizeof(buf), "%s/%s", dir, name ?: "");
 	ploop_log(0, "create %s", buf);
-	if (mkdir(buf, 0700)) {
+	if (mkdir(buf, 0700) && errno != EEXIST) {
 		ploop_err(errno, "Can't create %s", buf);
 		return SYSEXIT_MKDIR;
 	}
