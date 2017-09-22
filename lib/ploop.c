@@ -688,16 +688,13 @@ int ploop_init_device(const char *device, struct ploop_create_param *param)
 	return ret;
 }
 
-static int ploop_init_image(struct ploop_disk_images_data *di,
+int ploop_init_image(struct ploop_disk_images_data *di,
 		struct ploop_create_param *param)
 {
 	int ret;
 	char devname[64];
 	char partname[64];
 	struct ploop_mount_param mount_param = {};
-
-	if (param->fstype == NULL)
-		return SYSEXIT_PARAM;
 
 	if (di->nimages == 0) {
 		ploop_err(0, "No images specified");
@@ -743,8 +740,8 @@ static int ploop_init_image(struct ploop_disk_images_data *di,
 			goto err;
 	}
 
-	ret = make_fs(partname, param->fstype, param->fsblocksize,
-			param->flags, param->fslabel);
+	ret = make_fs(partname, param->fstype ?: DEFAULT_FSTYPE,
+			param->fsblocksize, param->flags, param->fslabel);
 	if (ret)
 		goto err;
 

@@ -277,6 +277,7 @@ int ploop_is_mounted(struct ploop_disk_images_data *di);
 void ploop_free_array(char *array[]);
 int ploop_get_partition_by_mnt(const char *path, char *buf, int size);
 int ploop_create_image(struct ploop_create_param *param);
+int ploop_init_image(struct ploop_disk_images_data *di, struct ploop_create_param *param);
 int ploop_init_device(const char *device, struct ploop_create_param *param);
 int ploop_mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *param);
 int ploop_mount_snapshot(struct ploop_disk_images_data *di, struct ploop_mount_param *param);

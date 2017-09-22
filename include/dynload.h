@@ -94,7 +94,8 @@ struct ploop_functions {
 	int (*init_device)(const char *device, struct ploop_create_param *param);
 	int (*resize_blkdev)(const char *device, off_t new_size);
 	void (*set_umount_timeout)(struct ploop_disk_images_data *di, int timeout);
-	void *padding[4];
+	int (*init_image)(struct ploop_disk_images_data *di, struct ploop_create_param *param);
+	void *padding[3];
 }; /* struct ploop_functions */
 
 __attribute__ ((visibility("default")))
