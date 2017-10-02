@@ -90,6 +90,33 @@ static clock_t get_cpu_time(void)
 	return SEC_TO_NSEC(ts.tv_sec) + ts.tv_nsec;
 }
 
+int do_open(const char *fname, int flags)
+{
+	useconds_t total = 0;
+	useconds_t wait = 10000; // initial wait time 0.01s
+	useconds_t maxwait = 5 * 1000000; // max wait time per iteration 5s
+	useconds_t maxtotal = 60 * 1000000; // max total wait time 60s
+
+	do {
+		int fd = open(fname, flags);
+		if (fd != -1)
+			return fd;
+		else if (errno != EBUSY)
+			return -1;
+
+		if (total > maxtotal)
+			break;
+
+		usleep(wait);
+		total += wait;
+		wait *= 2;
+		if (wait > maxwait)
+			wait = maxwait;
+	} while (1);
+
+	return -1;
+}
+
 static int do_lock(const char *fname, unsigned int timeout)
 {
 	int fd, r, _errno;
@@ -100,7 +127,7 @@ static int do_lock(const char *fname, unsigned int timeout)
 			.sa_handler = timer_handler,
 		};
 
-	if ((fd = open(fname, O_RDWR)) == -1) {
+	if ((fd = do_open(fname, O_RDWR)) == -1) {
 		ploop_err(errno, "Can't open lock file %s", fname);
 		return -1;
 	}
