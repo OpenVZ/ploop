@@ -508,4 +508,6 @@ int read_dd(struct ploop_disk_images_data *di);
 void normalize_path(const char *path, char *out);
 int get_snap_file_name(struct ploop_disk_images_data *di, const char *snap_dir,
 		const char *file_guid, char *out, int size);
+int has_partition(const char *device, int *res);
+void free_encryption_data(struct ploop_disk_images_data *di);
 #endif

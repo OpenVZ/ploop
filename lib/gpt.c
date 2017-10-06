@@ -96,7 +96,7 @@ static int get_sector_size(int fd, int *sector_size)
 	return ioctl_device(fd, BLKSSZGET, sector_size);
 }
 
-static int has_partition(const char *device, int *res)
+int has_partition(const char *device, int *res)
 {
 	int fd, sector_size, ret;
 	__u64 signature;

@@ -46,7 +46,7 @@ static void free_volume(struct ploop_disk_images_data *di)
 	}
 }
 
-static void free_encryption_data(struct ploop_disk_images_data *di)
+void free_encryption_data(struct ploop_disk_images_data *di)
 {
 	if (di->enc != NULL) {
 		free(di->enc->keyid);

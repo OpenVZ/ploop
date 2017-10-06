@@ -704,24 +704,34 @@ int ploop_init_image(struct ploop_disk_images_data *di,
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
+	/* Drop encryption keyid from dd.xml */
+	free_encryption_data(di);
 	ret = mount_image(di, &mount_param);
 	if (ret)
 		goto err;
 
-	if (param->keyid != NULL) {
-		ret = store_encryption_keyid(di, param->keyid);
-		if (ret)
-			goto err;
-	}
-
 	if (!param->without_partition) {
+		int part;
 		off_t size;
 
 		ret = ploop_get_size(mount_param.device, &size);
 		if (ret)
 			goto err;
 
-		ret = create_gpt_partition(mount_param.device, size, di->blocksize);
+		ret = has_partition(mount_param.device, &part);
+		if (ret)
+			goto err;
+
+		if (!part) {
+			ret = create_gpt_partition(mount_param.device, size,
+					di->blocksize);
+			if (ret)
+				goto err;
+		}
+	}
+
+	if (param->keyid != NULL) {
+		ret = store_encryption_keyid(di, param->keyid);
 		if (ret)
 			goto err;
 	}
