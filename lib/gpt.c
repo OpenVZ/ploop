@@ -139,22 +139,36 @@ int get_partition_device_name_by_num(const char *device, int part_num, char *out
 		return ret;
 
 	if (part) {
+		char buf[512];
+
 		p = device;
 		if (strncmp(device, "/dev/", 5) == 0)
 			p += 5;
-		snprintf(out, size, "/dev/%s%d", p, part_num);
-		if (access(out, F_OK) == 0)
+
+		snprintf(buf, sizeof(buf), "/sys/class/block/%s/%sp%d",
+				p, p, part_num);
+		if (access(buf, F_OK) == 0) {
+			snprintf(out, size, "/dev/%sp%d", p, part_num);
 			return 0;
-		snprintf(out, size, "/dev/%sp%d", p, part_num);
-		if (access(out, F_OK) == 0)
+		}
+
+		snprintf(buf, sizeof(buf), "/sys/class/block/%s/%s%d",
+				p, p, part_num);
+		if (access(buf, F_OK) == 0) {
+			snprintf(out, size, "/dev/%s%d", p, part_num);
 			return 0;
+		}
+
 		ret = is_device_from_devmapper(device);
 		if (ret != 0)
 			return -1;
+
 		if (stat(device, &st)) {
 			ploop_err(errno, "failed stat %s", device);
 			return -1;
 		}
+
+		snprintf(out, size, "/dev/%s%d", p, part_num);
 		if (mknod(out, S_IFBLK, st.st_rdev + part_num) != 0) {
 			ploop_err(errno, "failed mknod %s", out);
 			return -1;
