@@ -3052,6 +3052,8 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			if (ret)
 				goto err;
 
+			drop_statfs_info(di->images[0]->file);
+
 			ret = shrink_device(di, mount_param.device, partname,
 					st.st_dev, part_dev_size,
 					new_fs_size, blocksize);
