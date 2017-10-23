@@ -2605,7 +2605,7 @@ int get_image_param_offline(struct ploop_disk_images_data *di, const char *guid,
 		*version = PLOOP_FMT_UNDEFINED;
 		*blocksize = di->blocksize;
 	} else {
-		if (open_delta(&delta, image, O_RDONLY, OD_OFFLINE))
+		if (open_delta(&delta, image, O_RDONLY, OD_OFFLINE|OD_ALLOW_DIRTY))
 			return SYSEXIT_OPEN;
 
 		*size = delta.l2_size * delta.blocksize;
