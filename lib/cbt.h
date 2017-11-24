@@ -55,7 +55,6 @@ PL_EXT int ploop_move_cbt(const char *dst, const char *src);
 PL_EXT int ploop_cbt_dump_info_from_image(const char *image);
 PL_EXT int ploop_cbt_dump_info(struct ploop_disk_images_data *di);
 PL_EXT int ploop_dump_cbt(struct ploop_disk_images_data *di, const char *fname);
-PL_EXT int ploop_drop_cbt(struct ploop_disk_images_data *di);
 
 
 #endif /* CBT_H */
