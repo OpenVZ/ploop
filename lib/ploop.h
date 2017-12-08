@@ -510,4 +510,5 @@ int get_snap_file_name(struct ploop_disk_images_data *di, const char *snap_dir,
 		const char *file_guid, char *out, int size);
 int has_partition(const char *device, int *res);
 void free_encryption_data(struct ploop_disk_images_data *di);
+const char *get_ddxml_fname(const char *dir, char *buf, int size);
 #endif

@@ -31,7 +31,7 @@
 
 #define SNAP_DIR	"children"
 
-static const char *get_ddxml_fname(const char *dir, char *buf, int size)
+const char *get_ddxml_fname(const char *dir, char *buf, int size)
 {
 	snprintf(buf, size, "%s/" DISKDESCRIPTOR_XML, dir);
 

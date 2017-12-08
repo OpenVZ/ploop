@@ -25,6 +25,7 @@
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <errno.h>
+#include <limits.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -1462,3 +1463,33 @@ err:
 	return ret;
 }
 
+int ploop_clone_dd(struct ploop_disk_images_data *di, const char *guid,
+		const char *target)
+{
+	int rc;
+	char fname[PATH_MAX];
+
+	rc = ploop_read_dd(di);
+	if (rc)
+		return rc;
+
+	if (find_snapshot_by_guid(di, guid)) {
+		ploop_err(0, "Can't find snapshot by uuid %s",
+				guid);
+		return SYSEXIT_PARAM;
+	}
+
+	char *t = NULL;
+	if (guid != NULL) {
+		t = di->top_guid;
+		di->top_guid = (char *)guid;
+	}
+
+	get_ddxml_fname(target, fname, sizeof(fname));
+	rc = ploop_store_diskdescriptor(fname, di);
+
+	if (t != NULL)
+		di->top_guid = t;
+
+	return rc;
+}
