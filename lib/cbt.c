@@ -1491,7 +1491,7 @@ int ploop_clone_dd(struct ploop_disk_images_data *di, const char *guid,
 	}
 
 	get_ddxml_fname(target, fname, sizeof(fname));
-	rc = ploop_store_diskdescriptor(fname, di);
+	rc = store_diskdescriptor(fname, di, 1);
 
 	if (u != NULL) {
 		di->top_guid = u;
