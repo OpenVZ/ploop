@@ -1467,29 +1467,150 @@ int ploop_clone_dd(struct ploop_disk_images_data *di, const char *guid,
 		const char *target)
 {
 	int rc;
+	int i, t;
 	char fname[PATH_MAX];
 
 	rc = ploop_read_dd(di);
 	if (rc)
 		return rc;
 
-	if (find_snapshot_by_guid(di, guid)) {
+	i = find_snapshot_by_guid(di, guid);
+	if (i == -1) {
 		ploop_err(0, "Can't find snapshot by uuid %s",
 				guid);
 		return SYSEXIT_PARAM;
 	}
 
-	char *t = NULL;
+	t = di->snapshots[i]->temporary;
+
+	char *u = NULL;
 	if (guid != NULL) {
-		t = di->top_guid;
+		u = di->top_guid;
 		di->top_guid = (char *)guid;
+		di->snapshots[i]->temporary = 0;
 	}
 
 	get_ddxml_fname(target, fname, sizeof(fname));
-	rc = ploop_store_diskdescriptor(fname, di);
+	rc = store_diskdescriptor(fname, di, 1);
 
-	if (t != NULL)
-		di->top_guid = t;
+	if (u != NULL) {
+		di->top_guid = u;
+		di->snapshots[i]->temporary = t;
+	}
 
 	return rc;
 }
+
+struct ploop_bitmap *ploop_alloc_bitmap(__u64 size, __u64 cluster,
+		__u32 granularity)
+{
+	struct ploop_bitmap *bmap;
+	__u64 n;
+
+	n = size / (cluster * granularity * 8);
+
+	bmap = calloc(1, sizeof(struct ploop_bitmap) + (n * sizeof(__u64)));
+	if (bmap == NULL) {
+		ploop_err(ENOMEM, "ploop_alloc_bitmap()");
+		return NULL;
+	}
+
+	bmap->l1_size = n;
+	bmap->size_sec = size;
+	bmap->cluster_sec = cluster;
+	bmap->granularity_sec = granularity;
+
+	return bmap;
+}
+
+void ploop_release_bitmap(struct ploop_bitmap *bmap)
+{
+	unsigned int i;
+
+	if (bmap == NULL)
+		return;
+
+	for (i = 0; i < bmap->l1_size; ++i) {
+		if (bmap->map[i] > 1)
+			free((void *)bmap->map[i]);
+	}
+
+	free(bmap);
+}
+
+struct ploop_bitmap *ploop_get_used_bitmap_from_image(
+		struct ploop_disk_images_data *di, const char *guid)
+{
+	__u32 n, clu, cluster, pid = 0;
+	char *img;
+	struct delta d = {};
+	struct ploop_bitmap *bmap = NULL;
+	__u8 *block = NULL;
+
+	if (ploop_read_dd(di))
+		return NULL;
+
+	img = find_image_by_guid(di, guid ?: di->top_guid);
+	if (img == NULL) {
+		ploop_err(0, "Unable to find image by uuid %s", guid);
+		return NULL;
+	}
+
+	if (open_delta(&d, img, O_RDONLY, OD_ALLOW_DIRTY))
+		return NULL;
+
+	cluster = d.blocksize;
+	bmap = ploop_alloc_bitmap(d.l2_size * d.blocksize, 8, cluster);
+	if (bmap == NULL)
+		goto err;
+
+	n = cluster / sizeof(__u32);
+
+	__u64 clu_per_block = S2B(bmap->cluster_sec) * 8;
+
+	for (clu = 0; clu < d.l1_size * n - PLOOP_MAP_OFFSET && clu < d.l2_size; clu++) {
+		__u32 l2_cluster = (clu + PLOOP_MAP_OFFSET) / n;
+		__u32 l2_slot = (clu + PLOOP_MAP_OFFSET) % n;
+
+		if (d.l2_cache != l2_cluster) {
+			if (read_safe(d.fd, d.l2, cluster,
+						(off_t)l2_cluster * cluster, "read")) {
+				goto err;
+			}
+
+			d.l2_cache = l2_cluster;
+		}
+
+		if (!((__u64)clu % clu_per_block)) {
+			block = calloc(1, clu_per_block / 8);
+			if (block == NULL) {
+				ploop_err(ENOMEM, "ploop_get_used_bitmap_from_image()");
+				goto err;
+			}
+
+			pid = clu / clu_per_block;
+			bmap->map[pid] = (__u64)block;
+			block = NULL;
+		}
+
+		if (d.l2[l2_slot] == 0)
+			continue;
+
+		__u32 x = clu % clu_per_block; 
+		BMAP_SET((void *)bmap->map[pid], x);
+	}
+
+out:
+	close_delta(&d);
+	free(block);
+
+	return bmap;
+
+err:
+	ploop_release_bitmap(bmap);
+	bmap = NULL;
+
+	goto out;
+}
+
+

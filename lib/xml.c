@@ -671,7 +671,8 @@ int normalize_image_name(const char *basedir, const char *image, char *out, int 
 	return 0;
 }
 
-int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data *di)
+int store_diskdescriptor(const char *fname, struct ploop_disk_images_data *di,
+		int skip_convert)
 {
 	int i, rc = -1;
 	xmlTextWriterPtr writer = NULL;
@@ -681,8 +682,7 @@ int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data 
 	FILE *fp = NULL;
 
 	ploop_log(0, "Storing %s", fname);
-
-	if (convert_disk_descriptor(di))
+	if (!skip_convert && convert_disk_descriptor(di))
 		return -1;
 
 	if (di->runtime->xml_fname == NULL)
@@ -1047,4 +1047,10 @@ err:
 		return SYSEXIT_DISKDESCR;
 
 	return 0;
+}
+
+int ploop_store_diskdescriptor(const char *fname,
+		struct ploop_disk_images_data *di)
+{
+	return store_diskdescriptor(fname, di, 0);
 }
