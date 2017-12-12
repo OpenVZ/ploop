@@ -252,6 +252,16 @@ struct ploop_encrypt_param {
 	void *pad[4];
 };
 
+struct ploop_bitmap
+{
+	__u8 uuid[16];
+	__u64 size_sec;
+	__u64 cluster_sec;
+	__u32 granularity_sec;
+	__u32 l1_size;
+	__u64 map[0];
+};
+
 /* Constants for ploop_set_verbose_level(): */
 #define PLOOP_LOG_NOCONSOLE	-2	/* disable all console logging */
 #define PLOOP_LOG_NOSTDOUT	-1	/* disable all but errors to stderr */
@@ -340,7 +350,8 @@ int ploop_encrypt_image(struct ploop_disk_images_data *di,
 int ploop_drop_cbt(struct ploop_disk_images_data *di);
 int ploop_clone_dd(struct ploop_disk_images_data *di, const char *guid,
 	const char *target);
-
+struct ploop_bitmap *ploop_get_used_bitmap_from_image(struct ploop_disk_images_data *di, const char *guid);
+void ploop_release_bitmap(struct ploop_bitmap *bmap);
 /* deprecated */
 PLOOP_DEPRECATED char *ploop_get_base_delta_uuid(struct ploop_disk_images_data *di);
 PLOOP_DEPRECATED int ploop_send(const char *device, int ofd, const char *flush_cmd, int is_pipe);
