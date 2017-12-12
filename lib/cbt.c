@@ -1467,29 +1467,36 @@ int ploop_clone_dd(struct ploop_disk_images_data *di, const char *guid,
 		const char *target)
 {
 	int rc;
+	int i, t;
 	char fname[PATH_MAX];
 
 	rc = ploop_read_dd(di);
 	if (rc)
 		return rc;
 
-	if (find_snapshot_by_guid(di, guid)) {
+	i = find_snapshot_by_guid(di, guid);
+	if (i == -1) {
 		ploop_err(0, "Can't find snapshot by uuid %s",
 				guid);
 		return SYSEXIT_PARAM;
 	}
 
-	char *t = NULL;
+	t = di->snapshots[i]->temporary;
+
+	char *u = NULL;
 	if (guid != NULL) {
-		t = di->top_guid;
+		u = di->top_guid;
 		di->top_guid = (char *)guid;
+		di->snapshots[i]->temporary = 0;
 	}
 
 	get_ddxml_fname(target, fname, sizeof(fname));
 	rc = ploop_store_diskdescriptor(fname, di);
 
-	if (t != NULL)
-		di->top_guid = t;
+	if (u != NULL) {
+		di->top_guid = u;
+		di->snapshots[i]->temporary = t;
+	}
 
 	return rc;
 }
