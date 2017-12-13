@@ -1053,14 +1053,19 @@ int write_empty_cbt_to_image(const char *fname, const char *prev_fname,
 	return 0;
 }
 
-void dunp_L1(__u64 *buf, __u64 size)
+void dump_L1(__u64 offset, __u64 *buf, __u64 size)
 {
 	__u64 *p;
+	__u32 i;
 
-	for (p = buf; p < (buf + size); ++p)
-		printf("0x%lx ", (unsigned long) *p);
+	for (i = 0, p = buf; p < (buf + size); ++p, ++i) {
+		if (!(i % 16))
+			printf("\n%.8lx", (unsigned long) offset + i * 4);
+		printf(" %lx", (unsigned long) *p);
+	}
 	printf("\n");
 }
+
 
 void dump_cbt_from_raw(struct ext_context *ctx)
 {
@@ -1090,7 +1095,7 @@ void dump_cbt_from_raw(struct ext_context *ctx)
 		if (*p == 1)
 			printf("1\n");
 		else
-			dunp_L1((__u64 *)*p, cur_size / sizeof(__u64));
+			dump_L1(p -  ctx->raw->m_L1, (__u64 *)*p, cur_size / sizeof(__u64));
 	}
 }
 
