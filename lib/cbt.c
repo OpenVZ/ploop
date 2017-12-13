@@ -729,6 +729,7 @@ static int raw_move_to_memory(struct ext_context *ctx, struct delta *delta)
 			}
 
 			if ((ret = add_ext_block(ctx, *p * SECTOR_SIZE))) {
+				free(block);
 				ploop_err(errno,  "add_ext_block failed");
 				return ret;
 			}
