@@ -99,7 +99,8 @@ struct ploop_functions {
 	int (*clone_dd)(struct ploop_disk_images_data *di, const char *guid, const char *target);
 	struct ploop_bitmap *(*get_used_bitmap_from_image)(struct ploop_disk_images_data *di, const char *guid);
 	void (*release_bitmap)(struct ploop_bitmap *bmap);
-	void *padding[63];
+	struct ploop_bitmap *(*get_tracking_bitmap_from_image)(struct ploop_disk_images_data *di, const char *guid);
+	void *padding[62];
 }; /* struct ploop_functions */
 
 __attribute__ ((visibility("default")))

@@ -1613,4 +1613,45 @@ err:
 	goto out;
 }
 
+struct ploop_bitmap *ploop_get_tracking_bitmap_from_image(
+		struct ploop_disk_images_data *di, const char *guid)
+{
+	char *img;
+	struct ploop_bitmap *bmap = NULL;
+	struct ext_context *ctx = NULL;
+
+	if (ploop_read_dd(di))
+		return NULL;
+
+	img = find_image_by_guid(di, guid ?: di->top_guid);
+	if (img == NULL) {
+		ploop_err(0, "Unable to find image by uuid %s", guid);
+		return NULL;
+	}
+
+	ctx = create_ext_context();
+	if (ctx == NULL)
+		return NULL;
+
+	if (read_optional_header_from_image(ctx, img, 0))
+		goto err;
+
+	if (ctx->raw == NULL) {
+		// FIXME
+		goto err;
+	}
+
+	bmap = ploop_alloc_bitmap(ctx->raw->m_Size, di->blocksize,
+			ctx->raw->m_Granularity);
+	if (bmap == NULL)
+		goto err;
+
+	memcpy(bmap->map, ctx->raw->m_L1, ctx->raw->m_L1Size * sizeof(__u64));
+	memcpy(bmap->uuid, ctx->raw->m_Id, sizeof(bmap->uuid));
+
+err:
+	free_ext_context(ctx);
+
+	return bmap;
+}
 

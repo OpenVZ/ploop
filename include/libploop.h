@@ -351,6 +351,7 @@ int ploop_drop_cbt(struct ploop_disk_images_data *di);
 int ploop_clone_dd(struct ploop_disk_images_data *di, const char *guid,
 	const char *target);
 struct ploop_bitmap *ploop_get_used_bitmap_from_image(struct ploop_disk_images_data *di, const char *guid);
+struct ploop_bitmap *ploop_get_tracking_bitmap_from_image(struct ploop_disk_images_data *di, const char *guid);
 void ploop_release_bitmap(struct ploop_bitmap *bmap);
 /* deprecated */
 PLOOP_DEPRECATED char *ploop_get_base_delta_uuid(struct ploop_disk_images_data *di);
