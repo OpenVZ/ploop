@@ -729,6 +729,7 @@ static int raw_move_to_memory(struct ext_context *ctx, struct delta *delta)
 			}
 
 			if ((ret = add_ext_block(ctx, *p * SECTOR_SIZE))) {
+				free(block);
 				ploop_err(errno,  "add_ext_block failed");
 				return ret;
 			}
@@ -1052,14 +1053,19 @@ int write_empty_cbt_to_image(const char *fname, const char *prev_fname,
 	return 0;
 }
 
-void dunp_L1(__u64 *buf, __u64 size)
+void dump_L1(__u64 offset, __u64 *buf, __u64 size)
 {
 	__u64 *p;
+	__u32 i;
 
-	for (p = buf; p < (buf + size); ++p)
-		printf("0x%lx ", (unsigned long) *p);
+	for (i = 0, p = buf; p < (buf + size); ++p, ++i) {
+		if (!(i % 16))
+			printf("\n%.8lx", (unsigned long) offset + i * 4);
+		printf(" %lx", (unsigned long) *p);
+	}
 	printf("\n");
 }
+
 
 void dump_cbt_from_raw(struct ext_context *ctx)
 {
@@ -1089,7 +1095,7 @@ void dump_cbt_from_raw(struct ext_context *ctx)
 		if (*p == 1)
 			printf("1\n");
 		else
-			dunp_L1((__u64 *)*p, cur_size / sizeof(__u64));
+			dump_L1(p -  ctx->raw->m_L1, (__u64 *)*p, cur_size / sizeof(__u64));
 	}
 }
 
@@ -1613,4 +1619,45 @@ err:
 	goto out;
 }
 
+struct ploop_bitmap *ploop_get_tracking_bitmap_from_image(
+		struct ploop_disk_images_data *di, const char *guid)
+{
+	char *img;
+	struct ploop_bitmap *bmap = NULL;
+	struct ext_context *ctx = NULL;
+
+	if (ploop_read_dd(di))
+		return NULL;
+
+	img = find_image_by_guid(di, guid ?: di->top_guid);
+	if (img == NULL) {
+		ploop_err(0, "Unable to find image by uuid %s", guid);
+		return NULL;
+	}
+
+	ctx = create_ext_context();
+	if (ctx == NULL)
+		return NULL;
+
+	if (read_optional_header_from_image(ctx, img, 0))
+		goto err;
+
+	if (ctx->raw == NULL) {
+		// FIXME
+		goto err;
+	}
+
+	bmap = ploop_alloc_bitmap(ctx->raw->m_Size, di->blocksize,
+			ctx->raw->m_Granularity);
+	if (bmap == NULL)
+		goto err;
+
+	memcpy(bmap->map, ctx->raw->m_L1, ctx->raw->m_L1Size * sizeof(__u64));
+	memcpy(bmap->uuid, ctx->raw->m_Id, sizeof(bmap->uuid));
+
+err:
+	free_ext_context(ctx);
+
+	return bmap;
+}
 
