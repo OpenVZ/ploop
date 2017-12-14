@@ -97,6 +97,7 @@ struct ext_context
 {
 	list_head_t ext_blocks_head;
 	struct ploop_pvd_dirty_bitmap_raw *raw;
+	int release_raw_L1;
 };
 
 static const char *uuid2str(const __u8 *u, char *buf)
@@ -132,12 +133,22 @@ struct ext_context *create_ext_context(void)
 void free_ext_context(struct ext_context *ctx)
 {
 	struct ext_block_entry *b_entry = NULL, *tmp;
+	struct ploop_pvd_dirty_bitmap_raw *raw = ctx->raw;
 
 	if (ctx == NULL)
 		return;
 
 	list_for_each_safe(b_entry, tmp, &ctx->ext_blocks_head, list) {
 		free(b_entry);
+	}
+
+	if (raw != NULL && ctx->release_raw_L1) {
+		__u64 *p;
+
+		for (p = raw->m_L1; p < raw->m_L1 + raw->m_L1Size; ++p) {
+			if (*p > 1)
+				free((void *) *p);
+		}
 	}
 
 	free(ctx->raw);
@@ -706,32 +717,37 @@ out:
 
 static int raw_move_to_memory(struct ext_context *ctx, struct delta *delta)
 {
-	__u64 bits, bytes, *p;
+	__u64 bits, bytes, *p, *ep;
 	struct ploop_pvd_header *vh = (struct ploop_pvd_header *)delta->hdr0;
 	size_t block_size = vh->m_Sectors * SECTOR_SIZE;
 	int ret;
 
+	ctx->release_raw_L1 = 1;
 	bits = ((ctx->raw->m_Size + ctx->raw->m_Granularity - 1) / ctx->raw->m_Granularity);
 	bytes = (bits + 7) >> 3;
-	for (p = ctx->raw->m_L1; p < ctx->raw->m_L1 + ctx->raw->m_L1Size; ++p) {
+	ep = ctx->raw->m_L1 + ctx->raw->m_L1Size;
+	for (p = ctx->raw->m_L1; p < ep; ++p) {
 		__u64 cur_size = MIN(block_size, bytes);
 		bytes -= cur_size;
 
 		if (*p > 1) {
 			void *block;
-			if (p_memalign(&block, 4096, block_size))
-				return SYSEXIT_MALLOC;
+			if (p_memalign(&block, 4096, block_size)) {
+				ret = SYSEXIT_MALLOC;
+				goto err;
+			}
 
 			if (PREAD(delta, block, cur_size, *p * SECTOR_SIZE)) {
 				free(block);
 				ploop_err(errno, "Can't read dirty_bitmap block");
-				return SYSEXIT_READ;
+				ret = SYSEXIT_READ;
+				goto err;
 			}
 
 			if ((ret = add_ext_block(ctx, *p * SECTOR_SIZE))) {
 				free(block);
 				ploop_err(errno,  "add_ext_block failed");
-				return ret;
+				goto err;
 			}
 
 			*p = (__u64)block;
@@ -739,6 +755,12 @@ static int raw_move_to_memory(struct ext_context *ctx, struct delta *delta)
 	}
 
 	return 0;
+
+err:
+	/* reset not allocated data */
+	bzero(p, (ep - p) * sizeof(__u64));
+
+	return ret;
 }
 
 static int add_ext_blocks_from_raw(struct ext_context *ctx,
@@ -1653,6 +1675,7 @@ struct ploop_bitmap *ploop_get_tracking_bitmap_from_image(
 		goto err;
 
 	memcpy(bmap->map, ctx->raw->m_L1, ctx->raw->m_L1Size * sizeof(__u64));
+	ctx->release_raw_L1 = 0;
 	memcpy(bmap->uuid, ctx->raw->m_Id, sizeof(bmap->uuid));
 
 err:
