@@ -877,6 +877,7 @@ int send_dirty_bitmap_to_kernel(struct ext_context *ctx, int devfd,
 					devfd, raw->m_Id, (void *)*p, cur_size * 8, offset * 8, byte_granularity)))
 				goto out;
 			free((void *)*p);
+			*p = 0;
 		}
 	}
 
