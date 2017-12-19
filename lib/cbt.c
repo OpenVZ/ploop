@@ -133,11 +133,12 @@ struct ext_context *create_ext_context(void)
 void free_ext_context(struct ext_context *ctx)
 {
 	struct ext_block_entry *b_entry = NULL, *tmp;
-	struct ploop_pvd_dirty_bitmap_raw *raw = ctx->raw;
+	struct ploop_pvd_dirty_bitmap_raw *raw;
 
 	if (ctx == NULL)
 		return;
 
+	raw = ctx->raw;
 	list_for_each_safe(b_entry, tmp, &ctx->ext_blocks_head, list) {
 		free(b_entry);
 	}
