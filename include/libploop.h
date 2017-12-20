@@ -24,7 +24,7 @@
 #include <linux/types.h>
 
 #define DISKDESCRIPTOR_XML      "DiskDescriptor.xml"
-#define PLOOP_MAX_FS_SIZE	16ULL*1024*1024*1024*1024
+#define PLOOP_MAX_FS_SIZE	50ULL*1024*1024*1024*1024
 
 #ifndef PLOOP_DEPRECATED
 #define PLOOP_DEPRECATED __attribute__ ((deprecated))
