@@ -501,7 +501,7 @@ out_close:
 	return -1;
 }
 
-static int create_raw_delta(const char * path, off_t bdsize)
+static int create_raw_delta(const char * path, off_t bdsize, int flags)
 {
 	int fd;
 	void * buf = NULL;
@@ -519,19 +519,25 @@ static int create_raw_delta(const char * path, off_t bdsize)
 		free(buf);
 		return -1;
 	}
-
-	memset(buf, 0, DEF_CLUSTER);
-
-	pos = 0;
-	while (pos < bdsize) {
-		if (is_operation_cancelled())
+	if (flags & PLOOP_CREATE_SPARSE) {
+		if (ftruncate(fd, bdsize * SECTOR_SIZE) < 0) {
+			ploop_err(errno, "Unable to truncate %s", path);
 			goto out_close;
-		off_t copy = bdsize - pos;
-		if (copy > DEF_CLUSTER/SECTOR_SIZE)
-			copy = DEF_CLUSTER/SECTOR_SIZE;
-		if (WRITE(fd, buf, copy*SECTOR_SIZE))
-			goto out_close;
-		pos += copy;
+		}
+	} else {
+		memset(buf, 0, DEF_CLUSTER);
+
+		pos = 0;
+		while (pos < bdsize) {
+			if (is_operation_cancelled())
+				goto out_close;
+			off_t copy = bdsize - pos;
+			if (copy > DEF_CLUSTER/SECTOR_SIZE)
+				copy = DEF_CLUSTER/SECTOR_SIZE;
+			if (WRITE(fd, buf, copy*SECTOR_SIZE))
+				goto out_close;
+			pos += copy;
+		}
 	}
 
 	if (fsync(fd)) {
@@ -579,7 +585,7 @@ static void fill_diskdescriptor(struct ploop_pvd_header *vh, struct ploop_disk_i
 }
 
 int create_image(const char *file, __u32 blocksize, off_t size_sec, int mode,
-		int version)
+		int version, int flags)
 {
 	int fd = -1;
 
@@ -599,8 +605,8 @@ int create_image(const char *file, __u32 blocksize, off_t size_sec, int mode,
 		return SYSEXIT_PARAM;
 	}
 
-	if (mode == PLOOP_RAW_MODE)
-		fd = create_raw_delta(file, size_sec);
+	else if (mode == PLOOP_RAW_MODE)
+		fd = create_raw_delta(file, size_sec, flags);
 	else if (mode == PLOOP_EXPANDED_MODE)
 		fd = create_empty_delta(file, blocksize, size_sec, version);
 	else if (mode == PLOOP_EXPANDED_PREALLOCATED_MODE)
@@ -920,7 +926,7 @@ int ploop_create(const char *path, const char *ipath,
 		default_fmt_version() : param->fmt_version;
 
 	ret = create_image(image, di->blocksize, di->size,
-			param->mode, fmt_version);
+			param->mode, fmt_version, param->flags);
 	if (ret)
 		goto out;
 	image_created = 1;

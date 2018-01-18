@@ -464,7 +464,7 @@ int ploop_get_dev_by_delta(const char *delta, const char *topdelta,
 int check_snapshot_mount(struct ploop_disk_images_data *di,
 		const char *guid, const char *fname, int temp);
 int create_image(const char *file, __u32 blocksize, off_t size_sec, int mode,
-		int version);
+		int version, int flags);
 int do_replace_delta(int devfd, int level, int imgfd, __u32 blocksize,
 		const char *image);
 int copy_delta(const char *src, const char *dst);

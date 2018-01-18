@@ -115,11 +115,12 @@ static int plooptool_init(int argc, char **argv)
 	};
 	static struct option long_opts[] = {
 		{ "nolazy", no_argument, 0, 'n' },
+		{ "sparse", no_argument, 0, 'S' },
 		{},
 	};
 
 
-	while ((i = getopt_long(argc, argv, "s:b:B:f:t:L:v:n:k:",
+	while ((i = getopt_long(argc, argv, "s:b:B:f:t:L:v:nSk:",
 					long_opts, NULL)) != EOF) {
 		switch (i) {
 		case 's':
@@ -176,6 +177,9 @@ static int plooptool_init(int argc, char **argv)
 		case 'n':
 			param.flags |= PLOOP_CREATE_NOLAZY;
 			break;
+		case 'S':
+			param.flags |= PLOOP_CREATE_SPARSE;
+			break;
 		case 'k':
 			param.keyid = optarg;
 			break;
@@ -221,7 +225,7 @@ static int plooptool_init(int argc, char **argv)
 static void usage_mount(void)
 {
 	fprintf(stderr, "Usage: ploop mount [-r] [-f FORMAT] [-b BLOCKSIZE] [-d DEVICE]\n"
-			"             [-m MOUNT_POINT] [-t FSTYPE] [-o MOUNT_OPTS]\n"
+			"             [-m MOUNT_POINT] [-t FSTYPE] [-o MOUNT_OPTS] [--sparse]\n"
 			"             BASE_DELTA [ ... TOP_DELTA ]\n"
 			"       ploop mount [-r] [-m MOUNT_POINT] [-u UUID] DiskDescriptor.xml\n"
 			"       FORMAT := { raw | ploop1 }\n"
