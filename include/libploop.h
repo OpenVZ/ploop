@@ -55,6 +55,7 @@ struct ploop_mount_param {
 /* Bit values for ploop_create_param.flags */
 enum ploop_create_flags {
 	PLOOP_CREATE_NOLAZY		= 1 << 0, /* do NOT use lazy init */
+	PLOOP_CREATE_SPARSE		= 2 << 0, /* create a sparse image  */
 };
 
 struct ploop_create_param {

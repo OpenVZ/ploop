@@ -415,7 +415,7 @@ rm_delta:
 		vh = (struct ploop_pvd_header *)da.delta_arr[0].hdr0;
 		size = get_SizeInSectors(vh);
 
-		ret = create_image(new_image, blocksize, size, mode, version);
+		ret = create_image(new_image, blocksize, size, mode, version, 0);
 		if (ret)
 			goto merge_done2;
 	}
