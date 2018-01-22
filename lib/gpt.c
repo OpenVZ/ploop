@@ -147,7 +147,7 @@ int get_partition_device_name_by_num(const char *device, int part_num, char *out
 
 		snprintf(buf, sizeof(buf), "/sys/class/block/%s/%sp%d",
 				p, p, part_num);
-		if (access(buf, F_OK) == 0) {
+		if (strncmp(p, "ploop", 5) == 0 || access(buf, F_OK) == 0) {
 			snprintf(out, size, "/dev/%sp%d", p, part_num);
 			return 0;
 		}
