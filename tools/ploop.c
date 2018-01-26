@@ -1243,13 +1243,15 @@ static void usage_replace(void)
 			"       CDELTA := path to currently used image file\n"
 			"       DELTA := path to new image file\n"
 			"       -k, --keep-name    keep the file name (rename DELTA to CDELTA)\n"
+			"       FORMAT := { raw | ploop1 }\n"
+			"	--read-write	read-write image\n"
 	       );
 }
 
 
 static int plooptool_replace(int argc, char **argv)
 {
-	int i, idx;
+	int i, idx, f;
 	char dev[PATH_MAX];
 	char *device = NULL;
 	char *mnt = NULL;
@@ -1258,10 +1260,11 @@ static int plooptool_replace(int argc, char **argv)
 	};
 	static struct option options[] = {
 		{"keep-name", no_argument, NULL, 'k'},
+		{"read-write", no_argument, NULL, 'w'},
 		{NULL, 0, NULL, 0 }
 	};
 
-	while ((i = getopt_long(argc, argv, "d:m:l:i:u:o:k",
+	while ((i = getopt_long(argc, argv, "d:m:l:i:u:o:kwf:",
 					options, &idx)) != EOF) {
 		switch (i) {
 		case 'd':
@@ -1286,6 +1289,17 @@ static int plooptool_replace(int argc, char **argv)
 			break;
 		case 'k':
 			param.flags |= PLOOP_REPLACE_KEEP_NAME;
+			break;
+		case 'w':
+			param.flags |= PLOOP_REPLACE_RW;
+			break;
+		case 'f':
+			f = parse_format_opt(optarg);
+			if (f < 0) {
+				usage_init();
+				return SYSEXIT_PARAM;
+			}
+			param.mode = f;
 			break;
 		default:
 			usage_replace();
@@ -1327,6 +1341,7 @@ static int plooptool_replace(int argc, char **argv)
 	}
 	else {
 		int level = param.level;
+		int raw, flags;
 
 		if (argc > 0) {
 			usage_replace();
@@ -1362,7 +1377,7 @@ static int plooptool_replace(int argc, char **argv)
 					&level);
 			if (ret) {
 				fprintf(stderr, "Can't find level by "
-						"delta file name %s",
+						"delta file name %s\n",
 						param.cur_file);
 				return ret;
 			}
@@ -1372,7 +1387,11 @@ static int plooptool_replace(int argc, char **argv)
 				return ret;
 		}
 
-		return replace_delta(device, level, param.file);
+		raw = param.mode == PLOOP_RAW_MODE;
+		flags = 0;
+		if (!(param.flags & PLOOP_REPLACE_RW))
+			flags |= PLOOP_FMT_RDONLY;
+		return replace_delta(device, level, param.file, raw, flags);
 	}
 }
 

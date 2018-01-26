@@ -337,7 +337,7 @@ int merge_image(const char *device, int start_level, int end_level, int raw,
 				if (ret)
 					return ret;
 
-				ret = replace_delta(device, start_level, new_image);
+				ret = replace_delta(device, start_level, new_image, 0, PLOOP_FMT_RDONLY);
 				if (ret)
 					goto rm_delta;
 			}
@@ -633,7 +633,7 @@ merge_done:
 				ret = SYSEXIT_OPEN;
 				goto close_lfd;
 			}
-			ret = do_replace_delta(lfd, start_level, fd, blocksize, new_image);
+			ret = do_replace_delta(lfd, start_level, fd, blocksize, new_image, 0, PLOOP_FMT_RDONLY);
 			close(fd);
 			if (ret)
 				goto close_lfd;
