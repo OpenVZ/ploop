@@ -326,7 +326,7 @@ char *make_sysfs_dev_name(int minor, char *buf, int len);
 int mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *param);
 PL_EXT int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		struct ploop_mount_param *param, int raw);
-PL_EXT int replace_delta(const char *device, int level, const char *image);
+PL_EXT int replace_delta(const char *device, int level, const char *image, int raw, int flags);
 PL_EXT int create_snapshot(const char *device, const char *delta, int syncfs,
 		const __u8 *cbt_u, const char *prev_delta);
 int get_list_size(char **list);
@@ -466,7 +466,7 @@ int check_snapshot_mount(struct ploop_disk_images_data *di,
 int create_image(const char *file, __u32 blocksize, off_t size_sec, int mode,
 		int version, int flags);
 int do_replace_delta(int devfd, int level, int imgfd, __u32 blocksize,
-		const char *image);
+		const char *image, int raw, int flags);
 int copy_delta(const char *src, const char *dst);
 
 struct ploop_copy_handle;

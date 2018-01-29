@@ -76,6 +76,7 @@ struct ploop_create_param {
 /* Bit values for ploop_replace_param.flag */
 enum ploop_replace_flags {
 	PLOOP_REPLACE_KEEP_NAME		= 1 << 0,
+	PLOOP_REPLACE_RW		= 1 << 1,
 };
 
 struct ploop_replace_param {
@@ -86,7 +87,8 @@ struct ploop_replace_param {
 	int  level;
 	char *cur_file;
 	int  flags;
-	char dummy[32];
+	int  mode;
+	char dummy[28];
 };
 
 struct ploop_image_data {

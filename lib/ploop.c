@@ -1554,7 +1554,7 @@ out:
 }
 
 int do_replace_delta(int devfd, int level, int imgfd, __u32 blocksize,
-		const char *image)
+		const char *image, int raw, int flags)
 {
 	struct ploop_ctl_delta req = {};
 
@@ -1562,7 +1562,9 @@ int do_replace_delta(int devfd, int level, int imgfd, __u32 blocksize,
 	req.c.pctl_level = level;
 	req.c.pctl_chunks = 1;
 	req.c.pctl_format = PLOOP_FMT_PLOOP1;
-	req.c.pctl_flags = PLOOP_FMT_RDONLY;
+	if (raw)
+		req.c.pctl_format = PLOOP_FMT_RAW;
+	req.c.pctl_flags = flags;
 
 	req.f.pctl_type = PLOOP_IO_AUTO;
 	req.f.pctl_fd = imgfd;
@@ -1577,14 +1579,21 @@ int do_replace_delta(int devfd, int level, int imgfd, __u32 blocksize,
 	return 0;
 }
 
-int replace_delta(const char *device, int level, const char *image)
+int replace_delta(const char *device, int level, const char *image, int raw, int flags)
 {
 	int fd = -1, lfd = -1;
 	int top_level = 0;
 	int ret;
 	__u32 blocksize = 0;
+	int img_flags;
 
-	fd = open(image, O_DIRECT | O_RDONLY);
+	img_flags = O_DIRECT;
+	if (flags & PLOOP_FMT_RDONLY)
+		img_flags |= O_RDONLY;
+	else
+		img_flags |= O_RDWR;
+
+	fd = open(image, img_flags);
 	if (fd < 0) {
 		ploop_err(errno, "Can't open file %s", image);
 		return SYSEXIT_OPEN;
@@ -1601,7 +1610,7 @@ int replace_delta(const char *device, int level, const char *image)
 		goto out;
 	}
 
-	if (level < 0 || level >= top_level) {
+	if (level < 0 || level > top_level) {
 		ploop_err(0, "Invalid level %d specified, allowed values "
 				"are 0 to %d", level, top_level - 1);
 		ret = SYSEXIT_PARAM;
@@ -1613,7 +1622,7 @@ int replace_delta(const char *device, int level, const char *image)
 		goto out;
 	}
 
-	ret = do_replace_delta(lfd, level, fd, blocksize, image);
+	ret = do_replace_delta(lfd, level, fd, blocksize, image, raw, flags);
 
 out:
 	if (lfd >= 0)
@@ -1675,7 +1684,10 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 	char conf[PATH_MAX], conf_tmp[PATH_MAX] = "";
 	int ret, idx, level;
 	int keep_name = (param->flags & PLOOP_REPLACE_KEEP_NAME);
+	int flags, check_flags;
 	int offline = 0;
+	int raw = param->mode == PLOOP_RAW_MODE;
+	int ro = !(param->flags & PLOOP_REPLACE_RW);
 
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
@@ -1774,8 +1786,13 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 		}
 	}
 
+	check_flags = CHECK_DETAILED;
+	if (ro)
+		check_flags |= CHECK_READONLY;
+	if (raw)
+		check_flags |= CHECK_RAW;
 	/* check a new image */
-	ret = ploop_check(file, CHECK_DETAILED | CHECK_READONLY, NULL, NULL);
+	ret = ploop_check(file, check_flags, NULL, NULL);
 	if (ret)
 		goto err;
 
@@ -1804,7 +1821,10 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 	ploop_log(0, "Replacing %s with %s (%s, level %d)", oldfile, file,
 			(offline) ? "offline" : "online", level);
 	if (!offline) {
-	       ret = replace_delta(dev, level, file);
+		flags = 0;
+		if (ro)
+			flags |= PLOOP_FMT_RDONLY;
+	       ret = replace_delta(dev, level, file, raw, flags);
 	       if (ret)
 		       goto err;
 	}
@@ -1854,7 +1874,7 @@ undo_keep:
 		if (ret && !offline) {
 			ploop_log(0, "Rollback: replacing %s with %s",
 					file, oldfile);
-			if (replace_delta(dev, level, oldfile)) {
+			if (replace_delta(dev, level, oldfile, 0, PLOOP_FMT_RDONLY)) {
 				/* Hmm. We can't roll back the replace, so
 				 * let's at least keep the dd.xml consistent
 				 * with the in-kernel ploop state.
