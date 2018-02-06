@@ -501,7 +501,7 @@ int grow_delta(struct delta *odelta, off_t bdsize, void *buf,
 	return 0;
 }
 
-int grow_raw_delta(const char *image, off_t append_size)
+int grow_raw_delta(const char *image, off_t append_size, int sparse)
 {
 	struct delta delta = {};
 	struct stat stat;
@@ -526,9 +526,17 @@ int grow_raw_delta(const char *image, off_t append_size)
 		goto err;
 	}
 
+	ret = SYSEXIT_WRITE;
+	if (sparse) {
+		if (ftruncate(delta.fd, stat.st_size + append_size)) {
+			ploop_err(errno, "Unable to truncate the image file");
+			goto err;
+		}
+		goto out;
+	}
+
 	pos = stat.st_size;
 
-	ret = SYSEXIT_WRITE;
 	while (append_size > 0) {
 		size_t size = (append_size > DEF_CLUSTER) ? DEF_CLUSTER : append_size;
 
@@ -547,6 +555,7 @@ int grow_raw_delta(const char *image, off_t append_size)
 		ret = SYSEXIT_FSYNC;
 		goto err;
 	}
+out:
 	ret = 0;
 
 err:
@@ -557,7 +566,7 @@ err1:
 	return ret;
 }
 
-int ploop_grow_raw_delta_offline(const char *image, off_t new_size)
+int ploop_grow_raw_delta_offline(const char *image, off_t new_size, int sparse)
 {
 	int ret;
 	off_t old_size;
@@ -581,7 +590,7 @@ int ploop_grow_raw_delta_offline(const char *image, off_t new_size)
 		return SYSEXIT_PARAM;
 	}
 
-	return grow_raw_delta(image, (new_size - old_size) << PLOOP1_SECTOR_LOG);
+	return grow_raw_delta(image, (new_size - old_size) << PLOOP1_SECTOR_LOG, sparse);
 }
 
 int ploop_grow_delta_offline(const char *image, off_t new_size)

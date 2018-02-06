@@ -2720,7 +2720,7 @@ int ploop_grow_device(const char *device, off_t new_size)
 	return 0;
 }
 
-int ploop_grow_image(struct ploop_disk_images_data *di, off_t size)
+int ploop_grow_image(struct ploop_disk_images_data *di, off_t size, int sparse)
 {
 	int ret;
 	char device[64];
@@ -2765,7 +2765,7 @@ int ploop_grow_image(struct ploop_disk_images_data *di, off_t size)
 
 		if (strcmp(di->snapshots[i]->parent_guid, NONE_UUID) == 0 &&
 				di->mode == PLOOP_RAW_MODE)
-			ret = ploop_grow_raw_delta_offline(fname, size);
+			ret = ploop_grow_raw_delta_offline(fname, size, sparse);
 		else
 			ret = ploop_grow_delta_offline(fname, size);
 	}

@@ -138,7 +138,7 @@ static int grow_lower_delta(const char *device, int top,
 	}
 
 	if (dst_is_raw) {
-		ret = grow_raw_delta(dst_image, S2B(src_size - dst_size));
+		ret = grow_raw_delta(dst_image, S2B(src_size - dst_size), 0);
 		goto done;
 	}
 
@@ -462,7 +462,7 @@ rm_delta:
 
 			if (src_size > dst_size) {
 				ret = grow_raw_delta(merged_image,
-					       S2B(src_size - dst_size));
+					       S2B(src_size - dst_size), 0);
 				if (ret)
 					goto merge_done;
 			}

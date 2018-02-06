@@ -36,7 +36,7 @@ static void usage(void)
 {
 	fprintf(stderr, "Usage: ploop grow -s NEW_SIZE -d DEVICE\n"
 			"       ploop grow -s NEW_SIZE [-f raw] DELTA\n"
-			"       ploop grow -s NEW_SIZE DiskDescriptor.xml\n"
+			"       ploop grow -s NEW_SIZE [--sparse] DiskDescriptor.xml\n"
 		);
 }
 
@@ -44,10 +44,14 @@ int plooptool_grow(int argc, char **argv)
 {
 	int i, f;
 	off_t new_size = 0; /* in sectors */
-	int raw = 0;
+	int raw = 0, sparse = 0;
 	char *device = NULL;
+	static struct option long_opts[] = {
+		{ "sparse", no_argument, 0, 'S' },
+		{},
+	};
 
-	while ((i = getopt(argc, argv, "f:d:s:")) != EOF) {
+	while ((i = getopt_long(argc, argv, "f:d:s:S", long_opts, NULL)) != EOF) {
 		switch (i) {
 		case 'f':
 			f = parse_format_opt(optarg);
@@ -59,6 +63,9 @@ int plooptool_grow(int argc, char **argv)
 			break;
 		case 'd':
 			device = optarg;
+			break;
+		case 'S':
+			sparse = 1;
 			break;
 		case 's':
 			if (parse_size(optarg, &new_size, "-s")) {
@@ -90,7 +97,7 @@ int plooptool_grow(int argc, char **argv)
 		if (ret)
 			return ret;
 
-		ret = ploop_grow_image(di, new_size);
+		ret = ploop_grow_image(di, new_size, sparse);
 		ploop_close_dd(di);
 
 		return ret;
@@ -98,7 +105,7 @@ int plooptool_grow(int argc, char **argv)
 	else if (device)
 		return ploop_grow_device(device, new_size);
 	else if (raw)
-		return ploop_grow_raw_delta_offline(argv[0], new_size);
+		return ploop_grow_raw_delta_offline(argv[0], new_size, sparse);
 	else
 		return ploop_grow_delta_offline(argv[0], new_size);
 }
