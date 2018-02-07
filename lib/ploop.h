@@ -257,10 +257,10 @@ int clear_delta(struct delta * delta);
 int read_size_from_image(const char *img_name, int raw, off_t * res);
 int grow_delta(struct delta *odelta, off_t bdsize, void *buf,
 		struct grow_maps *gm);
-int grow_raw_delta(const char *image, off_t append_size);
-PL_EXT int ploop_grow_image(struct ploop_disk_images_data *di, off_t size);
+int grow_raw_delta(const char *image, off_t append_size, int sparse);
+PL_EXT int ploop_grow_image(struct ploop_disk_images_data *di, off_t size, int sparse);
 PL_EXT int ploop_grow_device(const char *device, off_t new_size);
-PL_EXT int ploop_grow_raw_delta_offline(const char *image, off_t new_size);
+PL_EXT int ploop_grow_raw_delta_offline(const char *image, off_t new_size, int sparse);
 PL_EXT int ploop_grow_delta_offline(const char *image, off_t new_size);
 
 struct pfiemap *fiemap_alloc(int n);
