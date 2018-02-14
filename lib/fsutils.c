@@ -121,8 +121,8 @@ int sgdisk_mkpart(const char *device,
 	char *argv[5];
 	char s1[100];
 
-	snprintf(s1, sizeof(s1), "%d:%llu:%llu",
-			part_num, part_start, part_end);
+	snprintf(s1, sizeof(s1), "%d:%lluk:%lluk",
+			part_num, part_start/2, part_end/2);
 
 	argv[0] = "sgdisk";
 	argv[1] = "-n";
