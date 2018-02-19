@@ -221,7 +221,7 @@ static __inline __s64 BitFindNextSet64(__u64 const* bmap,
 	if (NULL == bmap)
 		return -2;
 	if (off >= size)
-		return -2;
+		return -1;
 
 	size -= pos;
 	off &= BIT_MASK___u64;
