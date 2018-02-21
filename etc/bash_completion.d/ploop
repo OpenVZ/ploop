@@ -1,0 +1,140 @@
+_ploop()
+{
+
+    local cur=${COMP_WORDS[COMP_CWORD]}
+    local prev=${COMP_WORDS[COMP_CWORD-1]}
+
+    local ploop_cmds="init mount umount check convert resize balloon snapshot snapshot-delete \
+                      snapshot-merge snapshot-switch snapshot-list tsnapshot \
+                      restore-descriptor replace encrypt start stop delete clear \
+                      merge grow copy stat info list"
+
+    local ploop_check_opts="--force --hard-force --check --ro --silent --raw --drop-inuse --blocksize --repair-sparse"
+    local ploop_snapshot_list_opts="--no-header --uuid --id --snapshot --output"
+    local ploop_balloon_opts="show status clear change complete check repair discard"
+    local ploop_balloon_discard_opts="--automount --defrag --to-free --min-block --stat"
+
+    case $COMP_CWORD in
+        1)  #Command or common options:
+            COMPREPLY=( $( compgen -W "$ploop_cmds" -- $cur ) )
+        ;;
+        *)  #Print additional options only if the current current symbol is '-'
+            if [[ "${cur::1}" == "-" ]]; then
+                local cmd=${COMP_WORDS[1]}
+                case "$cmd" in
+                    check)
+                        COMPREPLY=( $( compgen -W "$ploop_check_opts" -- $cur ) )
+                    ;;
+                    snapshot-list)
+                        COMPREPLY=( $( compgen -W "$ploop_snapshot_list_opts" -- $cur ) )
+                    ;;
+                    balloon)
+                        #Print additional options only for 'ploop balloon discard'
+                        if [[ ${COMP_WORDS[2]} == "discard" ]]; then
+                            COMPREPLY=( $( compgen -W "$ploop_balloon_discard_opts" -- $cur ) )
+                        fi
+                    ;;
+                    *)
+                        COMPREPLY=( $( compgen -W "" -- $cur ) )
+                    ;;
+                esac
+            else
+                local cmd=${prev}
+                case "$cmd" in
+                    balloon)
+                        COMPREPLY=( $( compgen -W "$ploop_balloon_opts" -- $cur ) )
+                    ;;
+                    *) #If we are have not matches, then completion set - the list of files/directories. It's need for convenience of specifying the path to the ploop. 
+                        _filedir
+                    ;;
+                esac
+            fi
+        ;;
+    esac
+} &&
+complete -F _ploop ploop
+
+#Function for alias 'ploop-balloon'
+_ploop_balloon()
+{
+
+    local cur=${COMP_WORDS[COMP_CWORD]}
+    local prev=${COMP_WORDS[COMP_CWORD-1]}
+
+    local ploop_balloon_cmds="show status clear change complete check repair discard"
+
+    local ploop_balloon_discard_opts="--automount --defrag --to-free --min-block --stat"
+
+    case $COMP_CWORD in
+        1)
+            #Command or common options:
+            COMPREPLY=( $( compgen -W "$ploop_balloon_cmds" -- $cur ) )
+        ;;
+        *)   if [[ "${cur::1}" == "-" ]]; then
+                local cmd=${COMP_WORDS[1]}
+                case "$cmd" in
+                    discard)
+                        COMPREPLY=( $( compgen -W "$ploop_balloon_discard_opts" -- $cur ) )
+                    ;;
+                    *)
+                        COMPREPLY=( $( compgen -W "" -- $cur ) )
+                    ;;
+                esac
+            else
+                _filedir
+            fi
+        ;;
+    esac
+} &&
+complete -F _ploop_balloon ploop-balloon
+
+#Function for alias 'ploop-volume'
+_ploop_volume()
+{
+
+    local cur=${COMP_WORDS[COMP_CWORD]}
+    local prev=${COMP_WORDS[COMP_CWORD-1]}
+
+    local ploop_volume_cmds="create clone snapshot delete switch"
+
+        case $COMP_CWORD in
+        1)
+            #Command or common options:
+            COMPREPLY=( $( compgen -W "$ploop_volume_cmds" -- $cur ) )
+        ;;
+        *)
+            case "$prev" in
+                *)
+                    _filedir
+                ;;
+            esac
+        ;;
+    esac
+
+} &&
+complete -F _ploop_volume ploop-volume
+
+#Function for alias 'ploop-cbt'
+_ploop_cbt()
+{
+
+    local cur=${COMP_WORDS[COMP_CWORD]}
+    local prev=${COMP_WORDS[COMP_CWORD-1]}
+
+    local ploop_cbt_cmds="dump drop show"
+
+    case $COMP_CWORD in
+        1)
+            #Command or common options:
+            COMPREPLY=( $( compgen -W "$ploop_cbt_cmds" -- $cur ) )
+        ;;
+        *)
+            case "$prev" in
+                *)
+                    _filedir
+                ;;
+            esac
+        ;;
+    esac
+} &&
+complete -F _ploop_cbt ploop-cbt

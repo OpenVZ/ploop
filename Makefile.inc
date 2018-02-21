@@ -28,6 +28,7 @@ DDOCDIR=/usr/share/doc/$(NAME)-devel-$(VERSION)
 MAN8DIR=$(MANDIR)/man8
 TMPFILESDIR=/usr/lib/tmpfiles.d
 LOGROTATEDIR=/etc/logrotate.d
+COMPLETIONDIR=/etc/bash_completion.d
 MODULESLOADDIR=/etc/modules-load.d
 LIBSCRIPTDIR=/usr/libexec/ploop
 DEBUG=yes
