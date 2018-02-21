@@ -1060,9 +1060,9 @@ int write_empty_cbt_to_image(const char *fname, const char *prev_fname,
 {
 	int ret = 0;
 	struct ploop_pvd_dirty_bitmap_raw new_cbt;
-	char buf[50];
+	char buf[40];
 
-	ploop_log(0, "Write new CBT uuid=%s", uuid2str(cbt_u, buf));
+	ploop_log(0, "Write new CBT uuid=%s %s", uuid2str(cbt_u, buf), fname);
 	ret = read_size_in_sectors_from_image(prev_fname, &new_cbt.m_Size);
 	if (ret)
 		return ret;
@@ -1203,14 +1203,15 @@ int cbt_snapshot_prepare(int lfd, const unsigned char *cbt_uuid,
 {
 	int ret;
 	__u32 cbt_blksize = CBT_DEFAULT_BLKSIZE;
+	char buf[40];
 
 	if (cbt_uuid == NULL)
 		return 0;
 
 	ret = cbt_get_and_clear(lfd, or_data);
 	if (ret == SYSEXIT_NOCBT) {
-		ploop_log(0, "No cbt in kernel, starting a new one using default blksize: %u",
-				cbt_blksize);
+		ploop_log(0, "No cbt in kernel, starting a new %s using default blksize: %u",
+				uuid2str(cbt_uuid, buf), cbt_blksize);
 
 		if ((ret = cbt_start(lfd, cbt_uuid, cbt_blksize))) {
 			ploop_err(errno, "Failed to start cbt: %d", ret);
@@ -1229,12 +1230,10 @@ int cbt_snapshot(int lfd, const unsigned char *cbt_uuid,
 	int ret;
 	__u32 cbt_blksize = CBT_DEFAULT_BLKSIZE;
 	__u8 uuid[16];
+	char buf[40];
 
 	if (cbt_uuid == NULL)
 		return 0;
-
-	ploop_log(0, "Saving cbt to img=%s and starting new cbt",
-			prev_delta);
 
 	if ((ret = cbt_get_dirty_bitmap_metadata(lfd, uuid, &cbt_blksize))) {
 		ploop_err(errno, "Failed to get cbt metadata: %d", ret);
@@ -1245,6 +1244,9 @@ int cbt_snapshot(int lfd, const unsigned char *cbt_uuid,
 		/* this means, that there was no cbt before cbt_snapshot_prepare. */
 		return 0;
 	}
+
+	ploop_log(0, "Saving cbt %s to img=%s and starting new cbt %s",
+		uuid2str(uuid, buf), prev_delta, uuid2str(cbt_uuid, buf));
 
 	if ((ret = write_optional_header_to_image(lfd, prev_delta, or_data))) {
 		ploop_err(0, "Error while writing optional header: %d", ret);
