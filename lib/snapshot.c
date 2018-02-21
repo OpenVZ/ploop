@@ -290,7 +290,7 @@ int do_create_snapshot(struct ploop_disk_images_data *di,
 	const __u8 *cbt_u = NULL;
 
 	if (cbt_uuid != NULL) {
-		ploop_log(0, "CBT uuid=%s", cbt_uuid);
+		ploop_log(0, "Create snapshot CBT uuid=%s", cbt_uuid);
 		if (uuid_parse(cbt_uuid, u)) {
 			ploop_log(-1, "Incorrect cbt uuid is specified %s",
 					cbt_uuid);
