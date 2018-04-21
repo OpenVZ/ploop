@@ -1804,11 +1804,7 @@ int ploop_replace_image(struct ploop_disk_images_data *di,
 	if (ret)
 		goto err;
 
-	/* check that images are identical */
 	oldfile = param->cur_file ? : di->images[idx]->file;
-	ret = check_deltas_same(file, oldfile);
-	if (ret)
-		goto err;
 
 	if (keep_name && cant_rename(file, oldfile)) {
 		ret = SYSEXIT_RENAME;
