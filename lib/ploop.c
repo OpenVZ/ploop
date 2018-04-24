@@ -1585,10 +1585,11 @@ int replace_delta(const char *device, int level, const char *image, int raw, int
 	int top_level = 0;
 	int ret;
 	__u32 blocksize = 0;
-	int img_flags;
+	int img_flags, check_flags;
+	int ro = flags & PLOOP_FMT_RDONLY;
 
 	img_flags = O_DIRECT;
-	if (flags & PLOOP_FMT_RDONLY)
+	if (ro)
 		img_flags |= O_RDONLY;
 	else
 		img_flags |= O_RDWR;
@@ -1621,6 +1622,13 @@ int replace_delta(const char *device, int level, const char *image, int raw, int
 		ret = SYSEXIT_SYSFS;
 		goto out;
 	}
+
+	check_flags = CHECK_DETAILED | CHECK_DROPINUSE | CHECK_REPAIR_SPARSE |
+			(ro ? CHECK_READONLY : 0) |
+			(raw ? CHECK_RAW : 0);
+	ret = ploop_check(image, check_flags, &blocksize, NULL);
+	if (ret)
+		goto out;
 
 	ret = do_replace_delta(lfd, level, fd, blocksize, image, raw, flags);
 
