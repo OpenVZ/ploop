@@ -350,7 +350,7 @@ out:
 	return ret;
 }
 
-int ploop_check(char *img, int flags, __u32 *blocksize_p, int *cbt_allowed)
+int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed)
 {
 	struct ploop_check_desc d;
 	int i, j;
