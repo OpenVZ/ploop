@@ -14,8 +14,8 @@ install_logrotate:
 	$(Q) $(INSTALL) -m 644 logrotate.d/ploop $(DESTDIR)/$(LOGROTATEDIR)
 
 install_bash_completion:
-        $(Q) $(INSTALL) -d $(DESTDIR)/$(COMPLETIONDIR)
-        $(Q) $(INSTALL) -m 644 bash_completion.d/ploop $(DESTDIR)/$(COMPLETIONDIR)
+	$(Q) $(INSTALL) -d $(DESTDIR)/$(COMPLETIONDIR)
+	$(Q) $(INSTALL) -m 644 bash_completion.d/ploop $(DESTDIR)/$(COMPLETIONDIR)
 
 install_modulesload:
 	$(Q) $(INSTALL) -d $(DESTDIR)/$(MODULESLOADDIR)
