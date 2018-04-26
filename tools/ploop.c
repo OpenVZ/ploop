@@ -1381,10 +1381,6 @@ static int plooptool_replace(int argc, char **argv)
 						param.cur_file);
 				return ret;
 			}
-
-			ret = check_deltas_same(param.cur_file, param.file);
-			if (ret)
-				return ret;
 		}
 
 		raw = param.mode == PLOOP_RAW_MODE;
