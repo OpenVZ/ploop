@@ -65,6 +65,7 @@ struct sender_data {
 	pthread_cond_t cond;
 	pthread_mutex_t wait_mutex;
 	pthread_cond_t wait_cond;
+	pthread_barrier_t barrier;
 };
 
 struct ploop_copy_handle {
@@ -421,7 +422,8 @@ static void *sender_thread(void *data)
 	int done;
 
 	pthread_mutex_lock(&sd->mutex);
-
+	ploop_dbg(3, "start sender_thread");
+	pthread_barrier_wait(&sd->barrier);
 	do {
 		pthread_cond_wait(&sd->cond, &sd->mutex);
 
@@ -539,6 +541,7 @@ void free_ploop_copy_handle(struct ploop_copy_handle *h)
 	pthread_cond_destroy(&h->sd.cond);
 	pthread_mutex_destroy(&h->sd.wait_mutex);
 	pthread_cond_destroy(&h->sd.wait_cond);
+	pthread_barrier_destroy(&h->sd.barrier);
 
 	unregister_cleanup_hook(h->cl);
 
@@ -560,6 +563,7 @@ static struct ploop_copy_handle *alloc_ploop_copy_handle(int cluster)
 	pthread_cond_init(&h->sd.cond, NULL);
 	pthread_mutex_init(&h->sd.wait_mutex, NULL);
 	pthread_cond_init(&h->sd.wait_cond, NULL);
+	pthread_barrier_init(&h->sd.barrier, NULL, 2);
 
 	h->devfd = h->ofd = h->mntfd = h->idelta.fd = -1;
 	h->cluster = cluster;
@@ -700,6 +704,8 @@ int ploop_copy_start(struct ploop_copy_handle *h,
 		ret = SYSEXIT_SYS;
 		goto err;
 	}
+
+	pthread_barrier_wait(&h->sd.barrier);
 
 	ploop_dbg(3, "pcopy track init");
 	ret = ioctl_device(h->devfd, PLOOP_IOC_TRACK_INIT, &e);
