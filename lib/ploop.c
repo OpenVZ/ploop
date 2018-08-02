@@ -1132,6 +1132,18 @@ static int delete_deltas(int devfd, const char *devname)
 static int ploop_stop(int fd, const char *devname,
 		struct ploop_disk_images_data *di)
 {
+	int ret, state;
+
+	ret = ploop_get_mntn_state(fd, &state);
+	if (ret)
+		return ret;
+
+	if (state == PLOOP_MNTN_PUSH_BACKUP) {
+		ploop_err(0, "Can't stop %s because kernel is in \"%s\""
+				" state now", devname, mntn2str(state));
+		return SYSEXIT_UMOUNT_BUSY;
+	}
+
 	if (do_ioctl_tm(fd, PLOOP_IOC_STOP, devname,
 		di ? di->runtime->umount_timeout : PLOOP_UMOUNT_TIMEOUT) < 0) {
 		if (errno != EINVAL) {

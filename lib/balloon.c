@@ -63,6 +63,8 @@ char *mntn2str(int mntn_type)
 		return "GROW";
 	case PLOOP_MNTN_DISCARD:
 		return "DISCARD";
+	case PLOOP_MNTN_PUSH_BACKUP:
+		return "PLOOP_MNTN_PUSH_BACKUP";
 	}
 
 	return "UNKNOWN";
