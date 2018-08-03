@@ -43,6 +43,7 @@
 static int ploop_mount_fs(struct ploop_disk_images_data *di,
 		const char *partname,	struct ploop_mount_param *param,
 		int need_balloon);
+static int ploop_umount_fs(const char *mnt, struct ploop_disk_images_data *di);
 
 static off_t round_bdsize(off_t size, __u32 blocksize, int version)
 {
@@ -1132,6 +1133,18 @@ static int delete_deltas(int devfd, const char *devname)
 static int ploop_stop(int fd, const char *devname,
 		struct ploop_disk_images_data *di)
 {
+	int ret, state;
+
+	ret = ploop_get_mntn_state(fd, &state);
+	if (ret)
+		return ret;
+
+	if (state == PLOOP_MNTN_PUSH_BACKUP) {
+		ploop_err(0, "Can't stop %s because kernel is in \"%s\""
+				" state now", devname, mntn2str(state));
+		return SYSEXIT_UMOUNT_BUSY;
+	}
+
 	if (do_ioctl_tm(fd, PLOOP_IOC_STOP, devname,
 		di ? di->runtime->umount_timeout : PLOOP_UMOUNT_TIMEOUT) < 0) {
 		if (errno != EINVAL) {
@@ -2413,6 +2426,28 @@ int auto_mount_image(struct ploop_disk_images_data *di,
 	return mount_image(di, param);
 }
 
+static int remount_image(struct ploop_disk_images_data *di,
+		struct ploop_mount_param *param, const char *dev)
+{
+	int ret;
+	char path[PATH_MAX];
+	char part[64];
+
+	if (ploop_get_part(di, dev, part, sizeof(part)))
+		 return SYSEXIT_MOUNT;
+
+	ret = get_mount_dir(part, path, sizeof(path));
+	if (ret == -1) {
+		return SYSEXIT_MOUNT;
+	} else if (ret == 0) {
+		ret = ploop_umount_fs(path, di);
+		if (ret)
+			return ret;
+	}
+
+	return ploop_mount_fs(di, part, param, 1);
+}
+
 int ploop_mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *param)
 {
 	int ret;
@@ -2423,14 +2458,19 @@ int ploop_mount_image(struct ploop_disk_images_data *di, struct ploop_mount_para
 
 	ret = ploop_find_dev_by_cn(di, di->runtime->component_name, 1, dev, sizeof(dev));
 	if (ret == -1) {
-		ploop_unlock_dd(di);
-		return SYSEXIT_SYS;
+		ret = SYSEXIT_SYS;
+		goto err;
 	}
 	if (ret == 0) {
-		ploop_err(0, "Image %s already used by device %s",
-				di->images[0]->file, dev);
+		if (param->flags & MS_REMOUNT) {
+			ret = remount_image(di, param, dev);
+		} else {
 
-		ret = SYSEXIT_MOUNT;
+			ploop_err(0, "Image %s already used by device %s",
+					di->images[0]->file, dev);
+
+			ret = SYSEXIT_MOUNT;
+		}
 		goto err;
 	}
 

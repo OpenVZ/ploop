@@ -63,6 +63,8 @@ char *mntn2str(int mntn_type)
 		return "GROW";
 	case PLOOP_MNTN_DISCARD:
 		return "DISCARD";
+	case PLOOP_MNTN_PUSH_BACKUP:
+		return "PLOOP_MNTN_PUSH_BACKUP";
 	}
 
 	return "UNKNOWN";
@@ -1445,11 +1447,28 @@ err:
 	return ret;
 }
 
+int ploop_get_mntn_state(int fd, int *state)
+{
+	int ret;
+	struct ploop_balloon_ctl ctl = {
+		.keep_intact = 1
+	};
+
+	ret = ioctl(fd, PLOOP_IOC_BALLOON, &ctl);
+	if (ret) {
+		ploop_err(errno, "Unable to get in-kernel maintenance state");
+		return SYSEXIT_DEVIOC;
+	}
+
+	*state = ctl.mntn_type;
+
+	return 0;
+}
+
 int complete_running_operation(struct ploop_disk_images_data *di,
 		const char *device)
 {
-	struct ploop_balloon_ctl b_ctl;
-	int fd, ret;
+	int fd, ret, state;
 
 	defrag_complete(device);
 
@@ -1457,21 +1476,17 @@ int complete_running_operation(struct ploop_disk_images_data *di,
 	if (fd == -1)
 		return SYSEXIT_OPEN;
 
-	bzero(&b_ctl, sizeof(b_ctl));
-	b_ctl.keep_intact = 1;
-	ret = ioctl(fd, PLOOP_IOC_BALLOON, &b_ctl);
-	if (ret) {
-		ploop_err(errno, "Unable to get in-kernel maintenance state");
-		ret = SYSEXIT_DEVIOC;
+	ret = ploop_get_mntn_state(fd, &state);
+	if (ret)
 		goto err;
-	}
-	if (b_ctl.mntn_type == PLOOP_MNTN_OFF)
+
+	if (state == PLOOP_MNTN_OFF)
 		goto err;
 
 	ploop_log(0, "Completing an on-going operation %s for device %s",
-		mntn2str(b_ctl.mntn_type), device);
+		mntn2str(state), device);
 
-	switch (b_ctl.mntn_type) {
+	switch (state) {
 	case PLOOP_MNTN_MERGE:
 		ret = do_mntn_merge(di, device, fd);
 		break;
