@@ -40,6 +40,7 @@
 typedef enum {
 	PCOPY_PKT_DATA,
 	PCOPY_PKT_CMD,
+	PCOPY_PKT_DATA_ASYNC,
 } pcopy_pkt_type_t;
 
 typedef enum {
@@ -90,6 +91,7 @@ struct ploop_copy_handle {
 	struct ploop_cleanup_hook *cl;
 	int cancelled;
 	off_t eof_offset;
+	int async;
 };
 
 /* Check what a file descriptor refers to.
@@ -167,8 +169,11 @@ static int remote_write(int fd, pcopy_pkt_type_t type,
 		return SYSEXIT_WRITE;
 
 	/* get reply */
-	if (read(fd, &rc, sizeof(rc)) != sizeof(rc))
-		return SYSEXIT_PROTOCOL;
+	if (type != PCOPY_PKT_DATA_ASYNC) {
+		rc = TEMP_FAILURE_RETRY(read(fd, &rc, sizeof(rc)));
+		if (rc != sizeof(rc))
+			return SYSEXIT_PROTOCOL;
+	}
 
 	return 0;
 }
@@ -185,7 +190,7 @@ static int local_write(int ofd, const void *iobuf, int len, off_t pos)
 		return 0;
 	}
 
-	n = pwrite(ofd, iobuf, len, pos);
+	n = TEMP_FAILURE_RETRY(pwrite(ofd, iobuf, len, pos));
 	if (n < 0)
 		return SYSEXIT_WRITE;
 	if (n != len) {
@@ -313,9 +318,11 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 
 		ploop_log(3, "RCV type=%d len=%d pos=%" PRIu64,
 				desc.type, desc.size, (uint64_t)desc.pos);
+		ret = 0;
 		switch (desc.type) {
-		case PCOPY_PKT_DATA: {
-			n = pwrite(ofd, iobuf, desc.size, desc.pos);
+		case PCOPY_PKT_DATA:
+		case PCOPY_PKT_DATA_ASYNC: {
+			n = TEMP_FAILURE_RETRY(pwrite(ofd, iobuf, desc.size, desc.pos));
 			if (n != desc.size) {
 				if (n < 0)
 					ploop_err(errno, "Error in pwrite");
@@ -338,7 +345,6 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 				ploop_err(0, "ploop_copy_receiver: unsupported command %d",
 						cmd);
 				ret = SYSEXIT_PARAM;
-				goto out;
 			}
 			break;
 		}
@@ -346,12 +352,12 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 			ploop_err(0, "ploop_copy_receiver: unsupported command type%d",
 						desc.type);
 			ret = SYSEXIT_PARAM;
-			goto out;
+			break;
 		}
 
 		/* send reply */
-		ret = 0;
-		if (nwrite(arg->ifd, &ret, sizeof(int))) {
+		if (desc.type != PCOPY_PKT_DATA_ASYNC &&
+				nwrite(arg->ifd, &ret, sizeof(int))) {
 			ret = SYSEXIT_WRITE;
 			ploop_err(errno, "failed to send reply");
 			goto out;
@@ -410,7 +416,8 @@ static int send_buf(struct ploop_copy_handle *h, const void *iobuf, int len, off
 		return SYSEXIT_WRITE;
 
 	if (h->is_remote)
-		return remote_write(h->ofd, PCOPY_PKT_DATA, iobuf, len, pos);
+		return remote_write(h->ofd,
+			h->async ? PCOPY_PKT_DATA_ASYNC : PCOPY_PKT_DATA, iobuf, len, pos);
 	else
 		return local_write(h->ofd, iobuf, len, pos);
 }
@@ -480,7 +487,7 @@ static int send_image_block(struct ploop_copy_handle *h, __u64 size,
 	void *iobuf = get_free_iobuf(h);
 
 	ploop_dbg(4, "READ size=%llu pos=%llu", size, pos);
-	*nread = pread(idelta->fd, iobuf, size, pos);
+	*nread = TEMP_FAILURE_RETRY(pread(idelta->fd, iobuf, size, pos));
 	if (*nread == 0)
 		return 0;
 	if (*nread < 0) {
@@ -631,6 +638,7 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 	_h->raw = strcmp(format, "raw") == 0;
 	_h->ofd = param->ofd;
 	_h->is_remote = is_remote;
+	_h->async = param->async;
 
 	_h->devfd = open(device, O_RDONLY|O_CLOEXEC);
 	if (_h->devfd == -1) {
@@ -714,7 +722,8 @@ int ploop_copy_start(struct ploop_copy_handle *h,
 
 	h->tracker_on = 1;
 	h->trackend = e.end;
-	ploop_log(3, "pcopy start e.end=%" PRIu64, (uint64_t)e.end);
+	ploop_log(3, "pcopy start %s e.end=%" PRIu64,
+			h->async ? "async" : "", (uint64_t)e.end);
 	for (pos = 0; pos <= h->trackend; ) {
 		h->trackpos = pos + h->cluster;
 		ret = ioctl_device(h->devfd, PLOOP_IOC_TRACK_SETPOS, &h->trackpos);
