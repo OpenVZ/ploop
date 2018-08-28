@@ -169,9 +169,11 @@ static int remote_write(int fd, pcopy_pkt_type_t type,
 		return SYSEXIT_WRITE;
 
 	/* get reply */
-	if (type != PCOPY_PKT_DATA_ASYNC &&
-			read(fd, &rc, sizeof(rc)) != sizeof(rc))
-		return SYSEXIT_PROTOCOL;
+	if (type != PCOPY_PKT_DATA_ASYNC) {
+		rc = TEMP_FAILURE_RETRY(read(fd, &rc, sizeof(rc)));
+		if (rc != sizeof(rc))
+			return SYSEXIT_PROTOCOL;
+	}
 
 	return 0;
 }
@@ -188,7 +190,7 @@ static int local_write(int ofd, const void *iobuf, int len, off_t pos)
 		return 0;
 	}
 
-	n = pwrite(ofd, iobuf, len, pos);
+	n = TEMP_FAILURE_RETRY(pwrite(ofd, iobuf, len, pos));
 	if (n < 0)
 		return SYSEXIT_WRITE;
 	if (n != len) {
@@ -319,7 +321,7 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 		switch (desc.type) {
 		case PCOPY_PKT_DATA:
 		case PCOPY_PKT_DATA_ASYNC: {
-			n = pwrite(ofd, iobuf, desc.size, desc.pos);
+			n = TEMP_FAILURE_RETRY(pwrite(ofd, iobuf, desc.size, desc.pos));
 			if (n != desc.size) {
 				if (n < 0)
 					ploop_err(errno, "Error in pwrite");
@@ -486,7 +488,7 @@ static int send_image_block(struct ploop_copy_handle *h, __u64 size,
 	void *iobuf = get_free_iobuf(h);
 
 	ploop_dbg(4, "READ size=%llu pos=%llu", size, pos);
-	*nread = pread(idelta->fd, iobuf, size, pos);
+	*nread = TEMP_FAILURE_RETRY(pread(idelta->fd, iobuf, size, pos));
 	if (*nread == 0)
 		return 0;
 	if (*nread < 0) {
