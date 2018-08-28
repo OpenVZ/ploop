@@ -318,6 +318,7 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 
 		ploop_log(3, "RCV type=%d len=%d pos=%" PRIu64,
 				desc.type, desc.size, (uint64_t)desc.pos);
+		ret = 0;
 		switch (desc.type) {
 		case PCOPY_PKT_DATA:
 		case PCOPY_PKT_DATA_ASYNC: {
@@ -344,7 +345,6 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 				ploop_err(0, "ploop_copy_receiver: unsupported command %d",
 						cmd);
 				ret = SYSEXIT_PARAM;
-				goto out;
 			}
 			break;
 		}
@@ -352,11 +352,10 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 			ploop_err(0, "ploop_copy_receiver: unsupported command type%d",
 						desc.type);
 			ret = SYSEXIT_PARAM;
-			goto out;
+			break;
 		}
 
 		/* send reply */
-		ret = 0;
 		if (desc.type != PCOPY_PKT_DATA_ASYNC &&
 				nwrite(arg->ifd, &ret, sizeof(int))) {
 			ret = SYSEXIT_WRITE;
