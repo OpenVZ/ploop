@@ -2,9 +2,9 @@ import libploopapi
 import threading
 
 class ploopcopy():
-	def __init__(self, ddxml, fd):
+	def __init__(self, ddxml, fd, async = 0):
 		self.di = libploopapi.open_dd(ddxml)
-		self.h = libploopapi.copy_init(self.di, fd)
+		self.h = libploopapi.copy_init(self.di, fd, async)
 
 	def __del__(self):
 		if self.h:

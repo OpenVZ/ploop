@@ -80,7 +80,8 @@ static PyObject *libploop_copy_init(PyObject *self, PyObject *args)
 	struct ploop_copy_handle *h;
 	struct ploop_copy_param param = {};
 
-	if (!PyArg_ParseTuple(args, "Ok:libploop_copy_init", &py_di, &param.ofd) ||
+	if (!PyArg_ParseTuple(args, "Ok|n:libploop_copy_init",
+				&py_di,	&param.ofd, &param.async) ||
 			!is_ploop_di_object(py_di))
 	{
 		PyErr_SetString(PyExc_ValueError, "An incorrect parameter");

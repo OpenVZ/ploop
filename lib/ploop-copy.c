@@ -40,6 +40,7 @@
 typedef enum {
 	PCOPY_PKT_DATA,
 	PCOPY_PKT_CMD,
+	PCOPY_PKT_DATA_ASYNC,
 } pcopy_pkt_type_t;
 
 typedef enum {
@@ -90,6 +91,7 @@ struct ploop_copy_handle {
 	struct ploop_cleanup_hook *cl;
 	int cancelled;
 	off_t eof_offset;
+	int async;
 };
 
 /* Check what a file descriptor refers to.
@@ -167,7 +169,8 @@ static int remote_write(int fd, pcopy_pkt_type_t type,
 		return SYSEXIT_WRITE;
 
 	/* get reply */
-	if (read(fd, &rc, sizeof(rc)) != sizeof(rc))
+	if (type != PCOPY_PKT_DATA_ASYNC &&
+			read(fd, &rc, sizeof(rc)) != sizeof(rc))
 		return SYSEXIT_PROTOCOL;
 
 	return 0;
@@ -314,7 +317,8 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 		ploop_log(3, "RCV type=%d len=%d pos=%" PRIu64,
 				desc.type, desc.size, (uint64_t)desc.pos);
 		switch (desc.type) {
-		case PCOPY_PKT_DATA: {
+		case PCOPY_PKT_DATA:
+		case PCOPY_PKT_DATA_ASYNC: {
 			n = pwrite(ofd, iobuf, desc.size, desc.pos);
 			if (n != desc.size) {
 				if (n < 0)
@@ -351,7 +355,8 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 
 		/* send reply */
 		ret = 0;
-		if (nwrite(arg->ifd, &ret, sizeof(int))) {
+		if (desc.type != PCOPY_PKT_DATA_ASYNC &&
+				nwrite(arg->ifd, &ret, sizeof(int))) {
 			ret = SYSEXIT_WRITE;
 			ploop_err(errno, "failed to send reply");
 			goto out;
@@ -410,7 +415,8 @@ static int send_buf(struct ploop_copy_handle *h, const void *iobuf, int len, off
 		return SYSEXIT_WRITE;
 
 	if (h->is_remote)
-		return remote_write(h->ofd, PCOPY_PKT_DATA, iobuf, len, pos);
+		return remote_write(h->ofd,
+			h->async ? PCOPY_PKT_DATA_ASYNC : PCOPY_PKT_DATA, iobuf, len, pos);
 	else
 		return local_write(h->ofd, iobuf, len, pos);
 }
@@ -631,6 +637,7 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 	_h->raw = strcmp(format, "raw") == 0;
 	_h->ofd = param->ofd;
 	_h->is_remote = is_remote;
+	_h->async = param->async;
 
 	_h->devfd = open(device, O_RDONLY|O_CLOEXEC);
 	if (_h->devfd == -1) {
@@ -714,7 +721,8 @@ int ploop_copy_start(struct ploop_copy_handle *h,
 
 	h->tracker_on = 1;
 	h->trackend = e.end;
-	ploop_log(3, "pcopy start e.end=%" PRIu64, (uint64_t)e.end);
+	ploop_log(3, "pcopy start %s e.end=%" PRIu64,
+			h->async ? "async" : "", (uint64_t)e.end);
 	for (pos = 0; pos <= h->trackend; ) {
 		h->trackpos = pos + h->cluster;
 		ret = ioctl_device(h->devfd, PLOOP_IOC_TRACK_SETPOS, &h->trackpos);
