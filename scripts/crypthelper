@@ -19,6 +19,9 @@ def get_key(key_id):
     except subprocess.CalledProcessError as e:
         error('Failed to request key with %r: rc=%d' % (exe, e.returncode))
         sys.exit(2)
+    except:
+        error("Failed to execute %r: Unexpected error" % (exe))
+        sys.exit(2)
 
 def run_cryptsetup(cmdline, data = None):
     proc = subprocess.Popen(['/usr/sbin/cryptsetup'] + cmdline,
