@@ -2769,7 +2769,11 @@ int ploop_grow_image(struct ploop_disk_images_data *di, off_t size, int sparse)
 	int ret;
 	char device[64];
 	char conf[PATH_MAX];
-	char conf_tmp[PATH_MAX];
+	char conf_tmp[PATH_MAX] = "";
+	int mounted;
+	int raw = 0;
+	int i;
+	const char *fname = NULL;
 
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
@@ -2785,47 +2789,55 @@ int ploop_grow_image(struct ploop_disk_images_data *di, off_t size, int sparse)
 	ret = ploop_find_dev_by_dd(di, device, sizeof(device));
 	if (ret == -1) {
 		ret = SYSEXIT_SYS;
-		goto err_unlink;
+		goto err;
 	}
-	if (ret == 0) {
-		ret = ploop_grow_device(device, size);
-	} else {
-		int i;
-		const char *fname;
 
+	mounted = (ret == 0);
+
+	if (!mounted) {
 		i = find_snapshot_by_guid(di, di->top_guid);
 		if (i == -1) {
 			ploop_err(0, "Unable to find top delta file name");
 			ret = SYSEXIT_PARAM;
-			goto err_unlink;
+			goto err;
 		}
 
 		fname = find_image_by_guid(di, di->top_guid);
 		if (!fname) {
 			ploop_err(0, "Unable to find top delta file name");
 			ret = SYSEXIT_PARAM;
-			goto err_unlink;
+			goto err;
 		}
 
 		if (strcmp(di->snapshots[i]->parent_guid, NONE_UUID) == 0 &&
-				di->mode == PLOOP_RAW_MODE)
-			ret = ploop_grow_raw_delta_offline(fname, size, sparse);
-		else
-			ret = ploop_grow_delta_offline(fname, size);
+				di->mode == PLOOP_RAW_MODE) {
+			raw = 1;
+		} else {
+			struct ploop_mount_param m = {};
+			ret = mount_image(di, &m);
+			if (ret)
+				goto err;
+			snprintf(device, sizeof(device), "%s", m.device);
+		}
 	}
 
+	if (raw)
+		ret = ploop_grow_raw_delta_offline(fname, size, sparse);
+	else
+		ret = ploop_grow_device(device, size);
 	if (ret)
-		goto err_unlink;
+		goto err;
 
 	if (rename(conf_tmp, conf)) {
 		ploop_err(errno, "Can't rename %s to %s",
 				conf_tmp, conf);
 		ret = SYSEXIT_RENAME;
 	}
-
-err_unlink:
-	unlink(conf_tmp);
 err:
+	unlink(conf_tmp);
+	if (!mounted)
+		 ploop_umount(device, di);
+		
 	ploop_unlock_dd(di);
 
 	return ret;
