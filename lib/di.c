@@ -358,7 +358,8 @@ int ploop_open_dd(struct ploop_disk_images_data **di, const char *fname)
 	char *path;
 	struct ploop_disk_images_data *p;
 
-	path = realpath(fname, NULL);
+	//path = realpath(fname, NULL);
+	path = strdup(fname);
 	if (path == NULL) {
 		ploop_err(errno, "Can't resolve %s", fname);
 		return SYSEXIT_DISKDESCR;
