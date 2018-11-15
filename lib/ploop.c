@@ -1290,6 +1290,8 @@ static int get_dev_by_mnt(const char *path, int dev, char *buf, int size)
 	struct mntent *ent;
 	int len;
 	struct stat st1, st2;
+	static const char ploop_dev_path[] = "/dev/ploop";
+	static const char enc_ploop_dev_path[] = "/dev/mapper/CRYPT-ploop";
 
 	fp = fopen("/proc/mounts", "r");
 	if (fp == NULL) {
@@ -1302,7 +1304,8 @@ static int get_dev_by_mnt(const char *path, int dev, char *buf, int size)
 		return -1;
 	}
 	while ((ent = getmntent(fp))) {
-		if (strncmp(ent->mnt_fsname, "/dev/ploop", 10) != 0)
+		if ((strncmp(ent->mnt_fsname, ploop_dev_path, sizeof(ploop_dev_path) - 1) != 0) ||
+				(strncmp(ent->mnt_fsname, enc_ploop_dev_path, sizeof(enc_ploop_dev_path) - 1) != 0))
 			continue;
 
 		if (stat(ent->mnt_dir, &st2))
