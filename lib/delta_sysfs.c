@@ -456,6 +456,31 @@ static int check_dev_by_name(const char *devname, const char *delta,
 	return 0;
 }
 
+static int check_dev_by_info(const char *devname, struct stat *delta,
+		struct stat *topdelta)
+{
+	struct image_info info;
+
+	read_image_info(devname, 0, &info);
+	if (info.ino != delta->st_ino || info.dev != delta->st_dev)
+		return 1;
+
+	if (topdelta) {
+		int top_level;
+
+		if (ploop_get_attr(devname, "top", &top_level))
+			return 1;
+
+		if (read_image_info(devname, top_level, &info))
+			return 1;
+
+		if (info.ino != topdelta->st_ino || info.dev != topdelta->st_dev)
+			return 1;
+	}
+
+	return 0;
+}
+
 /* Find device(s) by base ( & top ) delta and return name(s)
  * in a NULL-terminated array pointed to by 'out'.
  * Note that
@@ -481,8 +506,12 @@ int ploop_get_dev_by_delta(const char *delta, const char *topdelta,
 	char cookie[PLOOP_COOKIE_SIZE];
 	int lckfd;
 	int nelem = 1;
+	struct stat st_delta = {}, st_topdelta = {};
 
 	*out = NULL;
+
+	if (stat(delta, &st_delta) && errno == ENOENT)
+		return 1;
 
 	if (realpath(delta, delta_r) == NULL) {
 		ploop_err(errno, "Warning: can't resolve %s", delta);
@@ -490,6 +519,8 @@ int ploop_get_dev_by_delta(const char *delta, const char *topdelta,
 	}
 
 	if (topdelta) {
+		if (stat(topdelta, &st_topdelta))
+			ploop_err(errno, "Warning: can't stat %s", topdelta);	
 		if (realpath(topdelta, topdelta_r) == NULL) {
 			ploop_err(errno, "Warning: can't resolve %s", topdelta);	
 			snprintf(topdelta_r, sizeof(topdelta_r), "%s", topdelta);
@@ -513,8 +544,14 @@ int ploop_get_dev_by_delta(const char *delta, const char *topdelta,
 		if (strncmp("ploop", de->d_name, 5))
 			continue;
 
-		err = check_dev_by_name(de->d_name, delta_r,
-				topdelta ? topdelta_r : NULL);
+		snprintf(fname, sizeof(fname), "/sys/block/%s/pdelta/0/image_info",
+				de->d_name);
+		if (access(fname, F_OK) == 0)
+			err = check_dev_by_info(de->d_name, &st_delta,
+					topdelta ? &st_topdelta : NULL);
+		else
+			err = check_dev_by_name(de->d_name, delta_r,
+					topdelta ? topdelta_r : NULL);
 		if (err == -1)
 			goto err;
 		else if (err == 1)

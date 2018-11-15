@@ -2770,7 +2770,7 @@ int ploop_grow_image(struct ploop_disk_images_data *di, off_t size, int sparse)
 	char device[64];
 	char conf[PATH_MAX];
 	char conf_tmp[PATH_MAX] = "";
-	int mounted = 1;
+	int mounted;
 	int raw = 0;
 	int i;
 	const char *fname = NULL;
