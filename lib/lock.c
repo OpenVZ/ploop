@@ -38,10 +38,8 @@ static int create_file(char *fname)
 {
 	int fd;
 
-	fd = open(fname, O_WRONLY | O_CREAT | O_TRUNC | O_EXCL, 0644);
+	fd = open(fname, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (fd == -1) {
-		if (errno == EEXIST)
-			return 0;
 		ploop_err(errno, "Can't create file %s",
 				fname);
 		return -1;
@@ -200,8 +198,10 @@ int ploop_lock_di(struct ploop_disk_images_data *di)
 	if (di == NULL)
 		return 0;
 	get_disk_descriptor_lock_fname(di, fname, sizeof(fname));
-	if (create_file(fname))
-		return -1;
+	if (access(fname, F_OK)) {
+		if (create_file(fname))
+			return -1;
+	}
 	di->runtime->lckfd = do_lock(fname, LOCK_TIMEOUT);
 	if (di->runtime->lckfd == -1)
 		return -1;

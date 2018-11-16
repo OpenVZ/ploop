@@ -744,10 +744,7 @@ int ploop_copy_start(struct ploop_copy_handle *h,
 	wait_sender(h);
 
 	stat->xferred_total = stat->xferred = pos;
-	ret = send_cmd(h, PCOPY_CMD_SYNC);
-	if (ret)
-		goto err;
-
+	send_cmd(h, PCOPY_CMD_SYNC);
 	ploop_dbg(3, "pcopy start finished");
 
 	return 0;
