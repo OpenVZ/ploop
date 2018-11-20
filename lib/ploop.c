@@ -1304,7 +1304,7 @@ static int get_dev_by_mnt(const char *path, int dev, char *buf, int size)
 		return -1;
 	}
 	while ((ent = getmntent(fp))) {
-		if ((strncmp(ent->mnt_fsname, ploop_dev_path, sizeof(ploop_dev_path) - 1) != 0) ||
+		if ((strncmp(ent->mnt_fsname, ploop_dev_path, sizeof(ploop_dev_path) - 1) != 0) &&
 				(strncmp(ent->mnt_fsname, enc_ploop_dev_path, sizeof(enc_ploop_dev_path) - 1) != 0))
 			continue;
 
