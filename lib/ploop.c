@@ -1299,6 +1299,7 @@ static int get_dev_by_mnt(const char *path, int dev, char *buf, int size)
 
 	if (stat(path, &st1)) {
 		ploop_err(errno, "Can't stat %s", path);
+		fclose(fp);
 		return -1;
 	}
 	while ((ent = getmntent(fp))) {
