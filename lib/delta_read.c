@@ -129,13 +129,13 @@ int open_delta(struct delta * delta, const char * path, int rw, int od_flags)
 	res = pread(delta->fd, delta->hdr0, 4096, 0);
 	if (res != 4096) {
 		err = (res >= 0) ? EIO : errno;
-		ploop_err(errno, "read 1st sector of %s", path);
+		ploop_err(err, "read 1st sector of %s", path);
 		goto error;
 	}
 
 	delta->version = ploop1_version(vh);
 	if (delta->version == PLOOP_FMT_ERROR) {
-		ploop_err(errno, "Unknown ploop image version in the header %s",
+		ploop_err(0, "Unknown ploop image version in the header %s",
 				path);
 		err = EINVAL;
 		goto error;
@@ -144,7 +144,7 @@ int open_delta(struct delta * delta, const char * path, int rw, int od_flags)
 	if (vh->m_Type != PRL_IMAGE_COMPRESSED ||
 			!is_valid_blocksize(vh->m_Sectors))
 	{
-		ploop_err(errno, "Invalid image header %s", path);
+		ploop_err(0, "Invalid image header %s", path);
 		err = EINVAL;
 		goto error;
 	}
