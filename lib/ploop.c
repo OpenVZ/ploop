@@ -3834,20 +3834,17 @@ err:
 	return ret;
 }
 
-static int ploop_get_info(struct ploop_disk_images_data *di, struct ploop_info *info)
+static int get_fs_info(struct ploop_disk_images_data *di, struct ploop_fs_info *info,
+		int size, int automount)
 {
+	struct ploop_fs_info i = {};
 	char mnt[PATH_MAX];
 	char dev[64];
 	int ret = -1;
 
-	if (ploop_lock_dd(di))
-		return SYSEXIT_LOCK;
-
 	ret = ploop_find_dev_by_dd(di, dev, sizeof(dev));
-	if (ret == -1) {
-		ret = SYSEXIT_SYS;
-		goto err;
-	}
+	if (ret == -1)
+		return SYSEXIT_SYS;
 	if (ret == 0) {
 		char devname[64];
 		char partname[64];
@@ -3859,9 +3856,15 @@ static int ploop_get_info(struct ploop_disk_images_data *di, struct ploop_info *
 
 		ret = get_mount_dir(partname, mnt, sizeof(mnt));
 		if (ret)
-			goto err;
-		ret = get_statfs_info(mnt, info);
+			return ret;
+		ret = get_statfs_info(mnt, &i.fs);
+		if (ret)
+			return ret;
+		memcpy(i.dev, devname, sizeof(i.dev));
+		memcpy(i.part, partname, sizeof(i.part));
 	} else {
+		if (!automount)
+			return SYSEXIT_SYS;   
 		/* reinit .statfs */
 		struct ploop_mount_param param = {};
 
@@ -3869,19 +3872,19 @@ static int ploop_get_info(struct ploop_disk_images_data *di, struct ploop_info *
 		if (ret == 0)
 			ploop_umount(param.device, di);
 		free_mount_param(&param);
-		ret = read_statfs_info(di->images[0]->file, info);
+		ret = read_statfs_info(di->images[0]->file, &i.fs);
 		if (ret)
-			goto err;
+			return ret;
 	}
+	memcpy(info, &i, size);
 
-err:
-	ploop_unlock_dd(di);
-
-	return ret;
+	return 0;
 }
+
 
 int ploop_get_info_by_descr(const char *descr, struct ploop_info *info)
 {
+	struct ploop_fs_info i = {};
 	struct ploop_disk_images_data *di;
 	int ret;
 
@@ -3893,8 +3896,42 @@ int ploop_get_info_by_descr(const char *descr, struct ploop_info *info)
 	if (ret)
 		return ret;
 
-	ret = ploop_get_info(di, info);
+	if (ploop_lock_dd(di)) {
+		ploop_close_dd(di);
+		return SYSEXIT_LOCK;
+	}
 
+	ret = get_fs_info(di, &i, sizeof(struct ploop_fs_info), 1);
+
+	memcpy(info, &i.fs, sizeof(i.fs));
+
+	ploop_unlock_dd(di);
+	ploop_close_dd(di);
+
+	return ret;
+}
+
+int ploop_get_fs_info(const char *fname, struct ploop_fs_info *info, int size)
+{
+	int ret;
+	struct ploop_disk_images_data *di;
+
+	bzero(info, size);
+	/* Try the fast path first, for stopped ploop */
+	if (read_statfs_info(fname, &info->fs) == 0)
+		return 0;
+
+	di = alloc_diskdescriptor();
+	if (di == NULL)
+		return SYSEXIT_MALLOC;
+	di->runtime->xml_fname = strdup(fname);
+
+	ret = ploop_read_dd(di);
+	if (ret)
+		goto err;
+	ret = get_fs_info(di, info, size, 0);
+
+err:
 	ploop_close_dd(di);
 
 	return ret;
