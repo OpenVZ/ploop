@@ -200,6 +200,13 @@ struct ploop_info {
 	unsigned long long fs_ifree;
 };
 
+struct ploop_fs_info
+{
+	struct ploop_info fs;
+	char dev[64];
+	char part[64];
+};
+
 struct ploop_spec {
 	off_t size;
 	__u32 blocksize;
@@ -303,6 +310,7 @@ int ploop_resize_blkdev(const char *device, off_t new_size);
 int ploop_convert_image(struct ploop_disk_images_data *di, int mode, int flags);
 int ploop_get_info_by_descr(const char *descr, struct ploop_info *info);
 int ploop_create_snapshot(struct ploop_disk_images_data *di, struct ploop_snapshot_param *param);
+int ploop_get_fs_info(const char *descr, struct ploop_fs_info *info, int size);
 int ploop_create_temporary_snapshot(struct ploop_disk_images_data *di,
 		struct ploop_tsnapshot_param *param, int *holder_fd);
 int ploop_merge_snapshot(struct ploop_disk_images_data *di, struct ploop_merge_param *param);

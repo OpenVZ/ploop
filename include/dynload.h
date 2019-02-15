@@ -100,7 +100,8 @@ struct ploop_functions {
 	struct ploop_bitmap *(*get_used_bitmap_from_image)(struct ploop_disk_images_data *di, const char *guid);
 	void (*release_bitmap)(struct ploop_bitmap *bmap);
 	struct ploop_bitmap *(*get_tracking_bitmap_from_image)(struct ploop_disk_images_data *di, const char *guid);
-	void *padding[62];
+	int (*get_fs_info)(const char *descr, struct ploop_fs_info *info, int size);
+	void *padding[61];
 }; /* struct ploop_functions */
 
 __attribute__ ((visibility("default")))

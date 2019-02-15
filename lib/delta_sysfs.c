@@ -507,25 +507,14 @@ int ploop_get_dev_by_delta(const char *delta, const char *topdelta,
 	int lckfd;
 	int nelem = 1;
 	struct stat st_delta = {}, st_topdelta = {};
+	int use_image_info = -1;
 
 	*out = NULL;
 
 	if (stat(delta, &st_delta) && errno == ENOENT)
 		return 1;
-
-	if (realpath(delta, delta_r) == NULL) {
-		ploop_err(errno, "Warning: can't resolve %s", delta);
-		snprintf(delta_r, sizeof(delta_r), "%s", delta);
-	}
-
-	if (topdelta) {
-		if (stat(topdelta, &st_topdelta))
-			ploop_err(errno, "Warning: can't stat %s", topdelta);	
-		if (realpath(topdelta, topdelta_r) == NULL) {
-			ploop_err(errno, "Warning: can't resolve %s", topdelta);	
-			snprintf(topdelta_r, sizeof(topdelta_r), "%s", topdelta);
-		}
-	}
+	if (topdelta && stat(topdelta, &st_topdelta))
+		ploop_err(errno, "Warning: can't stat %s", topdelta);	
 
 	lckfd = ploop_global_lock();
 	if (lckfd == -1)
@@ -544,9 +533,23 @@ int ploop_get_dev_by_delta(const char *delta, const char *topdelta,
 		if (strncmp("ploop", de->d_name, 5))
 			continue;
 
-		snprintf(fname, sizeof(fname), "/sys/block/%s/pdelta/0/image_info",
+		if (use_image_info == -1) {
+			snprintf(fname, sizeof(fname), "/sys/block/%s/pdelta/0/image_info",
 				de->d_name);
-		if (access(fname, F_OK) == 0)
+			use_image_info = access(fname, F_OK) == 0;
+
+			if (!use_image_info) {
+				if (realpath(delta, delta_r) == NULL) {
+					ploop_err(errno, "Warning: can't resolve %s", delta);
+					snprintf(delta_r, sizeof(delta_r), "%s", delta);
+				}
+				if (topdelta && realpath(topdelta, topdelta_r) == NULL) {
+					ploop_err(errno, "Warning: can't resolve %s", topdelta);	
+					snprintf(topdelta_r, sizeof(topdelta_r), "%s", topdelta);
+				}
+			}
+		}
+		if (use_image_info)
 			err = check_dev_by_info(de->d_name, &st_delta,
 					topdelta ? &st_topdelta : NULL);
 		else
