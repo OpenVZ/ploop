@@ -835,7 +835,8 @@ static void cancel_discard(void *data)
 /* The fragmentation of such blocks doesn't affect the speed of w/r */
 #define MAX_DISCARD_CLU 32
 
-static int ploop_trim(const char *mount_point, __u64 minlen_b, __u64 cluster)
+static int ploop_trim(const char *mount_point, __u64 minlen_b, __u64 cluster,
+		__u64 discard_granularity)
 {
 	struct fstrim_range range = {};
 	int fd, ret = -1, last = 0;
@@ -848,7 +849,7 @@ static int ploop_trim(const char *mount_point, __u64 minlen_b, __u64 cluster)
 
 	if (sigaction(SIGUSR1, &sa, NULL)) {
 		ploop_err(errno, "Can't set signal handler");
-		exit(1);
+		return -1;
 	}
 
 	fd = open(mount_point, O_RDONLY|O_CLOEXEC);
@@ -863,6 +864,9 @@ static int ploop_trim(const char *mount_point, __u64 minlen_b, __u64 cluster)
 		minlen_b = cluster;
 	else
 		minlen_b = (minlen_b + cluster - 1) / cluster * cluster;
+
+	if (minlen_b < discard_granularity)
+		minlen_b = discard_granularity;
 	range.minlen = MAX(MAX_DISCARD_CLU * cluster, minlen_b);
 
 	for (; range.minlen >= minlen_b; range.minlen /= 2) {
@@ -961,6 +965,41 @@ static int wait_pid(pid_t pid, const char *mes, const int *stop)
 	return err;
 }
 
+static int get_discard_granularity(struct ploop_disk_images_data *di,
+		__u32 cluster, __u64 *granularity)
+{
+	int rc = 0;
+	FILE *fp;
+	struct stat st;
+	char buf[128];
+	const char *fname;
+
+	fname = find_image_by_guid(di, get_top_delta_guid(di));
+
+	if (stat(fname, &st)) {
+		ploop_err(errno, "Unable to stat %s", fname);
+		return SYSEXIT_SYS;
+	}
+
+	snprintf(buf, sizeof(buf), "/sys/dev/block/%u:%u/queue/discard_granularity",
+			major(st.st_dev), minor(st.st_dev));
+	fp = fopen(buf, "r");
+	if (fp == NULL) {
+		ploop_err(errno, "Unable to open %s", buf);
+		return SYSEXIT_OPEN;
+	}
+
+	if (fscanf(fp, "%llu", granularity) != 1) {
+		ploop_err(0, "Unable to parse %s", buf);
+		rc = SYSEXIT_SYS;
+	}
+
+	fclose(fp);
+	if (*granularity == 0)
+		*granularity = cluster;
+	return rc;
+}
+
 static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 			const char *device, const char *mount_point,
 			__u64 minlen_b, __u32 cluster, __u32 to_free,
@@ -970,12 +1009,18 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 	int ret;
 	__u32 size = 0;
 	struct ploop_cleanup_hook *h;
+	__u64 discard_granularity;
+
+	ret = get_discard_granularity(di, cluster, &discard_granularity);
+	if (ret)
+		return ret;
 
 	if (blk_discard_range != NULL)
-		ploop_log(0, "Discard %s start=%" PRIu64 " length=%" PRIu64,
-				device, (uint64_t)blk_discard_range[0], (uint64_t)blk_discard_range[1]);
+		ploop_log(0, "Discard %s start=%" PRIu64 " length=%" PRIu64 " granularity=%" PRIu64,
+			device, (uint64_t)blk_discard_range[0], (uint64_t)blk_discard_range[1], (uint64_t)discard_granularity);
 	else
-		ploop_log(3, "Trying to find free extents bigger than %" PRIu64 " bytes", (uint64_t)minlen_b);
+		ploop_log(0, "Trying to find free extents bigger than %" PRIu64 " bytes granularity=%" PRIu64,
+			(uint64_t)minlen_b, (uint64_t)discard_granularity);
 
 	if (ploop_lock_di(di))
 		return SYSEXIT_LOCK;
@@ -1002,7 +1047,7 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 		if (blk_discard_range != NULL)
 			ret = blk_discard(fd, cluster, blk_discard_range[0], blk_discard_range[1]);
 		else
-			ret = ploop_trim(mount_point, minlen_b, cluster);
+			ret = ploop_trim(mount_point, minlen_b, cluster, discard_granularity);
 		if (ioctl_device(fd, PLOOP_IOC_DISCARD_FINI, NULL))
 			ploop_err(errno, "Can't finalize discard mode");
 
