@@ -974,6 +974,11 @@ static int get_discard_granularity(struct ploop_disk_images_data *di,
 	char buf[128];
 	const char *fname;
 
+	if (di == NULL) {
+		*granularity = cluster;
+		return 0;
+	}
+		
 	fname = find_image_by_guid(di, get_top_delta_guid(di));
 
 	if (stat(fname, &st)) {
