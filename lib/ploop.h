@@ -513,4 +513,5 @@ const char *get_ddxml_fname(const char *dir, char *buf, int size);
 int store_diskdescriptor(const char *fname, struct ploop_disk_images_data *di,
 		int skip_convert);
 int ploop_get_mntn_state(int fd, int *state);
+int is_native_discard_supported(void);
 #endif

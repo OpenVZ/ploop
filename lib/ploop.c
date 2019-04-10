@@ -258,6 +258,11 @@ int ploop_is_large_disk_supported(void)
 	return (access("/sys/module/ploop/parameters/large_disk_support", R_OK) == 0 ? 1 : 0);
 }
 
+int is_native_discard_supported(void)
+{
+	return (access("/sys/module/ploop/parameters/native_discard_support", R_OK) == 0 ? 1 : 0);
+}
+
 static int is_fmt_version_valid(int version)
 {
 	return version != PLOOP_FMT_V2 || ploop_is_large_disk_supported();
