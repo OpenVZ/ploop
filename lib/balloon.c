@@ -400,6 +400,10 @@ int ploop_balloon_change_size(const char *device, int balloonfd, off_t new_size)
 	ret = ioctl_device(fd, PLOOP_IOC_FREEBLKS, freeblks);
 	if (ret)
 		goto err;
+
+	if (is_native_discard_supported())
+		goto out;
+		
 	freezed_a_h = freeblks->alloc_head;
 	if (freezed_a_h > reverse_map_len) {
 		ploop_err(0, "Image corrupted: a_h=%u > rlen=%u",
@@ -1026,6 +1030,12 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 	else
 		ploop_log(0, "Trying to find free extents bigger than %" PRIu64 " bytes granularity=%" PRIu64,
 			(uint64_t)minlen_b, (uint64_t)discard_granularity);
+
+	if (is_native_discard_supported()) {
+		if (blk_discard_range != NULL)
+			return blk_discard(fd, cluster, blk_discard_range[0], blk_discard_range[1]);
+		return ploop_trim(mount_point, minlen_b, cluster, discard_granularity);
+	}
 
 	if (ploop_lock_di(di))
 		return SYSEXIT_LOCK;

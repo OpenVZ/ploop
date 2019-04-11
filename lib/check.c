@@ -610,7 +610,7 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 	if (!ret)
 		ret = fsync_safe(fd);
 done:
-	if (ret == 0)
+	if (ret == 0 && !is_native_discard_supported())
 		ret = check_and_repair_sparse(img, &fd, cluster, flags);
 
 	ret2 = close_safe(fd);
