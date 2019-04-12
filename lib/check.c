@@ -255,13 +255,14 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end, int *lo
 	return fsync_safe(*fd);
 }
 
-static int check_and_repair_sparse(const char *image, int *fd, uint64_t cluster, int flags)
+static int check_and_repair_sparse(const char *image, int *fd, struct ploop_pvd_header *vh, int flags)
 {
 	int last;
 	int i, ret;
 	struct statfs sfs;
 	struct stat st;
-	uint64_t prev_end;
+	uint64_t prev_end, end;
+	uint64_t cluster = S2B(vh->m_Sectors);
 	char buf[40960] = "";
 	struct fiemap *fiemap = (struct fiemap *)buf;
 	struct fiemap_extent *fm_ext = &fiemap->fm_extents[0];
@@ -287,10 +288,11 @@ static int check_and_repair_sparse(const char *image, int *fd, uint64_t cluster,
 
 	prev_end = 0;
 	last = 0;
+	end = is_native_discard_supported() ? S2B(vh->m_FirstBlockOffset) : st.st_size;
 
-	while (!last && prev_end < st.st_size) {
+	while (!last && prev_end < end) {
 		fiemap->fm_start	= prev_end;
-		fiemap->fm_length	= st.st_size;
+		fiemap->fm_length	= end;
 		fiemap->fm_flags	= FIEMAP_FLAG_SYNC;
 		fiemap->fm_extent_count = count;
 
@@ -305,7 +307,7 @@ static int check_and_repair_sparse(const char *image, int *fd, uint64_t cluster,
 			if (fm_ext[i].fe_flags & FIEMAP_EXTENT_LAST)
 				last = 1;
 
-			if (fm_ext[i].fe_logical >= st.st_size) {
+			if (fm_ext[i].fe_logical >= end) {
 				last = 1;
 				break;
 			}
@@ -336,8 +338,8 @@ static int check_and_repair_sparse(const char *image, int *fd, uint64_t cluster,
 		}
 	}
 
-	if (prev_end < st.st_size &&
-			(ret = fill_hole(image, fd, prev_end, st.st_size, &log, repair)))
+	if (prev_end < end &&
+			(ret = fill_hole(image, fd, prev_end, end, &log, repair)))
 		goto out;
 
 	if (log)
@@ -610,8 +612,8 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 	if (!ret)
 		ret = fsync_safe(fd);
 done:
-	if (ret == 0 && !is_native_discard_supported())
-		ret = check_and_repair_sparse(img, &fd, cluster, flags);
+	if (ret == 0)
+		ret = check_and_repair_sparse(img, &fd, vh, flags);
 
 	ret2 = close_safe(fd);
 	if (ret2 && !ret)
