@@ -166,7 +166,7 @@ static int open_top_delta(const char *device, struct delta *delta, int *lvl)
 	return 0;
 }
 
-static __u32 *alloc_reverse_map(__u32 len)
+__u32 *alloc_reverse_map(__u32 len)
 {
 	__u32 *reverse_map;
 

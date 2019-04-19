@@ -1,0 +1,59 @@
+#!/bin/bash
+
+set -e
+. ./functions
+
+V=2
+BLOCKSIZE=2048
+DELTA=100000
+SIZE=65536
+if [ -f /sys/module/ploop/parameters/large_disk_support ]; then
+	SIZENEW=60485760000
+else
+	SIZENEW=2147482624
+fi
+
+while [ "${#}" -gt 0 ]; do
+case "${1}" in
+	"-v")
+		V=${2}
+		shift
+		shift
+		;;
+	*)
+		shift
+		;;
+	esac
+done
+
+test_cleanup
+
+ploop init -s 1T -t none $TEST_IMAGE
+ploop mount -d /dev/ploop0 $TEST_DDXML
+dd if=/dev/urandom of=/dev/ploop0 bs=1M count=4 >/dev/null
+dd if=/dev/urandom of=/dev/ploop0 bs=1M count=1 seek=1022976  >/dev/null
+ploop umount $TEST_DDXML
+fallocate -p -o 1458176 -l 2097152 $TEST_IMAGE
+fallocate -p -o 5455872 -l 4096 $TEST_IMAGE
+fallocate -p -o 6291456 -l 4096 $TEST_IMAGE
+exit 0
+m1=`md5sum $TEST_IMAGE`
+ploop mount $TEST_DDXML
+ploop umount $TEST_DDXML
+m2=`md5sum $TEST_IMAGE`
+
+if [ "$m1" != "$m2" ]; then
+	echo "FAILED md5 mismatch $m1 != $m2"
+	exit 1
+fi
+
+ploop mount $TEST_DDXML
+ploop umount $TEST_DDXML
+m2=`md5sum $TEST_IMAGE`
+if [ "$m1" != "$m2" ]; then
+	echo "FAILED md5 mismatch $m1 != $m2"
+	exit 1
+fi
+exit 0
+test_cleanup
+echo "FINISHED"
