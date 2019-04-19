@@ -26,6 +26,7 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/file.h>
+#include <sys/param.h>
 #include <getopt.h>
 #include <linux/types.h>
 #include <string.h>
@@ -33,8 +34,6 @@
 #include <linux/fiemap.h>
 
 #include "ploop.h"
-
-#define MIN(a, b) (a < b ? a : b)
 
 static void range_fix_gaps(struct freemap *freemap, __u32 iblk_start, __u32 iblk_end,
 		__u32 n_to_fix, __u32 *rmap);
@@ -490,7 +489,7 @@ int freeblks2freemap(struct ploop_freeblks_ctl *freeblks,
 	return 0;
 }
 
-static int range_build_rmap(__u32 iblk_start, __u32 iblk_end,
+int range_build_rmap(__u32 iblk_start, __u32 iblk_end,
 		       __u32 *rmap, __u32 rlen, struct delta *delta, __u32 *out)
 {
 	__u32 clu;
@@ -559,7 +558,8 @@ static int range_build_rmap(__u32 iblk_start, __u32 iblk_end,
 		}
 	}
 
-	*out = n_found;
+	if (out)
+		*out = n_found;
 	return 0;
 }
 
