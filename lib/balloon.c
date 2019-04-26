@@ -990,8 +990,35 @@ static int get_discard_granularity(struct ploop_disk_images_data *di,
 		return SYSEXIT_SYS;
 	}
 
-	snprintf(buf, sizeof(buf), "/sys/dev/block/%u:%u/queue/discard_granularity",
+	snprintf(buf, sizeof(buf), "/sys/dev/block/%u:%u/partition",
 			major(st.st_dev), minor(st.st_dev));
+	if (access(buf, F_OK) == 0) {
+		char target[PATH_MAX];
+		ssize_t n;
+
+		snprintf(buf, sizeof(buf), "/sys/dev/block/%u:%u",
+			major(st.st_dev), minor(st.st_dev));
+		n = readlink(buf, target, sizeof(buf) -1);
+		if (n == -1) {
+			ploop_err(errno, "Unable to redlink %s", buf);
+			return SYSEXIT_OPEN;
+		}
+		target[n] = '\0';
+
+		char *p = strrchr(target, '/');
+		if (p == NULL) {
+			ploop_err(errno, "Unable to get device name from %s", target);
+			return SYSEXIT_OPEN;
+		}
+		*p = '\0';
+		p = strrchr(target, '/');
+		if (p == NULL)
+			p = target;
+		snprintf(buf, sizeof(buf), "/sys/block/%s/queue/discard_granularity",
+				p);
+	} else
+		snprintf(buf, sizeof(buf), "/sys/dev/block/%u:%u/queue/discard_granularity",
+				major(st.st_dev), minor(st.st_dev));
 	fp = fopen(buf, "r");
 	if (fp == NULL) {
 		ploop_err(errno, "Unable to open %s", buf);
