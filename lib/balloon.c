@@ -998,9 +998,9 @@ static int get_discard_granularity(struct ploop_disk_images_data *di,
 
 		snprintf(buf, sizeof(buf), "/sys/dev/block/%u:%u",
 			major(st.st_dev), minor(st.st_dev));
-		n = readlink(buf, target, sizeof(buf) -1);
+		n = readlink(buf, target, sizeof(target) -1);
 		if (n == -1) {
-			ploop_err(errno, "Unable to redlink %s", buf);
+			ploop_err(errno, "Unable to readlink %s", buf);
 			return SYSEXIT_OPEN;
 		}
 		target[n] = '\0';
