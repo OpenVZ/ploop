@@ -986,6 +986,13 @@ static int get_discard_granularity(struct ploop_disk_images_data *di,
 		return SYSEXIT_SYS;
 	}
 
+	snprintf(buf, sizeof(buf), "/sys/dev/block/%u:%u",
+			major(st.st_dev), minor(st.st_dev));
+	if (access(buf, F_OK)) {
+		*granularity = cluster;
+		return 0;
+	}
+
 	snprintf(buf, sizeof(buf), "/sys/dev/block/%u:%u/partition",
 			major(st.st_dev), minor(st.st_dev));
 	if (access(buf, F_OK) == 0) {
