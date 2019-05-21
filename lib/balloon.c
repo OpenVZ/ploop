@@ -369,6 +369,8 @@ int ploop_balloon_change_size(const char *device, int balloonfd, off_t new_size)
 	ret = do_inflate(balloonfd, b_ctl.mntn_type, old_size, &new_size, &drop_state);
 	if (ret)
 		goto err;
+	if (is_native_discard_supported())
+		goto out;
 
 	reverse_map_len = delta.l2_size + delta.l2_size;
 	reverse_map = alloc_reverse_map(reverse_map_len);
@@ -401,9 +403,6 @@ int ploop_balloon_change_size(const char *device, int balloonfd, off_t new_size)
 	if (ret)
 		goto err;
 
-	if (is_native_discard_supported())
-		goto out;
-		
 	freezed_a_h = freeblks->alloc_head;
 	if (freezed_a_h > reverse_map_len) {
 		ploop_err(0, "Image corrupted: a_h=%u > rlen=%u",
