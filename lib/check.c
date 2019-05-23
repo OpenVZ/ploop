@@ -222,29 +222,25 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end,
 	uint64_t cluster = S2B(delta->blocksize);
 	off_t data_offset = delta->l1_size * cluster;
 
-	
 	for (len = 0, offset = start; offset < end; offset += len) {
 		ssize_t e = (offset + cluster) / cluster * cluster;
 
 		len = MIN(e - offset, end - offset);
-		if (is_native_discard_supported()) {
-			if (*rmap == NULL) {
-				*rmap_len = delta->l2_size;
-				*rmap = alloc_reverse_map(*rmap_len);
-				if (*rmap == NULL)
-					return SYSEXIT_MALLOC;
+		if (*rmap == NULL) {
+			*rmap_len = delta->l2_size;
+			*rmap = alloc_reverse_map(*rmap_len);
+			if (*rmap == NULL)
+				return SYSEXIT_MALLOC;
 
-				ret = range_build_rmap(1, delta->l2_size * sizeof(__u32),
-						*rmap, *rmap_len, delta, NULL);
-				if (ret)
-					return ret;
-			}
-
-			__u32 id = offset / cluster ;
-
-			if (offset > data_offset && (*rmap)[id] == PLOOP_ZERO_INDEX)
-				continue;
+			ret = range_build_rmap(1, delta->l2_size * sizeof(__u32),
+					*rmap, *rmap_len, delta, NULL);
+			if (ret)
+				return ret;
 		}
+
+		__u32 id = offset / cluster ;
+		if (offset > data_offset && (*rmap)[id] == PLOOP_ZERO_INDEX)
+			continue;
 
 		if (!*log) {
 			ploop_err(0, "%s: ploop image '%s' is sparse",
