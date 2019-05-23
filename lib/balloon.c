@@ -369,7 +369,7 @@ int ploop_balloon_change_size(const char *device, int balloonfd, off_t new_size)
 	ret = do_inflate(balloonfd, b_ctl.mntn_type, old_size, &new_size, &drop_state);
 	if (ret)
 		goto err;
-	if (is_native_discard_supported())
+	if (is_native_discard(device))
 		goto out;
 
 	reverse_map_len = delta.l2_size + delta.l2_size;
@@ -1064,7 +1064,7 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 		ploop_log(0, "Trying to find free extents bigger than %" PRIu64 " bytes granularity=%" PRIu64,
 			(uint64_t)minlen_b, (uint64_t)discard_granularity);
 
-	if (is_native_discard_supported()) {
+	if (is_native_discard(device)) {
 		if (blk_discard_range != NULL)
 			return blk_discard(fd, cluster, blk_discard_range[0], blk_discard_range[1]);
 		return ploop_trim(mount_point, minlen_b, cluster, discard_granularity);

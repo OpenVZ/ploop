@@ -258,9 +258,22 @@ int ploop_is_large_disk_supported(void)
 	return (access("/sys/module/ploop/parameters/large_disk_support", R_OK) == 0 ? 1 : 0);
 }
 
-int is_native_discard_supported(void)
+int is_native_discard(const char *device)
 {
-	return (access("/sys/module/ploop/parameters/native_discard_support", R_OK) == 0 ? 1 : 0);
+	int rc;
+	char f[PATH_MAX];
+	const char *d = strrchr(device, '/');
+
+	if (d == NULL)
+		d = device;
+
+	snprintf(f, sizeof(f), "/sys/block/%s/pstate/discard_mode", d);
+	rc = read_line_quiet(f, f, sizeof(f));
+	if (rc == 0) 
+		return strcmp(f, "2") == 0 ? 1 : 0;
+
+	return access("/sys/module/ploop/parameters/native_discard_support", R_OK) == 0 ?
+		1 : 0;
 }
 
 static int is_fmt_version_valid(int version)
