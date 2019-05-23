@@ -458,7 +458,7 @@ int ploop_balloon_get_state(const char *device, __u32 *state)
 		return SYSEXIT_OPEN;
 
 	bzero(&b_ctl, sizeof(b_ctl));
-	b_ctl.keep_intact = 1;
+	b_ctl.keep_intact = 2;
 	ret = ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
 	if (ret)
 		goto err;
@@ -1544,7 +1544,7 @@ int ploop_get_mntn_state(int fd, int *state)
 {
 	int ret;
 	struct ploop_balloon_ctl ctl = {
-		.keep_intact = 1
+		.keep_intact = 2
 	};
 
 	ret = ioctl(fd, PLOOP_IOC_BALLOON, &ctl);
