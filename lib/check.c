@@ -222,42 +222,39 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end,
 	uint64_t cluster = S2B(delta->blocksize);
 	off_t data_offset = delta->l1_size * cluster;
 
-	if (!*log) {
-		ploop_err(0, "%s: ploop image '%s' is sparse",
-				repair ? "Warning" : "Error", image);
-		if (!repair)
-			return SYSEXIT_PLOOPFMT;
-		*log = 1;
-		print_output(0, "filefrag -vs", image);
-		ploop_log(0, "Reallocating sparse blocks back");
-		ret = reopen_rw(image, fd);
-		if (ret)
-			return ret;
-	}
-
-
 	for (len = 0, offset = start; offset < end; offset += len) {
 		ssize_t e = (offset + cluster) / cluster * cluster;
 
 		len = MIN(e - offset, end - offset);
-		if (is_native_discard_supported()) {
-			if (*rmap == NULL) {
-				*rmap_len = delta->l2_size;
-				*rmap = alloc_reverse_map(*rmap_len);
-				if (*rmap == NULL)
-					return SYSEXIT_MALLOC;
+		if (*rmap == NULL) {
+			*rmap_len = delta->l2_size;
+			*rmap = alloc_reverse_map(*rmap_len);
+			if (*rmap == NULL)
+				return SYSEXIT_MALLOC;
 
-				ret = range_build_rmap(1, delta->l2_size * sizeof(__u32),
-						*rmap, *rmap_len, delta, NULL);
-				if (ret)
-					return ret;
-			}
-
-			__u32 id = offset / cluster ;
-
-			if (offset > data_offset && (*rmap)[id] == PLOOP_ZERO_INDEX)
-				continue;
+			ret = range_build_rmap(1, delta->l2_size * sizeof(__u32),
+					*rmap, *rmap_len, delta, NULL);
+			if (ret)
+				return ret;
 		}
+
+		__u32 id = offset / cluster ;
+		if (offset > data_offset && (*rmap)[id] == PLOOP_ZERO_INDEX)
+			continue;
+
+		if (!*log) {
+			ploop_err(0, "%s: ploop image '%s' is sparse",
+					repair ? "Warning" : "Error", image);
+			if (!repair)
+				return SYSEXIT_PLOOPFMT;
+			*log = 1;
+			print_output(0, "filefrag -vs", image);
+			ploop_log(0, "Reallocating sparse blocks back");
+			ret = reopen_rw(image, fd);
+			if (ret)
+				return ret;
+		}
+
 		ploop_log(1, "Filling hole at start=%lu len=%lu",
 				(long unsigned)offset, (long unsigned)len);
 

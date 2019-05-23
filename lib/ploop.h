@@ -513,7 +513,7 @@ const char *get_ddxml_fname(const char *dir, char *buf, int size);
 int store_diskdescriptor(const char *fname, struct ploop_disk_images_data *di,
 		int skip_convert);
 int ploop_get_mntn_state(int fd, int *state);
-int is_native_discard_supported(void);
+int is_native_discard(const char *device);
 __u32 *alloc_reverse_map(__u32 len);
 int range_build_rmap(__u32 iblk_start, __u32 iblk_end,
 		__u32 *rmap, __u32 rlen, struct delta *delta, __u32 *out);
