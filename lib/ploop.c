@@ -70,8 +70,10 @@ static int get_part_devname(struct ploop_disk_images_data *di,
 
 	if (di && di->enc && di->enc->keyid)
 		crypt_get_device_name(devname, partname, plen);
-	else
+	else {
 		snprintf(partname, plen, "%s", devname);
+		snprintf(devname, dlen, "%s", device);
+	}
 
 	return 0;
 }
