@@ -3032,7 +3032,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 	}
 
 	new_size = round_bdsize(param->size, blocksize, version);
-	ret = ploop_get_size(devname, &part_dev_size);
+	ret = ploop_get_size(partname, &part_dev_size);
 	if (ret)
 		goto err;
 
