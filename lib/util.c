@@ -43,7 +43,7 @@ int get_statfs_info(const char *mnt, struct ploop_info *info)
 
 	if (statfs(mnt, &fs)) {
 		ploop_err(errno, "statfs(%s)", mnt);
-		return -1;
+		return SYSEXIT_FSTAT;
 	}
 
 	info->fs_bsize = fs.f_bsize;

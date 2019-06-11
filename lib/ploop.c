@@ -3876,11 +3876,12 @@ static int get_fs_info(struct ploop_disk_images_data *di, struct ploop_fs_info *
 			return ret;
 
 		ret = get_mount_dir(partname, mnt, sizeof(mnt));
-		if (ret)
-			return ret;
-		ret = get_statfs_info(mnt, &i.fs);
-		if (ret)
-			return ret;
+		if (ret == -1)
+			return SYSEXIT_SYS;
+
+		if (ret == 1 || get_statfs_info(mnt, &i.fs))
+			ret = SYSEXIT_FSTAT;
+
 		memcpy(i.dev, devname, sizeof(i.dev));
 		memcpy(i.part, partname, sizeof(i.part));
 	} else {
@@ -3899,7 +3900,7 @@ static int get_fs_info(struct ploop_disk_images_data *di, struct ploop_fs_info *
 	}
 	memcpy(info, &i, size);
 
-	return 0;
+	return ret;
 }
 
 
