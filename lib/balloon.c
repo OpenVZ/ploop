@@ -44,8 +44,6 @@
 
 #define BIN_E4DEFRAG	"/usr/sbin/e4defrag2"
 
-static int discard_balloon(int balloonfd, const char *device, off_t old_size, off_t new_size,
-		__u32  blocksize);
 
 char *mntn2str(int mntn_type)
 {
@@ -374,7 +372,6 @@ int ploop_balloon_change_size(const char *device, int balloonfd, off_t new_size)
 		goto err;
 	if (is_native_discard(device)) {
 		drop_state = 1;
-		ret = discard_balloon(balloonfd, device, old_size, new_size, delta.blocksize);
 		goto out;
 	}
 
@@ -935,45 +932,6 @@ static int blk_discard(int fd, __u32 cluster, __u64 start, __u64 len)
 	}
 
 	return 0;
-}
-
-static int discard_balloon(int balloonfd, const char *device, off_t old_size, off_t new_size,
-		__u32 blocksize)
-{
-	int ret, i, fd;
-	struct pfiemap *pfiemap;
-	char part[64];
-
-	ret = get_partition_device_name(device, part, sizeof(part));
-	if (ret)
-		return ret;
-
-	fd = open(part, O_RDWR|O_CLOEXEC);
-	if (fd < 0) {
-		ploop_err(errno, "Can't open ploop device %s", part);
-		return ret;
-	}
-
-	pfiemap = fiemap_alloc(128);
-	if (pfiemap == NULL)
-		goto err;
-
-	ret = fiemap_get(balloonfd, 0, old_size, new_size, &pfiemap);
-	if (ret)
-		goto err;
-	fiemap_adjust(pfiemap, blocksize);
-
-	for (i = 0; i < pfiemap->n_entries_used; i++) {
-		ret = blk_discard(fd, blocksize, pfiemap->extents[i].pos,
-				pfiemap->extents[i].len);
-		if (ret)
-			goto err;
-	}
-err:
-	free(pfiemap);
-	close(fd);
-
-	return ret;
 }
 
 static int wait_pid(pid_t pid, const char *mes, const int *stop)
