@@ -190,11 +190,6 @@ struct dump2fs_data {
 	uint32_t block_size;
 };
 
-/* flags for e2fsck() */
-enum e2fsck_flags {
-	E2FSCK_PREEN	= 1 << 0, /* -p */
-	E2FSCK_FORCE	= 1 << 1, /* -f */
-};
 
 /* Mark lib functions used by ploop tools */
 #define PL_EXT __attribute__ ((visibility("default")))

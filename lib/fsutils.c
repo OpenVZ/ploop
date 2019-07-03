@@ -454,6 +454,8 @@ int e2fsck(const char *device, int flags, int *rc)
 	arg[i++] = "fsck.ext4";
 	if (flags & E2FSCK_PREEN)
 		arg[i++] = "-p";
+	else if (flags & E2FSCK_FORCE_REPAIR)
+		arg[i++] = "-y";
 	if (flags & E2FSCK_FORCE)
 		arg[i++] = "-f";
 	arg[i++] = (char *)device;
