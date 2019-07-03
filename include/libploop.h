@@ -37,6 +37,13 @@ enum ploop_image_mode {
 	PLOOP_RAW_MODE = 2,
 };
 
+/* flags for e2fsck() */
+enum e2fsck_flags {
+	E2FSCK_PREEN    = 1 << 0, /* -p */
+	E2FSCK_FORCE    = 1 << 1, /* -f */
+	E2FSCK_FORCE_REPAIR     = 1 << 2, /* -y */
+};
+
 struct ploop_mount_param {
 	char device[64];	/* returns device name */
 	int ro;			/* read-only mount */
@@ -48,7 +55,10 @@ struct ploop_mount_param {
 	int quota;		/* enable inner FS quota */
 	char *mount_data;
 	unsigned int blocksize; /* blocksize for raw image */
-	int fsck;
+	union {
+		int fsck;
+		int fsck_flags;	/* enum e2fsck_flags */
+	};
 	int fsck_rc;		/* out: fsck return code */
 	char dummy[32];
 };

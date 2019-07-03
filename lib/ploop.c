@@ -1498,8 +1498,8 @@ static int ploop_mount_fs(struct ploop_disk_images_data *di,
 	int len;
 	int mounted = 0;
 
-	if (param->fsck && (strncmp(fstype, "ext", 3) == 0))
-		if (e2fsck(partname, E2FSCK_PREEN, &param->fsck_rc))
+	if (param->fsck_flags && (strncmp(fstype, "ext", 3) == 0))
+		if (e2fsck(partname, param->fsck_flags, &param->fsck_rc))
 			return SYSEXIT_FSCK;
 
 	if (param->target == NULL)
