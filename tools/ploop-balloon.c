@@ -446,6 +446,7 @@ static int pb_discard(int argc, char **argv)
 		{ "stat", no_argument, 0, 668 },
 		{ "automount", no_argument, 0, 669 },
 		{ "defrag", no_argument, 0, 670 },
+		{ "defrag-only", no_argument, 0, 'D' },
 		{},
 	};
 	struct ploop_disk_images_data *di = NULL;
@@ -481,6 +482,9 @@ static int pb_discard(int argc, char **argv)
 			break;
 		case 670:
 			param.defrag = 1;
+			break;
+		case 'D':
+			param.defrag = 2;
 			break;
 		default:
 			usage_discard();

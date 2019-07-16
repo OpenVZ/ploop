@@ -199,7 +199,7 @@ struct ploop_discard_param {
 	__u64 to_free;
 	int automount;
 	const int *stop;
-	int defrag;
+	int defrag;	/* 0-compact only, 1-defrag&compact, 2-defrag only */
 	char dummy[32];
 };
 

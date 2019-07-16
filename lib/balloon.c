@@ -1448,6 +1448,8 @@ int ploop_discard(struct ploop_disk_images_data *di,
 
 		if (ploop_defrag(di, dev, mnt, param->stop))
 			ploop_log(0, BIN_E4DEFRAG" exited with error");
+		if (param->defrag == 2)
+			goto out;
 
 		ret += ploop_discard_get_stat_by_dev(dev, mnt, &pds_after);
 		if (ret)
@@ -1464,6 +1466,7 @@ int ploop_discard(struct ploop_disk_images_data *di,
 	ret = do_ploop_discard(di, dev, mnt, param->minlen_b,
 			param->to_free, param->stop);
 
+out:
 	if (mounted && ploop_lock_dd(di) == 0) {
 		ploop_umount(dev, di);
 		ploop_unlock_dd(di);
