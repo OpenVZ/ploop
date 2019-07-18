@@ -577,9 +577,12 @@ reloc:
 			   &relocblks);
 	if (ret)
 		goto err;
-	ret = ioctl_device(fd, PLOOP_IOC_RELOCBLKS, relocblks);
-	if (ret)
-		goto err;
+	while (ioctl_device(fd, PLOOP_IOC_RELOCBLKS, relocblks)) {
+		ploop_err(errno, "Error in ioctl(PLOOP_IOC_RELOCBLKS)");
+		ret = SYSEXIT_DEVIOC;
+		if (errno != EINTR)
+			goto err;
+	}
 
 	ploop_log(0, "TRUNCATED: %u cluster-blocks (%llu bytes)",
 			relocblks->alloc_head,
@@ -613,7 +616,7 @@ int ploop_balloon_complete(const char *device)
 	}
 
 	memset(&b_ctl, 0, sizeof(b_ctl));
-	b_ctl.keep_intact = 1;
+	b_ctl.keep_intact = 2;
 	err = ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
 	if (err)
 		goto out;
@@ -1113,8 +1116,10 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 		if (ret < 0) {
 			ploop_err(errno, "Waiting for a discard request failed");
 			break;
-		} else if (ret == 0)
+		} else if (ret == 0) {
+			ploop_log(3, "Discard finished");
 			break;
+		}
 
 		/* FIXME PLOOP_IOC_DISCARD_WAIT should return size */
 		ret = ioctl(fd, PLOOP_IOC_FBFILTER, 0);
