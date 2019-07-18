@@ -613,7 +613,7 @@ int ploop_balloon_complete(const char *device)
 	}
 
 	memset(&b_ctl, 0, sizeof(b_ctl));
-	b_ctl.keep_intact = 1;
+	b_ctl.keep_intact = 2;
 	err = ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
 	if (err)
 		goto out;
