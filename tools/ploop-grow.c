@@ -104,7 +104,7 @@ int plooptool_grow(int argc, char **argv)
 		return ret;
 	}
 	else if (device)
-		return ploop_grow_device(device, new_size);
+		return ploop_grow_device(NULL, device, new_size);
 	else if (raw)
 		return ploop_grow_raw_delta_offline(argv[0], new_size, sparse);
 	else

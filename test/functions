@@ -9,13 +9,13 @@ mkdir -p $TEST_MNT
 
 test_cleanup()
 {
-	if [ -f $TEST_IMAGE ]; then
+	if [ -f $TEST_DDXML ]; then
 		ploop umount $TEST_DDXML 2>/dev/null || true
-		rm -f $TEST_IMAGE $TEST_DDXML
+		rm -f $TEST_IMAGE* $TEST_DDXML
 	fi
 }
 
 progress()
 {
-	printf "%s %d/%d (%2d%%)\015" $1 $2 $3 $(($2*100/$3))
+	printf "%s off: %d total: %d (%2d%%)\n" $1 $2 $3 $(($2*100/$3))
 }

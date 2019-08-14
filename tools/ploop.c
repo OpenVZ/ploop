@@ -113,6 +113,7 @@ static int plooptool_init(int argc, char **argv)
 		.fstype		= "ext4",
 		.mode		= PLOOP_EXPANDED_MODE,
 		.fmt_version	= PLOOP_FMT_UNDEFINED,
+		.without_partition = 1,
 	};
 	static struct option long_opts[] = {
 		{ "nolazy", no_argument, 0, 'n' },
@@ -486,7 +487,6 @@ static void usage_umount(void)
 	fprintf(stderr, "Usage: ploop umount -d DEVICE\n"
 			"       ploop umount -m DIR\n"
 			"       ploop umount DiskDescriptor.xml\n"
-			"       ploop umount DELTA\n"
 			"       DEVICE := ploop device, e.g. /dev/ploop0\n"
 			"       DIR := mount point\n"
 			"       DELTA := path to (mounted) image file\n");
@@ -556,11 +556,8 @@ static int plooptool_umount(int argc, char **argv)
 
 		ploop_close_dd(di);
 	} else {
-		if (ploop_find_dev(component_name, argv[0], device, sizeof(device)) != 0) {
-			fprintf(stderr, "Image %s is not mounted\n", argv[0]);
-			return SYSEXIT_PARAM;
-		}
-		ret = ploop_umount(device, NULL);
+		usage_umount();
+		return SYSEXIT_PARAM;
 	}
 
 	return ret;
@@ -636,17 +633,14 @@ static void usage_snapshot(void)
 static int plooptool_snapshot(int argc, char **argv)
 {
 	int i, ret;
-	char *device = NULL;
-	int syncfs = 0, offline = 0;
+	int offline = 0;
 	struct ploop_snapshot_param param = {};
 
 	while ((i = getopt(argc, argv, "Fd:u:b:o")) != EOF) {
 		switch (i) {
 		case 'd':
-			device = optarg;
 			break;
 		case 'F':
-			syncfs = 1;
 			break;
 		case 'u':
 			param.guid = parse_uuid(optarg);
@@ -684,11 +678,8 @@ static int plooptool_snapshot(int argc, char **argv)
 
 		ploop_close_dd(di);
 	} else {
-		if (!device) {
-			usage_snapshot();
-			return SYSEXIT_PARAM;
-		}
-		ret = create_snapshot(device, argv[0], syncfs, NULL, NULL);
+		usage_snapshot();
+		return SYSEXIT_PARAM;
 	}
 
 	return ret;
@@ -886,7 +877,7 @@ static int plooptool_snapshot_merge(int argc, char ** argv)
 		if (ret)
 			return ret;
 
-		ret = ploop_merge_snapshot(di, &param);
+//		ret = ploop_delete_snapshot(di, &param);
 
 		ploop_close_dd(di);
 	} else {
@@ -895,31 +886,6 @@ static int plooptool_snapshot_merge(int argc, char ** argv)
 	}
 
 	return ret;
-}
-
-
-static void usage_getdevice(void)
-{
-	fprintf(stderr, "Usage: ploop getdev\n"
-			"(ask /dev/ploop0 about first unused minor number)\n"
-		);
-}
-
-static int plooptool_getdevice(int argc, char **argv)
-{
-	int minor, fd;
-
-	if (argc != 1) {
-		usage_getdevice();
-		return SYSEXIT_PARAM;
-	}
-	fd = ploop_getdevice(&minor);
-	if (fd < 0)
-		return 1;
-	close(fd);
-	printf("Next unused minor: %d\n", minor);
-
-	return 0;
 }
 
 static void usage_resize(void)
@@ -1169,20 +1135,11 @@ static void usage_list(void)
 
 static int plooptool_list(int argc, char **argv)
 {
-	char fname[PATH_MAX];
-	char image[PATH_MAX];
-	char mnt[PATH_MAX] = "";
-	char dev[64];
-	DIR *dp;
-	struct dirent *de;
-	char cookie[PLOOP_COOKIE_SIZE];
-	int all = 0;
 	int i;
 
 	while ((i = getopt(argc, argv, "a")) != EOF) {
 		switch (i) {
 		case 'a':
-			all = 1;
 			break;
 		default:
 			usage_list();
@@ -1198,39 +1155,7 @@ static int plooptool_list(int argc, char **argv)
 		return SYSEXIT_PARAM;
 	}
 
-	snprintf(fname, sizeof(fname) - 1, "/sys/block/");
-	dp = opendir(fname);
-	if (dp == NULL) {
-		fprintf(stderr, "Can't opendir %s: %m", fname);
-		return 1;
-	}
-	while ((de = readdir(dp)) != NULL) {
-		if (strncmp("ploop", de->d_name, 5))
-			continue;
-
-		snprintf(fname, sizeof(fname), "/sys/block/%s/pdelta/0/image",
-				de->d_name);
-		if (access(fname, F_OK))
-			continue;
-		if (read_line(fname, image, sizeof(image)))
-			continue;
-		snprintf(fname, sizeof(fname), "/sys/block/%s/pstate/cookie",
-				de->d_name);
-		if (access(fname, F_OK) == 0) {
-			if (read_line(fname, cookie, sizeof(cookie)))
-				continue;
-		}
-
-		if (all) {
-			mnt[0] = '\0';
-			snprintf(dev, sizeof(dev), "/dev/%s", de->d_name);
-			ploop_get_mnt_by_dev(dev, mnt, sizeof(mnt));
-		}
-		printf("%-12s %s %s %s\n", de->d_name, image, mnt, cookie);
-	}
-	closedir(dp);
-
-	return 0;
+	return ploop_list();
 }
 
 static void usage_replace(void)
@@ -1563,8 +1488,6 @@ int main(int argc, char **argv)
 		return plooptool_snapshot_merge(argc, argv);
 	if (strcmp(cmd, "snapshot-list") == 0)
 		return plooptool_snapshot_list(argc, argv);
-	if (strcmp(cmd, "getdev") == 0)
-		return plooptool_getdevice(argc, argv);
 	if (strcmp(cmd, "resize") == 0)
 		return plooptool_resize(argc, argv);
 	if (strcmp(cmd, "convert") == 0)

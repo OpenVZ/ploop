@@ -49,7 +49,7 @@ void deinit_delta_array(struct delta_array * p)
 	free(p->delta_arr);
 }
 
-int extend_delta_array(struct delta_array * p, char * path, int rw, int od_flags)
+int extend_delta_array(struct delta_array *p, const char *path, int rw, int od_flags)
 {
 	struct delta * da;
 
@@ -87,7 +87,7 @@ int open_delta_simple(struct delta * delta, const char * path, int rw, int od_fl
 	delta->l2 = NULL;
 
 	ploop_log(0, "Opening delta %s", path);
-	delta->fd = open(path, rw, 0600);
+	delta->fd = open(path, rw|O_CLOEXEC, 0600);
 	if (delta->fd < 0) {
 		ploop_err(errno, "open %s", path);
 		return -1;
@@ -269,7 +269,7 @@ static int WRITE(struct delta * delta, void * buf, unsigned int size, off_t pos)
 
 int read_size_from_image(const char *img_name, int raw, off_t * res)
 {
-	struct delta delta = {};
+	struct delta delta = {.fd = -1};
 
 	if (!raw) {
 		if (open_delta(&delta, img_name, O_RDONLY, OD_NOFLAGS))
@@ -349,8 +349,11 @@ static int relocate_block(struct delta *delta, __u32 iblk, void *buf,
 		return -1;
 	}
 
+	__u32 o =  delta->l2[l2_slot];
 	delta->l2[l2_slot] = ploop_sec_to_ioff((off_t)delta->alloc_head++ * delta->blocksize,
 			delta->blocksize, delta->version);
+
+	ploop_log(0, "Reallocate block %d -> %d", o, delta->l2[l2_slot]);
 	if (delta->l2[l2_slot] == 0) {
 		ploop_err(0, "relocate_block: delta->l2[l2_slot] == 0");
 		return -1;

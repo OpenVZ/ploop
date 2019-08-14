@@ -541,72 +541,78 @@ int ploop_di_remove_image(struct ploop_disk_images_data *di, const char *guid,
 	return 0;
 }
 
-int ploop_di_merge_image(struct ploop_disk_images_data *di, const char *guid, char **fname)
+int ploop_di_delete_snapshot(struct ploop_disk_images_data *di,
+		const char *guid, int merge_to_upper_delta, char **rm_fname)
 {
-	int i, snap_id, image_id, nr_ch;
-	struct ploop_image_data *image = NULL;
-	struct ploop_snapshot_data *snapshot = NULL;
+	int id, child_id, image_id, child_image_id, nr_ch;
+	struct ploop_snapshot_data *c, *p;
 
-	snap_id = find_snapshot_by_guid(di, guid);
-	if (snap_id == -1) {
+	id = find_snapshot_by_guid(di, guid);
+	if (id == -1) {
 		ploop_err(0, "Can't find snapshot by uuid %s",
 				guid);
 		return SYSEXIT_PARAM;
 	}
-	snapshot = di->snapshots[snap_id];
+	p = di->snapshots[id];
 
-	image_id = find_image_idx_by_guid(di, guid);
-	if (image_id == -1) {
-		ploop_err(0, "Can't find image by uuid %s",
+	child_id = find_snapshot_by_guid(di,
+			ploop_get_child_by_uuid(di, guid));
+	if (child_id == -1) {
+		ploop_err(0, "Can't find child snapshot by uuid %s",
 				guid);
 		return SYSEXIT_PARAM;
 	}
-	nr_ch = ploop_get_child_count_by_uuid(di, snapshot->parent_guid);
-	if (nr_ch > 1) {
-		ploop_err(0, "Can't merge to snapshot %s: "
-				"it has %d children",
-				snapshot->parent_guid, nr_ch);
-		return SYSEXIT_PARAM;
-	}
-	if (guidcmp(snapshot->parent_guid, NONE_UUID) == 0) {
+	c = di->snapshots[child_id];
+
+	if (guidcmp(c->parent_guid, NONE_UUID) == 0) {
 		ploop_err(0, "Can't merge snapshot %s: "
 				"it is a base image", guid);
 		return SYSEXIT_PARAM;
 	}
-	image = di->images[image_id];
-	if (fname != NULL) {
-		*fname = strdup(image->file);
-		if (*fname == NULL)
-			return SYSEXIT_MALLOC;
+
+	nr_ch = ploop_get_child_count_by_uuid(di, p->guid);
+	if (nr_ch > 1) {
+		ploop_err(0, "Can't merge to snapshot %s: "
+				"it has %d children", p->guid, nr_ch);
+		return SYSEXIT_PARAM;
 	}
 
-	/* Caller passed child_guid S2 to delete S1 (S1 <- S2 <- S3) (S2 <- S3)
-	 * so it has merge S2 to S1 and we should update all S1 referrences to S2
-	 */
-	for (i = 0; i < di->nsnapshots; i++) {
-		if (guidcmp(di->snapshots[i]->guid, snapshot->parent_guid) == 0) {
-			strcpy(di->snapshots[i]->guid, guid);
-			/* preserve temporary flag */
-			di->snapshots[i]->temporary = snapshot->temporary;
-			di->snapshots[i]->alien = snapshot->alien;
-		}
+	image_id = find_image_idx_by_guid(di, p->guid);
+	if (image_id == -1) {
+		ploop_err(0, "Can't find image by uuid %s",
+				p->guid);
+		return SYSEXIT_PARAM;
 	}
-	for (i = 0; i < di->nimages; i++) {
-		if (guidcmp(di->images[i]->guid, snapshot->parent_guid) == 0) {
-			strcpy(di->images[i]->guid, guid);
-			di->images[i]->alien = snapshot->alien;
-		}
+
+	child_image_id = find_image_idx_by_guid(di, c->guid);
+	if (child_image_id == -1) {
+		ploop_err(0, "Can't find image by uuid %s",
+				c->guid);
+		return SYSEXIT_PARAM;
 	}
-	remove_data_from_array((void**)di->snapshots, di->nsnapshots, snap_id);
+
+	if (rm_fname == NULL)
+		return 0; // validate only
+
+	if (merge_to_upper_delta) {
+		*rm_fname = di->images[image_id]->file;
+		di->images[image_id]->file = NULL;
+	} else {
+		*rm_fname = di->images[child_image_id]->file;
+		di->images[child_image_id]->file = di->images[image_id]->file;
+		di->images[image_id]->file = NULL;
+	}
+
+	/* update parent referrence */
+	strcpy(c->parent_guid, p->parent_guid);
+
+	free_snapshot_data(p);
+	remove_data_from_array((void**)di->snapshots, di->nsnapshots, id);
 	di->nsnapshots--;
+
+	free_image_data(di->images[image_id]);
 	remove_data_from_array((void**)di->images, di->nimages, image_id);
 	di->nimages--;
-
-	if (guidcmp(snapshot->guid, TOPDELTA_UUID) == 0)
-		ploop_di_change_guid(di, snapshot->parent_guid, TOPDELTA_UUID);
-
-	free_snapshot_data(snapshot);
-	free_image_data(image);
 
 	return 0;
 }

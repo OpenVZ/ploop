@@ -390,7 +390,7 @@ int ploop_volume_delete(const char *path)
 	if (rc)
 		goto err;
 
-	rc = ploop_find_dev_by_cn(d, NULL, 1, buf, sizeof(buf));
+	rc = ploop_find_dev_by_dd(d, buf, sizeof(buf));
 	if (rc == -1) {
 		rc = SYSEXIT_SYS;
 		goto err;
@@ -859,7 +859,7 @@ int ploop_volume_switch(const char *from, const char *to)
 		goto err_unlock;
 	}
 
-	rc = ploop_find_dev_by_cn(d_from, NULL, 1, buf, sizeof(buf));
+	rc = ploop_find_dev_by_dd(d_from, buf, sizeof(buf));
 	if (rc == -1) {
 		rc = SYSEXIT_SYS;
 		goto err_unlock;

@@ -290,6 +290,8 @@ static int check_and_repair_sparse(const char *image, int *fd, int flags)
 	struct delta delta = {};
 	__u32 *rmap = NULL, rmap_len;
 
+	return 0;
+
 	ret = fstatfs(*fd, &sfs);
 	if (ret < 0) {
 		ploop_err(errno, "Unable to statfs delta file %s", image);

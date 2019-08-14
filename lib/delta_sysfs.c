@@ -30,120 +30,163 @@
 #include <linux/fs.h>
 #include <sys/ioctl.h>
 #include <sys/utsname.h>
+#include <sys/sysmacros.h>
 
 #include "ploop.h"
 
-char *make_sysfs_dev_name(int minor, char *buf, int len)
+char *get_loop_name(int minor, int full, char *buf, int len)
 {
-	snprintf(buf, len, "ploop%d", minor >> 4);
+	snprintf(buf, len, "%sloop%d", full ? "/dev/" : "", minor);
 	return buf;
 }
 
-int ploop_find_top_delta_name_and_format(
-		const char *device,
-		char *image,
-		size_t image_size,
-		char *format,
-		size_t format_size)
+int get_dev_from_sys(const char *devname, const char *type, char *out,
+		int len)
 {
-	int top_level = 0;
-	char *img;
-	char *fmt;
+	char buf[64];
+	struct stat st;
+	char **devs = NULL;
 
-	if (ploop_get_attr(device, "top", &top_level))
-		return SYSEXIT_SYSFS;
-
-	if (find_delta_names(device, top_level, top_level, &img, &fmt))
-		return SYSEXIT_SYSFS;
-
-	if (image)
-		strncpy(image, img, image_size);
-	free(img);
-	if (format)
-		strncpy(format, fmt, format_size);
-
-	return 0;
-}
-
-static int read_image_info(const char *devname, int level,
-		struct image_info *info)
-{
-	char buf[PATH_MAX];
-	unsigned long major = 0, minor = 0;
-	FILE *fp;
-
-	snprintf(buf, sizeof(buf), "/sys/block/%s/pdelta/%d/image_info",
-			devname, level);
-
-	info->ino = 0;
-	fp = fopen(buf, "rt");
-	if (fp == NULL) {
-		if (errno == ENOENT)
-			return 0;
-		ploop_err(errno, "Cannot open %s", buf);
-		return SYSEXIT_OPEN;
+	if (devname[0] != '/')
+		snprintf(buf, sizeof(buf), "/dev/mapper/%s", devname);
+	else
+		snprintf(buf, sizeof(buf), "%s", devname);
+	if (stat(buf, &st) == -1) {
+		ploop_err(errno, "Can not stat %s", devname);
+		return -1;
 	}
-
-	/*   ino:254
-	 *   sdev:0:38
-	 */
-	while (fgets(buf, sizeof(buf) - 1, fp)) {
-		sscanf(buf, "ino:%lu\n", &info->ino);
-		sscanf(buf, "sdev:%lu:%lu", &major, &minor);
+	snprintf(buf, sizeof(buf), "/sys/dev/block/%d:%d/%s",
+			major(st.st_rdev), minor(st.st_rdev), type);
+	if (get_dir_entry(buf, &devs)) {
+		ploop_free_array(devs);
+		return -1;
 	}
-	fclose(fp);
+	if (devs == NULL)
+		return 1;
 
-	info->dev = makedev(major, minor);
-
-	return 0;
-}
-
-int find_delta_info(const char *device, int start_level, int end_level,
-		     char **names, struct image_info *info, char **format)
-{
-	int i, n;
-	char path[PATH_MAX];
-	char nbuf[4096];
-
-	if (memcmp(device, "/dev/", 5) == 0)
-		device += 5;
-
-	for (i = 0; i <= end_level - start_level; i++) {
-		snprintf(path, sizeof(path), "/sys/block/%s/pdelta/%d/image",
-			 device, start_level + i);
-
-		if (read_line(path, nbuf, sizeof(nbuf)))
+	snprintf(buf, sizeof(buf), "/sys/block/%s/dm/name", devs[0]);
+	if (access(buf, F_OK) == 0) {
+		if (read_line(buf, buf, sizeof(buf))) {
+			ploop_free_array(devs);
 			return -1;
-
-		n = (end_level-start_level)-i;
-		if (names)
-			names[n] = strdup(nbuf);
-
-		if (info && read_image_info(device, start_level + i, &info[n]))
-			return -1;
-
-		if (i == 0 && format) {
-			snprintf(path, sizeof(path), "/sys/block/%s/pdelta/%d/format",
-				 device, start_level);
-
-			if (read_line(path, nbuf, sizeof(nbuf)))
-				return -1;
-
-			if (strcmp(nbuf, "raw") == 0)
-				*format = "raw";
-			else if (strcmp(nbuf, "ploop1") == 0)
-				*format = "ploop1";
-			else
-				*format = "unknown";
 		}
+	} else
+		snprintf(buf, sizeof(buf), "%s", devs[0]);
+
+	snprintf(out, len, "/dev/%s", buf);
+	if (access(out, F_OK))
+		snprintf(out, len, "/dev/mapper/%s", buf);
+
+	ploop_free_array(devs);
+
+	return 0;
+}
+
+int ploop_find_top_delta_name_and_format(const char *device, char *image,
+		size_t image_size, char *format, size_t format_size)
+{
+	char *i = NULL, *f;
+	int blocksize, rc;
+
+	rc = get_top_delta_name(device, &i, &f, &blocksize);
+	if (rc)
+		return rc;
+
+	snprintf(image, image_size, "%s", i);
+	free(i);
+	snprintf(format, format_size, "%s", f);
+
+	return 0;
+}
+
+int get_top_delta(const char*ldev, char *out, int size)
+{
+	int err;
+	char f[PATH_MAX];
+
+	snprintf(f, sizeof(f), "/sys/block/%s/loop/backing_file",
+			get_basename(ldev));
+	err = read_line_quiet(f, out, size);
+	if (err) {
+		if (err == ENOENT || err == ENODEV)
+			return 1;
+
+		ploop_err(err, "Can't open or read %s", f);
+		return -1;
 	}
 	return 0;
 }
 
-int find_delta_names(const char *device, int start_level, int end_level,
-		char **names, char **format)
+int get_top_delta_name(const char *device, char **fname, char **format,
+		int *blocksize)
 {
-	return find_delta_info(device, start_level, end_level, names, NULL, format);
+	int rc;
+	char ldev[64];
+	char buf[PATH_MAX];
+
+	rc = get_dev_from_sys(device, "slaves", ldev, sizeof(ldev));
+	if (rc) {
+		if (rc == 1)
+			ploop_err(0, "Can not find top delta fname by dev %s", device);
+		return rc;
+	}
+
+	rc = get_top_delta(ldev, buf, sizeof(buf));
+	if (rc)
+		return rc;
+
+	*fname = strdup(buf);
+	if (fname == NULL)
+		return SYSEXIT_MALLOC;
+
+	if (format)
+		*format = "ploop1";
+	if (blocksize)
+		*blocksize = 2048;
+
+	return 0;
+}
+
+int get_delta_names(const char *device, char **names[], char **format,
+		int *blocksize)
+{
+	int rc, i;
+	char **n = NULL;
+	const int D = 32;
+
+	for (i = 0; i < 0xffff; i++) {
+		if ((i % D) == 0) {
+			char **t = realloc(n, (i + D + 2) * sizeof(char *));
+			if (t == NULL)
+				return SYSEXIT_MALLOC;
+			n = t;
+		}
+		rc = dm_get_delta_name(device, i, &n[i]);
+		if (rc == -1) 
+			goto err;
+		else if (rc)
+			break;
+
+		n[i + 1] = NULL;
+	}
+
+	rc = get_top_delta_name(device, &n[i++], format, blocksize);
+	if (rc)
+		goto err;
+	n[i] = NULL;
+
+	*names = n;
+
+	return 0;
+
+err:
+	ploop_free_array(n);
+	return rc;
+}
+
+int ploop_get_names(const char *devname, char **names[])
+{
+	return get_delta_names(devname, names, NULL, NULL);
 }
 
 /* Finds a level for a given delta in a running ploop device.
@@ -311,10 +354,12 @@ static int get_dev_start(const char *path, __u32 *start)
 	return 0;
 }
 
-static int append_array_entry(const char *entry, char **ar[], int nelem)
+int append_array_entry(const char *entry, char **ar[], int nelem)
 {
 	char **t;
 
+	if (nelem == 0)
+		nelem++;
 	t = realloc(*ar, (nelem+1) * sizeof(char *));
 	if (t == NULL) {
 		ploop_err(ENOMEM, "Memory allocation failed");
@@ -344,7 +389,7 @@ int get_dir_entry(const char *path, char **out[])
 	char buf[PATH_MAX];
 	struct dirent *de;
 	int ret = 0;
-	int nelem = 1;
+	int nelem = 0;
 
 	dp = opendir(path);
 	if (dp == NULL) {
@@ -426,186 +471,70 @@ int dev_num2dev_start(dev_t dev_num, __u32 *dev_start, __u32 *start_offset)
 	return 0;
 }
 
-static int check_dev_by_name(const char *devname, const char *delta,
-		const char *topdelta)
+static int check_dev_by_name(const char *ldev, const char *delta)
 {
-	char fname[PATH_MAX];
-	char image[PATH_MAX];
-	int err;
+	int rc;
+	char f[PATH_MAX];
 
-	snprintf(fname, sizeof(fname), "/sys/block/%s/pdelta/0/image",
-			devname);
-	err = read_line_quiet(fname, image, sizeof(image));
-	if (err) {
-		if (err == ENOENT || err == ENODEV)
-			return 1;
-
-		ploop_err(err, "Can't open or read %s", fname);
-		return -1;
-	}
-
-	if (strcmp(image, delta))
-		return 1;
-		
-	if (topdelta != NULL) {
-		if (!(ploop_find_top_delta_name_and_format(
-				devname, image, sizeof(image), NULL, 0) == 0 &&
-				strcmp(image, topdelta) == 0))
-			return 1;
-	}
-
-	return 0;
+	rc = get_top_delta(ldev, f, sizeof(f));
+	if (rc)
+		return rc;
+	return strcmp(f, delta) == 0  ? 0 : 1;
 }
 
-static int check_dev_by_info(const char *devname, struct stat *delta,
-		struct stat *topdelta)
+int get_loop_by_delta(const char *delta, char **out[])
 {
-	struct image_info info;
-
-	read_image_info(devname, 0, &info);
-	if (info.ino != delta->st_ino || info.dev != delta->st_dev)
-		return 1;
-
-	if (topdelta) {
-		int top_level;
-
-		if (ploop_get_attr(devname, "top", &top_level))
-			return 1;
-
-		if (read_image_info(devname, top_level, &info))
-			return 1;
-
-		if (info.ino != topdelta->st_ino || info.dev != topdelta->st_dev)
-			return 1;
-	}
-
-	return 0;
-}
-
-/* Find device(s) by base ( & top ) delta and return name(s)
- * in a NULL-terminated array pointed to by 'out'.
- * Note that
- *  - if 0 is returned, 'out' should be free'd using
- *    ploop_free_array()
- *  - when 'component_name' is not NULL,
- *    no more than one device will be returned
- * Return:
- *  -1 on error
- *   0 found
- *   1 not found
- */
-int ploop_get_dev_by_delta(const char *delta, const char *topdelta,
-		const char *component_name, char **out[])
-{
-	char fname[PATH_MAX];
 	char delta_r[PATH_MAX];
-	char topdelta_r[PATH_MAX];
 	char dev[64];
 	DIR *dp;
 	struct dirent *de;
-	int ret = -1;
-	char cookie[PLOOP_COOKIE_SIZE];
-	int lckfd;
-	int nelem = 1;
-	struct stat st_delta = {}, st_topdelta = {};
-	int use_image_info = -1;
+	int err;
+	int n = 0;
 
 	*out = NULL;
 
-	if (stat(delta, &st_delta) && errno == ENOENT)
+	if (access(delta, F_OK ))
 		return 1;
-	if (topdelta && stat(topdelta, &st_topdelta))
-		ploop_err(errno, "Warning: can't stat %s", topdelta);	
 
-	lckfd = ploop_global_lock();
-	if (lckfd == -1)
-		return -1;
-
-	snprintf(fname, sizeof(fname) - 1, "/sys/block/");
-	dp = opendir(fname);
+	if (realpath(delta, delta_r) == NULL) {
+		ploop_err(errno, "Warning: can't resolve %s", delta);
+		snprintf(delta_r, sizeof(delta_r), "%s", delta);
+	}
+	dp = opendir("/sys/block/");
 	if (dp == NULL) {
-		ploop_err(errno, "Can't opendir %s", fname);
+		ploop_err(errno, "Can't opendir /sys/block");
 		goto err;
 	}
-
 	while ((de = readdir(dp)) != NULL) {
-		int err;
-
-		if (strncmp("ploop", de->d_name, 5))
+		if (strncmp("loop", de->d_name, 4))
 			continue;
 
-		if (use_image_info == -1) {
-			snprintf(fname, sizeof(fname), "/sys/block/%s/pdelta/0/image_info",
-				de->d_name);
-			use_image_info = access(fname, F_OK) == 0;
-
-			if (!use_image_info) {
-				if (realpath(delta, delta_r) == NULL) {
-					ploop_err(errno, "Warning: can't resolve %s", delta);
-					snprintf(delta_r, sizeof(delta_r), "%s", delta);
-				}
-				if (topdelta && realpath(topdelta, topdelta_r) == NULL) {
-					ploop_err(errno, "Warning: can't resolve %s", topdelta);	
-					snprintf(topdelta_r, sizeof(topdelta_r), "%s", topdelta);
-				}
-			}
-		}
-		if (use_image_info)
-			err = check_dev_by_info(de->d_name, &st_delta,
-					topdelta ? &st_topdelta : NULL);
-		else
-			err = check_dev_by_name(de->d_name, delta_r,
-					topdelta ? topdelta_r : NULL);
+		err = check_dev_by_name(de->d_name, delta_r);
 		if (err == -1)
 			goto err;
 		else if (err == 1)
 			continue;
 
-		if (component_name) {
-			snprintf(fname, sizeof(fname), "/sys/block/%s/pstate/cookie",
-					de->d_name);
-			err = read_line_quiet(fname, cookie, sizeof(cookie));
-			if (err) {
-				if (err == ENOENT || err == ENODEV)
-					/* This is not an error, but a race between
-					 * mount and umount: device is being removed
-					 */
-					continue;
-
-				ploop_err(err, "Can't open or read %s", fname);
-				if ((errno == ENOENT) && component_name)
-					/* Using component_name on old kernel is bad */
-					ploop_err(0, "ERROR: " PRODUCT_NAME_SHORT " kernel with ploop cookie support "
-							"(i.e. 042stab061.1 or greater) is required");
-				goto err;
-			}
-
-			if (strncmp(component_name, cookie, sizeof(cookie)))
-				continue;
-		}
-
 		snprintf(dev, sizeof(dev), "/dev/%s", de->d_name);
-		nelem = append_array_entry(dev, out, nelem);
-		if (nelem == -1)
+		n = append_array_entry(dev, out, n);
+		if (n == -1)
 			goto err;
-
-		if (component_name)
-			break;
 	}
-	ret = 0;
 
+	closedir(dp);
+	return (n == 0);
 err:
 	if (dp)
 		closedir(dp);
-	close(lckfd);
+	ploop_free_array(*out);
+	*out = NULL;
+	return -1;
+}
 
-	if (ret) {
-		ploop_free_array(*out);
-		*out = NULL;
-		return ret;
-	}
-
-	return (nelem == 1);
+int ploop_find_dev(const char *component_name, const char *delta,
+		char *out, int size)
+{
+	return find_dev_by_delta(delta, out, size);
 }
 
 void ploop_free_array(char *array[])
@@ -620,71 +549,15 @@ void ploop_free_array(char *array[])
 	free(array);
 }
 
-int find_dev_by_delta(const char *component_name, const char *delta,
-		const char *topdelta, char *out, int size)
-{
-	int ret;
-	char **devs;
-
-	if (delta == NULL) {
-		ploop_err(0, "find_dev_by_delta: base delta image name is not specified");
-		return SYSEXIT_PARAM;
-	}
-
-	ret = ploop_get_dev_by_delta(delta, topdelta,
-			/* We only need one device, so
-			 * always set component_name */
-			component_name ? component_name : "",
-			&devs);
-	if (ret == 0)
-		snprintf(out, size, "%s", devs[0]);
-	ploop_free_array(devs);
-
-	return ret;
-}
-
-int ploop_find_dev(const char *component_name, const char *delta,
-		char *out, int size)
-{
-	return find_dev_by_delta(component_name, delta, NULL, out, size);
-}
-
 int get_part_devname_from_sys(const char *device, char *out, int size)
 {
-	char path[PATH_MAX];
-	char **dirs = NULL;
-	char **p = NULL;
-	int len;
+	int rc;
 
-	if (memcmp(device, "/dev/", 5) == 0)
-		device += 5;
-
-	snprintf(path, sizeof(path), "/sys/block/%s", device);
-	if (get_dir_entry(path, &dirs))
-		return -1;
-
-	if (dirs == NULL)
-		return -1;
-
-	len = strlen(device);
-	for (p = dirs; *p != NULL; p++) {
-		if (strncmp(device, *p, len) == 0)
-			break;
-	}
-
-	if (*p == NULL) {
-		snprintf(out, size, "/dev/%s", device);
-	} else {
-
-		snprintf(out, size, "/dev/%s", *p);
-
-		snprintf(path, sizeof(path), "/sys/class/block/%s/holders", *p);
-		ploop_free_array(dirs);
-		dirs = NULL;
-		if (get_dir_entry(path, &dirs) == 0 && dirs != NULL)
-			snprintf(out, size, "/dev/%s", dirs[0]);
-	}
-	ploop_free_array(dirs);
+	rc = get_dev_from_sys(device, "holders", out, size);
+	if (rc == -1)
+		return rc;
+	else if (rc)
+		snprintf(out, size, "%s", device);
 
 	return 0;
 }

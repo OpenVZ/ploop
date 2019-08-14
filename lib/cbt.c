@@ -1291,8 +1291,7 @@ int ploop_cbt_dump_info(struct ploop_disk_images_data *di)
 		goto err;
 	}
 
-	ret = ploop_find_dev_by_cn(di, di->runtime->component_name, 0, dev,
-			sizeof(dev));
+	ret = ploop_find_dev_by_dd(di, dev, sizeof(dev));
 	if (ret == -1) {
 		ret = SYSEXIT_SYS;
 		goto err;
@@ -1433,8 +1432,7 @@ int ploop_dump_cbt(struct ploop_disk_images_data *di, const char *fname)
 	}
 	close(ret);
 
-	ret = ploop_find_dev_by_cn(di, di->runtime->component_name, 0, dev,
-			sizeof(dev));
+	ret = ploop_find_dev_by_dd(di, dev, sizeof(dev));
 	if (ret == -1) {
 		ret = SYSEXIT_SYS;
 	} else if (ret != 0) {

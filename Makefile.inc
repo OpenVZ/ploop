@@ -35,7 +35,7 @@ DEBUG=yes
 
 CFLAGS := $(if $(DEBUG),-g -O0 -DDEBUG,-O2) $(CFLAGS)
 CFLAGS += -I. -I../include -fno-strict-aliasing \
-	-Wall -Wstrict-prototypes -Werror -Wformat-security \
+	-Wall -Wstrict-prototypes -Werror -Wformat-security -Werror=format-truncation=0\
 	-D_GNU_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 \
 	-DPRODUCT_NAME_SHORT=\"$(PRODUCT_NAME_SHORT)\"
 CFLAGS += $(RPM_OPT_FLAGS) $(CPPFLAGS)
