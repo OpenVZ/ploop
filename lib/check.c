@@ -301,7 +301,6 @@ static int check_and_repair(const char *image, int *fd, int flags)
 	int last;
 	int i, ret;
 	struct statfs sfs;
-	struct stat st;
 	uint64_t prev_end, end;
 	uint64_t cluster;
 	char buf[40960] = "";
@@ -313,6 +312,7 @@ static int check_and_repair(const char *image, int *fd, int flags)
 	int repair = flags & CHECK_REPAIR_SPARSE;
 	struct delta delta = {};
 	__u32 *rmap = NULL;
+	__u32 rmap_len;
 
 	ret = fstatfs(*fd, &sfs);
 	if (ret < 0) {
@@ -322,12 +322,6 @@ static int check_and_repair(const char *image, int *fd, int flags)
 
 	if (sfs.f_type != EXT4_SUPER_MAGIC)
 		return 0;
-
-	ret = fstat(*fd, &st);
-	if (ret < 0) {
-		ploop_err(errno, "Unable to stat delta file %s", image);
-		return SYSEXIT_FSTAT;
-	}
 
 	if (open_delta(&delta, image, O_RDONLY|O_DIRECT, OD_ALLOW_DIRTY)) {
 		ploop_err(errno, "open_delta %s", image);
@@ -341,14 +335,14 @@ static int check_and_repair(const char *image, int *fd, int flags)
 	}
 
 	ret = range_build_rmap(1, delta.l2_size * sizeof(__u32),
-			rmap, delta.l2_size, &delta, NULL);
+			rmap, delta.l2_size, &delta, &rmap_len);
 	if (ret)
 		goto out;
 
 	cluster = S2B(delta.blocksize);
 	prev_end = 0;
 	last = 0;
-	end = st.st_size;
+	end = rmap_len * S2B(delta.blocksize);
 	while (!last && prev_end < end) {
 		fiemap->fm_start	= prev_end;
 		fiemap->fm_length	= end;
