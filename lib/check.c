@@ -342,7 +342,7 @@ static int check_and_repair(const char *image, int *fd, int flags)
 	cluster = S2B(delta.blocksize);
 	prev_end = 0;
 	last = 0;
-	end = rmap_len * S2B(delta.blocksize);
+	end = (rmap_len + 1) * S2B(delta.blocksize);
 	while (!last && prev_end < end) {
 		fiemap->fm_start	= prev_end;
 		fiemap->fm_length	= end;
