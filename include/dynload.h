@@ -57,8 +57,6 @@ struct ploop_functions {
 	void (*set_log_level)(int level);
 	void (*set_verbose_level)(int level);
 	void (*cancel_operation)(void);
-	int (*send)(const char *device, int ofd, const char *flush_cmd, int is_pipe);
-	int (*receive)(const char *dst);
 	int (*discard_get_stat)(struct ploop_disk_images_data *di, struct ploop_discard_stat *pd_stat);
 	int (*discard)(struct ploop_disk_images_data *di, struct ploop_discard_param *param);
 	/* 1.6 */
@@ -79,8 +77,7 @@ struct ploop_functions {
 	int (*create_temporary_snapshot)(struct ploop_disk_images_data *di, struct ploop_tsnapshot_param *param, int *holder_fd);
 	int (*is_mounted)(struct ploop_disk_images_data *di);
 	/* 1.12 */
-	int (*copy_send)(struct ploop_copy_send_param *arg);
-	int (*copy_receive)(struct ploop_copy_receive_param *arg);
+	int (*copy_receiver)(struct ploop_copy_receive_param *arg);
 	int (*get_max_size)(unsigned int blocksize, unsigned long long *max);
 	int (*create_dd)(const char *ddxml, struct ploop_create_param *param);
 	/* 1.13 */
@@ -102,7 +99,8 @@ struct ploop_functions {
 	void (*release_bitmap)(struct ploop_bitmap *bmap);
 	struct ploop_bitmap *(*get_tracking_bitmap_from_image)(struct ploop_disk_images_data *di, const char *guid);
 	int (*get_fs_info)(const char *descr, struct ploop_fs_info *info, int size);
-	void *padding[61];
+	int (*get_names)(const char *devname, char **names[]);
+	void *padding[63];
 }; /* struct ploop_functions */
 
 __attribute__ ((visibility("default")))

@@ -45,7 +45,7 @@ enum e2fsck_flags {
 };
 
 struct ploop_mount_param {
-	char device[64];	/* returns device name */
+	char device[64];	/* out: returns device name */
 	int ro;			/* read-only mount */
 	int flags;		/* flags such as MS_NOATIME */
 	int unused1;
@@ -232,22 +232,10 @@ struct ploop_discard_stat {
 	off_t balloon_size;
 };
 
-struct ploop_copy_send_param {
-	const char *device;	/* ploop device ("/dev/ploopNNNN") to read */
-	int ofd;		/* File descriptor to write to */
-	const char *flush_cmd;	/* command to run to stop disk activity */
-	int feedback_fd;	/* File descriptor to read feedback
-				 * from ploop_copy_receive()
-				 */
-	char dummy[32];
-};
-
 struct ploop_copy_receive_param {
 	const char *file;	/* File name to write to */
 	int ifd;		/* File descriptor to read from */
-	int feedback_fd;	/* File descriptor to send feedback
-				 * to ploop_copy_send()
-				 */
+	int feedback_fd;	/* File descriptor to send feedback */
 	char dummy[32];
 };
 
@@ -353,8 +341,7 @@ void ploop_set_verbose_level(int level);
 /* Cancelation API */
 void ploop_cancel_operation(void);
 /* pcopy routines */
-int ploop_copy_send(struct ploop_copy_send_param *arg);
-int ploop_copy_receive(struct ploop_copy_receive_param *arg);
+int ploop_copy_receiver(struct ploop_copy_receive_param *arg);
 
 int ploop_discard_get_stat(struct ploop_disk_images_data *di,
 		struct ploop_discard_stat *pd_stat);
@@ -376,10 +363,9 @@ int ploop_clone_dd(struct ploop_disk_images_data *di, const char *guid,
 struct ploop_bitmap *ploop_get_used_bitmap_from_image(struct ploop_disk_images_data *di, const char *guid);
 struct ploop_bitmap *ploop_get_tracking_bitmap_from_image(struct ploop_disk_images_data *di, const char *guid);
 void ploop_release_bitmap(struct ploop_bitmap *bmap);
+int ploop_get_names(const char *devname, char **names[]);
 /* deprecated */
 PLOOP_DEPRECATED char *ploop_get_base_delta_uuid(struct ploop_disk_images_data *di);
-PLOOP_DEPRECATED int ploop_send(const char *device, int ofd, const char *flush_cmd, int is_pipe);
-PLOOP_DEPRECATED int ploop_receive(const char *dst);
 PLOOP_DEPRECATED int ploop_complete_running_operation(const char *device);
 
 #ifdef __cplusplus

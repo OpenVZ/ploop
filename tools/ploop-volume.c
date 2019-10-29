@@ -31,7 +31,7 @@
 #include <string.h>
 #include <limits.h>
 
-#include <json/json.h>
+#include <json-c/json.h>
 
 #include "ploop.h"
 #include "libvolume.h"
@@ -238,6 +238,7 @@ static int snapshot(int argc, char **argv)
 
 	while ((i = getopt_long(argc, argv, "", opts, NULL)) != EOF) {
 		switch (i) {
+		case 1:
 			vol.i_path = optarg;
 			break;
 		default:

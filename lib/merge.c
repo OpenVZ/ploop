@@ -60,6 +60,7 @@ static int sync_cache(struct delta * delta)
 	if (delta->l2_cache == 0)
 		skip = sizeof(struct ploop_pvd_header);
 
+	ploop_log(3, "Sync cache %d", delta->l2_cache);
 	/* Write index table */
 	if (PWRITE(delta, (__u8 *)delta->l2 + skip,
 				S2B(delta->blocksize) - skip,
@@ -101,31 +102,34 @@ static int locate_l2_entry(struct delta_array *p, int level, int i, __u32 k, int
 
 static int grow_lower_delta(const char *device, int top,
 		const char *src_image, const char *dst_image,
-		int start_level)
+		int end_level)
 {
 	off_t src_size = 0; /* bdsize of source delta to merge */
 	off_t dst_size = 0; /* bdsize of destination delta for merge */
-	int i, devfd;
+	int i;
 	struct ploop_pvd_header *vh;
 	struct grow_maps grow_maps;
 	char *fmt;
 	int dst_is_raw = 0;
 	void *buf = NULL;
 	struct delta odelta = {.fd = -1};
-	int ret;
+	int ret, blocksize;
 	__u64 cluster;
+	char **names = NULL;
 
-	if (top) {
-		if ((ret = ploop_get_size(device, &src_size)))
-			return ret;
-	} else if ((ret = read_size_from_image(src_image, 0, &src_size)))
-		goto done;
+	if (top)
+		ret = ploop_get_size(device, &src_size);
+	else
+		ret = read_size_from_image(src_image, 0, &src_size);
+	if (ret)
+		return ret;
 
-	if (find_delta_names(device, start_level, start_level, NULL, &fmt)) {
+	if (get_delta_names(device, &names, &fmt, &blocksize)) {
 		ploop_err(errno, "find_delta_names");
 		ret = SYSEXIT_SYSFS;
 		goto done;
 	}
+	ploop_free_array(names);
 
 	if (strcmp(fmt, "raw") == 0)
 		dst_is_raw = 1;
@@ -150,49 +154,47 @@ static int grow_lower_delta(const char *device, int top,
 		goto done;
 	}
 
-	if (dirty_delta(&odelta)) {
-		ploop_err(errno, "dirty_delta");
-		ret = SYSEXIT_WRITE;
-		goto done;
-	}
 	cluster = S2B(odelta.blocksize);
 	if (p_memalign(&buf, 4096, cluster)) {
 		ret = SYSEXIT_MALLOC;
 		goto done;
 	}
 
-	/* relocate blocks w/o nullifying them and changing on-disk header */
-	if ((ret = grow_delta(&odelta, src_size, buf, &grow_maps)))
-		goto done;
-
-	if (clear_delta(&odelta)) {
-		ploop_err(errno, "clear_delta");
+	if (dirty_delta(&odelta)) {
+		ploop_err(errno, "dirty_delta");
 		ret = SYSEXIT_WRITE;
 		goto done;
 	}
 
-	devfd = open(device, O_RDONLY|O_CLOEXEC);
-	if (devfd < 0) {
-		ploop_err(errno, "open dev");
-		ret = SYSEXIT_DEVICE;
+	if (grow_loop_image(dst_image, NULL, odelta.blocksize, src_size)) {
+		ret = SYSEXIT_WRITE;
 		goto done;
 	}
 
-	/* update in-core map_node mappings for relocated blocks */
-	grow_maps.ctl->level = start_level;
-	ret = ioctl_device(devfd, PLOOP_IOC_UPDATE_INDEX, grow_maps.ctl);
-	close(devfd);
+	/* relocate blocks w/o nullifying them and changing on-disk header */
+	ret = grow_delta(&odelta, src_size, buf, &grow_maps);
+	if (clear_delta(&odelta)) {
+		ploop_err(errno, "clear_delta");
+		ret = SYSEXIT_WRITE;
+	}
 	if (ret)
 		goto done;
 
-	/* nullify relocated blocks on disk */
-	memset(buf, 0, cluster);
-	for (i = 0; i < grow_maps.ctl->n_maps; i++)
-		if (PWRITE(&odelta, buf, cluster,
-			   (off_t)(grow_maps.zblks[i]) * cluster)) {
-			ret = SYSEXIT_WRITE;
+	if (grow_maps.ctl->n_maps) {
+		ret = update_delta_index(device, end_level, &grow_maps);
+		if (ret)
 			goto done;
+
+		/* nullify relocated blocks on disk */
+		memset(buf, 0, cluster);
+		for (i = 0; i < grow_maps.ctl->n_maps; i++) {
+			if (PWRITE(&odelta, buf, cluster,
+						(off_t)(grow_maps.zblks[i]) * cluster)) {
+				ret = SYSEXIT_WRITE;
+				goto done;
+			}
 		}
+	}
 
 	/* save new image header of destination delta on disk */
 	vh = (struct ploop_pvd_header *)buf;
@@ -218,68 +220,6 @@ done:
 	return ret;
 }
 
-int get_delta_info(const char *device, struct merge_info *info)
-{
-	char *fmt;
-
-	if (ploop_get_attr(device, "top", &info->top_level)) {
-		ploop_err(0, "Can't find top delta");
-		return SYSEXIT_SYSFS;
-	}
-
-	if (info->top_level == 0) {
-		ploop_err(0, "Single delta, nothing to merge");
-		return SYSEXIT_PARAM;
-	}
-
-	if (info->end_level == 0)
-		info->end_level = info->top_level;
-
-	if (info->end_level > info->top_level ||
-	    info->start_level > info->end_level)
-	{
-		ploop_err(0, "Illegal top level");
-		return SYSEXIT_SYSFS;
-	}
-
-	if (info->end_level == info->top_level) {
-		int running;
-
-		if (ploop_get_attr(device, "running", &running)) {
-			ploop_err(0, "Can't get running attr");
-			return SYSEXIT_SYSFS;
-		}
-
-		if (running) {
-			int ro;
-
-			if (ploop_get_delta_attr(device, info->top_level, "ro", &ro)) {
-				ploop_err(0, "Can't get ro attr");
-				return SYSEXIT_SYSFS;
-			}
-			if (!ro)
-				info->merge_top = 1;
-		}
-	}
-
-	int n = info->end_level - info->start_level + 1;
-	info->names = calloc(1, (n + 1) * sizeof(char *));
-	info->info = calloc(1, n * sizeof(struct image_info));
-	if (info->names == NULL || info->info == NULL) {
-		ploop_err(errno, "malloc");
-		return SYSEXIT_MALLOC;
-	}
-
-	if (find_delta_info(device, info->start_level, info->end_level,
-			info->names, info->info, &fmt))
-		return SYSEXIT_SYSFS;
-
-	if (strcmp(fmt, "raw") == 0)
-		info->raw = 1;
-
-	return 0;
-}
-
 int merge_image(const char *device, int start_level, int end_level, int raw,
 		int merge_top, char **images, const char *new_image)
 {
@@ -292,8 +232,7 @@ int merge_image(const char *device, int start_level, int end_level, int raw,
 	__u32 allocated = 0;
 	__u64 cluster;
 	void *data_cache = NULL;
-	__u32 blocksize = 0;
-	__u32 prev_blocksize = 0;
+	__u32 blocksize;
 	int version = PLOOP_FMT_UNDEFINED;
 	const char *merged_image;
 
@@ -303,33 +242,30 @@ int merge_image(const char *device, int start_level, int end_level, int raw,
 	}
 
 	if (device) {
-		if (start_level >= end_level || start_level < 0) {
+		if (start_level <= end_level || start_level < 0) {
 			ploop_err(0, "Invalid parameters: start_level %d end_level %d",
 					start_level, end_level);
 			return SYSEXIT_PARAM;
 		}
 
-		if (!new_image)
-			if ((ret = grow_lower_delta(device, merge_top,
-						images[0],
-						images[end_level - start_level],
-						start_level)))
+		if (!new_image && !merge_top)
+			if ((ret = grow_lower_delta(device,
+						merge_top,
+						images[start_level],
+						images[end_level],
+						end_level)))
 				return ret;
 
 		if (merge_top) {
-			/* top delta is in running state merged
-			by means of PLOOP_IOC_MERGE */
-			end_level--;
+			/* top delta is in running state */
+			start_level--;
 			names = ++images;
-			if (end_level <= start_level)
-				end_level = 0;
-		} else
-			names = images;
+			if (start_level <= end_level)
+				start_level = end_level;
+		}
+		names = images;
 
-
-		if (end_level == 0) {
-			int lfd;
-
+		if (merge_top) {
 			if (new_image) {
 				/* Special case: only one delta below top one:
 				 * copy it to new_image and do ploop_replace()
@@ -342,84 +278,22 @@ int merge_image(const char *device, int start_level, int end_level, int raw,
 				if (ret)
 					goto rm_delta;
 			}
-			ploop_log(0, "Merging top delta");
-			lfd = open(device, O_RDONLY|O_CLOEXEC);
-			if (lfd < 0) {
-				ploop_err(errno, "open dev %s", device);
-				ret = SYSEXIT_DEVICE;
-				goto rm_delta;
-			}
-
-			ret = ioctl_device(lfd, PLOOP_IOC_MERGE, 0);
-			close(lfd);
-
+			ret = merge_top_delta(device);
 rm_delta:
 			if (ret && new_image)
 				unlink(new_image);
 
 			return ret;
 		}
-		last_delta = end_level - start_level;
-	} else {
-		last_delta = get_list_size(images) - 1;
-		names = images;
 	}
+	last_delta = start_level - end_level;
+	names = images;
 
 	if (new_image) {
 		last_delta++;
 		merged_image = new_image;
-	}
-	else {
-		merged_image = names[last_delta];
-	}
-
-	init_delta_array(&da);
-
-	for (i = 0; i < last_delta; i++) {
-		// FIXME: add check for blocksize
-		ret = extend_delta_array(&da, names[i],
-					device ? O_RDONLY|O_DIRECT : O_RDONLY,
-					device ? OD_NOFLAGS : OD_OFFLINE);
-		if (ret)
-			goto merge_done2;
-
-		blocksize = da.delta_arr[i].blocksize;
-		if (i != 0 && blocksize != prev_blocksize) {
-			ploop_err(errno, "Wrong blocksize %s bs=%d [prev bs=%d]",
-					names[i], blocksize, prev_blocksize);
-			ret = SYSEXIT_PLOOPFMT;
-			goto merge_done2;
-		}
-		prev_blocksize = blocksize;
-
-		if (i != 0 && version != da.delta_arr[i].version) {
-			ploop_err(errno, "Wrong version %s %d [prev %d]",
-					names[i], da.delta_arr[i].version, version);
-			ret = SYSEXIT_PLOOPFMT;
-			goto merge_done2;
-		}
-		version = da.delta_arr[i].version;
-	}
-	if (blocksize == 0) {
-		ploop_err(errno, "Wrong blocksize 0");
-		ret = SYSEXIT_PLOOPFMT;
-		goto merge_done2;
-
-	}
-	cluster = S2B(blocksize);
-
-	if (new_image) { /* Create it */
-		struct ploop_pvd_header *vh;
-		off_t size;
-		int mode = (raw) ? PLOOP_RAW_MODE : PLOOP_EXPANDED_MODE;
-
-		vh = (struct ploop_pvd_header *)da.delta_arr[0].hdr0;
-		size = get_SizeInSectors(vh);
-
-		ret = create_image(new_image, blocksize, size, mode, version, 0);
-		if (ret)
-			goto merge_done2;
-	}
+	} else
+		merged_image = names[end_level];
 
 	if (!raw) {
 		if (open_delta(&odelta, merged_image, O_RDWR,
@@ -440,6 +314,46 @@ rm_delta:
 			goto merge_done2;
 		}
 	}
+
+	blocksize = odelta.blocksize;
+	version = odelta.version;
+	init_delta_array(&da);
+	for (i = 0; i < last_delta; i++) {
+		ret = extend_delta_array(&da, names[start_level - i],
+					device ? O_RDONLY|O_DIRECT : O_RDONLY,
+					device ? OD_NOFLAGS : OD_OFFLINE);
+		if (ret)
+			goto merge_done2;
+
+		if (blocksize != da.delta_arr[i].blocksize) {
+			ploop_err(errno, "Wrong blocksize %s bs=%d [prev bs=%d]",
+					names[i], da.delta_arr[i].blocksize, blocksize);
+			ret = SYSEXIT_PLOOPFMT;
+			goto merge_done2;
+		}
+
+		if (version != da.delta_arr[i].version) {
+			ploop_err(errno, "Wrong version %s %d [prev %d]",
+					names[i], da.delta_arr[i].version, version);
+			ret = SYSEXIT_PLOOPFMT;
+			goto merge_done2;
+		}
+	}
+	cluster = S2B(blocksize);
+
+	if (new_image) { /* Create it */
+		struct ploop_pvd_header *vh;
+		off_t size;
+		int mode = (raw) ? PLOOP_RAW_MODE : PLOOP_EXPANDED_MODE;
+
+		vh = (struct ploop_pvd_header *)da.delta_arr[0].hdr0;
+		size = get_SizeInSectors(vh);
+
+		ret = create_image(new_image, blocksize, size, mode, version, 0);
+		if (ret)
+			goto merge_done2;
+	}
+
 	if (p_memalign(&data_cache, 4096, cluster)) {
 		ret = SYSEXIT_MALLOC;
 		goto merge_done2;
@@ -615,47 +529,23 @@ merge_done:
 	close_delta(&odelta);
 
 	if (device && !ret) {
-		int lfd;
-		__u32 level;
-
-		lfd = open(device, O_RDONLY|O_CLOEXEC);
-		if (lfd < 0) {
-			ploop_err(errno, "open dev");
-			ret = SYSEXIT_DEVICE;
-			goto merge_done2;
-		}
-
 		if (new_image) {
-			int fd;
-
-			fd = open(new_image, O_DIRECT|O_RDONLY|O_CLOEXEC);
-			if (fd < 0) {
-				ploop_err(errno, "Can't open %s", new_image);
-				ret = SYSEXIT_OPEN;
-				goto close_lfd;
-			}
+#if 0 //FIXME
 			ret = do_replace_delta(lfd, start_level, fd, blocksize, new_image, 0, PLOOP_FMT_RDONLY);
-			close(fd);
 			if (ret)
 				goto close_lfd;
+#endif
 		}
 
-		level = start_level + 1;
 
-		for (i = start_level + 1; i <= end_level; i++) {
-			ret = ioctl_device(lfd, PLOOP_IOC_DEL_DELTA, &level);
-			if (ret) {
-				close(lfd);
+		for (i = end_level + 1; i <= start_level; i++) {
+			ret = notify_merged_backward(device, i);
+			if (ret) 
 				goto merge_done2;
-			}
 		}
 
-		if (merge_top) {
-			ploop_log(0, "Merging top delta");
-			ret = ioctl_device(lfd, PLOOP_IOC_MERGE, 0);
-		}
-close_lfd:
-		close(lfd);
+		if (merge_top)
+			ret = merge_top_delta(device);
 	}
 
 merge_done2:
@@ -675,29 +565,18 @@ merge_done2:
  *	Merging images: delta_file_1 file_2 file_3 -> (new) new_delta
  */
 static void log_merge_images_info(struct ploop_disk_images_data *di,
-		char **names, const char *new_delta)
+		char **names, int start_level, int end_level, const char *new_delta)
 {
 	char basedir[PATH_MAX];
 	char imglist[LOG_BUF_SIZE];
 	char merged_image[PATH_MAX];
-	int i, pos = 0, nimg;
+	int i, pos = 0;
 
 	get_basedir(di->runtime->xml_fname, basedir, sizeof(basedir));
-
-	nimg = get_list_size(names) - 1;
-	if (new_delta) {
-		nimg++;
-		// merged_image is new_delta;
-		normalize_image_name(basedir, new_delta,
+	normalize_image_name(basedir, new_delta ? new_delta : names[0],
 				merged_image, sizeof(merged_image));
-	}
-	else {
-		// merged_image is names[nimg];
-		normalize_image_name(basedir, names[nimg],
-				merged_image, sizeof(merged_image));
-	}
 
-	for (i = 0; i < nimg; i++) {
+	for (i = start_level; i > end_level; i--) {
 		int n;
 		char img[PATH_MAX];
 
@@ -713,142 +592,347 @@ static void log_merge_images_info(struct ploop_disk_images_data *di,
 	}
 
 	ploop_log(0, "Merging image%s: %s-> %s%s",
-			nimg > 1 ? "s" : "",
+			start_level - end_level - 1  > 1 ? "s" : "",
 			imglist,
 			new_delta ? "(new) " : "", merged_image);
 }
 
-int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di,
+void print_BAT(__u32 *l2, int cluster, int clu, int start, int end)
+{
+	int i;
+
+	for (i = start; i < end; i++) {
+		ploop_log(0, "%d-%d", (clu * cluster/4) + i - (clu ? 0 : 16), l2[i]);
+	}
+}
+
+static int zero_base_delta(const char *base, const char *top)
+{
+	int rc, i, k, i_end;
+	struct delta_array da = {};
+	struct delta *odelta;
+	__u64 cluster;
+
+	ploop_log(0, "Zero BAT in base %s", base);
+	init_delta_array(&da);
+	rc = extend_delta_array(&da, base, O_RDWR, OD_NOFLAGS);
+	if (rc)
+		return rc;
+	rc = extend_delta_array(&da, top, O_RDONLY|O_DIRECT, OD_OFFLINE);
+	if (rc)
+		goto err;
+
+	odelta = &da.delta_arr[0];
+	cluster = S2B(odelta->blocksize);
+	i_end = odelta->l1_size;
+	for (i = 0; i < i_end; i++) {
+		int k_start = 0;
+		int k_end = cluster/4;
+
+		/* Load L2 table */
+		if (PREAD(odelta, odelta->l2, cluster, (off_t)i * cluster)) {
+			rc = SYSEXIT_READ;
+			goto err;
+		}
+		odelta->l2_cache = i;
+		
+                /* And invalidate L2 cache for lower delta, they will
+		 * be fetched on demand.
+		 */
+		da.delta_arr[1].l2_cache = -1;
+		/* Iterate over all L2 entries */
+		if (i == 0)
+			k_start = PLOOP_MAP_OFFSET;
+		if (i == i_end - 1)
+			k_end = da.delta_arr[0].l2_size + PLOOP_MAP_OFFSET -
+				i * cluster/sizeof(__u32);
+
+		for (k = k_start; k < k_end; k++) {
+			int level2 = 0;
+
+			if (da.delta_arr[0].l2[k] == 0)
+				continue;
+			rc = locate_l2_entry(&da, 0, i, k, &level2);
+			if (rc)
+				goto err;
+			if (level2 < 0)
+				continue;
+			ploop_log(0, "zero cluster=%d idx=%d", i, k);
+			odelta->l2[k] = 0;
+			odelta->l2_dirty = 1;
+		}
+
+		rc = sync_cache(odelta);
+		if (rc)
+			goto err;
+	}
+	
+err:
+	deinit_delta_array(&da);
+
+	return rc;	
+}
+
+static int reverse_merge_online(struct ploop_disk_images_data *di,
+		const char *guid, const char *top_guid, int sid,
+		const char *devname, const char *base, const char *top,
+		int start_level, int end_level)
+{
+	char ldev[64];
+	char cfg[PATH_MAX];
+	char *t, *cfg1, *rm_fname;
+	int rc, lfd;
+	int top_idx, base_idx;
+
+	ploop_log(0, "Online reverse merge %s -> %s [%d]", base, top,
+			di->snapshots[sid]->temporary);
+	top_idx = find_image_idx_by_guid(di, top_guid);
+	if (top_idx == -1) {
+		ploop_err(0, "Can't find image by uuid %s", top_guid);
+		return SYSEXIT_PARAM;
+	}
+	base_idx = find_image_idx_by_guid(di, guid);
+	if (base_idx == -1) {
+		ploop_err(0, "Can't find image by uuid %s", guid);
+		return SYSEXIT_PARAM;
+	}
+
+	// Validate
+	rc = ploop_di_delete_snapshot(di, guid, 1, NULL);
+	if (rc)
+		return rc;
+	/* Process transition state */
+	switch (di->snapshots[sid]->temporary) {
+	case snap_temporary_zero_swap:
+		if (end_level > start_level)
+			goto swap;
+		goto merge_top;
+	default:
+		break;
+	}
+	rc = grow_lower_delta(devname, 1, top, base, end_level);
+	if (rc)
+		return rc;
+	// 0) prepare config
+	get_disk_descriptor_fname(di, cfg, sizeof(cfg));
+	cfg1 = alloca(strlen(cfg) + 6);
+	sprintf(cfg1, "%s.tmp", cfg);
+
+	// Mark base delta in transition state
+	di->snapshots[sid]->temporary = snap_temporary_zero;
+	rc = ploop_store_diskdescriptor(cfg1, di);
+	if (rc)
+		return rc;
+	// 1) get new loop device
+	lfd = loop_create(base, ldev, sizeof(ldev));
+        if (rc)
+		goto err1;
+	// 4) deny to resume
+	rc = dm_setnoresume(devname, 1);
+	if (rc && errno != EBUSY)
+		goto err1;
+	// 3) suspend
+	rc = dm_suspend(devname);
+	if (rc)
+		goto err1;
+	// 5) Mark base delta as in transition state
+	if (rename(cfg1, cfg)) {
+		ploop_err(errno, "Can not rename %s ->%s", cfg1, cfg);
+		rc = SYSEXIT_RENAME;
+		goto err;
+	}
+	// 6) Zero BAT in base delta which present in top delta
+	rc = zero_base_delta(base, top);
+	if (rc)
+		goto err;
+
+	// 7) swap deltas
+	t = di->images[base_idx]->file;
+	di->images[base_idx]->file = di->images[top_idx]->file;
+	di->images[top_idx]->file = t;
+	di->snapshots[sid]->temporary = snap_temporary_zero_swap;
+	rc = ploop_store_diskdescriptor(cfg, di);
+	if (rc)
+		goto err;
+swap:
+	// 8) swap deltas
+	ploop_log(0, "Swap top '%s' delta with lower '%s'", top, base);
+	rc = dm_flip_upper_deltas(devname, ldev, top);
+	if (rc)
+		goto err;
+	rc = dm_setnoresume(devname, 0);
+	if (rc)
+		goto err;
+	rc = dm_resume(devname);
+	if (rc)
+		goto err;
+
+merge_top:
+	rc = ploop_di_delete_snapshot(di, guid, 1, &rm_fname);
+	if (rc)
+		goto err1;
+	rc = ploop_store_diskdescriptor(cfg1, di);
+	if (rc)
+		goto err1;
+	rc = merge_top_delta(devname);
+	if (rc)
+		goto err1;
+	if (rename(cfg1, cfg)) {
+		ploop_err(errno, "Can not rename %s ->%s", cfg1, cfg);
+
+		rc = SYSEXIT_RENAME;
+		goto err1;
+	}
+
+	if (unlink(rm_fname))
+		ploop_err(errno, "Can not to unlink %s", rm_fname);
+
+err:
+	if (rc) {
+		dm_setnoresume(devname, 0);
+		dm_resume(devname);
+	}
+err1:
+	unlink(cfg1);
+	close(lfd);
+
+	return rc;
+}
+
+int ploop_delete_snapshot_by_guid(struct ploop_disk_images_data *di,
 		const char *guid, const char *new_delta)
 {
 	char conf[PATH_MAX];
 	char conf_tmp[PATH_MAX];
 	char dev[64];
 	char *device = NULL;
-	char *fname = NULL;
 	char *parent_fname = NULL;
 	char *child_fname = NULL;
 	char *delete_fname = NULL;
-	const char *child_guid = NULL;
-	const char *parent_guid = NULL;
-	char *names[3] = {};
+	const char *child_guid;
+	char **names = NULL;
 	int ret;
 	int start_level = -1;
 	int end_level = -1;
-	int merge_top = 0;
+	int merge_top_online = 0;
 	int raw = 0;
 	int online = 0;
-	int parent_idx, child_idx; /* parent and child snapshot ids */
-	struct merge_info info = {};
+	int sid, child_idx; /* parent and child snapshot ids */
 	int i, nelem;
+	char *fmt;
+	int blocksize;
 
 	ret = SYSEXIT_PARAM;
-	child_idx = find_snapshot_by_guid(di, guid);
+	sid = find_snapshot_by_guid(di, guid);
+	if (sid == -1) {
+		ploop_err(0, "Can't find snapshot by uuid %s", guid);
+		return ret;
+	}
+
+	parent_fname = find_image_by_guid(di, guid);
+	if (parent_fname == NULL) {
+		ploop_err(0, "Can't find image by uuid %s", guid);
+		return ret;
+	}
+
+	child_guid = ploop_get_child_by_uuid(di, guid);
+	if (child_guid == NULL) {
+		ploop_err(0, "Can't find child snapshot by uuid %s", guid);
+		return ret;
+	}
+
+	child_idx = find_snapshot_by_guid(di,
+			ploop_get_child_by_uuid(di, guid));
 	if (child_idx == -1) {
 		ploop_err(0, "Can't find snapshot by uuid %s",
-				guid);
+				child_guid);
 		return ret;
 	}
 
-	fname = find_image_by_guid(di, guid);
-	if (fname == NULL) {
+	child_fname = find_image_by_guid(di, child_guid);
+	if (child_fname == NULL) {
 		ploop_err(0, "Can't find image by uuid %s",
-				guid);
+				child_guid);
 		return ret;
 	}
 
-	parent_guid = di->snapshots[child_idx]->parent_guid;
-	child_guid = guid;
-	if (strcmp(parent_guid, NONE_UUID) == 0) {
-		ploop_err(0, "Unable to merge base image");
-		goto err;
-	}
-	child_fname = fname;
-	parent_fname = find_image_by_guid(di, parent_guid);
-	if (parent_fname == NULL) {
-		ploop_err(0, "Can't find image by uuid %s",
-				parent_guid);
-		goto err;
-	}
-	parent_idx = find_snapshot_by_guid(di, parent_guid);
-	if (parent_idx == -1) {
-		ploop_err(0, "Can't find snapshot by uuid %s",
-				parent_guid);
-
-		goto err;
-	}
-
-	nelem = ploop_get_child_count_by_uuid(di, parent_guid);
+	nelem = ploop_get_child_count_by_uuid(di, guid);
 	if (nelem > 1) {
 		ploop_err(0, "Can't merge to snapshot %s: it has %d children",
-				parent_guid, nelem);
-		goto err;
+				guid, nelem);
+		return ret;
 	}
 
 	ret = ploop_find_dev_by_dd(di, dev, sizeof(dev));
 	if (ret == -1) {
-		ret = SYSEXIT_SYS;
-		goto err;
+		return SYSEXIT_SYS;
 	}
 	else if (ret == 0)
 		online = 1;
 
 	if (online) {
-		struct stat st_child, st_parent;
+		struct stat c_st, p_st;
 
-		if (stat(child_fname, &st_child)) {
+		if (stat(child_fname, &c_st)) {
 			ploop_err(errno, "Can't stat %s", child_fname);
-			ret = SYSEXIT_FSTAT;
-			goto err;
+			return SYSEXIT_FSTAT;
 		}
 
-		if (stat(parent_fname, &st_parent)) {
+		if (stat(parent_fname, &p_st)) {
 			ploop_err(errno, "Can't stat %s", parent_fname);
-			ret = SYSEXIT_FSTAT;
-			goto err;
+			return SYSEXIT_FSTAT;
 		}
 
 		ret = complete_running_operation(di, dev);
 		if (ret)
-			goto err;
-		if ((ret = get_delta_info(dev, &info)))
-			goto err;
-		nelem = get_list_size(info.names);
-		for (i = 0; info.names[i] != NULL; i++) {
-			if (info.info[i].ino) {
-				ret = (st_child.st_dev != info.info[i].dev ||
-					st_child.st_ino != info.info[i].ino);
-			} else
-				ret = fname_cmp(info.names[i], &st_child);
+			return ret;
+		if ((ret = get_delta_names(dev, &names, &fmt, &blocksize)))
+			return ret;
+		nelem = get_list_size(names);
+		for (i = 0; names[i] != NULL; i++) {
+			ret = fname_cmp(names[i], &c_st);
 			if (ret == -1) {
 				goto err;
 			} else if (ret == 0) {
-				end_level = nelem - i - 1;
+				start_level = i;
 				continue;
 			}
 
-			if (info.info[i].ino) {
-				ret = (st_parent.st_dev != info.info[i].dev ||
-					st_parent.st_ino != info.info[i].ino);
-			} else
-				ret = fname_cmp(info.names[i], &st_parent);
+			ret = fname_cmp(names[i], &p_st);
 			if (ret == -1)
 				goto err;
 			else if (ret == 0)
-				start_level = nelem - i - 1;
+				end_level = i;
 		}
 
 		if (end_level != -1 && start_level != -1) {
-			if (end_level != start_level + 1) {
+			/* reverse merge in progress */
+			if (di->snapshots[sid]->temporary ==
+						snap_temporary_zero_swap &&
+					end_level == start_level + 1)
+				return reverse_merge_online(di, guid,
+						child_guid, sid, device,
+						parent_fname, child_fname,
+						start_level, end_level);
+
+				
+			if (end_level + 1 != start_level) {
 				ploop_err(0, "Inconsistency detected %s [%d] %s [%d]",
 						parent_fname, end_level, child_fname, start_level);
 				ret = SYSEXIT_PARAM;
 				goto err;
 			}
 			device = dev;
+#if 0 //FIXME RAW
 			if (start_level == 0)
 				raw = info.raw;
-			merge_top = (info.top_level == end_level);
+#endif
+			merge_top_online = (start_level == nelem -1);
+			if (merge_top_online && end_level == 0)
+				return reverse_merge_online(di, guid,
+						child_guid, sid, device,
+						parent_fname, child_fname,
+						start_level, end_level);
 		} else if (end_level == -1 && start_level == -1) {
 			online = 0;
 		} else {
@@ -860,50 +944,49 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di,
 	}
 
 	if (!online) {
-		start_level = 0;
-		end_level = 1;
+		start_level = 1;
+		end_level = 0;
 		/* Only base image could be in RAW format */
 		if (di->mode == PLOOP_RAW_MODE &&
-				!guidcmp(di->snapshots[parent_idx]->parent_guid, NONE_UUID))
+				!guidcmp(di->snapshots[sid]->parent_guid, NONE_UUID))
 			raw = 1;
+
+		names = malloc(3 * sizeof(char *));
+		if (names == NULL) {
+			ret = SYSEXIT_MALLOC;
+			goto err;
+		}
+		names[1] = strdup(child_fname);
+		names[0] = strdup(parent_fname);
+		if (names[0] == NULL || names[1] == NULL) {
+			ret = SYSEXIT_MALLOC;
+			goto err;
+		}
+		names[2] = NULL;
 	}
 
-	names[0] = strdup(child_fname);
-	if (names[0] == NULL) {
-		ret = SYSEXIT_MALLOC;
-		goto err;
-	}
-	names[1] = strdup(parent_fname);
-	if (names[1] == NULL) {
-		ret = SYSEXIT_MALLOC;
-		goto err;
-	}
-	names[2] = NULL;
-
-	ret = check_snapshot_mount(di, parent_guid, parent_fname,
-			di->snapshots[parent_idx]->temporary);
+	ret = check_snapshot_mount(di, guid, parent_fname,
+			di->snapshots[sid]->temporary);
 	if (ret)
 		goto err;
-	ret = check_snapshot_mount(di, child_guid, child_fname,
+	if (!merge_top_online) {
+		ret = check_snapshot_mount(di, guid, child_fname,
 			di->snapshots[child_idx]->temporary);
-	if (ret)
-		goto err;
+		if (ret)
+			goto err;
+	}
 
 	ploop_log(0, "%sline %s merge %s -> %s%s",
-			online ? "On": "Off",
-			get_snap_str(di->snapshots[parent_idx]->temporary),
-			child_guid, parent_guid,
+			merge_top_online ? "On": "Off",
+			get_snap_str(di->snapshots[sid]->temporary),
+			child_guid, guid,
 			raw ? " (raw)" : "");
-	log_merge_images_info(di, names, new_delta);
+	log_merge_images_info(di, names, start_level, end_level, new_delta);
 
 	/* make validation before real merge */
-	ret = ploop_di_merge_image(di, child_guid, &delete_fname);
+	ret = ploop_di_delete_snapshot(di, guid, merge_top_online, &delete_fname);
 	if (ret)
 		goto err;
-	/* The parent_guid string was free'd by ploop_di_merge_image().
-	 * Hint the compiler/static analyser to error out if it is used.
-	 */
-	parent_guid = NULL;
 
 	get_disk_descriptor_fname(di, conf, sizeof(conf));
 	snprintf(conf_tmp, sizeof(conf_tmp), "%s.tmp", conf);
@@ -911,7 +994,8 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di,
 	if (ret)
 		goto err;
 
-	ret = merge_image(device, start_level, end_level, raw, merge_top, names, new_delta);
+	ret = merge_image(device, start_level, end_level, raw, merge_top_online,
+			names, new_delta);
 	if (ret)
 		goto err;
 
@@ -930,10 +1014,10 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di,
 			goto err;
 		}
 
-		idx = find_image_idx_by_guid(di, child_guid);
+		idx = find_image_idx_by_guid(di, guid);
 		if (idx == -1) {
 			ploop_err(0, "Unable to find image by uuid %s",
-					child_guid);
+					guid);
 			ret = SYSEXIT_PARAM;
 			goto err;
 		}
@@ -974,39 +1058,14 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di,
 		ploop_log(0, "failed to merge ploop snapshot");
 
 err:
-	for (i = 0; names[i] != NULL; i++)
-		free(names[i]);
-
 	free(delete_fname);
-	ploop_free_array(info.names);
-	free(info.info);
+	ploop_free_array(names);
 
 	return ret;
 }
 
 int ploop_merge_snapshot(struct ploop_disk_images_data *di, struct ploop_merge_param *param)
 {
-	int ret = SYSEXIT_PARAM;
-	const char *guid = NULL;
-
-	if (ploop_lock_dd(di))
-		return SYSEXIT_LOCK;
-
-	if (param->guid != NULL)
-		guid = param->guid;
-	else if (!param->merge_all)
-		guid = di->top_guid;
-
-	if (guid != NULL) {
-		ret = ploop_merge_snapshot_by_guid(di, guid, param->new_delta);
-	} else {
-		while (di->nsnapshots != 1) {
-			ret = ploop_merge_snapshot_by_guid(di, di->top_guid, param->new_delta);
-			if (ret)
-				break;
-		}
-	}
-	ploop_unlock_dd(di);
-
-	return ret;
+	return 0;
 }
+

@@ -7,6 +7,8 @@ V=2
 BLOCKSIZE=2048
 DELTA=100000
 SIZE=104857600
+DEV=/dev/mapper/ploop1
+
 if [ -f /sys/module/ploop/parameters/large_disk_support ]; then
 	SIZENEW=60485760000
 else
@@ -37,7 +39,7 @@ done
 test_cleanup
 
 ploop init -v $V -b $BLOCKSIZE -s ${SIZE}k $TEST_IMAGE
-ploop mount -d /dev/ploop0 $TEST_DDXML
+ploop mount -d $DEV $TEST_DDXML
 
 let bs=$BLOCKSIZE/2
 dd if=/dev/urandom bs=${bs}k count=1 of=$TEST_STORAGE/data
@@ -45,7 +47,7 @@ dd if=/dev/urandom bs=${bs}k count=1 of=$TEST_STORAGE/data
 size=$SIZE
 for ((i = 0; i < size; i += bs*DELTA)); do
 	progress Writing $i $size
-	dd if=$TEST_STORAGE/data of=/dev/ploop0 bs=1k seek=$i >/dev/null 2>&1
+	dd if=$TEST_STORAGE/data of=$DEV bs=1k seek=$i >/dev/null 2>&1
 done
 echo
 
@@ -65,14 +67,14 @@ ploop mount $TEST_DDXML
 size=${SIZENEW}
 for ((; i < size; i += bs*DELTA)); do
 	progress Writing $i $size
-	dd if=$TEST_STORAGE/data of=/dev/ploop0 bs=1k seek=$i >/dev/null 2>&1
+	dd if=$TEST_STORAGE/data of=$DEV bs=1k seek=$i >/dev/null 2>&1
 done
 echo
 
 echo "Read"
 for ((i = 0; i < size; i += bs*DELTA)); do
 	progress Reading $i $size
-	dd of=$TEST_STORAGE/data_out if=/dev/ploop0 bs=1k count=$bs skip=$i >/dev/null 2>&1
+	dd of=$TEST_STORAGE/data_out if=$DEV bs=1k count=$bs skip=$i >/dev/null 2>&1
 	cmp $TEST_STORAGE/data $TEST_STORAGE/data_out
 	rm -f $TEST_STORAGE/data_out
 done

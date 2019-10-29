@@ -27,6 +27,7 @@
 #include <limits.h>
 #include <sys/ioctl.h>
 #include <sys/vfs.h>
+#include <sys/sysmacros.h>
 
 #include "ploop.h"
 #ifndef EXT4_IOC_SET_RSV_BLOCKS
@@ -69,25 +70,46 @@ static char *get_prog(char *progs[])
 	return progs[i - 1];
 }
 
-int create_gpt_partition(const char *device, off_t size, __u32 blocksize)
+int dmsetup_create_part(const char *devname, off_t size)
+{
+	char t[128];
+	char partname[64];
+	char *a[] = {"dmsetup", "create", (char *) partname,
+		"--table", t, NULL};
+
+	snprintf(partname, sizeof(partname), "%sp1",
+			get_basename(devname));
+	snprintf(t, sizeof(t), "0 %lu linear %s 2048", size, devname);
+
+	return run_prg(a);
+}
+
+int create_gpt_partition(const char *device, __u32 blocksize)
 {
 	int ret;
-	unsigned long long start = blocksize;
-	unsigned long long end = (size - blocksize) / blocksize * blocksize;
+	off_t size;
+	unsigned long long end,  start = blocksize;
 
-	if (size <= start + blocksize) {
-		ploop_err(0, "Image size should be greater than %llu", start);
-		return SYSEXIT_PARAM;
-	}
+	ret = ploop_get_size(device, &size);
+	if (ret)
+		return ret;
 
 	ret = parted_mklabel_gpt(device);
 	if (ret)
 		return ret;
 
+	end = (size - blocksize) / blocksize * blocksize;
 	ret = sgdisk_mkpart(device, 1, start, end);
+	if (ret)
+		return ret;
+#if 0
+	ret = dmsetup_create_part(device, end-start);
+	if (ret)
+		return ret;
+#endif
 	reread_part(device);
 
-	return ret;
+	return 0;
 }
 
 int parted_mklabel_gpt(const char *device)
@@ -525,5 +547,36 @@ int is_device_from_devmapper(const char *device)
 	} else {
 		ploop_log(1, "Module device-mapper is not found");
 	}
+	return 0;
+}
+
+int grow_loop_image(const char *delta, const char *ldev,
+		int blocksize, __u64 size)
+{
+	int rc;
+	char fname[PATH_MAX];
+	__u64 s, upb, l1_size;
+
+	upb = S2B(blocksize)  / sizeof(__u32);
+
+	l1_size = ((size / blocksize) + upb -1) / upb;
+	s = l1_size * blocksize + size;
+	if (ldev) {
+		rc = get_top_delta(ldev, fname, sizeof(fname));
+		if (rc)
+			return rc; 
+		delta = fname;
+	}
+
+	ploop_log(0, "Grow %s up to %llusec", delta, s);
+	if (truncate(delta, S2B(s))) {
+		ploop_err(errno, "Can not tuncate %s to %llusec",
+				delta, s);
+		return SYSEXIT_SYS;
+	}
+
+	if (ldev)
+		return loop_set_capacity(ldev);
+		
 	return 0;
 }

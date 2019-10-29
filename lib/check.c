@@ -314,6 +314,8 @@ static int check_and_repair(const char *image, int *fd, int flags)
 	__u32 *rmap = NULL;
 	__u32 rmap_len;
 
+	return 0;
+
 	ret = fstatfs(*fd, &sfs);
 	if (ret < 0) {
 		ploop_err(errno, "Unable to statfs delta file %s", image);

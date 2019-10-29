@@ -73,6 +73,7 @@ struct sender_data {
 struct ploop_copy_handle {
 	struct sender_data sd;
 	struct delta idelta;
+	char devname[64];
 	int devfd;
 	int partfd;
 	int ofd;
@@ -213,7 +214,7 @@ static int send_cmd(struct ploop_copy_handle *h, pcopy_cmd_t cmd)
 	return 0;
 }
 
-static int nread(int fd, void * buf, int len)
+static int nread(int fd, void *buf, int len)
 {
 	while (len) {
 		int n;
@@ -235,30 +236,6 @@ static int nread(int fd, void * buf, int len)
 
 	errno = EIO;
 	return -1;
-}
-
-static int get_image_info(const char *device, char **send_from_p,
-		char **format_p, int *blocksize)
-{
-	int top_level;
-
-	if (ploop_get_attr(device, "top", &top_level)) {
-		ploop_err(0, "Can't find top delta");
-		return SYSEXIT_SYSFS;
-	}
-
-	if (ploop_get_attr(device, "block_size", blocksize)) {
-		ploop_err(0, "Can't find block size");
-		return SYSEXIT_SYSFS;
-	}
-
-	if (find_delta_names(device, top_level, top_level,
-				send_from_p, format_p)) {
-		ploop_err(errno, "find_delta_names");
-		return SYSEXIT_SYSFS;
-	}
-
-	return 0;
 }
 
 int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
@@ -481,23 +458,23 @@ static void *get_free_iobuf(struct ploop_copy_handle *h)
 	return h->iobuf[h->cur_iobuf];
 }
 
-static int send_image_block(struct ploop_copy_handle *h, __u64 size,
-		__u64 pos, ssize_t *nread)
+static int send_image_block(struct ploop_copy_handle *h, __u64 size, __u64 pos)
 {
 	struct delta *idelta = &h->idelta;
 	void *iobuf = get_free_iobuf(h);
+	off_t n;
 
-	ploop_dbg(4, "READ size=%llu pos=%llu", size, pos);
-	*nread = TEMP_FAILURE_RETRY(pread(idelta->fd, iobuf, size, pos));
-	if (*nread == 0)
+	ploop_dbg(4, "READ pos=%llu size=%llu", pos, size);
+	n = TEMP_FAILURE_RETRY(pread(idelta->fd, iobuf, size, pos));
+	if (n == 0)
 		return 0;
-	if (*nread < 0) {
+	if (n < 0) {
 		ploop_err(errno, "Error from pread() size=%llu pos=%llu",
 				 size, pos);
 		return SYSEXIT_READ;
 	}
 
-	return send_async(h, iobuf, *nread, pos);
+	return send_async(h, iobuf, n, pos);
 }
 
 void ploop_copy_release(struct ploop_copy_handle *h)
@@ -506,18 +483,19 @@ void ploop_copy_release(struct ploop_copy_handle *h)
 		return;
 
 	if (h->dev_frozen) {
-		if (ioctl_device(h->partfd, PLOOP_IOC_THAW, 0))
-			ploop_err(errno, "Failed to PLOOP_IOC_THAW");
-		h->dev_frozen = 0;
+		if (dm_resume(h->devname))
+			ploop_err(errno, "Failed to resume %s", h->devname);
+		else
+			h->dev_frozen = 0;
 	}
 
 	if (h->fs_frozen) {
-		(void)ioctl_device(h->mntfd, FITHAW, 0);
-		h->fs_frozen = 0;
+		if (ioctl_device(h->mntfd, FITHAW, 0) == 0)
+			h->fs_frozen = 0;
 	}
 
 	if (h->tracker_on) {
-		(void)ioctl_device(h->devfd, PLOOP_IOC_TRACK_ABORT, 0);
+		dm_tracking_stop(h->devname);
 		h->tracker_on = 0;
 	}
 
@@ -588,7 +566,6 @@ err:
 	return NULL;
 }
 
-
 int ploop_copy_init(struct ploop_disk_images_data *di,
 		struct ploop_copy_param *param,
 		struct ploop_copy_handle **h)
@@ -624,10 +601,9 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 		goto err;
 	}
 
-	ret = get_image_info(device, &image, &format, &blocksize);
+	ret = get_top_delta_name(device, &image, &format, &blocksize);
 	if (ret)
 		goto err;
-
 
 	_h = alloc_ploop_copy_handle(S2B(blocksize));
 	if (_h == NULL) {
@@ -640,7 +616,7 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 	_h->ofd = param->ofd;
 	_h->is_remote = is_remote;
 	_h->async = param->async;
-
+	snprintf(_h->devname, sizeof(_h->devname), "%s", device);
 	_h->devfd = open(device, O_RDONLY|O_CLOEXEC);
 	if (_h->devfd == -1) {
 		ploop_err(errno, "Can't open device %s", device);
@@ -699,17 +675,46 @@ err:
 	return ret;
 }
 
+static int process(struct ploop_copy_handle *h, struct ploop_copy_stat *stat)
+{
+	int rc;
+	__u64 p, c = 0;
+
+	stat->xferred = 0;
+	do {
+		p = c;
+		rc = dm_tracking_get_next(h->devname, &c);
+		if (rc) {
+			if (errno == EAGAIN)
+				rc = 0;
+			break;
+		}
+
+		rc = send_image_block(h, h->cluster, c * h->cluster);
+		if (rc)
+			break;
+		stat->xferred += h->cluster;
+	} while (p < c);
+	
+        wait_sender(h);
+
+        /* sync after each iteration */
+        rc = send_cmd(h, PCOPY_CMD_SYNC);
+        if (rc)
+                return rc;
+
+	stat->xferred_total += stat->xferred;
+
+	return 0;
+}
+
 int ploop_copy_start(struct ploop_copy_handle *h,
 		struct ploop_copy_stat *stat)
 {
 	int ret;
-	struct ploop_track_extent e;
-	ssize_t n;
-	__u64 pos;
 
-	ret = pthread_create(&h->send_th, NULL, sender_thread, h);
-	if (ret) {
-		ploop_err(ret, "Can't create send thread");
+	if (pthread_create(&h->send_th, NULL, sender_thread, h)) {
+		ploop_err(errno, "Can't create send thread");
 		ret = SYSEXIT_SYS;
 		goto err;
 	}
@@ -717,35 +722,15 @@ int ploop_copy_start(struct ploop_copy_handle *h,
 	pthread_barrier_wait(&h->sd.barrier);
 
 	ploop_dbg(3, "pcopy track init");
-	ret = ioctl_device(h->devfd, PLOOP_IOC_TRACK_INIT, &e);
+	ret = dm_tracking_start(h->devname);
 	if (ret)
 		goto err;
 
 	h->tracker_on = 1;
-	h->trackend = e.end;
-	ploop_log(3, "pcopy start %s e.end=%" PRIu64,
-			h->async ? "async" : "", (uint64_t)e.end);
-	for (pos = 0; pos <= h->trackend; ) {
-		h->trackpos = pos + h->cluster;
-		ret = ioctl_device(h->devfd, PLOOP_IOC_TRACK_SETPOS, &h->trackpos);
-		if (ret)
-			goto err;
-
-		ret = send_image_block(h, h->cluster, pos, &n);
-		if (ret)
-			goto err;
-		if (n == 0) /* EOF */
-			break;
-
-		pos += n;
-		if (pos > h->eof_offset)
-			h->eof_offset = pos;
-	}
-
-	wait_sender(h);
-
-	stat->xferred_total = stat->xferred = pos;
-	send_cmd(h, PCOPY_CMD_SYNC);
+	ploop_log(3, "pcopy start %s", h->async ? "async" : "");
+	ret = process(h, stat);
+	if (ret)
+		goto err;
 	ploop_dbg(3, "pcopy start finished");
 
 	return 0;
@@ -758,134 +743,17 @@ err:
 int ploop_copy_next_iteration(struct ploop_copy_handle *h,
 		struct ploop_copy_stat *stat)
 {
-	struct ploop_track_extent e;
-	int ret = 0;
-	int done = 0;
-	__u64 pos;
-	__u64 iterpos = 0;
+	int ret;
 
-	stat->xferred = 0;
 	ploop_dbg(3, "pcopy iter %d", h->niter);
-	do {
-		if (ioctl(h->devfd, PLOOP_IOC_TRACK_READ, &e)) {
-			if (errno == EAGAIN) /* no more dirty blocks */
-				break;
-
-			ploop_err(errno, "PLOOP_IOC_TRACK_READ");
-			ret = SYSEXIT_DEVIOC;
-			goto err;
-		}
-
-		if (e.end > h->trackend)
-			h->trackend = e.end;
-
-		if (e.start < iterpos)
-			done = 1;
-
-		iterpos = e.end;
-		stat->xferred += e.end - e.start;
-
-		for (pos = e.start; pos < e.end; ) {
-			ssize_t n;
-			__u64 copy = e.end - pos;
-
-			if (copy > h->cluster)
-				copy = h->cluster;
-
-			if (pos + copy > h->trackpos) {
-				h->trackpos = pos + copy;
-				if (ioctl(h->devfd, PLOOP_IOC_TRACK_SETPOS, &h->trackpos)) {
-					ploop_err(errno, "PLOOP_IOC_TRACK_SETPOS");
-					ret = SYSEXIT_DEVIOC;
-					goto err;
-				}
-			}
-
-			ret = send_image_block(h, copy, pos, &n);
-			if (ret)
-				goto err;
-			if (n != copy) {
-				ploop_err(errno, "Short read");
-				ret = SYSEXIT_READ;
-				goto err;
-			}
-
-			pos += n;
-			if (pos > h->eof_offset)
-				h->eof_offset = pos;
-		}
-	} while (!done);
-
-	wait_sender(h);
-
-	/* sync after each iteration */
-	ret = send_cmd(h, PCOPY_CMD_SYNC);
-	if (ret)
-		goto err;
-
-	stat->xferred_total += stat->xferred;
-
+	ret = process(h, stat);
+	if (ret) {
+		ploop_copy_release(h);
+		return ret;
+	}
 	ploop_log(3, "pcopy iter %d xferred=%" PRIu64,
 			h->niter++, (uint64_t)stat->xferred);
-
 	return 0;
-
-err:
-	ploop_copy_release(h);
-	return ret;
-}
-
-static int freeze_fs(struct ploop_copy_handle *h)
-{
-	int ret;
-
-	if (h->mntfd != -1) {
-		/* Sync fs */
-		ploop_log(0, "Freezing fs...");
-		if (sys_syncfs(h->mntfd)) {
-			ploop_err(errno, "syncfs() failed");
-			return SYSEXIT_FSYNC;
-		}
-
-		/* Flush journal and freeze fs (this also clears the fs dirty bit) */
-		ploop_dbg(3, "FIFREEZE");
-		ret = ioctl_device(h->mntfd, FIFREEZE, 0);
-		if (ret)
-			return ret;
-
-		h->fs_frozen = 1;
-	}
-
-	return 0;
-}
-
-static int freeze(struct ploop_copy_handle *h)
-{
-	int ret;
-
-	ret = ioctl(h->partfd, PLOOP_IOC_FREEZE);
-	if (ret) {
-		if (errno == EINVAL)
-			ret = freeze_fs(h);
-		else
-			ploop_err(errno, "Failed to freeze device");
-		if (ret)
-			goto err;
-
-	} else {
-		ploop_log(0, "Freezing device...");
-		h->dev_frozen = 1;
-	}
-
-	ploop_dbg(3, "IOC_SYNC");
-	ret = ioctl_device(h->devfd, PLOOP_IOC_SYNC, 0);
-	if (ret)
-		goto err;
-
-	return 0;
-err:
-	ploop_copy_release(h);
-	return ret;
 }
 
 static int cbt_writer(void *data, const void *buf, int len, off_t pos)
@@ -906,6 +774,8 @@ static int send_optional_header(struct ploop_copy_handle *copy_h)
 	struct ploop_pvd_ext_block_element_header *h;
 	__u8 *block = NULL, *data;
 
+	// FIXME
+	return 0;
 	vh = (struct ploop_pvd_header *)copy_h->idelta.hdr0;
 	block_size = vh->m_Sectors * SECTOR_SIZE;
 	if (p_memalign((void **)&block, 4096, block_size))
@@ -957,13 +827,14 @@ int ploop_copy_stop(struct ploop_copy_handle *h,
 
 	ploop_log(3, "pcopy last");
 
-	ret = freeze(h);
+	ret = dm_suspend(h->devname);
 	if (ret)
 		goto err;
+	h->dev_frozen = 1;
 
 	iter = 1;
 	for (;;) {
-		ret = ploop_copy_next_iteration(h, stat);
+		ret = process(h, stat);
 		if (ret)
 			goto err;
 		else if (stat->xferred == 0)
@@ -990,14 +861,12 @@ int ploop_copy_stop(struct ploop_copy_handle *h,
 		ret = send_buf(h, vh, 4096, 0);
 		if (ret)
 			goto err;
-
 		ret = send_optional_header(h);
 		if (ret)
 			goto err;
 	}
 
-	ploop_dbg(4, "IOCTL TRACK_STOP");
-	ret = ioctl(h->devfd, PLOOP_IOC_TRACK_STOP, 0);
+	ret = dm_tracking_stop(h->devname);
 	if (ret)
 		goto err;
 

@@ -54,12 +54,12 @@ def ploop_create(img):
 		raise Exception("failed to create image")
 
 def ploop_mount(ddxml):
-	ret = sp.call(["ploop", "mount", "-d/dev/ploop0", ddxml])
+	ret = sp.call(["ploop", "mount", "-d/dev/mapper/ploop1", ddxml])
 	if ret != 0:
 		raise Exception("failed to mount image")
 
 def ploop_umount(ddxml):
-	return sp.call(["ploop", "umount", "-d/dev/ploop0"])
+	return sp.call(["ploop", "umount", "-d/dev/mapper/ploop1"])
 
 def dump_cbt(img):
 	fout = img + ".cbt"
@@ -96,8 +96,8 @@ def do_ploop_copy(ddxml, fd):
 
 class testPcopy(unittest.TestCase):
 	def setUp(self):
-		if not os.path.exists('/dev/ploop0'):
-			sp.call(['mknod', '/dev/ploop0', 'b', '182', '0'])
+		if not os.path.exists('/dev/mapper/ploop1'):
+			sp.call(['mknod', '/dev/mapper/ploop1', 'b', '182', '0'])
 
 		if os.path.exists(get_ddxml()):
 			ploop_umount(get_ddxml())

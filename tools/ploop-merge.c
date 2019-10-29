@@ -105,22 +105,18 @@ int plooptool_merge(int argc, char ** argv)
 			end_level = argc;
 			names = argv;
 		} else {
-			struct merge_info info = {};
-
+#if 0
+			char *f;
+			int blocksize;
 			if (argc || raw) {
 				usage();
 				return SYSEXIT_PARAM;
 			}
 
-			info.start_level = start_level;
-			info.end_level = end_level;
-			if ((ret = get_delta_info(device, &info)))
+			if ((ret = get_delta_names(device, &names, &f, &blocksize)))
 				return ret;
-			start_level = info.start_level;
-			end_level = info.end_level;
-			raw = info.raw;
-			names = info.names;
-			merge_top = info.merge_top;
+			merge_top = get_list_size(names) == start_level;
+#endif
 		}
 
 		ret = merge_image(device, start_level, end_level, raw, merge_top, names, new_delta);

@@ -134,13 +134,7 @@ int do_delete_snapshot(struct ploop_disk_images_data *di, const char *guid)
 			ploop_log(0, "ploop snapshot %s has been successfully deleted",
 				guid);
 	} else if (nelem == 1) {
-		const char *child_guid = ploop_get_child_by_uuid(di, guid);
-		if (child_guid == NULL) {
-			ploop_err(0, "Can't find child of uuid %s", guid);
-			return SYSEXIT_PARAM;
-		}
-
-		ret = ploop_merge_snapshot_by_guid(di, strdupa(child_guid), NULL);
+		ret = ploop_delete_snapshot_by_guid(di, guid, NULL);
 	} else if (!di->snapshots[snap_id]->temporary) {
 		ploop_log(1, "Warning: Unable to delete snapshot %s as there are %d references"
 				" to it; marking it as temporary instead",
@@ -169,26 +163,45 @@ int ploop_delete_snapshot(struct ploop_disk_images_data *di, const char *guid)
 	return ret;
 }
 
-static int create_snapshot_ioctl(int lfd, int fd, struct ploop_ctl_delta *req)
+static int create_snapshot_online(struct ploop_disk_images_data *di,
+		const char *device, off_t size)
 {
-	req->f.pctl_fd = fd;
+	int rc, lfd;
+	char ldev[64];
+	const char *top_delta;
+	char *delta;
 
-	if (ioctl(lfd, PLOOP_IOC_SNAPSHOT, req) < 0) {
-		ploop_err(errno, "PLOOP_IOC_SNAPSHOT");
-		return SYSEXIT_DEVIOC;
+	top_delta = find_image_by_guid(di, di->top_guid);
+	if (top_delta == NULL) {
+		ploop_err(0, "Can't find image by top guid %s", di->top_guid);
+		return SYSEXIT_PARAM;
 	}
 
-	return 0;
+	rc = get_top_delta_name(device, &delta, NULL, NULL);
+	if (rc)
+		return rc;
+
+	lfd = loop_create(top_delta, ldev, sizeof(ldev));
+	if (lfd < 0) {
+		rc = SYSEXIT_OPEN;
+		goto err;
+	}
+
+	rc = dm_snapshot(device, delta, ldev);
+err:
+	free(delta);
+	close(lfd);
+
+	return rc;
 }
 
-int create_snapshot(const char *device, const char *delta, int syncfs,
-		 const __u8 *cbt_u, const char *prev_delta)
+int create_snapshot(struct ploop_disk_images_data *di,
+		const char *device, const __u8 *cbt_u,
+		const char *delta, const char *prev_delta)
 {
 	int ret;
-	int lfd = -1;
-	int fd = -1;
+	int lfd;
 	off_t bdsize;
-	struct ploop_ctl_delta req;
 	__u32 blocksize;
 	int version;
 	void *or_data = NULL;
@@ -204,34 +217,14 @@ int create_snapshot(const char *device, const char *delta, int syncfs,
 		return SYSEXIT_DEVICE;
 	}
 
-	fd = create_snapshot_delta(delta, blocksize, bdsize, version);
-	if (fd < 0) {
-		ret = SYSEXIT_OPEN;
+	if (cbt_u != NULL &&
+	    (ret = cbt_snapshot_prepare(lfd, cbt_u, &or_data)))
 		goto err;
-	}
-
-	memset(&req, 0, sizeof(req));
-
-	req.c.pctl_format = PLOOP_FMT_PLOOP1;
-	req.c.pctl_flags = syncfs ? PLOOP_FLAG_FS_SYNC : 0;
-	req.c.pctl_cluster_log = ffs(blocksize) - 1;
-	req.c.pctl_size = 0;
-	req.c.pctl_chunks = 1;
-	req.f.pctl_type = PLOOP_IO_AUTO;
-
-	if (cbt_u != NULL) {
-		if ((ret = cbt_snapshot_prepare(lfd, cbt_u, &or_data))) {
-			unlink(delta);
-			goto err;
-		}
-	}
 
 	ploop_log(0, "Creating snapshot dev=%s img=%s", device, delta);
-	ret = create_snapshot_ioctl(lfd, fd, &req);
-	if (ret) {
-		unlink(delta);
+	ret = create_snapshot_online(di, device, bdsize);
+	if (ret)
 		goto err;
-	}
 
 	if (cbt_u != NULL) {
 		if ((ret = cbt_snapshot(lfd, cbt_u, prev_delta, or_data))) {
@@ -243,10 +236,8 @@ int create_snapshot(const char *device, const char *delta, int syncfs,
 err:
 	free(or_data);
 
-	if (lfd >= 0)
+	if (lfd != -1)
 		close(lfd);
-	if (fd >= 0)
-		close(fd);
 
 	return ret;
 }
@@ -265,6 +256,31 @@ static int get_snapshot_count(struct ploop_disk_images_data *di)
 	ploop_free_array(images);
 
 	return n;
+}
+
+static int get_new_delta_fname(struct ploop_disk_images_data *di,
+		const char *guid, const char *snap_dir, char *out,
+		int size)
+{
+	char *p, *dir;
+	char *name = strdupa(di->images[0]->file);
+	
+	p = strrchr(get_basename(name), '.');
+	if (p != NULL && p[1] == '{')
+		*p = '\0';
+	
+	if (snap_dir != NULL) {
+		dir = realpath(snap_dir, NULL);
+		if (dir == NULL) {
+			ploop_err(errno, "Error in realpath(%s)", snap_dir);
+			return SYSEXIT_CREAT;
+		}
+		snprintf(out, size, "%s/%s.%s", dir, name, guid);
+		free(dir);
+	} else
+		snprintf(out, size, "%s.%s", name, guid);
+
+	return 0;
 }
 
 int do_create_snapshot(struct ploop_disk_images_data *di,
@@ -346,13 +362,14 @@ int do_create_snapshot(struct ploop_disk_images_data *di,
 		return SYSEXIT_SYS;
 
 	if (rc == 0) {
-		if (flags & SNAP_TYPE_OFFLINE) {
-			ret = get_image_param_online(dev, &size,
-					&blocksize, &version);
-		} else {
+		if (!(flags & SNAP_TYPE_OFFLINE)) {
 			online = 1;
 			ret = complete_running_operation(di, dev);
+			if (ret)
+				return ret;
 		}
+		ret = get_image_param_online(dev, &size,
+				&blocksize, &version);
 		if (ret)
 			return ret;
 	} else {
@@ -377,27 +394,9 @@ int do_create_snapshot(struct ploop_disk_images_data *di,
 	if (ret)
 		return ret;
 
-	if (snap_dir != NULL) {
-		char *name;
-		char *dir;
-
-		dir = realpath(snap_dir, NULL);
-		if (dir == NULL) {
-			ploop_err(errno, "Error in realpath(%s)", snap_dir);
-			return SYSEXIT_CREAT;
-		}
-
-		name = strrchr(di->images[0]->file, '/');
-		if (name != NULL)
-			name++;
-		else
-			name = di->images[0]->file;
-		snprintf(fname, sizeof(fname), "%s/%s.%s",
-				dir, name,	file_guid);
-		free(dir);
-	} else
-		snprintf(fname, sizeof(fname), "%s.%s",
-				di->images[0]->file, file_guid);
+	ret = get_new_delta_fname(di, file_guid, snap_dir, fname, sizeof(fname));
+	if (ret)
+		return ret;
 
 	prev_fname = find_image_by_guid(di, di->top_guid);
 	if (prev_fname == NULL) {
@@ -420,16 +419,15 @@ int do_create_snapshot(struct ploop_disk_images_data *di,
 	if (ret)
 		return ret;
 
+	fd = create_snapshot_delta(fname, blocksize, size, version);
+	if (fd < 0) {
+		ret = SYSEXIT_CREAT;
+		goto err;
+	}
+	close(fd);
+
 	if (!online) {
 		// offline snapshot
-		ret = 0;
-		fd = create_snapshot_delta(fname, blocksize, size, version);
-		if (fd < 0) {
-			ret = SYSEXIT_CREAT;
-			goto err;
-		}
-		close(fd);
-
 		if (cbt_u != NULL)
 			ret = write_empty_cbt_to_image(fname, prev_fname, cbt_u);
 		else if (di->mode != PLOOP_RAW_MODE) {
@@ -438,14 +436,11 @@ int do_create_snapshot(struct ploop_disk_images_data *di,
 			else
 				ret = ploop_move_cbt(fname, prev_fname);
 		}
-		if (ret)
-			goto err;
-	} else {
-		// Always sync fs
-		ret = create_snapshot(dev, fname, 1, cbt_u, prev_fname);
-		if (ret)
-			goto err;
-	}
+	} else
+		ret = create_snapshot(di, dev, cbt_u, fname, prev_fname);
+	if (ret)
+		goto err;
+
 
 	if (rename(conf_tmp, conf)) {
 		ploop_err(errno, "Can't rename %s %s",
@@ -570,7 +565,7 @@ err:
 	ploop_umount(mount_param.device, di);
 
 err_merge:
-	ploop_merge_snapshot_by_guid(di, di->top_guid, NULL);
+	ploop_delete_snapshot_by_guid(di, param->guid, NULL);
 
 err_unlock:
 	ploop_unlock_dd(di);
@@ -619,8 +614,7 @@ static int is_snapshot_in_use(struct ploop_disk_images_data *di,
 	if (fname == NULL)
 		return 1;
 
-	ret = ploop_get_dev_by_delta(di->images[0]->file,
-			fname, NULL, &devs);
+	ret = find_devs_by_delta(fname, &devs);
 	if (ret == -1)  /* return inuse on error */
 		return 1;
 	else if (ret == 1) /* no device found */

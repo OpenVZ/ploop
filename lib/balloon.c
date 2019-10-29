@@ -35,6 +35,7 @@
 #include <linux/types.h>
 #include <linux/fs.h>
 #include <string.h>
+#include <sys/sysmacros.h>
 
 #include "ploop.h"
 #include "ploop_if.h"
@@ -100,6 +101,7 @@ int get_balloon(const char *mount_point, struct stat *st, int *outfd)
 {
 	int fd, fd2;
 
+return 0;
 	if (mount_point == NULL)
 		return SYSEXIT_PARAM;
 
@@ -145,14 +147,10 @@ int get_balloon(const char *mount_point, struct stat *st, int *outfd)
 static int open_top_delta(const char *device, struct delta *delta, int *lvl)
 {
 	char *image = NULL;
-	char *fmt = NULL;
+	char *fmt;
+	int blocksize;
 
-	if (ploop_get_attr(device, "top", lvl)) {
-		ploop_err(0, "Can't find top delta");
-		return(SYSEXIT_SYSFS);
-	}
-
-	if (find_delta_names(device, *lvl, *lvl, &image, &fmt))
+	if (get_top_delta_name(device, &image, &fmt, &blocksize))
 		return(SYSEXIT_SYSFS);
 
 	if (strcmp(fmt, "raw") == 0) {
@@ -314,6 +312,8 @@ int ploop_balloon_change_size(const char *device, int balloonfd, off_t new_size)
 	struct delta delta = { .fd = -1 };
 	int entries_used;
 	int drop_state = 0;
+
+return 0;
 
 	if (fstat(balloonfd, &st)) {
 		ploop_err(errno, "Can't get balloon file size");
@@ -1261,8 +1261,7 @@ static int get_dev_and_mnt(struct ploop_disk_images_data *di, int automount,
 {
 	int ret;
 
-	ret = ploop_find_dev(di->runtime->component_name,
-			di->images[0]->file, dev, dev_len);
+	ret = ploop_find_dev_by_dd(di, dev, dev_len);
 	if (ret == -1) {
 		return SYSEXIT_SYS;
 	} else if (ret == 0) {
@@ -1508,7 +1507,7 @@ static int do_mntn_merge(struct ploop_disk_images_data *di, const char *device,
 		return ret;
 
 	/* make validation before real merge */
-	ret = ploop_di_merge_image(di, di->top_guid, &top_delta);
+	ret = ploop_di_delete_snapshot(di, di->top_guid, 1, &top_delta);
 	if (ret)
 		return ret;
 
@@ -1575,6 +1574,8 @@ int complete_running_operation(struct ploop_disk_images_data *di,
 	int fd, ret, state;
 
 	defrag_complete(device);
+
+	return 0;
 
 	fd = open_device(device);
 	if (fd == -1)

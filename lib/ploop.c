@@ -36,6 +36,7 @@
 #include <mntent.h>
 #include <ext2fs/ext2_fs.h>
 #include <stdint.h>
+#include <time.h>
 
 #include "ploop.h"
 #include "cleanup.h"
@@ -68,9 +69,9 @@ static int get_part_devname(struct ploop_disk_images_data *di,
 	if (ret)
 		return ret;
 
-	if (di && di->enc && di->enc->keyid)
+	if (di && di->enc && di->enc->keyid) {
 		crypt_get_device_name(devname, partname, plen);
-	else {
+	} else {
 		snprintf(partname, plen, "%s", devname);
 		snprintf(devname, dlen, "%s", device);
 	}
@@ -248,17 +249,7 @@ static int get_temp_mountpoint(const char *file, int create, char *buf, int len)
 
 int ploop_is_large_disk_supported(void)
 {
-	static int warned = 0;
-
-	/* First check if ploop is loaded, as otherwise we'll not be able
-	 * to check if large disk is support is there
-	 */
-	if (!warned && access("/sys/module/ploop/parameters/", F_OK)) {
-		ploop_err(errno, "ploop kernel module not loaded");
-		warned++;
-	}
-
-	return (access("/sys/module/ploop/parameters/large_disk_support", R_OK) == 0 ? 1 : 0);
+	return 1;
 }
 
 int is_native_discard(const char *device)
@@ -281,12 +272,12 @@ int is_native_discard(const char *device)
 
 static int is_fmt_version_valid(int version)
 {
-	return version != PLOOP_FMT_V2 || ploop_is_large_disk_supported();
+	return version >= PLOOP_FMT_V1;
 }
 
 static int default_fmt_version(void)
 {
-	return ploop_is_large_disk_supported() ? PLOOP_FMT_V2 : PLOOP_FMT_V1;
+	return PLOOP_FMT_V2;
 }
 
 static int get_max_ploop_size(int version, unsigned int blocksize, unsigned long long *max)
@@ -413,6 +404,9 @@ static int do_create_delta(const char *path, __u32 blocksize, off_t bdsize, int 
 				goto out_close;
 	}
 
+	if (grow_loop_image(path, NULL, blocksize, bdsize))
+		goto out_close;
+
 	if (fsync(fd)) {
 		ploop_err(errno, "fsync %s", path);
 		goto out_close;
@@ -428,17 +422,12 @@ out_close:
 	return -1;
 }
 
-static int create_empty_delta(const char *path, __u32 blocksize, off_t bdsize, int version)
+int create_snapshot_delta(const char *path, __u32 blocksize, off_t bdsize,
+		int version)
 {
 	if (check_blockdev_size(bdsize, blocksize, version))
 		return -1;
 
-	return do_create_delta(path, blocksize, bdsize, version);
-}
-
-int create_snapshot_delta(const char *path, __u32 blocksize, off_t bdsize,
-		int version)
-{
 	/* select version for new delta on top of RAW image */
 	if (version == PLOOP_FMT_UNDEFINED)
 		version = default_fmt_version();
@@ -630,7 +619,7 @@ int create_image(const char *file, __u32 blocksize, off_t size_sec, int mode,
 	else if (mode == PLOOP_RAW_MODE)
 		fd = create_raw_delta(file, size_sec, flags);
 	else if (mode == PLOOP_EXPANDED_MODE)
-		fd = create_empty_delta(file, blocksize, size_sec, version);
+		fd = create_snapshot_delta(file, blocksize, size_sec, version);
 	else if (mode == PLOOP_EXPANDED_PREALLOCATED_MODE)
 		fd = create_empty_preallocated_delta(file, blocksize, size_sec, version);
 	if (fd < 0)
@@ -641,7 +630,7 @@ int create_image(const char *file, __u32 blocksize, off_t size_sec, int mode,
 	return 0;
 }
 
-static int create_balloon_file(struct ploop_disk_images_data *di,
+int create_balloon_file(struct ploop_disk_images_data *di,
 		const char *device, const char *partname)
 {
 	int fd, ret;
@@ -678,7 +667,6 @@ out:
 int ploop_init_device(const char *device, struct ploop_create_param *param)
 {
 	int ret;
-	off_t size;
 	unsigned int blocksize;
 	char partname[PATH_MAX];
 
@@ -697,11 +685,7 @@ int ploop_init_device(const char *device, struct ploop_create_param *param)
 	}
 
 	if (!param->without_partition) {
-		ret = ploop_get_size(device, &size);
-		if (ret)
-			return ret;
-
-		ret = create_gpt_partition(device, size, blocksize);
+		ret = create_gpt_partition(device, blocksize);
 		if (ret)
 			return ret;
 	}
@@ -714,6 +698,20 @@ int ploop_init_device(const char *device, struct ploop_create_param *param)
 			param->flags, param->fslabel);
 
 	return ret;
+}
+
+static int create_partition(struct ploop_disk_images_data *di, const char *devname)
+{
+	int rc, part;
+
+	return 0;
+	rc = has_partition(devname, &part);
+	if (rc)
+		return rc;
+	if (!part)
+		rc = create_gpt_partition(devname, di->blocksize);
+
+	return rc;
 }
 
 int ploop_init_image(struct ploop_disk_images_data *di,
@@ -739,40 +737,23 @@ int ploop_init_image(struct ploop_disk_images_data *di,
 		goto err;
 
 	if (!param->without_partition) {
-		int part;
-		off_t size;
-
-		ret = ploop_get_size(mount_param.device, &size);
-		if (ret)
-			goto err;
-
-		ret = has_partition(mount_param.device, &part);
-		if (ret)
-			goto err;
-
-		if (!part) {
-			ret = create_gpt_partition(mount_param.device, size,
-					di->blocksize);
-			if (ret)
-				goto err;
-		}
-	}
-
-	if (param->keyid != NULL) {
-		ret = store_encryption_keyid(di, param->keyid);
+		ret = create_partition(di, mount_param.device);
 		if (ret)
 			goto err;
 	}
 
 	ret = get_part_devname(di, mount_param.device, devname, sizeof(devname),
 			partname, sizeof(partname));
-	if (ret)
-		goto err;
 
-	if (param->keyid) {
+	if (param->keyid != NULL) {
+		ret = store_encryption_keyid(di, param->keyid);
+		if (ret)
+			goto err;
 		ret = crypt_init(devname, param->keyid);
 		if (ret)
 			goto err;
+		crypt_get_device_name(mount_param.device, partname,
+				sizeof(partname));
 		ret = crypt_open(devname, partname, param->keyid);
 		if (ret)
 			goto err;
@@ -780,10 +761,6 @@ int ploop_init_image(struct ploop_disk_images_data *di,
 
 	ret = make_fs(partname, param->fstype ?: DEFAULT_FSTYPE,
 			param->fsblocksize, param->flags, param->fslabel);
-	if (ret)
-		goto err;
-
-	ret = create_balloon_file(di, mount_param.device, partname);
 	if (ret)
 		goto err;
 
@@ -992,33 +969,6 @@ int ploop_create_image(struct ploop_create_param *param)
 	return ploop_create(NULL, param->image, param);
 }
 
-#define PROC_PLOOP_MINOR	"/proc/vz/ploop_minor"
-
-int ploop_getdevice(int *minor)
-{
-	int fd, ret;
-	char buf[64];
-
-	fd = open(PROC_PLOOP_MINOR, O_RDONLY);
-	if (fd < 0) {
-		ploop_err(errno, "Can't open " PROC_PLOOP_MINOR);
-		return -1;
-	}
-	ret = read(fd, buf, sizeof(buf));
-	if (ret == -1) {
-		ploop_err(errno, "Can't read from " PROC_PLOOP_MINOR);
-		close(fd);
-		return -1;
-	}
-	if (sscanf(buf, "%d", minor) != 1) {
-		ploop_err(0, "Can't get ploop minor '%s'", buf);
-		close(fd);
-		return -1;
-	}
-
-	return fd;
-}
-
 /* Device might be used by blkid binary (see #PSBM-10590), in such case
  * kernel returns EBUSY and we need to retry ioctl() after some delay.
  * Start with a small delay, increasing it exponentially.
@@ -1132,55 +1082,42 @@ static int do_umount(const char *mnt, int tmo_sec)
 	} while (1);
 }
 
-static int delete_deltas(int devfd, const char *devname)
-{
-	int top;
-
-	if (ploop_get_attr(devname, "top", &top))
-		return errno;
-
-	while (top >= 0) {
-		if (ioctl(devfd, PLOOP_IOC_DEL_DELTA, &top) < 0) {
-			ploop_err(errno, "PLOOP_IOC_DEL_DELTA dev=%s lvl=%d",
-					devname, top);
-			return errno;
-		}
-		top--;
-	}
-
-	return 0;
-}
-
-static int ploop_stop(int fd, const char *devname,
+static int ploop_stop(const char *devname,
 		struct ploop_disk_images_data *di)
 {
-	int ret, state;
+	int rc;
+	char partname[64];
+	struct delta d = {};
+	char *top;
 
-	ret = ploop_get_mntn_state(fd, &state);
-	if (ret)
-		return ret;
-
-	if (state == PLOOP_MNTN_PUSH_BACKUP) {
-		ploop_err(0, "Can't stop %s because kernel is in \"%s\""
-				" state now", devname, mntn2str(state));
-		return SYSEXIT_UMOUNT_BUSY;
+	rc = get_dev_from_sys(devname, "holders", partname, sizeof(partname));
+	if (rc == -1) {
+		ploop_err(0, "Can not get part device name by %s", devname);
+		return SYSEXIT_SYS;
+	} else if (rc == 0) {
+		rc = dm_remove(partname);
+		if (rc)
+			return rc;
 	}
 
-	if (do_ioctl_tm(fd, PLOOP_IOC_STOP, devname,
-		di ? di->runtime->umount_timeout : PLOOP_UMOUNT_TIMEOUT) < 0) {
-		if (errno != EINVAL) {
-			ploop_err(errno, "PLOOP_IOC_STOP");
-			return errno == EBUSY ?
-					SYSEXIT_UMOUNT_BUSY : SYSEXIT_DEVIOC;
-		}
-		if (delete_deltas(fd, devname))
-			return SYSEXIT_DEVIOC;
+	if (get_top_delta_name(devname, &top, NULL, NULL))
+		return SYSEXIT_OPEN;
+
+	rc = dm_remove(devname);
+	if (rc) {
+		free(top);
+		return rc;
 	}
 
-	if (ioctl(fd, PLOOP_IOC_CLEAR, 0) < 0) {
-		ploop_err(errno, "PLOOP_IOC_CLEAR");
-		return SYSEXIT_DEVIOC;
+	if (open_delta(&d, top, O_RDWR, OD_OFFLINE|OD_ALLOW_DIRTY)) {
+		free(top);
+		return SYSEXIT_OPEN;
 	}
+	free(top);
+
+	clear_delta(&d);
+	close_delta(&d);
+
 	return 0;
 }
 
@@ -1300,7 +1237,7 @@ int fname_cmp(const char *p1, struct stat *st)
 	}
 
 	if (st1.st_dev == st->st_dev &&
-	    st1.st_ino == st->st_ino)
+			st1.st_ino == st->st_ino)
 		return 0;
 	return 1;
 }
@@ -1426,11 +1363,19 @@ int ploop_get_dev(struct ploop_disk_images_data *di, char *out, int len)
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	ret = ploop_find_dev_by_cn(di, di->runtime->component_name, 1, out, len);
+	ret = find_dev(di, out, len);
 
 	ploop_unlock_dd(di);
 
 	return ret;
+}
+
+int ploop_get_devs(struct ploop_disk_images_data *di, char ***out)
+{
+	if (di->nimages == 0 && ploop_read_dd(di))
+		return -1;
+
+	return find_devs(di, out);
 }
 
 int ploop_get_part(struct ploop_disk_images_data *di, const char *dev,
@@ -1454,13 +1399,6 @@ int ploop_is_mounted(struct ploop_disk_images_data *di)
 	return (ret == -1 ? -1 : !ret);
 }
 
-int ploop_get_devs(struct ploop_disk_images_data *di, char ***out)
-{
-	if (di->nimages == 0 && ploop_read_dd(di))
-		return -1;
-
-	return ploop_get_dev_by_delta(di->images[0]->file, NULL, NULL, out);
-}
 
 int reread_part(const char *device)
 {
@@ -1491,12 +1429,8 @@ static int ploop_mount_fs(struct ploop_disk_images_data *di,
 	unsigned long flags =
 		(param->flags & MS_NOATIME) |
 		(param->ro | (di && di->vol && di->vol->ro) ? MS_RDONLY : 0);
-	char buf[PATH_MAX + sizeof(BALLOON_FNAME)];
-	struct stat st;
 	char *fstype = param->fstype == NULL ? DEFAULT_FSTYPE : param->fstype;
 	char data[1024];
-	int len;
-	int mounted = 0;
 
 	if (param->fsck_flags && (strncmp(fstype, "ext", 3) == 0))
 		if (e2fsck(partname, param->fsck_flags, &param->fsck_rc))
@@ -1514,26 +1448,7 @@ static int ploop_mount_fs(struct ploop_disk_images_data *di,
 			param->mount_data ? param->mount_data : "");
 	if (mount(partname, param->target, fstype, flags, data))
 		goto mnt_err;
-	mounted = 1;
 
-	if (!need_balloon)
-		goto done;
-
-	snprintf(buf, sizeof(buf), "%s/" BALLOON_FNAME, param->target);
-	if (stat(buf, &st) < 0) {
-		ploop_err(errno, "Can't stat balloon file %s", buf);
-		goto mnt_err;
-	}
-
-	len = strlen(data);
-	snprintf(data + len, sizeof(data) - len, ",balloon_ino=%llu",
-			(unsigned long long) st.st_ino);
-
-	flags |= MS_REMOUNT;
-	if (mount(partname, param->target, fstype, flags, data))
-		goto mnt_err;
-
-done:
 	ploop_log(0, "Mounted %s at %s fstype=%s data='%s' %s",
 			partname, param->target, fstype,
 			data, param->ro  ? "ro":"");
@@ -1543,8 +1458,6 @@ mnt_err:
 	ploop_err(errno, "Can't mount file system "
 			"(dev=%s target=%s fstype=%s flags=%lx data=%s)",
 			partname, param->target, fstype, flags, data);
-	if (mounted)
-		umount(param->target);
 
 	return SYSEXIT_MOUNT;
 }
@@ -1557,35 +1470,79 @@ static void print_sys_block_ploop(void)
 			"| xargs grep -HF ''");
 }
 
-static int add_delta(int lfd, const char *image, struct ploop_ctl_delta *req)
+static const char *get_dev_name(char *out, int size)
 {
-	int fd;
-	int ro = (req->c.pctl_flags & PLOOP_FMT_RDONLY);
-	int ret;
+	int i;
 
-	fd = open(image, O_DIRECT | (ro ? O_RDONLY : O_RDWR));
-	if (fd < 0) {
-		ploop_err(errno, "Can't open file %s", image);
+	srand(time(NULL));
+	for (i = 0; i < 0xffff; i++) {
+		int m = rand() % 0xffff + 1000;
+		snprintf(out, size, "/dev/mapper/ploop%d", m);
+		if (access(out, F_OK))
+			break;
+	}
+	return out; 
+}
+
+static int add_delta(char **images, int blocksize, int raw, int ro,
+		char *devname, int size)
+{
+	int rc, i, n = 0;
+	int *fds;
+	char t[1024], ldev[64];
+	char *p = t, *e = t + sizeof(t);
+	struct delta d;
+	off_t sz;
+	int lfd = -1;
+
+	for (n = 0; images[n] != NULL; ++n);
+	if (open_delta(&d, images[n-1], O_RDWR, OD_OFFLINE|OD_ALLOW_DIRTY))
 		return SYSEXIT_OPEN;
+
+	lfd = loop_create(images[n-1], ldev, sizeof(ldev));
+	if (lfd == -1) {
+		rc =  SYSEXIT_OPEN;
+		goto err;
 	}
 
-	req->f.pctl_fd = fd;
-
-	if (ioctl(lfd, PLOOP_IOC_ADD_DELTA, req) < 0) {
-		if (errno == EBUSY)
-			print_sys_block_ploop();
-		ploop_err(0, "Can't add image %s: %s", image,
-				(errno == ENOTSUP) ?
-					"unsupported underlying filesystem"
-					: strerror(errno));
-		ret = SYSEXIT_DEVIOC;
-		goto out;
+	fds = alloca(n * sizeof(int));
+	p += snprintf(p, e-p, "%d %s", ffs(blocksize) - 1, ldev);
+	for (i = 0; i < n-1; i++) {
+		ploop_log(0, "Adding delta dev=%s img=%s (ro)", ldev, images[i]);
+		fds[i] = open(images[i], O_DIRECT | O_RDONLY);
+		if (fds[i] < 0) {
+			ploop_err(errno, "Can't open file %s", images[i]);
+			return SYSEXIT_OPEN;
+		}
+		p += snprintf(p, e-p, " %s%d", raw && i == 0 ? "raw@" : "", fds[i]);
 	}
-	ret = 0;
-out:
-	close(fd);
 
-	return ret;
+	if (devname[0] == '\0')
+		get_dev_name(devname, size);
+
+	ploop_log(0, "Adding delta dev=%s [%s] img=%s (%s)",
+			devname, ldev, images[n-1], ro ? "ro" : "rw");
+
+	sz = d.l2_size * d.blocksize;
+	rc = dm_create(devname, 0, sz, ro, t);
+	if (rc)
+		goto err;
+
+	char *x = realpath(devname, NULL);
+	if (x != NULL)
+		snprintf(devname, size, "%s", x);
+	free(x);
+
+	rc = dirty_delta(&d);
+err:
+
+	close_delta(&d);
+	for (i = 1; i < n; i++)
+		close(fds[i]);
+
+	close(lfd);
+
+	return rc;
 }
 
 int do_replace_delta(int devfd, int level, int imgfd, __u32 blocksize,
@@ -1955,38 +1912,6 @@ err:
 	return ret;
 }
 
-static int create_ploop_dev(int minor)
-{
-	char device[64];
-	char devicep1[64];
-
-	strcpy(device, "/dev/");
-	make_sysfs_dev_name(minor, device + 5, sizeof(device) - 5);
-	/* Create pair /dev/ploopN & /dev/ploopNp1 */
-	if (access(device, F_OK)) {
-		if (mknod(device, S_IFBLK, makedev(PLOOP_DEV_MAJOR, minor))) {
-			ploop_err(errno, "mknod %s", device);
-			return SYSEXIT_MKNOD;
-		}
-		if (chmod(device, 0600)) {
-			ploop_err(errno, "chmod %s", device);
-			return SYSEXIT_SYS;
-		}
-	}
-	snprintf(devicep1, sizeof(devicep1), "%sp1", device);
-	if (access(devicep1, F_OK)) {
-		if (mknod(devicep1, S_IFBLK, makedev(PLOOP_DEV_MAJOR, minor+1))) {
-			ploop_err(errno, "mknod %s", devicep1);
-			return SYSEXIT_MKNOD;
-		}
-		if (chmod(devicep1, 0600)) {
-			ploop_err(errno, "chmod %s", devicep1);
-			return SYSEXIT_SYS;
-		}
-	}
-	return 0;
-}
-
 static int set_max_delta_size(int fd, unsigned long long size)
 {
 	/* Set max delta size for the last added (top) delta */
@@ -1998,127 +1923,58 @@ static int set_max_delta_size(int fd, unsigned long long size)
 /* NB: caller will take care about *lfd_p even if we fail */
 static int add_deltas(struct ploop_disk_images_data *di,
 		char **images, struct ploop_mount_param *param,
-		int raw, __u32 blocksize, int *lfd_p, int *load_cbt)
+		int raw, __u32 blocksize, int *load_cbt)
 {
-	int lckfd = -1;
 	char *device = param->device;
-	int i;
-	int ret = 0;
-	struct ploop_ctl_delta req = {};
-	int format_extension_loaded = 0;
+	int n = 0, ret = 0;
+//	int format_extension_loaded = 0;
 	struct ext_context *ctx = NULL;
 
-	if (device[0] == '\0') {
-		char buf[64];
-		int minor;
+	int ro = param->ro || (di && di->vol && di->vol->ro) ? 1: 0;
+	for (n = 0; images[n] != NULL; ++n);
 
-		lckfd = ploop_getdevice(&minor);
-		if (lckfd == -1)
-			return SYSEXIT_DEVICE;
+	/* we should load format extension here, before sending delta
+	 * to kernel by
+	 * add_delta
+	 * for now, if load_cbt == 0 no extensions will be loaded.
+	 * because we have only dirty bitmap (cbt) extension */
+	if (!ro && load_cbt && (!raw || n > 0)) {
+		int rc;
 
-		snprintf(device, sizeof(param->device), "/dev/%s",
-				make_sysfs_dev_name(minor, buf, sizeof(buf)));
-		ret = create_ploop_dev(minor);
-		if (ret)
-			goto err;
-	}
-
-	*lfd_p = open(device, O_RDONLY|O_CLOEXEC);
-	if (*lfd_p < 0) {
-		ploop_err(errno, "Can't open device %s", device);
-		ret = SYSEXIT_DEVICE;
-		goto err;
-	}
-
-	if (di != NULL && di->runtime->component_name != NULL) {
-		req.c.pctl_flags |= PLOOP_FLAG_COOKIE;
-		strncpy(req.cookie, di->runtime->component_name,
-				PLOOP_COOKIE_SIZE);
-	}
-	req.c.pctl_cluster_log = ffs(blocksize) - 1;
-	req.c.pctl_size = 0;
-	req.c.pctl_chunks = 1;
-
-	req.f.pctl_fd = -1;
-	req.f.pctl_type = PLOOP_IO_AUTO;
-
-	for (i = 0; images[i] != NULL; i++) {
-		int ro = (images[i+1] != NULL || param->ro ||
-				(di && di->vol && di->vol->ro)) ? 1: 0;
-		char *image = images[i];
-
-		req.c.pctl_format = PLOOP_FMT_PLOOP1;
-		if (raw && i == 0)
-			req.c.pctl_format = PLOOP_FMT_RAW;
-		if (ro)
-			req.c.pctl_flags |= PLOOP_FMT_RDONLY;
-		else
-			req.c.pctl_flags &= ~PLOOP_FMT_RDONLY;
-
-		/* we should load format extension here, before sending delta
-		 * to kernel by
-		 * add_delta
-		 * for now, if load_cbt == 0 no extensions will be loaded.
-		 * because we have only dirty bitmap (cbt) extension */
-		if (!ro && load_cbt && req.c.pctl_format == PLOOP_FMT_PLOOP1) {
-			int rc;
-
-			ctx = create_ext_context();
-			if (ctx == NULL) {
-				ret = SYSEXIT_MALLOC;
-				goto err1;
-			}
-
-			rc = read_optional_header_from_image(ctx, image, DIRTY_BITMAP_TRUNCATE);
-			if (rc)
-				ploop_log(0, "Error while loding optional header: %d", rc);
-			else
-				format_extension_loaded = 1;
+		ctx = create_ext_context();
+		if (ctx == NULL) {
+			ret = SYSEXIT_MALLOC;
+			goto err1;
 		}
 
-
-		ploop_log(0, "Adding delta dev=%s img=%s (%s)",
-				device, image, ro ? "ro" : "rw");
-		ret = add_delta(*lfd_p, image, &req);
-		if (ret)
-			goto err1;
+		rc = read_optional_header_from_image(ctx, images[n-1], DIRTY_BITMAP_TRUNCATE);
+		if (rc)
+			ploop_log(0, "Error while loding optional header: %d", rc);
+//		else
+//			format_extension_loaded = 1;
 	}
 
-	if (di != NULL && di->max_delta_size != 0 &&
-			(ret = set_max_delta_size(*lfd_p, di->max_delta_size)))
-		goto err1;
 
-	if (ioctl(*lfd_p, PLOOP_IOC_START, 0) < 0) {
-		ploop_err(errno, "PLOOP_IOC_START");
-		ret = SYSEXIT_DEVIOC;
-		goto err1;
-	}
-
-	if (format_extension_loaded)
-		send_dirty_bitmap_to_kernel(ctx, *lfd_p, images[i-1]);
-
-	ret = check_and_repair_gpt(param->device, blocksize);
+	ret = add_delta(images, blocksize, raw, ro, param->device, sizeof(param->device));
 	if (ret)
-		goto err1;
+		goto err;
+
+//	if (di != NULL && di->max_delta_size != 0 &&
+//			(ret = set_max_delta_size(*lfd_p, di->max_delta_size)))
+//		goto err1;
+
+//	if (format_extension_loaded)
+//		send_dirty_bitmap_to_kernel(ctx, *lfd_p, images[i-1]);
+
+//	ret = check_and_repair_gpt(param->device, blocksize);
+//	if (ret)
+//		goto err1;
 
 err1:
 	if (ret) {
-		int err = 0;
-		int empty = !i;
-
-		for (i = i - 1; i >= 0; i--) {
-			err = ioctl(*lfd_p, PLOOP_IOC_DEL_DELTA, &i);
-			if (err < 0) {
-				ploop_err(errno, "PLOOP_IOC_DEL_DELTA level=%d", i);
-				break;
-			}
-		}
-		if (!empty && err == 0 && ioctl(*lfd_p, PLOOP_IOC_CLEAR, 0) < 0)
-			ploop_err(errno, "PLOOP_IOC_CLEAR");
+		ploop_stop(device, di);
 	}
 err:
-	if (lckfd != -1)
-		close(lckfd);
 
 	free_ext_context(ctx);
 
@@ -2272,7 +2128,6 @@ static int check_mount_restrictions(char **images)
 int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		struct ploop_mount_param *param, int raw)
 {
-	int lfd = -1;
 	struct stat st;
 	int ret = 0;
 	__u32 blocksize = 0;
@@ -2318,17 +2173,17 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 	if (ret)
 		goto err;
 
-	ret = add_deltas(di, images, param, raw, blocksize, &lfd, &load_cbt);
+	ret = add_deltas(di, images, param, raw, blocksize, &load_cbt);
 	if (ret)
 		goto err;
+
+	reread_part(param->device);
 
 	ret = get_part_devname(di, param->device, devname, sizeof(devname),
 			partname, sizeof(partname));
 	if (ret)
 		goto err_stop;
 
-	/* Dummy call to recreate devices */
-	reread_part(param->device);
 
 	if (di && di->enc) {
 		ret = crypt_open(devname, partname, di->enc->keyid);
@@ -2347,12 +2202,10 @@ err_stop:
 		if (di && di->enc) {
 			crypt_close(partname);
 		}
-		ploop_stop(lfd, param->device, di);
+		ploop_stop(param->device, di);
 	}
 
 err:
-	if (lfd >= 0)
-		close(lfd);
 
 	if (ret == 0 && di != NULL &&
 			di->runtime->component_name == NULL &&
@@ -2362,7 +2215,8 @@ err:
 	return ret;
 }
 
-int mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *param)
+int mount_image(struct ploop_disk_images_data *di,
+		struct ploop_mount_param *param)
 {
 	int ret;
 	char **images;
@@ -2470,7 +2324,8 @@ static int remount_image(struct ploop_disk_images_data *di,
 	return ploop_mount_fs(di, part, param, 1);
 }
 
-int ploop_mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *param)
+int ploop_mount_image(struct ploop_disk_images_data *di,
+		struct ploop_mount_param *param)
 {
 	int ret;
 	char dev[64];
@@ -2478,7 +2333,7 @@ int ploop_mount_image(struct ploop_disk_images_data *di, struct ploop_mount_para
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	ret = ploop_find_dev_by_cn(di, di->runtime->component_name, 1, dev, sizeof(dev));
+	ret = ploop_find_dev_by_dd(di, dev, sizeof(dev));
 	if (ret == -1) {
 		ret = SYSEXIT_SYS;
 		goto err;
@@ -2517,19 +2372,10 @@ int ploop_mount_snapshot(struct ploop_disk_images_data *di, struct ploop_mount_p
 static int ploop_stop_device(const char *device,
 		struct ploop_disk_images_data *di)
 {
-	int lfd, ret;
 
 	ploop_log(0, "Unmounting device %s", device);
-	lfd = open(device, O_RDONLY|O_CLOEXEC);
-	if (lfd < 0) {
-		ploop_err(errno, "Can't open dev %s", device);
-		return SYSEXIT_DEVICE;
-	}
+	return ploop_stop(device, di);
 
-	ret = ploop_stop(lfd, device, di);
-	close(lfd);
-
-	return ret;
 }
 
 static int ploop_umount_fs(const char *mnt, struct ploop_disk_images_data *di)
@@ -2553,13 +2399,13 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	int ret;
 	char partname[64];
 	char mnt[PATH_MAX] = "";
-	char image[PATH_MAX], format[PATH_MAX];
 
 	if (!device) {
 		ploop_err(0, "ploop_umount: device is not specified");
 		return SYSEXIT_SYS; /* internal error */
 	}
 
+	ploop_log(0, "Umount %s", device);
 	ret = get_part_devname_from_sys(device, partname, sizeof(partname));
 	if (ret)
 		return ret;
@@ -2573,18 +2419,10 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	if (di && di->enc && di->enc->keyid)
 		crypt_close(partname);
 
-	/* this function should be called before device stop! */
-	ret = ploop_find_top_delta_name_and_format(device, image,
-			sizeof(image), format, sizeof(format));
-	if (ret) {
-		ploop_err(0, "Failed to find top delta name and format");
-		return ret;
-	}
-
 	ret = ploop_stop_device(device, di);
 	if (ret)
 		return ret;
-
+#if 0
 	if (strcmp(format, "ploop1") == 0) {
 		int lfd = open(device, O_RDONLY|O_CLOEXEC);
 		int rc;
@@ -2604,7 +2442,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 
 		close(lfd);
 	}
-
+#endif
 	if (di != NULL) {
 		get_temp_mountpoint(di->images[0]->file, 0, mnt, sizeof(mnt));
 		if (access(mnt, F_OK) == 0)
@@ -2617,30 +2455,22 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 int ploop_umount_image(struct ploop_disk_images_data *di)
 {
 	int ret;
-	char dev[PATH_MAX];
+	char dev[64];
 
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	ret = ploop_find_dev_by_cn(di, di->runtime->component_name, 0, dev, sizeof(dev));
-	if (ret == -1) {
-		ret = SYSEXIT_SYS;
-		goto out;
-	}
-	if (ret != 0) {
-		ploop_err(0, "Image %s is not mounted", di->images[0]->file);
-		ret = SYSEXIT_DEV_NOT_MOUNTED;
-		goto out;
-	}
-
-	ret = complete_running_operation(di, dev);
-	if (ret) {
-		goto out;
+	ret = ploop_find_dev_by_dd(di, dev, sizeof(dev));
+	if (ret == -1)
+		return SYSEXIT_SYS;
+	else if (ret == 1) {
+		ploop_err(0, "Image %s is not mounted",
+			find_image_by_guid(di, get_base_delta_uuid(di)));
+		return SYSEXIT_DEV_NOT_MOUNTED;
 	}
 
 	ret = ploop_umount(dev, di);
 
-out:
 	ploop_unlock_dd(di);
 
 	return ret;
@@ -2649,19 +2479,15 @@ out:
 int get_image_param_online(const char *device, off_t *size,
 		__u32 *blocksize, int *version)
 {
-	if (ploop_get_attr(device, "block_size",  (int *)blocksize))
-		return SYSEXIT_SYSFS;
-
-	*version = PLOOP_FMT_V1;
-	if (ploop_is_large_disk_supported() &&
-			ploop_get_attr(device, "fmt_version", version))
-		return SYSEXIT_SYSFS;
-
+	// FIXME
+	*version = PLOOP_FMT_V2;
+	*blocksize = 2048;
 	return ploop_get_size(device, size);
 }
 
-int get_image_param_offline(struct ploop_disk_images_data *di, const char *guid,
-		off_t *size, __u32 *blocksize, int *version)
+int get_image_param_offline(struct ploop_disk_images_data *di,
+		const char *guid, off_t *size, __u32 *blocksize,
+		int *version)
 {
 	struct delta delta;
 	const char *image;
@@ -2728,60 +2554,42 @@ int get_image_param(struct ploop_disk_images_data *di, const char *guid,
 	return get_image_param_offline(di, guid, size, blocksize, version);
 }
 
-int ploop_grow_device(const char *device, off_t new_size)
+int ploop_grow_device(struct ploop_disk_images_data *di,
+		const char *device, off_t new_size)
 {
-	int fd, ret;
-	struct ploop_ctl ctl;
+	int rc;
 	off_t size;
-	__u32 blocksize = 0;
-	int version = PLOOP_FMT_V1;
+	char ldev[64];
 
-	ret = ploop_get_size(device, &size);
-	if (ret)
-		return ret;
-
-	if (ploop_get_attr(device, "block_size", (int*) &blocksize))
-		return SYSEXIT_SYSFS;
-
-	if (ploop_is_large_disk_supported() &&
-			ploop_get_attr(device, "fmt_version", &version))
-		return SYSEXIT_SYSFS;
-
-	if (new_size == size)
-		return 0;
-
-	if (new_size < size) {
-		ploop_err(0, "Incorrect new size specified %ld current size %ld",
-				(long)new_size, (long)size);
-		return SYSEXIT_PARAM;
-	}
+	rc = ploop_get_size(device, &size);
+	if (rc)
+		return rc;
 
 	ploop_log(0, "Growing dev=%s size=%llu sectors (new size=%llu)",
-				device, (unsigned long long)size,
-				(unsigned long long)new_size);
+			device, (unsigned long long)size,
+			(unsigned long long)new_size);
+	rc = get_dev_from_sys(device, "slaves", ldev, sizeof(ldev));
+	if (rc)
+		return rc;
 
-	fd = open(device, O_RDONLY|O_CLOEXEC);
-	if (fd < 0) {
-		ploop_err(errno, "Can't open device %s", device);
-		return SYSEXIT_DEVICE;
-	}
+	rc = grow_loop_image(NULL, ldev, 2048, new_size);
+	if (rc)
+		return rc;
 
-	memset(&ctl, 0, sizeof(ctl));
+	rc = dm_resize(device, new_size);
+	if (rc)
+		return rc;
 
-	ctl.pctl_cluster_log = ffs(blocksize) - 1;
-	if (ploop_is_large_disk_supported()) {
-		/* the new size is aligned to cluster block */
-		ctl.pctl_flags |= PLOOP_FLAG_CLUBLKS;
-		ctl.pctl_size = new_size >> ctl.pctl_cluster_log;
-	} else
-		ctl.pctl_size = new_size;
-
-	if (ioctl(fd, PLOOP_IOC_GROW, &ctl) < 0) {
-		ploop_err(errno, "PLOOP_IOC_GROW");
-		close(fd);
-		return SYSEXIT_DEVIOC;
-	}
-	close(fd);
+	rc = dm_reload(di, device, ldev, new_size);
+	if (rc)
+		return rc;
+#if 0
+	rc = get_dev_from_sys(device, "holders", dev, sizeof(dev));
+	if (rc == -1)
+		return rc;
+	if (rc == 0)
+		return dm_reload(di, dev, device, new_size - 2048);
+#endif
 
 	return 0;
 }
@@ -2846,7 +2654,7 @@ int ploop_grow_image(struct ploop_disk_images_data *di, off_t size, int sparse)
 	if (raw)
 		ret = ploop_grow_raw_delta_offline(fname, size, sparse);
 	else
-		ret = ploop_grow_device(device, size);
+		ret = ploop_grow_device(di, device, size);
 	if (ret)
 		goto err;
 
@@ -2885,8 +2693,7 @@ static int ploop_raw_discard(struct ploop_disk_images_data *di, const char *devi
 	if (ret)
 		return ret;
 
-	ploop_log(0, "Truncate %s %lu",
-			di->images[0]->file, (long)S2B(new_end));
+	ploop_log(0, "Truncate %s %lu",	di->images[0]->file, S2B(new_end));
 	if (truncate(di->images[0]->file, S2B(new_end))) {
 		ploop_err(errno, "Failed to truncate %s",
 				di->images[0]->file);
@@ -2956,7 +2763,8 @@ static int shrink_device(struct ploop_disk_images_data *di,
 	return 0;
 }
 
-int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_param *param)
+int ploop_resize_image(struct ploop_disk_images_data *di,
+		struct ploop_resize_param *param)
 {
 	int ret;
 	struct ploop_mount_param mount_param = {};
@@ -3105,7 +2913,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		if (ret)
 			goto err;
 
-		ret = ploop_grow_device(mount_param.device, new_size);
+		ret = ploop_grow_device(di, mount_param.device, new_size);
 		if (ret) {
 			unlink(conf_tmp);
 			goto err;
@@ -3596,11 +3404,6 @@ int ploop_change_fmt_version(struct ploop_disk_images_data *di, int new_version,
 	init_delta_array(&da);
 	if (new_version != PLOOP_FMT_V1 && new_version != PLOOP_FMT_V2) {
 		ploop_err(0, "Incorrect version is specified");
-		return SYSEXIT_PARAM;
-	}
-
-	if (new_version == PLOOP_FMT_V2 && !ploop_is_large_disk_supported()) {
-		ploop_err(0, "The PLOOP_FMT_V2 is not supported by kernel");
 		return SYSEXIT_PARAM;
 	}
 
@@ -4253,15 +4056,14 @@ int check_snapshot_mount(struct ploop_disk_images_data *di,
 		const char *guid, const char *fname, int temp)
 {
 	int ret = 0;
-	char **devs, **p;
+	char **devs = NULL, **p;
 	char buf[512];
 
 	/* Don't check top delta */
 	if (guidcmp(guid, di->top_guid) == 0)
 		return 0;
 
-	ret = ploop_get_dev_by_delta(di->images[0]->file,
-			fname, NULL, &devs);
+	ret = find_devs_by_delta(fname, &devs);
 	if (ret == 1)
 		return 0;
 	if (ret == -1)

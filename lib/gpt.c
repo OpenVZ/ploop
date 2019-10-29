@@ -124,12 +124,9 @@ err:
 	return ret;
 }
 
-int get_partition_device_name(const char *device, char *out, int size)
-{
-	return get_partition_device_name_by_num(device, 1, out, size);
-}
 
-int get_partition_device_name_by_num(const char *device, int part_num, char *out, int size)
+int get_partition_device_name_by_num(const char *device, int part_num,
+		char *out, int size)
 {
 	int ret, part;
 	const char *p;
@@ -146,13 +143,6 @@ int get_partition_device_name_by_num(const char *device, int part_num, char *out
 		if (strncmp(device, "/dev/", 5) == 0)
 			p += 5;
 
-		snprintf(buf, sizeof(buf), "/sys/class/block/%s/%sp%d",
-				p, p, part_num);
-		if (strncmp(p, "ploop", 5) == 0 || access(buf, F_OK) == 0) {
-			snprintf(out, size, "/dev/%sp%d", p, part_num);
-			return 0;
-		}
-
 		snprintf(buf, sizeof(buf), "/sys/class/block/%s/%s%d",
 				p, p, part_num);
 		if (access(buf, F_OK) == 0) {
@@ -161,8 +151,10 @@ int get_partition_device_name_by_num(const char *device, int part_num, char *out
 		}
 
 		ret = is_device_from_devmapper(device);
-		if (ret != 0)
-			return -1;
+		if (ret != 0) {
+			if (get_dev_from_sys(device, "holders", out, size) == 0)
+				return 0;
+		}
 
 		if (stat(device, &st)) {
 			ploop_err(errno, "failed stat %s", device);
@@ -182,6 +174,11 @@ int get_partition_device_name_by_num(const char *device, int part_num, char *out
 		snprintf(out, size, "%s", device);
 
 	return 0;
+}
+
+int get_partition_device_name(const char *device, char *out, int size)
+{
+	return get_partition_device_name_by_num(device, 1, out, size);
 }
 
 static int blkpg_resize_partition(int fd, struct GptEntry *pe, int sector_size)
