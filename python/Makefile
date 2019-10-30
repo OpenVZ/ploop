@@ -3,7 +3,7 @@ PLOOPROOT = ..
 include $(PLOOPROOT)/Makefile.inc
 
 all:
-	$(Q) CFLAGS= python setup.py build
+	$(Q) CFLAGS= python3 setup.py build
 .PHONY: all
 
 clean:
@@ -15,6 +15,6 @@ distclean: clean
 .PHONY: distclean
 
 install:
-	$(Q) CFLAGS= python setup.py install \
+	$(Q) CFLAGS= python3 setup.py install \
 		$(if $(DESTDIR), --root $(DESTDIR))
 .PHONY: install
