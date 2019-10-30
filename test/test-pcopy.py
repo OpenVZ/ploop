@@ -26,12 +26,12 @@ def start_image_filller():
 		os.execl('/bin/dd',  'dd', 'if=/dev/urandom', "of=/dev/ploop0", 'bs=4096', 'count=1310720', 'oflag=direct')
 		os._exit(1)
 	else:
-		print "Start filler pid=%d" % pid
+		print("Start filler pid=%d" % pid)
 		time.sleep(sleep_sec)
 		return pid
 
 def start_pcopy_receiver(fname, fd):
-	print "Start receiver"
+	print("Start receiver")
 	t = libploop.ploopcopy_thr_receiver(fname, fd)
 	t.start()
 	return t
@@ -71,26 +71,26 @@ def dump_cbt(img):
 
 def do_ploop_copy(ddxml, fd):
 
-	print "do_ploop_copy"
+	print("do_ploop_copy")
 	ploop_mount(ddxml)
 	pc = libploop.ploopcopy(ddxml, fd);
 
 	pid = start_image_filller()
 
-	print "Start copy"
+	print("Start copy")
 	pc.copy_start()
 
 	for n in range(0, 10):
-		print "Iter:",  n
+		print("Iter:",  n)
 		transferred = pc.copy_next_iteration()
-		print "transferred:", transferred
+		print("transferred:", transferred)
 		time.sleep(sleep_sec)
 
-	print "Wait filler %d" % pid
+	print("Wait filler %d" % pid)
 	os.kill(pid, 15)
 	os.waitpid(pid, 0)
 
-	print "Stop copy"
+	print("Stop copy")
 	pc.copy_stop()
 	ploop_umount(ddxml)
 
@@ -114,13 +114,13 @@ class testPcopy(unittest.TestCase):
 		self.ddxml = get_ddxml()
 
 	def tearDown(self):
-		print "tearDown"
+		print("tearDown")
 		if os.path.exists(get_ddxml()):
 			ploop_umount(get_ddxml())
 			shutil.rmtree(get_storage())
 
 	def test_aremote(self):
-		print "Start remote"
+		print("Start remote")
 
 		parent, child = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
 
@@ -134,7 +134,7 @@ class testPcopy(unittest.TestCase):
 		self.assertEqual(src, dst)
 
 	def test_local(self):
-		print "Start local"
+		print("Start local")
 
 		f = open(self.out, 'wb')
 
@@ -146,7 +146,7 @@ class testPcopy(unittest.TestCase):
 		self.assertEqual(src, dst)
 
 	def test_local_cbt(self):
-		print "Start local CBT dst=%s" % self.out
+		print("Start local CBT dst=%s" % self.out)
 
 		sp.call(["ploop", "snapshot", "-u262178fe-49d7-4c8b-b47c-4c0799dbf02a", "-b262178fe-49d7-4c8b-b47c-4c0799dbf02a", self.ddxml])
 		sp.call(["ploop", "snapshot-delete", "-u262178fe-49d7-4c8b-b47c-4c0799dbf02a", self.ddxml])
