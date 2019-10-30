@@ -18,8 +18,8 @@ typedef struct {
 
 static int is_valid_object(PyObject *obj, const char *name)
 {
-	return (PyCObject_Check(obj) &&
-			strcmp((char *)PyCObject_GetDesc(obj), name) == 0);
+	return (PyCapsule_CheckExact(obj) &&
+		strcmp(PyCapsule_GetName(obj), name) == 0);
 }
 
 static int is_ploop_di_object(PyObject *obj)
@@ -51,7 +51,7 @@ static PyObject *libploop_open_dd(PyObject *self, PyObject *args)
 		return NULL;
 	}
 
-	return PyCObject_FromVoidPtrAndDesc(di, ploop_di_object_t, NULL);
+	return PyCapsule_New(di, ploop_di_object_t, NULL);
 }
 
 static PyObject *libploop_close_dd(PyObject *self, PyObject *args)
@@ -98,7 +98,7 @@ static PyObject *libploop_copy_init(PyObject *self, PyObject *args)
 		return NULL;
 	}
 
-	return PyCObject_FromVoidPtrAndDesc(h, ploop_copy_handle_object_t, NULL);
+	return PyCapsule_New(h, ploop_copy_handle_object_t, NULL);
 }
 
 static PyObject *libploop_copy_start(PyObject *self, PyObject *args)
@@ -253,7 +253,7 @@ static PyObject *libploop_create_snapshot(PyObject *self, PyObject *args)
 		return NULL;
 	}
 
-	return PyString_FromString(param.guid);
+	return PyUnicode_FromString(param.guid);
 }
 
 static PyObject *libploop_create_snapshot_offline(PyObject *self, PyObject *args)
@@ -285,7 +285,7 @@ static PyObject *libploop_create_snapshot_offline(PyObject *self, PyObject *args
 		return NULL;
 	}
 
-	return PyString_FromString(param.guid);
+	return PyUnicode_FromString(param.guid);
 }
 
 static PyObject *libploop_delete_snapshot(PyObject *self, PyObject *args)
@@ -340,7 +340,7 @@ static PyObject *libploop_get_top_delta_fname(PyObject *self, PyObject *args)
 		return NULL;
 	}
 
-	return PyString_FromString(buf);
+	return PyUnicode_FromString(buf);
 }
 
 static PyMethodDef PloopMethods[] = {
@@ -361,11 +361,19 @@ static PyMethodDef PloopMethods[] = {
 	{ NULL, NULL, 0, NULL }
 };
 
-PyMODINIT_FUNC initlibploopapi(void)
-{
-	PyObject *m;
+static struct PyModuleDef moduledef = {
+	PyModuleDef_HEAD_INIT,
+	"libploopapi", /* m_name */
+	"wrapper to ploop library",      /* m_doc */
+	-1,                  /* m_size */
+	PloopMethods,        /* m_methods */
+	NULL,                /* m_reload */
+	NULL,                /* m_traverse */
+	NULL,                /* m_clear */
+	NULL,                /* m_free */
+};
 
-	m = Py_InitModule("libploopapi", PloopMethods);
-	if (m == NULL)
-		return;
+PyMODINIT_FUNC libploopapi(void)
+{
+	return PyModule_Create(&moduledef);
 }

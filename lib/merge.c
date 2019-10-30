@@ -681,7 +681,7 @@ static int reverse_merge_online(struct ploop_disk_images_data *di,
 	char ldev[64];
 	char cfg[PATH_MAX];
 	char *t, *cfg1, *rm_fname;
-	int rc, lfd;
+	int rc, lfd =  -1;
 	int top_idx, base_idx;
 
 	ploop_log(0, "Online reverse merge %s -> %s [%d]", base, top,
@@ -701,6 +701,11 @@ static int reverse_merge_online(struct ploop_disk_images_data *di,
 	rc = ploop_di_delete_snapshot(di, guid, 1, NULL);
 	if (rc)
 		return rc;
+	// prepare config
+	get_disk_descriptor_fname(di, cfg, sizeof(cfg));
+	cfg1 = alloca(strlen(cfg) + 6);
+	sprintf(cfg1, "%s.tmp", cfg);
+
 	/* Process transition state */
 	switch (di->snapshots[sid]->temporary) {
 	case snap_temporary_zero_swap:
@@ -713,11 +718,6 @@ static int reverse_merge_online(struct ploop_disk_images_data *di,
 	rc = grow_lower_delta(devname, 1, top, base, end_level);
 	if (rc)
 		return rc;
-	// 0) prepare config
-	get_disk_descriptor_fname(di, cfg, sizeof(cfg));
-	cfg1 = alloca(strlen(cfg) + 6);
-	sprintf(cfg1, "%s.tmp", cfg);
-
 	// Mark base delta in transition state
 	di->snapshots[sid]->temporary = snap_temporary_zero;
 	rc = ploop_store_diskdescriptor(cfg1, di);

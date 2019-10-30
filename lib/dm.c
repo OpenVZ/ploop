@@ -664,7 +664,7 @@ int find_dev_by_delta(const char *delta, char *out, int len)
 int dm_reload(struct ploop_disk_images_data *di, const char *device,
 	 	const char *ldev, off_t new_size)
 {
-	int rc, *fds, i, n;
+	int rc, *fds, i, n = 0;
 	char t[PATH_MAX];
 	char *a[7];
 	char *p, *e;

@@ -664,7 +664,7 @@ int ploop_balloon_check_and_repair(const char *device, const char *mount_point, 
 	char *msg = repair ? "repair" : "check";
 	__u32 *reverse_map = NULL;
 	__u32  reverse_map_len;
-	int top_level;
+	int top_level = 0;
 	int entries_used;
 	struct delta delta = {};
 	int drop_state = 0;
