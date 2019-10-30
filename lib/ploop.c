@@ -1488,7 +1488,7 @@ static int add_delta(char **images, int blocksize, int raw, int ro,
 		char *devname, int size)
 {
 	int rc, i, n = 0;
-	int *fds;
+	int *fds = NULL;
 	char t[1024], ldev[64];
 	char *p = t, *e = t + sizeof(t);
 	struct delta d;
