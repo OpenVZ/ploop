@@ -147,7 +147,7 @@ int get_top_delta_name(const char *device, char **fname, char **format,
 	return 0;
 }
 
-int get_delta_names(const char *device, char **names[], char **format,
+int ploop_get_names(const char *device, char **names[], char **format,
 		int *blocksize)
 {
 	int rc, i;
@@ -182,11 +182,6 @@ int get_delta_names(const char *device, char **names[], char **format,
 err:
 	ploop_free_array(n);
 	return rc;
-}
-
-int ploop_get_names(const char *devname, char **names[])
-{
-	return get_delta_names(devname, names, NULL, NULL);
 }
 
 /* Finds a level for a given delta in a running ploop device.

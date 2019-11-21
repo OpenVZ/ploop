@@ -124,7 +124,7 @@ static int grow_lower_delta(const char *device, int top,
 	if (ret)
 		return ret;
 
-	if (get_delta_names(device, &names, &fmt, &blocksize)) {
+	if (ploop_get_names(device, &names, &fmt, &blocksize)) {
 		ploop_err(errno, "find_delta_names");
 		ret = SYSEXIT_SYSFS;
 		goto done;
@@ -732,7 +732,7 @@ static int reverse_merge_online(struct ploop_disk_images_data *di,
 	if (rc && errno != EBUSY)
 		goto err1;
 	// 3) suspend
-	rc = dm_suspend(devname);
+	rc = ploop_suspend_device(devname);
 	if (rc)
 		goto err1;
 	// 5) Mark base delta as in transition state
@@ -763,7 +763,7 @@ swap:
 	rc = dm_setnoresume(devname, 0);
 	if (rc)
 		goto err;
-	rc = dm_resume(devname);
+	rc = ploop_resume_device(devname);
 	if (rc)
 		goto err;
 
@@ -790,7 +790,7 @@ merge_top:
 err:
 	if (rc) {
 		dm_setnoresume(devname, 0);
-		dm_resume(devname);
+		ploop_resume_device(devname);
 	}
 err1:
 	unlink(cfg1);
@@ -886,7 +886,7 @@ int ploop_delete_snapshot_by_guid(struct ploop_disk_images_data *di,
 		ret = complete_running_operation(di, dev);
 		if (ret)
 			return ret;
-		if ((ret = get_delta_names(dev, &names, &fmt, &blocksize)))
+		if ((ret = ploop_get_names(dev, &names, &fmt, &blocksize)))
 			return ret;
 		nelem = get_list_size(names);
 		for (i = 0; names[i] != NULL; i++) {
