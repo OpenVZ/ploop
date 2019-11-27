@@ -573,7 +573,7 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 	int ret, err;
 	int blocksize;
 	char *image = NULL;
-	char *format = NULL;
+	const char *format;
 	char device[64];
 	char partdev[64];
 	struct ploop_copy_handle  *_h = NULL;

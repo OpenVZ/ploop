@@ -508,7 +508,7 @@ int get_loop_by_delta(const char *delta, char **out[]);
 int get_dev_by_loop(char **devs, char **out[]);
 int get_dev_from_sys(const char *devname, const char *type,char *out, int len);
 int get_top_delta(const char*ldev, char *out, int size);
-int get_top_delta_name(const char *device, char **fname, char **format,
+int get_top_delta_name(const char *device, char **fname, const char **format,
                 int *blocksize);
 PL_EXT int dm_get_delta_name(const char *devname, int idx, char **out);
 int append_array_entry(const char *entry, char **ar[], int nelem);

@@ -109,7 +109,7 @@ static int grow_lower_delta(const char *device, int top,
 	int i;
 	struct ploop_pvd_header *vh;
 	struct grow_maps grow_maps;
-	char *fmt;
+	const char *fmt;
 	int dst_is_raw = 0;
 	void *buf = NULL;
 	struct delta odelta = {.fd = -1};
@@ -819,7 +819,7 @@ int ploop_delete_snapshot_by_guid(struct ploop_disk_images_data *di,
 	int online = 0;
 	int sid, child_idx; /* parent and child snapshot ids */
 	int i, nelem;
-	char *fmt;
+	const char *fmt;
 	int blocksize;
 
 	ret = SYSEXIT_PARAM;

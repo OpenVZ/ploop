@@ -146,23 +146,26 @@ return 0;
 
 static int open_top_delta(const char *device, struct delta *delta, int *lvl)
 {
+	int ret = 0;
 	char *image = NULL;
-	char *fmt;
-	int blocksize;
+	const char *fmt;
 
-	if (get_top_delta_name(device, &image, &fmt, &blocksize))
+	if (get_top_delta_name(device, &image, &fmt, NULL))
 		return(SYSEXIT_SYSFS);
 
 	if (strcmp(fmt, "raw") == 0) {
 		ploop_err(0, "Ballooning for raw format is not supported");
-		return(SYSEXIT_PARAM);
+		ret = SYSEXIT_PARAM;
+		goto err;
 	}
 
 	if (open_delta(delta, image, O_RDONLY|O_DIRECT, OD_ALLOW_DIRTY)) {
 		ploop_err(errno, "open_delta");
-		return(SYSEXIT_OPEN);
+		ret = SYSEXIT_OPEN;
 	}
-	return 0;
+err:
+	free(image);
+	return ret;
 }
 
 __u32 *alloc_reverse_map(__u32 len)

@@ -85,7 +85,8 @@ int get_dev_from_sys(const char *devname, const char *type, char *out,
 int ploop_find_top_delta_name_and_format(const char *device, char *image,
 		size_t image_size, char *format, size_t format_size)
 {
-	char *i = NULL, *f;
+	char *i = NULL;
+	const char *f;
 	int blocksize, rc;
 
 	rc = get_top_delta_name(device, &i, &f, &blocksize);
@@ -117,7 +118,7 @@ int get_top_delta(const char*ldev, char *out, int size)
 	return 0;
 }
 
-int get_top_delta_name(const char *device, char **fname, char **format,
+int get_top_delta_name(const char *device, char **fname, const char **format,
 		int *blocksize)
 {
 	int rc;
@@ -147,7 +148,7 @@ int get_top_delta_name(const char *device, char **fname, char **format,
 	return 0;
 }
 
-int ploop_get_names(const char *device, char **names[], char **format,
+int ploop_get_names(const char *device, char **names[], const char **format,
 		int *blocksize)
 {
 	int rc, i;

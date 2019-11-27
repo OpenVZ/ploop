@@ -99,7 +99,7 @@ struct ploop_functions {
 	void (*release_bitmap)(struct ploop_bitmap *bmap);
 	struct ploop_bitmap *(*get_tracking_bitmap_from_image)(struct ploop_disk_images_data *di, const char *guid);
 	int (*get_fs_info)(const char *descr, struct ploop_fs_info *info, int size);
-	int (*get_names)(const char *devname, char **names[], char **format, int *blocksize);
+	int (*get_names)(const char *devname, char **names[], const char **format, int *blocksize);
 	int (*dm_message)(const char *devname, const char *msg, char **out);
 	int (*resume_device)(const char *devname);
 	int (*suspend_device)(const char *devname);
