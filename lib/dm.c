@@ -325,12 +325,12 @@ int dm_setnoresume(const char *devname, int on)
 
 int ploop_suspend_device(const char *devname)
 {
-	return cmd(get_basename(devname), DM_DEVICE_SUSPEND);
+	return cmd(devname, DM_DEVICE_SUSPEND);
 }
 
 int ploop_resume_device(const char *devname)
 {
-	return cmd(get_basename(devname), DM_DEVICE_RESUME);
+	return cmd(devname, DM_DEVICE_RESUME);
 }
 
 int dm_flip_upper_deltas(const char *devname, const char *ldevname,

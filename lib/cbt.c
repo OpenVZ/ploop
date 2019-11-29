@@ -635,7 +635,7 @@ static int save_dirty_bitmap_from_raw(struct ploop_pvd_dirty_bitmap_raw *in_raw,
 	return 0;
 }
 
-static int delta_save_optional_header(int devfd, struct delta *delta,
+int delta_save_optional_header(int devfd, struct delta *delta,
 		void *or_data, struct ploop_pvd_dirty_bitmap_raw *raw)
 {
 	int ret = 0;
@@ -807,6 +807,7 @@ static int load_dirty_bitmap(struct ext_context *ctx, struct delta *delta,
 {
 	struct ploop_pvd_header *vh;
 	struct ploop_pvd_dirty_bitmap_raw *raw = (struct ploop_pvd_dirty_bitmap_raw *)buf;
+	char x[38];
 
 	vh = (struct ploop_pvd_header *)delta->hdr0;
 
@@ -823,6 +824,8 @@ static int load_dirty_bitmap(struct ext_context *ctx, struct delta *delta,
 		return SYSEXIT_PROTOCOL;
 	}
 
+	ploop_log(0, "Load CBT uuid: %s m_L1Size: %d",
+				uuid2str(raw->m_Id, x), raw->m_L1Size);
 	if (only_truncate)
 		return add_ext_blocks_from_raw(ctx, ctx->raw ?: raw);
 
@@ -830,10 +833,11 @@ static int load_dirty_bitmap(struct ext_context *ctx, struct delta *delta,
 		return SYSEXIT_MALLOC;
 
 	memcpy(ctx->raw, raw, size);
+
 	return raw_move_to_memory(ctx, delta);
 }
 
-int send_dirty_bitmap_to_kernel(struct ext_context *ctx, int devfd,
+int send_dirty_bitmap_to_kernel(struct ext_context *ctx, const char *devname,
 		const char *img_name)
 {
 	int ret = 0;
@@ -843,6 +847,7 @@ int send_dirty_bitmap_to_kernel(struct ext_context *ctx, int devfd,
 	__u32 byte_granularity;
 	struct ploop_pvd_dirty_bitmap_raw *raw = NULL;
 	struct delta delta = {};
+	int devfd;
 
 	if (ctx == NULL)
 		return SYSEXIT_PARAM;
@@ -851,6 +856,12 @@ int send_dirty_bitmap_to_kernel(struct ext_context *ctx, int devfd,
 	if (raw == NULL)
 		return 0;
 
+	devfd =  open(devname, O_RDONLY|O_CLOEXEC);
+	if (devfd == -1) {
+		ploop_err(errno, "Can't open dev %s", devname);
+		return SYSEXIT_DEVICE;
+	}
+
 	if (open_delta(&delta, img_name, O_RDWR, OD_ALLOW_DIRTY))
 		return SYSEXIT_OPEN;
 
@@ -858,7 +869,7 @@ int send_dirty_bitmap_to_kernel(struct ext_context *ctx, int devfd,
 
 	/* granularity and uuid */
 	if ((ret = cbt_start(devfd, raw->m_Id, raw->m_Granularity * SECTOR_SIZE)))
-		return ret;
+		goto out;
 
 	block_size = vh->m_Sectors * SECTOR_SIZE;
 
@@ -885,6 +896,7 @@ int send_dirty_bitmap_to_kernel(struct ext_context *ctx, int devfd,
 
 out:
 	close_delta(&delta);
+	close(devfd);
 	return ret;
 }
 
@@ -1026,7 +1038,7 @@ static int remove_optional_header_from_image(const char *img_name)
 	return ret;
 }
 
-int write_optional_header_to_image(int devfd, const char *img_name,
+static int write_optional_header_to_image(int devfd, const char *img_name,
 		void *or_data)
 {
 	struct delta delta = {};

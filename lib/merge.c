@@ -550,7 +550,7 @@ merge_done:
 
 merge_done2:
 	if (!device && !raw && ret == 0)
-		ploop_move_cbt(images[1], images[0]);
+		ploop_move_cbt(images[0], images[1]);
 
 	free(data_cache);
 	deinit_delta_array(&da);
@@ -618,7 +618,7 @@ static int zero_base_delta(const char *base, const char *top)
 	rc = extend_delta_array(&da, base, O_RDWR, OD_NOFLAGS);
 	if (rc)
 		return rc;
-	rc = extend_delta_array(&da, top, O_RDONLY|O_DIRECT, OD_OFFLINE);
+	rc = extend_delta_array(&da, top, O_RDONLY|O_DIRECT, OD_OFFLINE|OD_ALLOW_DIRTY);
 	if (rc)
 		goto err;
 
@@ -764,6 +764,9 @@ swap:
 	if (rc)
 		goto err;
 	rc = ploop_resume_device(devname);
+	if (rc)
+		goto err;
+	rc = update_delta_inuse(top, 0);
 	if (rc)
 		goto err;
 

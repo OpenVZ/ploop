@@ -137,7 +137,7 @@ static int show(int argc, char **argv)
 
 	argc -= optind;
 	argv += optind;
-
+	ploop_set_verbose_level(PLOOP_LOG_NOCONSOLE);
 	if (argc == 1 && is_xml_fname(argv[0])) {
 		ret = ploop_open_dd(&di, argv[0]);
 		if (ret)

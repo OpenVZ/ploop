@@ -7,6 +7,7 @@ V=2
 BLOCKSIZE=2048
 DELTA=100000
 SIZE=65536
+DEV=/dev/mapper/ploop0
 if [ -f /sys/module/ploop/parameters/large_disk_support ]; then
 	SIZENEW=60485760000
 else
@@ -33,18 +34,19 @@ dd if=/dev/urandom bs=${bs}k count=1 of=$TEST_STORAGE/data
 
 ploop init -v $V -b $BLOCKSIZE -s ${SIZE}k -t none $TEST_IMAGE
 ploop snapshot -u $UUID -b $UUID $TEST_DDXML
-ploop mount -d /dev/ploop0 $TEST_DDXML
+ploop mount -d $DEV $TEST_DDXML
 
 size=$SIZE
 for ((i = 0; i < size; i += bs*DELTA)); do
 	progress Writing $i $size
-	dd if=$TEST_STORAGE/data of=/dev/ploop0 bs=1k seek=$i >/dev/null 2>&1
+	dd if=$TEST_STORAGE/data of=$DEV bs=1k seek=$i >/dev/null 2>&1
 done
 echo
 
 ploop-cbt show $TEST_DDXML > $TEST_STORAGE/data.cbt.1
 
 # OFFLINE
+echo Offline
 ploop umount $TEST_DDXML
 ploop-cbt show $TEST_DDXML > $TEST_STORAGE/data.cbt.2
 diff  -u $TEST_STORAGE/data.cbt.1 $TEST_STORAGE/data.cbt.2
@@ -53,8 +55,9 @@ ploop-cbt show $TEST_DDXML > $TEST_STORAGE/data.cbt.3
 diff  -u $TEST_STORAGE/data.cbt.2 $TEST_STORAGE/data.cbt.3
 
 # ONLINE
+echo Onine
 UUID=`uuidgen`
-ploop mount -d /dev/ploop0 $TEST_DDXML
+ploop mount -d $DEV $TEST_DDXML
 ploop-cbt show $TEST_DDXML > $TEST_STORAGE/data.cbt.1
 ploop snapshot -u $UUID $TEST_DDXML
 ploop-cbt show $TEST_DDXML > $TEST_STORAGE/data.cbt.2

@@ -244,6 +244,7 @@ int change_delta_version(struct delta *delta, int version);
 int change_delta_flags(struct delta * delta, __u32 flags);
 int dirty_delta(struct delta * delta);
 int clear_delta(struct delta * delta);
+int update_delta_inuse(const char *image, int flags);
 int read_size_from_image(const char *img_name, int raw, off_t * res);
 int grow_delta(struct delta *odelta, off_t bdsize, void *buf,
 		struct grow_maps *gm);

@@ -87,9 +87,9 @@ int ploop_find_top_delta_name_and_format(const char *device, char *image,
 {
 	char *i = NULL;
 	const char *f;
-	int blocksize, rc;
+	int rc;
 
-	rc = get_top_delta_name(device, &i, &f, &blocksize);
+	rc = get_top_delta_name(device, &i, &f, NULL);
 	if (rc)
 		return rc;
 
@@ -176,7 +176,10 @@ int ploop_get_names(const char *device, char **names[], const char **format,
 		goto err;
 	n[i] = NULL;
 
-	*names = n;
+	if (names)
+		*names = n;
+	else
+		ploop_free_array(n);
 
 	return 0;
 
