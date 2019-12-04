@@ -1087,7 +1087,6 @@ static int ploop_stop(const char *devname,
 {
 	int rc;
 	char partname[64];
-	struct delta d = {};
 	char *top;
 
 	rc = get_dev_from_sys(devname, "holders", partname, sizeof(partname));
@@ -1108,15 +1107,7 @@ static int ploop_stop(const char *devname,
 		free(top);
 		return rc;
 	}
-
-	if (open_delta(&d, top, O_RDWR, OD_OFFLINE|OD_ALLOW_DIRTY)) {
-		free(top);
-		return SYSEXIT_OPEN;
-	}
 	free(top);
-
-	clear_delta(&d);
-	close_delta(&d);
 
 	return 0;
 }
@@ -1533,9 +1524,7 @@ static int add_delta(char **images, int blocksize, int raw, int ro,
 		snprintf(devname, size, "%s", x);
 	free(x);
 
-	rc = dirty_delta(&d);
 err:
-
 	close_delta(&d);
 	for (i = 1; i < n; i++)
 		close(fds[i]);
@@ -1925,9 +1914,8 @@ static int add_deltas(struct ploop_disk_images_data *di,
 		char **images, struct ploop_mount_param *param,
 		int raw, __u32 blocksize, int *load_cbt)
 {
-	char *device = param->device;
 	int n = 0, ret = 0;
-//	int format_extension_loaded = 0;
+	int format_extension_loaded = 0;
 	struct ext_context *ctx = NULL;
 
 	int ro = param->ro || (di && di->vol && di->vol->ro) ? 1: 0;
@@ -1944,16 +1932,21 @@ static int add_deltas(struct ploop_disk_images_data *di,
 		ctx = create_ext_context();
 		if (ctx == NULL) {
 			ret = SYSEXIT_MALLOC;
-			goto err1;
+			goto err;
 		}
 
 		rc = read_optional_header_from_image(ctx, images[n-1], DIRTY_BITMAP_TRUNCATE);
 		if (rc)
 			ploop_log(0, "Error while loding optional header: %d", rc);
-//		else
-//			format_extension_loaded = 1;
+		else
+			format_extension_loaded = 1;
 	}
 
+	if (!ro) {
+		ret = update_delta_inuse(images[n-1], SIGNATURE_DISK_IN_USE);
+		if (ret)
+			goto err;
+	}
 
 	ret = add_delta(images, blocksize, raw, ro, param->device, sizeof(param->device));
 	if (ret)
@@ -1963,19 +1956,14 @@ static int add_deltas(struct ploop_disk_images_data *di,
 //			(ret = set_max_delta_size(*lfd_p, di->max_delta_size)))
 //		goto err1;
 
-//	if (format_extension_loaded)
-//		send_dirty_bitmap_to_kernel(ctx, *lfd_p, images[i-1]);
+	if (format_extension_loaded)
+		send_dirty_bitmap_to_kernel(ctx, param->device, images[n-1]);
 
 //	ret = check_and_repair_gpt(param->device, blocksize);
 //	if (ret)
 //		goto err1;
 
-err1:
-	if (ret) {
-		ploop_stop(device, di);
-	}
 err:
-
 	free_ext_context(ctx);
 
 	return ret;
@@ -2399,6 +2387,10 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	int ret;
 	char partname[64];
 	char mnt[PATH_MAX] = "";
+	char *top;
+	const char *fmt;
+	struct delta d = {.fd = -1};
+	struct ploop_pvd_header *vh;
 
 	if (!device) {
 		ploop_err(0, "ploop_umount: device is not specified");
@@ -2419,11 +2411,14 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	if (di && di->enc && di->enc->keyid)
 		crypt_close(partname);
 
-	ret = ploop_stop_device(device, di);
+	ret = get_top_delta_name(device, &top, &fmt, NULL);
 	if (ret)
 		return ret;
-#if 0
-	if (strcmp(format, "ploop1") == 0) {
+
+	if (open_delta(&d, top, O_RDWR, OD_ALLOW_DIRTY))
+		return SYSEXIT_OPEN;
+
+	if (strcmp(fmt, "ploop1") == 0) {
 		int lfd = open(device, O_RDONLY|O_CLOEXEC);
 		int rc;
 
@@ -2432,7 +2427,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 			return SYSEXIT_DEVICE;
 		}
 
-		rc = write_optional_header_to_image(lfd, image, NULL);
+		rc = delta_save_optional_header(lfd, &d, NULL, NULL);
 		if (rc)
 			ploop_err(errno, "Warning: saving format extension failed: %d", rc);
 
@@ -2442,12 +2437,25 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 
 		close(lfd);
 	}
-#endif
+
+	ret = ploop_stop_device(device, di);
+	if (ret)
+		goto err;
+
 	if (di != NULL) {
 		get_temp_mountpoint(di->images[0]->file, 0, mnt, sizeof(mnt));
 		if (access(mnt, F_OK) == 0)
 			rmdir(mnt);
 	}
+
+	vh = (struct ploop_pvd_header *) d.hdr0;
+	if (vh->m_DiskInUse == SIGNATURE_DISK_IN_USE)
+		ret = clear_delta(&d);
+
+err:
+
+	close_delta(&d);
+	free(top);
 
 	return ret;
 }

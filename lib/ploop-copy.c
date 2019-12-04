@@ -483,7 +483,7 @@ void ploop_copy_release(struct ploop_copy_handle *h)
 		return;
 
 	if (h->dev_frozen) {
-		if (dm_resume(h->devname))
+		if (ploop_resume_device(h->devname))
 			ploop_err(errno, "Failed to resume %s", h->devname);
 		else
 			h->dev_frozen = 0;
@@ -573,7 +573,7 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 	int ret, err;
 	int blocksize;
 	char *image = NULL;
-	char *format = NULL;
+	const char *format;
 	char device[64];
 	char partdev[64];
 	struct ploop_copy_handle  *_h = NULL;
@@ -827,7 +827,7 @@ int ploop_copy_stop(struct ploop_copy_handle *h,
 
 	ploop_log(3, "pcopy last");
 
-	ret = dm_suspend(h->devname);
+	ret = ploop_suspend_device(h->devname);
 	if (ret)
 		goto err;
 	h->dev_frozen = 1;

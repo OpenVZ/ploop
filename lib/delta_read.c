@@ -235,8 +235,23 @@ int clear_delta(struct delta * delta)
 {
 	int rc = change_delta_state(delta, 0);
 
+	ploop_log(3, "Clear inuse state");
 	if (!rc)
 		delta->dirtied = 0;
+
+	return rc;
+}
+
+int update_delta_inuse(const char *image, int flags)
+{
+	int rc;
+	struct delta d = {};
+
+	ploop_log(3, "Update inuse state %s state=%d", image, flags);
+	if (open_delta(&d, image, O_RDWR, OD_ALLOW_DIRTY))
+		return SYSEXIT_OPEN;
+	rc = change_delta_state(&d, flags);
+	close_delta(&d);
 
 	return rc;
 }

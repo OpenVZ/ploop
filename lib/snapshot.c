@@ -187,6 +187,11 @@ static int create_snapshot_online(struct ploop_disk_images_data *di,
 		goto err;
 	}
 
+	rc = update_delta_inuse(delta, 0);
+	if (rc) {
+		loop_release(ldev);
+		goto err;
+	}
 	rc = dm_snapshot(device, delta, ldev);
 err:
 	free(delta);

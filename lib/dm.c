@@ -30,7 +30,7 @@
 
 #include "ploop.h"
 
-static int dm_message(const char *devname, const char *msg, char **out)
+int ploop_dm_message(const char *devname, const char *msg, char **out)
 {
 	struct dm_task *d;
 	const char *r;
@@ -68,12 +68,17 @@ err:
 	return rc;
 }
 
+void ploop_free_dm_message(char *msg)
+{
+	free(msg);
+}
+
 int dm_get_delta_name(const char *devname, int idx, char **out)
 {
 	char m[64];
 
 	snprintf(m, sizeof(m), "get_delta_name %d", idx);
-	if (dm_message(devname, m, out)) {
+	if (ploop_dm_message(devname, m, out)) {
 		ploop_err(errno, "Failed %s %s", devname, m);
 		return -1;
 	}
@@ -92,7 +97,7 @@ int merge_top_delta(const char *devname)
 	int rc;	
 
 	ploop_log(0, "Merging top delta");
-	rc = dm_message(devname, "merge", NULL);
+	rc = ploop_dm_message(devname, "merge", NULL);
 	if (rc)
 		ploop_err(errno, "Failed to online merge");
 
@@ -105,7 +110,7 @@ int notify_merged_backward (const char *devname, int id)
 	int rc;	
 
 	snprintf(m, sizeof(m), "notify_merged_backward %d", id);
-	rc = dm_message(devname, m, NULL);
+	rc = ploop_dm_message(devname, m, NULL);
 	if (rc)
 		ploop_err(errno, "Failed %s %s", m, devname);
 
@@ -128,7 +133,7 @@ int update_delta_index(const char *devname, int delta_idx, struct grow_maps *gm)
 				gm->ctl->rmap[i].iblk);
 	}
 
-	rc = dm_message(devname, m, NULL);
+	rc = ploop_dm_message(devname, m, NULL);
 	if (rc)
 		ploop_err(errno, "Failed %s %s", m, devname);
 
@@ -230,7 +235,7 @@ int dm_resize(const char *devname, off_t size)
 	char m[64];
 
 	snprintf(m, sizeof(m), "resize %lu", size);
-	rc = dm_message(devname, m, NULL);
+	rc = ploop_dm_message(devname, m, NULL);
 	if (rc)
 		ploop_err(errno, "Cann not resize %s", devname);
 
@@ -249,7 +254,7 @@ int dm_snapshot(const char *devname, const char *top,  const char *ldevname)
         }
 
 	snprintf(m, sizeof(m), "snapshot %d %s", fd, ldevname);
-	rc = dm_message(devname, m, NULL);
+	rc = ploop_dm_message(devname, m, NULL);
 	if (rc)
 		ploop_err(errno, "Failed %s %s", devname, m);
 
@@ -263,7 +268,7 @@ int dm_tracking_start(const char *devname)
 	int rc;
 
 	ploop_log(0, "Start tracking on %s", devname);
-	rc = dm_message(devname, "tracking_start", NULL);
+	rc = ploop_dm_message(devname, "tracking_start", NULL);
 	if (rc)
 		ploop_err(errno, "Can not start tracking on %s", devname);
 
@@ -275,7 +280,7 @@ int dm_tracking_stop(const char *devname)
 	int rc;
 
 	ploop_log(0, "Stop tracking on %s", devname);
-	rc = dm_message(devname, "tracking_stop", NULL);
+	rc = ploop_dm_message(devname, "tracking_stop", NULL);
 	if (rc)
 		ploop_err(errno, "Can not stop tracking on %s", devname);
 
@@ -287,7 +292,7 @@ int dm_tracking_get_next(const char *devname, __u64 *pos)
 	char *out = NULL;
 	int rc;
 
-	rc = dm_message(devname, "tracking_get_next", &out);
+	rc = ploop_dm_message(devname, "tracking_get_next", &out);
 	if (rc) {
 		if (errno != EAGAIN)
 			ploop_err(errno, "Can not get next tracking block on %s",
@@ -309,7 +314,7 @@ int dm_setnoresume(const char *devname, int on)
 	int rc;
 
 	ploop_log(0, "Set noresume: %d", on);
-	rc = dm_message(devname, on ? "set_noresume 1" :
+	rc = ploop_dm_message(devname, on ? "set_noresume 1" :
 			"set_noresume 0", NULL);
 	if (rc)
 		ploop_err(errno, "Can not set noresume %d on %s",
@@ -317,14 +322,15 @@ int dm_setnoresume(const char *devname, int on)
 	return rc;
 }
 
-int dm_suspend(const char *devname)
+
+int ploop_suspend_device(const char *devname)
 {
-	return cmd(get_basename(devname), DM_DEVICE_SUSPEND);
+	return cmd(devname, DM_DEVICE_SUSPEND);
 }
 
-int dm_resume(const char *devname)
+int ploop_resume_device(const char *devname)
 {
-	return cmd(get_basename(devname), DM_DEVICE_RESUME);
+	return cmd(devname, DM_DEVICE_RESUME);
 }
 
 int dm_flip_upper_deltas(const char *devname, const char *ldevname,
@@ -344,7 +350,7 @@ int dm_flip_upper_deltas(const char *devname, const char *ldevname,
 	}
 	snprintf(m, sizeof(m), "flip_upper_deltas %s %d",
 			ldevname, fd);
-	rc = dm_message(devname, m, NULL);
+	rc = ploop_dm_message(devname, m, NULL);
 	if (rc)
 		ploop_err(errno, "Failed %s %s", devname, m);
 
@@ -670,7 +676,7 @@ int dm_reload(struct ploop_disk_images_data *di, const char *device,
 	char *p, *e;
 	char **images;
 
-	rc = dm_suspend(device);
+	rc = ploop_suspend_device(device);
 	if (rc)
 		return rc;
 
@@ -710,7 +716,7 @@ err:
 		close(fds[i]);
 	ploop_free_array(images);
 
-	int rc1 = dm_resume(device);
+	int rc1 = ploop_resume_device(device);
 
 	return rc ? rc : rc1;
 }

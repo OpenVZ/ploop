@@ -109,7 +109,7 @@ static int grow_lower_delta(const char *device, int top,
 	int i;
 	struct ploop_pvd_header *vh;
 	struct grow_maps grow_maps;
-	char *fmt;
+	const char *fmt;
 	int dst_is_raw = 0;
 	void *buf = NULL;
 	struct delta odelta = {.fd = -1};
@@ -124,7 +124,7 @@ static int grow_lower_delta(const char *device, int top,
 	if (ret)
 		return ret;
 
-	if (get_delta_names(device, &names, &fmt, &blocksize)) {
+	if (ploop_get_names(device, &names, &fmt, &blocksize)) {
 		ploop_err(errno, "find_delta_names");
 		ret = SYSEXIT_SYSFS;
 		goto done;
@@ -550,7 +550,7 @@ merge_done:
 
 merge_done2:
 	if (!device && !raw && ret == 0)
-		ploop_move_cbt(images[1], images[0]);
+		ploop_move_cbt(images[0], images[1]);
 
 	free(data_cache);
 	deinit_delta_array(&da);
@@ -618,7 +618,7 @@ static int zero_base_delta(const char *base, const char *top)
 	rc = extend_delta_array(&da, base, O_RDWR, OD_NOFLAGS);
 	if (rc)
 		return rc;
-	rc = extend_delta_array(&da, top, O_RDONLY|O_DIRECT, OD_OFFLINE);
+	rc = extend_delta_array(&da, top, O_RDONLY|O_DIRECT, OD_OFFLINE|OD_ALLOW_DIRTY);
 	if (rc)
 		goto err;
 
@@ -732,7 +732,7 @@ static int reverse_merge_online(struct ploop_disk_images_data *di,
 	if (rc && errno != EBUSY)
 		goto err1;
 	// 3) suspend
-	rc = dm_suspend(devname);
+	rc = ploop_suspend_device(devname);
 	if (rc)
 		goto err1;
 	// 5) Mark base delta as in transition state
@@ -763,7 +763,10 @@ swap:
 	rc = dm_setnoresume(devname, 0);
 	if (rc)
 		goto err;
-	rc = dm_resume(devname);
+	rc = ploop_resume_device(devname);
+	if (rc)
+		goto err;
+	rc = update_delta_inuse(top, 0);
 	if (rc)
 		goto err;
 
@@ -790,7 +793,7 @@ merge_top:
 err:
 	if (rc) {
 		dm_setnoresume(devname, 0);
-		dm_resume(devname);
+		ploop_resume_device(devname);
 	}
 err1:
 	unlink(cfg1);
@@ -819,7 +822,7 @@ int ploop_delete_snapshot_by_guid(struct ploop_disk_images_data *di,
 	int online = 0;
 	int sid, child_idx; /* parent and child snapshot ids */
 	int i, nelem;
-	char *fmt;
+	const char *fmt;
 	int blocksize;
 
 	ret = SYSEXIT_PARAM;
@@ -886,7 +889,7 @@ int ploop_delete_snapshot_by_guid(struct ploop_disk_images_data *di,
 		ret = complete_running_operation(di, dev);
 		if (ret)
 			return ret;
-		if ((ret = get_delta_names(dev, &names, &fmt, &blocksize)))
+		if ((ret = ploop_get_names(dev, &names, &fmt, &blocksize)))
 			return ret;
 		nelem = get_list_size(names);
 		for (i = 0; names[i] != NULL; i++) {

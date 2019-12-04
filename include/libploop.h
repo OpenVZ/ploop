@@ -363,7 +363,13 @@ int ploop_clone_dd(struct ploop_disk_images_data *di, const char *guid,
 struct ploop_bitmap *ploop_get_used_bitmap_from_image(struct ploop_disk_images_data *di, const char *guid);
 struct ploop_bitmap *ploop_get_tracking_bitmap_from_image(struct ploop_disk_images_data *di, const char *guid);
 void ploop_release_bitmap(struct ploop_bitmap *bmap);
-int ploop_get_names(const char *devname, char **names[]);
+int ploop_get_names(const char *devname, char **names[], const char **format,
+		int *blocksize);
+int ploop_dm_message(const char *devname, const char *msg, char **out);
+void ploop_free_dm_message(char *msg);
+int ploop_suspend_device(const char *devname);
+int ploop_resume_device(const char *devname);
+
 /* deprecated */
 PLOOP_DEPRECATED char *ploop_get_base_delta_uuid(struct ploop_disk_images_data *di);
 PLOOP_DEPRECATED int ploop_complete_running_operation(const char *device);

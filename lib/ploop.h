@@ -244,6 +244,7 @@ int change_delta_version(struct delta *delta, int version);
 int change_delta_flags(struct delta * delta, __u32 flags);
 int dirty_delta(struct delta * delta);
 int clear_delta(struct delta * delta);
+int update_delta_inuse(const char *image, int flags);
 int read_size_from_image(const char *img_name, int raw, off_t * res);
 int grow_delta(struct delta *odelta, off_t bdsize, void *buf,
 		struct grow_maps *gm);
@@ -508,10 +509,8 @@ int get_loop_by_delta(const char *delta, char **out[]);
 int get_dev_by_loop(char **devs, char **out[]);
 int get_dev_from_sys(const char *devname, const char *type,char *out, int len);
 int get_top_delta(const char*ldev, char *out, int size);
-int get_top_delta_name(const char *device, char **fname, char **format,
+int get_top_delta_name(const char *device, char **fname, const char **format,
                 int *blocksize);
-int get_delta_names(const char *device, char **names[], char **format,
-		int *blocksize);
 PL_EXT int dm_get_delta_name(const char *devname, int idx, char **out);
 int append_array_entry(const char *entry, char **ar[], int nelem);
 int merge_top_delta(const char *devname);
@@ -523,8 +522,6 @@ int dm_remove(const char *devname);
 int dm_resize(const char *devname, off_t size);
 int dm_snapshot(const char *devname, const char *top,  const char *ldevname);
 int dm_setnoresume(const char *devname, int on);
-int dm_suspend(const char *devname);
-int dm_resume(const char *devname);
 int dm_tracking_start(const char *devname);
 int dm_tracking_stop(const char *devname);
 int dm_tracking_get_next(const char *devname, __u64 *pos);
