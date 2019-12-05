@@ -700,20 +700,6 @@ int ploop_init_device(const char *device, struct ploop_create_param *param)
 	return ret;
 }
 
-static int create_partition(struct ploop_disk_images_data *di, const char *devname)
-{
-	int rc, part;
-
-	return 0;
-	rc = has_partition(devname, &part);
-	if (rc)
-		return rc;
-	if (!part)
-		rc = create_gpt_partition(devname, di->blocksize);
-
-	return rc;
-}
-
 int ploop_init_image(struct ploop_disk_images_data *di,
 		struct ploop_create_param *param)
 {
@@ -735,12 +721,6 @@ int ploop_init_image(struct ploop_disk_images_data *di,
 	ret = mount_image(di, &mount_param);
 	if (ret)
 		goto err;
-
-	if (!param->without_partition) {
-		ret = create_partition(di, mount_param.device);
-		if (ret)
-			goto err;
-	}
 
 	ret = get_part_devname(di, mount_param.device, devname, sizeof(devname),
 			partname, sizeof(partname));
