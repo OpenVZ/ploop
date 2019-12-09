@@ -45,7 +45,7 @@ def crypt_open(key_id, device, name):
     return 0
     
 def crypt_close(name):
-    for i in xrange(60):
+    for i in range(60):
         rc = run_cryptsetup(('luksClose %s' % name).split())
         if rc == 0:
             return 0
