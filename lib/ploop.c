@@ -2446,15 +2446,6 @@ int ploop_umount_image(struct ploop_disk_images_data *di)
 	return ret;
 }
 
-int get_image_param_online(const char *device, off_t *size,
-		__u32 *blocksize, int *version)
-{
-	// FIXME
-	*version = PLOOP_FMT_V2;
-	*blocksize = 2048;
-	return ploop_get_size(device, size);
-}
-
 int get_image_param_offline(struct ploop_disk_images_data *di,
 		const char *guid, off_t *size, __u32 *blocksize,
 		int *version)
@@ -2532,7 +2523,7 @@ int ploop_grow_device(struct ploop_disk_images_data *di,
 	char ldev[64];
 	__u32 blocksize;
 
-	rc = get_image_param_offline(di, di->top_guid, &size, &blocksize, &version);
+	rc = get_image_param_online(device, &size, &blocksize, &version);
 	if (rc)
 		return rc;
 	rc = ploop_get_size(device, &size);
