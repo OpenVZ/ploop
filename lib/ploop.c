@@ -1486,11 +1486,6 @@ static int add_delta(char **images, int blocksize, int raw, int ro,
 	if (rc)
 		goto err;
 
-	char *x = realpath(devname, NULL);
-	if (x != NULL)
-		snprintf(devname, size, "%s", x);
-	free(x);
-
 err:
 	close_delta(&d);
 	for (i = 1; i < n; i++)
@@ -2693,35 +2688,24 @@ static int ploop_raw_discard(struct ploop_disk_images_data *di, const char *devi
  *	part_dev_size=/dev/ploopNp1
  */
 static int shrink_device(struct ploop_disk_images_data *di,
-		const char *device, const char *part_device, dev_t part_dev,
-		off_t part_dev_size, off_t new_size, __u32 blocksize)
+		const char *device, const char *part_device,
+		off_t part_dev_size, off_t fs_size, __u32 blocksize)
 {
 	struct dump2fs_data data;
-	__u32 part_start, start_offset = 0;
 	int ret;
-	int top, raw;
+	int raw;
 	off_t start, end;
 
-	if (dev_num2dev_start(part_dev, &part_start, &start_offset)) {
-		ploop_err(0, "Can't find out offset from start of ploop device (%s)",
-				part_device);
-		return SYSEXIT_SYSFS;
-	}
-	ret = ploop_get_attr(device, "top", &top);
-	if (ret)
-		return SYSEXIT_SYSFS;
-
-	raw = (di->mode == PLOOP_RAW_MODE && top == 0);
-	ploop_log(0, "Offline shrink %s dev=%s size=%lu new_size=%lu, start=%u/%u",
+	raw = (di->mode == PLOOP_RAW_MODE && di->nimages == 1);
+	ploop_log(0, "Offline shrink %s dev=%s size=%lu new_size=%lu",
 			(raw) ? "raw" : "",
-			part_device, (long)part_dev_size, (long)new_size,
-			part_start, start_offset);
+			part_device, (long)part_dev_size, (long)fs_size);
 	ret = e2fsck(part_device, E2FSCK_FORCE | E2FSCK_PREEN, NULL);
 	if (ret)
 		return ret;
 
 	/* offline resize */
-	ret = resize_fs(part_device, new_size);
+	ret = resize_fs(part_device, fs_size);
 	if (ret)
 		return ret;
 
@@ -2729,8 +2713,8 @@ static int shrink_device(struct ploop_disk_images_data *di,
 	if (ret)
 		return ret;
 
-	start = part_start + B2S(data.block_count * data.block_size);
-	end = part_start + part_dev_size - start_offset;
+	start = B2S(data.block_count * data.block_size);
+	end = part_dev_size;
 	if (raw)
 		ret = ploop_raw_discard(di, device, blocksize, start, end);
 	else
@@ -2946,8 +2930,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di,
 			drop_statfs_info(di->images[0]->file);
 
 			ret = shrink_device(di, mount_param.device, partname,
-					st.st_dev, part_dev_size,
-					new_fs_size, blocksize);
+					part_dev_size, new_fs_size, blocksize);
 			if (ret)
 				goto err;
 		} else {
