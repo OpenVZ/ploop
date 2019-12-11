@@ -668,7 +668,7 @@ int find_dev_by_delta(const char *delta, char *out, int len)
 }
 
 int dm_reload(struct ploop_disk_images_data *di, const char *device,
-	 	const char *ldev, off_t new_size)
+	 	const char *ldev, off_t new_size, __u32 blocksize)
 {
 	int rc, *fds, i, n = 0;
 	char t[PATH_MAX];
@@ -690,7 +690,8 @@ int dm_reload(struct ploop_disk_images_data *di, const char *device,
 	fds = alloca(n * sizeof(int));
 	p = t;
 	e = p + sizeof(t);
-	p += snprintf(p, e-p, "0 %lu ploop %s", new_size, ldev);
+	p += snprintf(p, e-p, "0 %lu ploop %d %s",
+			new_size, ffs(blocksize)-1, ldev);
 	for (i = 0; i < n-1; i++) {
 		ploop_log(0, "Add delta %s (ro)", images[i]);
 		fds[i] = open(images[i], O_DIRECT | O_RDONLY);

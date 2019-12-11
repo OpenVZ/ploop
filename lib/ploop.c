@@ -2532,10 +2532,14 @@ int get_image_param(struct ploop_disk_images_data *di, const char *guid,
 int ploop_grow_device(struct ploop_disk_images_data *di,
 		const char *device, off_t new_size)
 {
-	int rc;
+	int rc, version;
 	off_t size;
 	char ldev[64];
+	__u32 blocksize;
 
+	rc = get_image_param_offline(di, di->top_guid, &size, &blocksize, &version);
+	if (rc)
+		return rc;
 	rc = ploop_get_size(device, &size);
 	if (rc)
 		return rc;
@@ -2555,7 +2559,7 @@ int ploop_grow_device(struct ploop_disk_images_data *di,
 	if (rc)
 		return rc;
 
-	rc = dm_reload(di, device, ldev, new_size);
+	rc = dm_reload(di, device, ldev, new_size, blocksize);
 	if (rc)
 		return rc;
 #if 0
