@@ -503,8 +503,6 @@ __u32 *alloc_reverse_map(__u32 len);
 int range_build_rmap(__u32 iblk_start, __u32 iblk_end,
 		__u32 *rmap, __u32 rlen, struct delta *delta, __u32 *out);
 
-int dm_reload(struct ploop_disk_images_data *di, const char *device,
-		const char *ldev, off_t new_size);
 int get_loop_by_delta(const char *delta, char **out[]);
 int get_dev_by_loop(char **devs, char **out[]);
 int get_dev_from_sys(const char *devname, const char *type,char *out, int len);
@@ -528,7 +526,7 @@ int dm_tracking_get_next(const char *devname, __u64 *pos);
 int dm_flip_upper_deltas(const char *devname, const char *ldevname,
 		const char *top_delta);
 int dm_reload(struct ploop_disk_images_data *di, const char *device,
-		const char *ldev, off_t new_size);
+		const char *ldev, off_t new_size, __u32 blocksize);
 int find_devs(struct ploop_disk_images_data *di, char ***out);
 int find_dev(struct ploop_disk_images_data *di, char *out, int len);
 int find_devs_by_delta(const char *delta, char ***out);
