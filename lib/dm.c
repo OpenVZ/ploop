@@ -365,6 +365,7 @@ struct table_data {
 	char devname[64];
 	const char *base;
 	const char *top;
+	__u32 blocksize;
 };
 
 /* return:
@@ -535,6 +536,33 @@ err:
 int ploop_list(void)
 {
 	return dm_list(display_entry, NULL);
+}
+
+static int get_params(struct dm_task *task, struct table_data *data)
+{
+	if (data->params == NULL)
+		return 0;
+	if (sscanf(data->params, "%*d:%*d %*d %*s %d", &data->blocksize) != 1) {
+		ploop_err(0, "malformed params '%s'", data->params);
+		return -1;
+	}
+	return 1;
+}
+
+int get_image_param_online(const char *devname, off_t *size,
+                __u32 *blocksize, int *version)
+
+{
+	int rc;
+	struct table_data d = {};
+
+	rc = dm_table(devname, get_params, &d);
+	if (rc)
+		return rc;
+
+	*blocksize = d.blocksize;
+	*version = PLOOP_FMT_V2;
+	return ploop_get_size(devname, size);
 }
 
 static int dm_find_dev_by_loop(const char *ldevname,
