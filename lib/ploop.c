@@ -252,11 +252,6 @@ int ploop_is_large_disk_supported(void)
 	return 1;
 }
 
-int is_native_discard(const char *device)
-{
-	return 1;
-}
-
 static int is_fmt_version_valid(int version)
 {
 	return version >= PLOOP_FMT_V1;

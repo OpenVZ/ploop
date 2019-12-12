@@ -299,8 +299,6 @@ int ploop_balloon_change_size(const char *device, int balloonfd, off_t new_size)
 	int    ret;
 	off_t  old_size;
 	__u32  dev_start;  /* /sys/block/ploop0/ploop0p1/start */
-	__u32  n_free_blocks;
-	__u32  freezed_a_h;
 	struct ploop_balloon_ctl    b_ctl;
 	struct stat		    st;
 	struct pfiemap		   *pfiemap = NULL;
@@ -310,10 +308,8 @@ int ploop_balloon_change_size(const char *device, int balloonfd, off_t new_size)
 	struct ploop_freeblks_ctl  *freeblks = NULL;
 	struct ploop_relocblks_ctl *relocblks = NULL;
 	__u32 *reverse_map = NULL;
-	__u32  reverse_map_len;
 	int top_level;
 	struct delta delta = { .fd = -1 };
-	int entries_used;
 	int drop_state = 0;
 
 return 0;
@@ -373,66 +369,7 @@ return 0;
 	ret = do_inflate(balloonfd, b_ctl.mntn_type, old_size, &new_size, &drop_state);
 	if (ret)
 		goto err;
-	if (is_native_discard(device)) {
-		drop_state = 1;
-		goto out;
-	}
-
-	reverse_map_len = delta.l2_size + delta.l2_size;
-	reverse_map = alloc_reverse_map(reverse_map_len);
-	if (reverse_map == NULL) {
-		ret = SYSEXIT_MALLOC;
-		goto err;
-	}
-
-	ret = fiemap_get(balloonfd, S2B(dev_start), old_size, new_size, &pfiemap);
-	if (ret)
-		goto err;
-	fiemap_adjust(pfiemap, delta.blocksize);
-	ret = fiemap_build_rmap(pfiemap, reverse_map, reverse_map_len, &delta);
-	if (ret)
-		goto err;
-
-	ret = rmap2freemap(reverse_map, 0, reverse_map_len, &freemap, &entries_used);
-	if (ret)
-		goto err;
-	if (entries_used == 0) {
-		drop_state = 1;
-		ploop_log(0, "No unused cluster blocks found");
-		goto out;
-	}
-
-	ret = freemap2freeblks(freemap, top_level, &freeblks, &n_free_blocks);
-	if (ret)
-		goto err;
-	ret = ioctl_device(fd, PLOOP_IOC_FREEBLKS, freeblks);
-	if (ret)
-		goto err;
-
-	freezed_a_h = freeblks->alloc_head;
-	if (freezed_a_h > reverse_map_len) {
-		ploop_err(0, "Image corrupted: a_h=%u > rlen=%u",
-			freezed_a_h, reverse_map_len);
-		ret = SYSEXIT_PLOOPFMT;
-		goto err;
-	}
-
-	ret = range_build(freezed_a_h, n_free_blocks, reverse_map, reverse_map_len,
-		    &delta, freemap, &rangemap, &relocmap);
-	if (ret)
-		goto err;
-
-	ret = relocmap2relocblks(relocmap, top_level, freezed_a_h, n_free_blocks,
-			   &relocblks);
-	if (ret)
-		goto err;
-	ret = ioctl_device(fd, PLOOP_IOC_RELOCBLKS, relocblks);
-	if (ret)
-		goto err;
-	ploop_log(0, "TRUNCATED: %u cluster-blocks (%llu bytes)",
-			relocblks->alloc_head,
-			(unsigned long long)(relocblks->alloc_head * S2B(delta.blocksize)));
-out:
+	drop_state = 1;
 	ret = 0;
 err:
 	if (drop_state) {
