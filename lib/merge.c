@@ -986,12 +986,18 @@ int ploop_delete_snapshot_by_guid(struct ploop_disk_images_data *di,
 			raw ? " (raw)" : "");
 	log_merge_images_info(di, names, start_level, end_level, new_delta);
 
+	/* To automerge in case crash */
+	di->snapshots[parent_idx]->temporary = 1;
+	get_disk_descriptor_fname(di, conf, sizeof(conf));
+	ret = ploop_store_diskdescriptor(conf, di);
+	if (ret)
+		goto err;
+	
 	/* make validation before real merge */
 	ret = ploop_di_delete_snapshot(di, guid, merge_top_online, &delete_fname);
 	if (ret)
 		goto err;
 
-	get_disk_descriptor_fname(di, conf, sizeof(conf));
 	snprintf(conf_tmp, sizeof(conf_tmp), "%s.tmp", conf);
 	ret = ploop_store_diskdescriptor(conf_tmp, di);
 	if (ret)
