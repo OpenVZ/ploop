@@ -664,9 +664,14 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 
 	/* header needs fix but we can't */
 	if (ro) {
-		ploop_err(0, "Image is clean but unable to fix the header on ro image");
-		ret = SYSEXIT_WRITE;
-		goto done;
+		if (!(flags & CHECK_DROPINUSE)) {
+			ploop_err(0, "Image is clean but unable to fix the header on ro image");
+			ret = SYSEXIT_WRITE;
+			goto done;
+		}
+		ret = reopen_rw(img, &fd);
+		if (ret)
+			goto done;
 	}
 
 	vh->m_DiskInUse = 0;
