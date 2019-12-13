@@ -896,6 +896,13 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di,
 			raw ? " (raw)" : "");
 	log_merge_images_info(di, names, new_delta);
 
+	/* To automerge in case crash */
+	di->snapshots[parent_idx]->temporary = 1;
+	get_disk_descriptor_fname(di, conf, sizeof(conf));
+	ret = ploop_store_diskdescriptor(conf, di);
+	if (ret)
+		goto err;
+	
 	/* make validation before real merge */
 	ret = ploop_di_merge_image(di, child_guid, &delete_fname);
 	if (ret)
@@ -905,7 +912,6 @@ int ploop_merge_snapshot_by_guid(struct ploop_disk_images_data *di,
 	 */
 	parent_guid = NULL;
 
-	get_disk_descriptor_fname(di, conf, sizeof(conf));
 	snprintf(conf_tmp, sizeof(conf_tmp), "%s.tmp", conf);
 	ret = ploop_store_diskdescriptor(conf_tmp, di);
 	if (ret)
