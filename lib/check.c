@@ -740,7 +740,7 @@ int check_dd(struct ploop_disk_images_data *di, const char *uuid)
 	__u32 blocksize;
 	int raw;
 	int ret;
-	char **devices;
+	char **devices = NULL;
 
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
