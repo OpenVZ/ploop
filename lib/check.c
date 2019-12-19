@@ -95,7 +95,7 @@ int write_safe(int fd, void * buf, unsigned int size, off_t pos, char *msg)
 	return SYSEXIT_WRITE;
 }
 
-static int fsync_safe(int fd)
+int fsync_safe(int fd)
 {
 	if (fsync(fd)) {
 		ploop_err(errno, "fsync");
@@ -323,9 +323,15 @@ static int check_and_repair(const char *image, int *fd, int flags)
 	if (sfs.f_type != EXT4_SUPER_MAGIC)
 		return 0;
 
-	if (open_delta(&delta, image, O_RDONLY|O_DIRECT, OD_ALLOW_DIRTY)) {
+	if (open_delta(&delta, image, O_RDWR, OD_ALLOW_DIRTY)) {
 		ploop_err(errno, "open_delta %s", image);
 		return SYSEXIT_OPEN;
+	}
+
+	if (!(flags & CHECK_READONLY)) {
+		ret = image_defrag(&delta);
+		if (ret)
+			return ret;
 	}
 
 	rmap = alloc_reverse_map(delta.l2_size);
