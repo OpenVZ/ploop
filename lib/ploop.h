@@ -226,6 +226,19 @@ static inline off_t ploop_ioff_to_sec(__u32 iblk, __u32 blocksize, int version)
 	return 0;
 }
 
+static inline int ploop_fmt_log(int version)
+{
+	switch(version) {
+	case PLOOP_FMT_V1:
+		return 11;
+	case PLOOP_FMT_V2:
+		return 0;
+	default:
+		assert(0);
+		return 0;
+	}
+}
+
 int gen_uuid_pair(char *uuid1, int len1, char *uuid2, int len2);
 PL_EXT int find_level_by_delta(const char *device, const char *delta, int *level);
 PL_EXT int ploop_get_attr(const char * device, const char * attr, int * res);
@@ -536,4 +549,6 @@ int loop_create(const char *delta, char *ldev, int size);
 int grow_loop_image(const char *devname, const char *delta,
 		int blocksize, __u64 size);
 PL_EXT int ploop_list(void);
+int fsync_safe(int fd);
+int image_defrag(struct delta *delta);
 #endif
