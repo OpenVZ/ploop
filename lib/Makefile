@@ -19,6 +19,7 @@ LIBOBJS=uuid.o \
 	balloon_util.o \
 	check.o \
 	crypt.o \
+	defrag.c \
 	ploop.o \
 	xml.o \
 	logger.o \
