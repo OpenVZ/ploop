@@ -633,7 +633,8 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 
 	if ((off_t)alloc_head * cluster < stb.st_size) {
 		if (!ro) {
-			ploop_log(0, "Trimming tail");
+			ploop_log(0, "Max cluster: %d (image size %lu) trimming tail",
+					alloc_head, stb.st_size);
 			if (ftruncate(fd, (off_t)alloc_head * cluster)) {
 				ploop_err(errno, "ftruncate");
 				ret = SYSEXIT_FTRUNCATE;
