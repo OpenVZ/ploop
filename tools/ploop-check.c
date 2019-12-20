@@ -68,10 +68,11 @@ int plooptool_check(int argc, char ** argv)
 		{"blocksize", required_argument, NULL, 'b'},
 		{"repair-sparse", no_argument, NULL, 'S'},
 		{"uuid", required_argument, NULL, 'u'},
+		{"defrag", no_argument, NULL, 'D'},
 		{ NULL, 0, NULL, 0 }
 	};
 
-	while ((i = getopt_long(argc, argv, "fFcrsdRb:Su:", options, &idx)) != EOF) {
+	while ((i = getopt_long(argc, argv, "fFcrsdRb:Su:D", options, &idx)) != EOF) {
 		switch (i) {
 		case 'f':
 			/* try to repair non-fatal conditions */
@@ -111,6 +112,9 @@ int plooptool_check(int argc, char ** argv)
 			uuid = parse_uuid(optarg);
 			if (!uuid)
 				return SYSEXIT_PARAM;
+			break;
+		case 'D':
+			flags |= CHECK_DEFRAG;
 			break;
 		default:
 			usage();
