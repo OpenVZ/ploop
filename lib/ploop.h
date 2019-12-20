@@ -64,6 +64,7 @@
 #define CHECK_READONLY		0x20	/* do a read-only check */
 #define CHECK_TALKATIVE		0x40	/* be verbose, produce more output */
 #define CHECK_RAW		0x80	/* delta is in raw format */
+#define CHECK_DEFRAG		0x100
 
 /* load/remove dirty bitmap flags */
 #define DIRTY_BITMAP_REMOVE	0x01

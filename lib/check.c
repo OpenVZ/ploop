@@ -330,7 +330,7 @@ static int check_and_repair(const char *image, int *fd, int flags)
 		return SYSEXIT_OPEN;
 	}
 
-	if (!(flags & CHECK_READONLY)) {
+	if (!(flags & CHECK_READONLY) && (flags & CHECK_DEFRAG)) {
 		ret = image_defrag(&delta);
 		if (ret)
 			return ret;
@@ -715,7 +715,7 @@ int check_deltas(struct ploop_disk_images_data *di, char **images,
 	for (i = 0; images[i] != NULL; i++) {
 		int raw_delta = (raw && i == 0);
 		int ro = (images[i+1] != NULL);
-		int flags = CHECK_DETAILED |
+		int flags = CHECK_DETAILED | CHECK_DEFRAG |
 			(di ? (CHECK_DROPINUSE | CHECK_REPAIR_SPARSE) : 0) |
 			(ro ? CHECK_READONLY : 0) |
 			(raw_delta ? CHECK_RAW : 0);

@@ -193,3 +193,18 @@ err:
 
 	return rc;
 }
+
+int ploop_image_defrag(const char *image, int flags)
+{
+	int rc;
+	struct delta d = {};
+
+	rc = open_delta(&d, image, O_RDWR, OD_ALLOW_DIRTY);
+	if (rc)
+		return rc;
+
+	rc = image_defrag(&d);
+	close_delta(&d);
+
+	return rc;
+}

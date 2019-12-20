@@ -369,7 +369,7 @@ int ploop_dm_message(const char *devname, const char *msg, char **out);
 void ploop_free_dm_message(char *msg);
 int ploop_suspend_device(const char *devname);
 int ploop_resume_device(const char *devname);
-
+int ploop_image_defrag(const char *image, int flags);
 /* deprecated */
 PLOOP_DEPRECATED char *ploop_get_base_delta_uuid(struct ploop_disk_images_data *di);
 PLOOP_DEPRECATED int ploop_complete_running_operation(const char *device);
