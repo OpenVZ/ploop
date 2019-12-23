@@ -95,7 +95,7 @@ int write_safe(int fd, void * buf, unsigned int size, off_t pos, char *msg)
 	return SYSEXIT_WRITE;
 }
 
-static int fsync_safe(int fd)
+int fsync_safe(int fd)
 {
 	if (fsync(fd)) {
 		ploop_err(errno, "fsync");
@@ -325,9 +325,15 @@ static int check_and_repair(const char *image, int *fd, int flags)
 	if (sfs.f_type != EXT4_SUPER_MAGIC)
 		return 0;
 
-	if (open_delta(&delta, image, O_RDONLY|O_DIRECT, OD_ALLOW_DIRTY)) {
+	if (open_delta(&delta, image, O_RDWR, OD_ALLOW_DIRTY)) {
 		ploop_err(errno, "open_delta %s", image);
 		return SYSEXIT_OPEN;
+	}
+
+	if (!(flags & CHECK_READONLY) && (flags & CHECK_DEFRAG)) {
+		ret = image_defrag(&delta);
+		if (ret)
+			return ret;
 	}
 
 	rmap = alloc_reverse_map(delta.l2_size);
@@ -627,7 +633,8 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 
 	if ((off_t)alloc_head * cluster < stb.st_size) {
 		if (!ro) {
-			ploop_log(0, "Trimming tail");
+			ploop_log(0, "Max cluster: %d (image size %lu) trimming tail",
+					alloc_head, stb.st_size);
 			if (ftruncate(fd, (off_t)alloc_head * cluster)) {
 				ploop_err(errno, "ftruncate");
 				ret = SYSEXIT_FTRUNCATE;
@@ -708,7 +715,7 @@ int check_deltas(struct ploop_disk_images_data *di, char **images,
 	for (i = 0; images[i] != NULL; i++) {
 		int raw_delta = (raw && i == 0);
 		int ro = (images[i+1] != NULL);
-		int flags = CHECK_DETAILED |
+		int flags = CHECK_DETAILED | CHECK_DEFRAG |
 			(di ? (CHECK_DROPINUSE | CHECK_REPAIR_SPARSE) : 0) |
 			(ro ? CHECK_READONLY : 0) |
 			(raw_delta ? CHECK_RAW : 0);
