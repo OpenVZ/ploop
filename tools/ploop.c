@@ -1155,6 +1155,7 @@ static int plooptool_list(int argc, char **argv)
 		return SYSEXIT_PARAM;
 	}
 
+	ploop_set_verbose_level(PLOOP_LOG_NOCONSOLE);
 	return ploop_list();
 }
 
