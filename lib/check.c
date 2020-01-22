@@ -314,7 +314,6 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 	struct delta delta = {.fd = -1};
 	struct delta *delta_p = NULL;
 	__u32 *rmap = NULL;
-	__u32 rmap_len;
 
 	ret = fstatfs(*fd, &sfs);
 	if (ret < 0) {
@@ -344,7 +343,7 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 		}
 
 		ret = range_build_rmap(1, delta.l2_size * sizeof(__u32),
-				rmap, delta.l2_size, &delta, &rmap_len);
+				rmap, delta.l2_size, &delta, NULL);
 		if (ret)
 			goto out;
 
@@ -353,7 +352,7 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 	}
 	prev_end = 0;
 	last = 0;
-	end = (rmap_len + 1) * S2B(delta.blocksize);
+	end = delta.l2_size * S2B(delta.blocksize);
 	while (!last && prev_end < end) {
 		fiemap->fm_start	= prev_end;
 		fiemap->fm_length	= end;

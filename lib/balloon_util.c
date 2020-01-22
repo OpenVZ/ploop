@@ -553,8 +553,7 @@ int range_build_rmap(__u32 iblk_start, __u32 iblk_end,
 		if (iblk_start <= ridx && ridx < iblk_end) {
 			rmap[ridx] = l2_cluster * (cluster / sizeof(__u32)) +
 				     l2_slot - PLOOP_MAP_OFFSET;
-			if (ridx > n_found)
-				n_found = ridx;
+			n_found++;
 			if (n_found >= n_requested)
 				break;
 		}
