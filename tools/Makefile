@@ -5,7 +5,8 @@ include $(PLOOPROOT)/Makefile.inc
 PROGS =	ploop \
 	ploop-balloon \
 	ploop-cbt \
-	ploop-volume
+	ploop-test \
+	ploop-volume 
 
 BINS	= $(PROGS)
 
