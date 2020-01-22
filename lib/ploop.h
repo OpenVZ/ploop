@@ -552,4 +552,5 @@ int grow_loop_image(const char *devname, const char *delta,
 PL_EXT int ploop_list(void);
 int fsync_safe(int fd);
 int image_defrag(struct delta *delta);
+PL_EXT int ploop_image_shuffle(const char *image, int nr, int flags);
 #endif

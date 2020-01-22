@@ -57,7 +57,7 @@ static int reallocate_cluster(struct delta *delta, __u32 clu,
 	s = src * cluster;
 	d = dst * cluster;
 
-	ploop_log(0, "Reallocate cluster %d data from %u/off: %lu to %u/off: %lu",
+	ploop_log(0, "Reallocate cluster #%d data from %u/off: %lu to %u/off: %lu",
 			clu, src, s, dst, d);
 	while (len) {
 		int r = copy_file_range(delta->fd, &s, delta->fd, &d, len, 0);
@@ -113,19 +113,36 @@ static int do_defrag(struct delta *delta,
 }
 
 static int build_idx_map(struct delta *delta,
-		__u32 *idx_map, __u32 idx_map_size, 
-		__u64 *hole_bitmap, __u32 hole_bitmap_size)
+		__u32 **map, __u32 *map_size, 
+		__u64 **hole_bitmap, __u32 *hole_bitmap_size)
 {
 	int log, nr_clu_in_bat, nr_clusters = 0;
-	__u32 clu, cluster;
+	__u32 clu, cluster, *idx_map;
+	__u64 size;
 	struct ploop_pvd_header *hdr = (struct ploop_pvd_header *) delta->hdr0;
+
+	*map_size = hdr->m_Size;
+	idx_map = malloc(hdr->m_Size * sizeof(__u32));
+	*map = idx_map;
+	if (idx_map == NULL)
+		return SYSEXIT_MALLOC;
+
+	nr_clu_in_bat = hdr->m_FirstBlockOffset / hdr->m_Sectors;
+	*hole_bitmap_size = hdr->m_Size + nr_clu_in_bat;
+	size = (*hole_bitmap_size + 7) / 8; /* round up byte */
+	size = (size + sizeof(unsigned long)-1) & ~(sizeof(unsigned long)-1);
+	if (p_memalign((void *)hole_bitmap, sizeof(__u64), size)) {
+		free(idx_map);
+		return SYSEXIT_MALLOC;
+	}
+	memset(*hole_bitmap, 0xff, size);
 
 	nr_clu_in_bat = hdr->m_FirstBlockOffset / hdr->m_Sectors;
 	log = ploop_fmt_log(delta->version);
 	cluster = S2B(delta->blocksize);
 
 	for (clu = 0; clu < nr_clu_in_bat; clu++)
-		BMAP_CLR(hole_bitmap, clu);
+		BMAP_CLR(*hole_bitmap, clu);
 
 	for (clu = 0; clu < hdr->m_Size; clu++) {
 		int l2_cluster = (clu + PLOOP_MAP_OFFSET) / (cluster / sizeof(__u32));
@@ -138,11 +155,11 @@ static int build_idx_map(struct delta *delta,
 
 		idx_map[clu] = delta->l2[l2_slot] >> log; 
 		if (idx_map[clu]) {
-			if (idx_map[clu] < hole_bitmap_size)
-				BMAP_CLR(hole_bitmap, idx_map[clu]);
+			if (idx_map[clu] < *hole_bitmap_size)
+				BMAP_CLR(*hole_bitmap, idx_map[clu]);
 			else
 				ploop_log(0, "Cluster %d[%d] allocated outside devce %d",
-					clu, idx_map[clu], hole_bitmap_size);
+					clu, idx_map[clu], *hole_bitmap_size);
 
 			nr_clusters++;
 		}
@@ -154,39 +171,22 @@ static int build_idx_map(struct delta *delta,
 int image_defrag(struct delta *delta)
 {
 	int rc = 0, nr_clusters;
-	__u32 nr_clu_in_bat, hole_bitmap_size, *idx_map;
-	__u64 *hole_bitmap, size;
-	struct ploop_pvd_header *hdr = (struct ploop_pvd_header *) delta->hdr0;
+	__u32 hole_bitmap_size, *idx_map, idx_map_size;
+	__u64 *hole_bitmap;
 
 	if (delta->version == PLOOP_FMT_V1)
 		return 0;
 
-	idx_map = calloc(hdr->m_Size, sizeof(__u32));
-	if (idx_map == NULL)
-		return SYSEXIT_MALLOC;
-
-	nr_clu_in_bat = hdr->m_FirstBlockOffset / hdr->m_Sectors;
-	hole_bitmap_size = hdr->m_Size + nr_clu_in_bat;
-	size = (hole_bitmap_size + 7) / 8; /* round up byte */
-	size = (size + sizeof(unsigned long)-1) & ~(sizeof(unsigned long)-1);
-	if (p_memalign((void *)&hole_bitmap, sizeof(__u64), size)) {
-		free(idx_map);
-		return SYSEXIT_MALLOC;
-	}
-	memset(hole_bitmap, 0xff, size);
-
-	nr_clusters = build_idx_map(delta, idx_map, hdr->m_Size,
-			hole_bitmap, hole_bitmap_size);
+	nr_clusters = build_idx_map(delta, &idx_map, &idx_map_size,
+			&hole_bitmap, &hole_bitmap_size);
 	if (nr_clusters == -1) {
 		rc = SYSEXIT_READ;
 		goto err;
 	} else if (nr_clusters == 0)
 		goto err;
 	
-
-	rc = do_defrag(delta, idx_map, hdr->m_Size,
-                        hole_bitmap, hole_bitmap_size, nr_clusters);
-
+	rc = do_defrag(delta, idx_map, idx_map_size, hole_bitmap,
+			hole_bitmap_size, nr_clusters);
 err:
 	free(idx_map);
 	free(hole_bitmap);
@@ -204,6 +204,49 @@ int ploop_image_defrag(const char *image, int flags)
 		return rc;
 
 	rc = image_defrag(&d);
+	close_delta(&d);
+
+	return rc;
+}
+
+int ploop_image_shuffle(const char *image, int nr, int flags)
+{
+	int rc, nr_clusters, i, n = 0;
+	__u32 hole_bitmap_size, *idx_map, idx_map_size, dst;
+	__u64 *hole_bitmap;
+	struct delta d = {};
+
+	rc = open_delta(&d, image, O_RDWR, OD_ALLOW_DIRTY);
+	if (rc)
+		return rc;
+
+	if (d.version == PLOOP_FMT_V1)
+		return 0;
+
+	nr_clusters = build_idx_map(&d, &idx_map, &idx_map_size,
+			&hole_bitmap, &hole_bitmap_size);
+	if (nr_clusters == -1) {
+		rc = SYSEXIT_READ;
+		goto err;
+	} else if (nr_clusters == 0)
+		goto err;
+
+	ploop_log(0, "Image %s clusters: %d total clusters: %lu",
+			image, nr_clusters, d.l2_size);
+	dst = d.l2_size;
+	for (i = 0; i < idx_map_size; i++) {
+		if (idx_map[i] == 0)
+			continue;
+		rc = reallocate_cluster(&d, i, idx_map[i], ++dst);
+		if (rc)
+			return rc;
+		if (n++ >= nr)
+			break;
+	}
+
+err:
+	free(idx_map);
+	free(hole_bitmap);
 	close_delta(&d);
 
 	return rc;
