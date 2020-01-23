@@ -301,7 +301,8 @@ static int check_and_repair(const char *image, int *fd, int flags)
 	int last;
 	int i, ret;
 	struct statfs sfs;
-	uint64_t prev_end, end;
+	uint64_t prev_end;
+	off_t end;
 	uint64_t cluster;
 	char buf[40960] = "";
 	struct fiemap *fiemap = (struct fiemap *)buf;
@@ -312,6 +313,7 @@ static int check_and_repair(const char *image, int *fd, int flags)
 	int repair = flags & CHECK_REPAIR_SPARSE;
 	struct delta delta = {};
 	__u32 *rmap = NULL;
+	struct stat st;
 
 	ret = fstatfs(*fd, &sfs);
 	if (ret < 0) {
@@ -322,6 +324,11 @@ static int check_and_repair(const char *image, int *fd, int flags)
 	if (sfs.f_type != EXT4_SUPER_MAGIC)
 		return 0;
 
+	if (fstat(*fd, &st)) {
+		ploop_err(errno, "Cannot fstat %s", image);
+		return SYSEXIT_FSTAT;
+	}
+
 	if (open_delta(&delta, image, O_RDWR, OD_ALLOW_DIRTY)) {
 		ploop_err(errno, "open_delta %s", image);
 		return SYSEXIT_OPEN;
@@ -329,6 +336,8 @@ static int check_and_repair(const char *image, int *fd, int flags)
 
 	if (!(flags & CHECK_READONLY) && (flags & CHECK_DEFRAG)) {
 		ret = image_defrag(&delta);
+
+
 		if (ret)
 			return ret;
 	}
@@ -347,7 +356,7 @@ static int check_and_repair(const char *image, int *fd, int flags)
 	cluster = S2B(delta.blocksize);
 	prev_end = 0;
 	last = 0;
-	end = delta.l2_size * S2B(delta.blocksize);
+	end = st.st_size;
 	while (!last && prev_end < end) {
 		fiemap->fm_start	= prev_end;
 		fiemap->fm_length	= end;
