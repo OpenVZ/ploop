@@ -514,8 +514,8 @@ int store_diskdescriptor(const char *fname, struct ploop_disk_images_data *di,
 int ploop_get_mntn_state(int fd, int *state);
 __u32 *alloc_reverse_map(__u32 len);
 int range_build_rmap(__u32 iblk_start, __u32 iblk_end,
-		__u32 *rmap, __u32 rlen, struct delta *delta, __u32 *out);
-
+		__u32 *rmap, __u32 rlen, struct delta *delta,
+		__u32 *out, __u32 *max);
 int get_loop_by_delta(const char *delta, char **out[]);
 int get_dev_by_loop(char **devs, char **out[]);
 int get_dev_from_sys(const char *devname, const char *type,char *out, int len);

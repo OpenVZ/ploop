@@ -282,8 +282,8 @@ static int restore_hole(const char *image, int *fd, off_t start,
 		if (id >= rmap_size)
 			continue;
 		if (offset > data_offset && rmap[id] == PLOOP_ZERO_INDEX) {
-			ploop_log(0, "Restore the hole at offset=%lu len=%lu",
-					offset, len);
+			ploop_log(0, "Restore the hole at offset=%lu len=%lu ID=%d",
+					offset, len, id);
 			if (*log == 0) {
 				*log = 1;
 				print_output(0, "filefrag -vs", image);
@@ -309,7 +309,7 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 	int i, ret;
 	struct statfs sfs;
 	uint64_t prev_end;
-	off_t end;
+	off_t end = 0;
 	char buf[40960] = "";
 	struct fiemap *fiemap = (struct fiemap *)buf;
 	struct fiemap_extent *fm_ext = &fiemap->fm_extents[0];
@@ -320,7 +320,6 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 	struct delta delta = {.fd = -1};
 	struct delta *delta_p = NULL;
 	__u32 *rmap = NULL, rmap_size = 0;
-	struct stat st;
 
 	return 0;
 
@@ -333,12 +332,9 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 	if (sfs.f_type != EXT4_SUPER_MAGIC)
 		return 0;
 
-	if (fstat(*fd, &st)) {
-		ploop_err(errno, "Cannot fstat %s", image);
-		return SYSEXIT_FSTAT;
-	}
-
 	if (!(flags & CHECK_RAW)) {
+		__u32 max = 0;
+
 		if (open_delta(&delta, image, O_RDWR, OD_ALLOW_DIRTY)) {
 			ploop_err(errno, "open_delta %s", image);
 			return SYSEXIT_OPEN;
@@ -350,24 +346,27 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 				return ret;
 		}
 
-		rmap_size = delta.l2_size;
+		rmap_size = delta.l2_size + delta.l1_size;
 		rmap = alloc_reverse_map(rmap_size);
 		if (rmap == NULL) {
 			ret = SYSEXIT_MALLOC;
 			goto out;
 		}
 
-		ret = range_build_rmap(1, delta.l2_size * sizeof(__u32),
-				rmap, rmap_size, &delta, NULL);
+		ret = range_build_rmap(1, rmap_size,
+				rmap, rmap_size, &delta, NULL, &max);
 		if (ret)
 			goto out;
-
+		rmap_size = max + 1;
 		cluster = S2B(delta.blocksize);
 		delta_p = &delta;
+		end = cluster * (max + 1);
+	} else {
+		return 0;
 	}
+
 	prev_end = 0;
 	last = 0;
-	end = st.st_size;
 	while (!last && prev_end < end) {
 		fiemap->fm_start	= prev_end;
 		fiemap->fm_length	= end;
