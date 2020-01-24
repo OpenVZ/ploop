@@ -215,7 +215,7 @@ static int reopen_rw(const char *image, int *fd)
 }
 
 static int fill_hole(const char *image, int *fd, off_t start, off_t end,
-		struct delta *delta, __u32 *rmap, int *log, int repair)
+		struct delta *delta, __u32 *rmap, __u32 rmap_size, int *log, int repair)
 {
 	int ret;
 	static const char buf[0x100000];
@@ -229,6 +229,8 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end,
 		len = MIN(e - offset, end - offset);
 		if (rmap) {
 			__u32 id = offset / cluster ;
+			if (id >= rmap_size)
+				continue;
 			if (offset > data_offset && rmap[id] == PLOOP_ZERO_INDEX)
 				continue;
 		}
@@ -263,7 +265,8 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end,
 }
 
 static int restore_hole(const char *image, int *fd, off_t start,
-		 off_t end, struct delta *delta, __u32 *rmap,
+		off_t end, struct delta *delta,
+		__u32 *rmap, __u32 rmap_size,
 		 int *log, int repair)
 {
 	int ret;
@@ -276,6 +279,8 @@ static int restore_hole(const char *image, int *fd, off_t start,
 
 		len = MIN(e - offset, end - offset);
 		__u32 id = offset / cluster ;
+		if (id >= rmap_size)
+			continue;
 		if (offset > data_offset && rmap[id] == PLOOP_ZERO_INDEX) {
 			ploop_log(0, "Restore the hole at offset=%lu len=%lu",
 					offset, len);
@@ -314,7 +319,7 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 	int repair = flags & CHECK_REPAIR_SPARSE;
 	struct delta delta = {.fd = -1};
 	struct delta *delta_p = NULL;
-	__u32 *rmap = NULL;
+	__u32 *rmap = NULL, rmap_size = 0;
 	struct stat st;
 
 	return 0;
@@ -345,14 +350,15 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 				return ret;
 		}
 
-		rmap = alloc_reverse_map(delta.l2_size);
+		rmap_size = delta.l2_size;
+		rmap = alloc_reverse_map(rmap_size);
 		if (rmap == NULL) {
 			ret = SYSEXIT_MALLOC;
 			goto out;
 		}
 
 		ret = range_build_rmap(1, delta.l2_size * sizeof(__u32),
-				rmap, delta.l2_size, &delta, NULL);
+				rmap, rmap_size, &delta, NULL);
 		if (ret)
 			goto out;
 
@@ -394,7 +400,7 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 
 				ret = fill_hole(image, fd, fm_ext[i].fe_logical,
 						fm_ext[i].fe_logical + fm_ext[i].fe_length,
-						delta_p, rmap, &log, repair);
+						delta_p, rmap, rmap_size, &log, repair);
 				if (ret)
 					goto out;
 			}
@@ -405,12 +411,12 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 									fm_ext[i].fe_flags);
 			if (prev_end != fm_ext[i].fe_logical &&
 					(ret = fill_hole(image, fd, prev_end, fm_ext[i].fe_logical,
-							 delta_p, rmap, &log, repair)))
+							 delta_p, rmap, rmap_size, &log, repair)))
 				goto out;
 
 			if (repair) {
 				ret = restore_hole(image, fd, fm_ext[i].fe_logical, fm_ext[i].fe_logical + fm_ext[i].fe_length,
-					delta_p, rmap, &log, repair);
+					delta_p, rmap, rmap_size, &log, repair);
 				if (ret)
 					goto out;
 			}
@@ -420,7 +426,7 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 	}
 
 	if (prev_end < end &&
-			(ret = fill_hole(image, fd, prev_end, end, delta_p, rmap, &log, repair)))
+			(ret = fill_hole(image, fd, prev_end, end, delta_p, rmap, rmap_size,  &log, repair)))
 		goto out;
 
 	if (log)
