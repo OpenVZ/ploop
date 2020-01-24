@@ -280,8 +280,8 @@ static int restore_hole(const char *image, int *fd, off_t start,
 		if (id >= rmap_size)
 			continue;
 		if (offset > data_offset && rmap[id] == PLOOP_ZERO_INDEX) {
-			ploop_log(0, "Restore the hole at offset=%lu len=%lu",
-					offset, len);
+			ploop_log(0, "Restore the hole at offset=%lu len=%lu ID=%d",
+					offset, len, id);
 			if (*log == 0) {
 				*log = 1;
 				print_output(0, "filefrag -vs", image);
@@ -317,8 +317,7 @@ static int check_and_repair(const char *image, int *fd, int flags)
 		    sizeof(struct fiemap_extent);
 	int repair = flags & CHECK_REPAIR_SPARSE;
 	struct delta delta = {};
-	__u32 *rmap = NULL, rmap_size = 0;
-	struct stat st;
+	__u32 *rmap = NULL, rmap_size = 0, max = 0;
 
 	ret = fstatfs(*fd, &sfs);
 	if (ret < 0) {
@@ -329,11 +328,6 @@ static int check_and_repair(const char *image, int *fd, int flags)
 	if (sfs.f_type != EXT4_SUPER_MAGIC)
 		return 0;
 
-	if (fstat(*fd, &st)) {
-		ploop_err(errno, "Cannot fstat %s", image);
-		return SYSEXIT_FSTAT;
-	}
-
 	if (open_delta(&delta, image, O_RDWR, OD_ALLOW_DIRTY)) {
 		ploop_err(errno, "open_delta %s", image);
 		return SYSEXIT_OPEN;
@@ -341,28 +335,27 @@ static int check_and_repair(const char *image, int *fd, int flags)
 
 	if (!(flags & CHECK_READONLY) && (flags & CHECK_DEFRAG)) {
 		ret = image_defrag(&delta);
-
-
 		if (ret)
 			return ret;
 	}
 
-	rmap_size = delta.l2_size;
+	rmap_size = delta.l2_size + delta.l1_size;
 	rmap = alloc_reverse_map(rmap_size);
 	if (rmap == NULL) {
 		ret = SYSEXIT_MALLOC;
 		goto out;
 	}
 
-	ret = range_build_rmap(1, delta.l2_size * sizeof(__u32),
-			rmap, delta.l2_size, &delta, NULL);
+	ret = range_build_rmap(1, rmap_size,
+			rmap, rmap_size, &delta, NULL, &max);
 	if (ret)
 		goto out;
 
+	rmap_size = max + 1;
 	cluster = S2B(delta.blocksize);
 	prev_end = 0;
 	last = 0;
-	end = st.st_size;
+	end = cluster * (max + 1);
 	while (!last && prev_end < end) {
 		fiemap->fm_start	= prev_end;
 		fiemap->fm_length	= end;

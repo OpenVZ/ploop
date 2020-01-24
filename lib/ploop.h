@@ -525,7 +525,8 @@ int ploop_get_mntn_state(int fd, int *state);
 int is_native_discard(const char *device);
 __u32 *alloc_reverse_map(__u32 len);
 int range_build_rmap(__u32 iblk_start, __u32 iblk_end,
-		__u32 *rmap, __u32 rlen, struct delta *delta, __u32 *out);
+		__u32 *rmap, __u32 rlen, struct delta *delta,
+		__u32 *out, __u32 *max);
 int fsync_safe(int fd);
 int image_defrag(struct delta *delta);
 #endif
