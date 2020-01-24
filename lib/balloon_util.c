@@ -491,7 +491,8 @@ int freeblks2freemap(struct ploop_freeblks_ctl *freeblks,
 }
 
 int range_build_rmap(__u32 iblk_start, __u32 iblk_end,
-		       __u32 *rmap, __u32 rlen, struct delta *delta, __u32 *out)
+		__u32 *rmap, __u32 rlen, struct delta *delta,
+		__u32 *out, __u32 *max)
 {
 	__u32 clu;
 	__u32 n_found = 0;
@@ -535,6 +536,8 @@ int range_build_rmap(__u32 iblk_start, __u32 iblk_end,
 		}
 		ridx = delta->l2[l2_slot] / ploop_sec_to_ioff(delta->blocksize,
 				delta->blocksize, delta->version);
+		if (ridx == 0)
+			continue;
 		if (ridx >= rlen) {
 			ploop_err(0,
 				"Image corrupted: L2[%u] == %u (max=%" PRIu64 ") (2)",
@@ -553,6 +556,10 @@ int range_build_rmap(__u32 iblk_start, __u32 iblk_end,
 		if (iblk_start <= ridx && ridx < iblk_end) {
 			rmap[ridx] = l2_cluster * (cluster / sizeof(__u32)) +
 				     l2_slot - PLOOP_MAP_OFFSET;
+
+			assert(rmap[ridx] == clu);
+			if (max && rmap[ridx] > *max)
+				*max = rmap[ridx];
 			n_found++;
 			if (n_found >= n_requested)
 				break;
@@ -576,7 +583,7 @@ int range_build(__u32 a_h, __u32 n_free_blocks,
 	__u32 n;
 	int entries_used;
 
-	ret = range_build_rmap(s, a_h, rmap, rlen, delta, &n);
+	ret = range_build_rmap(s, a_h, rmap, rlen, delta, &n, NULL);
 	if (ret)
 		return ret;
 
