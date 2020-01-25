@@ -558,8 +558,8 @@ int range_build_rmap(__u32 iblk_start, __u32 iblk_end,
 				     l2_slot - PLOOP_MAP_OFFSET;
 
 			assert(rmap[ridx] == clu);
-			if (max && rmap[ridx] > *max)
-				*max = rmap[ridx];
+			if (max && ridx > *max)
+				*max = ridx;
 			n_found++;
 			if (n_found >= n_requested)
 				break;
