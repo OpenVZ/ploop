@@ -528,6 +528,9 @@ int range_build_rmap(__u32 iblk_start, __u32 iblk_end,
 		__u32 *rmap, __u32 rlen, struct delta *delta,
 		__u32 *out, __u32 *max);
 int fsync_safe(int fd);
+int build_hole_bitmap(struct delta *delta, __u64 **hole_bitmap,
+		__u32 *hole_bitmap_size, int *nr_clusters);
 int image_defrag(struct delta *delta);
+int dump_bat(struct delta *delta, const char *image);
 PL_EXT int ploop_image_shuffle(const char *image, int nr, int flags);
 #endif
