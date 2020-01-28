@@ -248,7 +248,7 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end,
 				return ret;
 		}
 
-		ploop_log(1, "Filling hole at start=%lu len=%lu",
+		ploop_log(0, "Filling hole at start=%lu len=%lu",
 				(long unsigned)offset, (long unsigned)len);
 
 		n = pwrite(*fd, buf, len, offset);
@@ -339,6 +339,8 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 			ploop_err(errno, "open_delta %s", image);
 			return SYSEXIT_OPEN;
 		}
+
+		dump_bat(&delta, image);
 
 		if (!(flags & CHECK_READONLY) && (flags & CHECK_DEFRAG)) {
 			ret = image_defrag(&delta);

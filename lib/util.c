@@ -333,3 +333,31 @@ const char *get_snap_str(int temporary)
 {
 	return temporary ? "temporary snapshot" : "snapshot";
 }
+
+int dump_bat(struct delta *delta, const char *image)
+{
+	__u32 clu, cluster;
+	struct ploop_pvd_header *hdr = (struct ploop_pvd_header *) delta->hdr0;
+
+	cluster = S2B(delta->blocksize);
+	ploop_log(0, "Image %s", image);
+	ploop_log(0, "Size %d blocks", hdr->m_Size);
+	ploop_log(0, "Cluster %d sectors", hdr->m_Sectors);
+	ploop_log(0, "Fmt %d", ploop1_version(hdr));
+	
+	for (clu = 0; clu < hdr->m_Size; clu++) {
+		int l2_cluster = (clu + PLOOP_MAP_OFFSET) / (cluster / sizeof(__u32));
+		__u32 l2_slot  = (clu + PLOOP_MAP_OFFSET) % (cluster / sizeof(__u32));
+		if (delta->l2_cache != l2_cluster) {
+			if (PREAD(delta, delta->l2, cluster, (off_t)l2_cluster * cluster))
+				return SYSEXIT_READ;
+			delta->l2_cache = l2_cluster;
+		}
+
+		if (delta->l2[l2_slot] == 0)
+			continue;
+
+		ploop_log(0, "%d -> %d", clu, delta->l2[l2_slot]);
+	}
+	return 0;
+}

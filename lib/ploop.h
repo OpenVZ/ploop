@@ -551,6 +551,9 @@ int grow_loop_image(const char *devname, const char *delta,
 		int blocksize, __u64 size);
 PL_EXT int ploop_list(void);
 int fsync_safe(int fd);
+int build_hole_bitmap(struct delta *delta, __u64 **hole_bitmap,
+		__u32 *hole_bitmap_size, int *nr_clusters);
 int image_defrag(struct delta *delta);
+int dump_bat(struct delta *delta, const char *image);
 PL_EXT int ploop_image_shuffle(const char *image, int nr, int flags);
 #endif
