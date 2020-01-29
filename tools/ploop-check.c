@@ -46,6 +46,7 @@ static void usage(void)
 "	-R, --raw            - DELTA is a raw ploop image\n"
 "	-b, --blocksize SIZE - cluster block size in sectors (for raw images)\n"
 "	-S, --repair-sparse  - repair sparse image\n"
+"	-D, --defrag         - cluster block defragmentation\n"
 	);
 }
 
