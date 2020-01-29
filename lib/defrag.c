@@ -188,9 +188,6 @@ int image_defrag(struct delta *delta)
 	__u32 hole_bitmap_size;
 	__u64 *hole_bitmap;
 
-	if (delta->version == PLOOP_FMT_V1)
-		return 0;
-
 	rc = build_hole_bitmap(delta, &hole_bitmap,
 			&hole_bitmap_size, &nr_clusters);
 	if (rc || nr_clusters == 0)
@@ -227,9 +224,6 @@ int ploop_image_shuffle(const char *image, int nr, int flags)
 	rc = open_delta(&d, image, O_RDWR, OD_ALLOW_DIRTY);
 	if (rc)
 		return rc;
-
-	if (d.version == PLOOP_FMT_V1)
-		return 0;
 
 	rc = build_hole_bitmap(&d, &hole_bitmap, &hole_bitmap_size, &nr_clusters);
 	if (rc || nr_clusters == 0)
