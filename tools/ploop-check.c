@@ -53,8 +53,7 @@ static void usage(void)
 int plooptool_check(int argc, char ** argv)
 {
 	int i, idx;
-	const int def_flags = CHECK_TALKATIVE;
-	int flags = def_flags;
+	int flags = CHECK_TALKATIVE;
 	unsigned int blocksize = 0;
 	char *endptr;
 	const char *uuid = NULL;
@@ -135,15 +134,15 @@ int plooptool_check(int argc, char ** argv)
 		struct ploop_disk_images_data *di;
 		int ret;
 
-		if (flags != def_flags || blocksize)
-			fprintf(stderr, "WARNING: options are ignored "
+		if (blocksize)
+			fprintf(stderr, "WARNING: blocksize options is ignored "
 					"for DiskDescriptor.xml form\n");
 
 		ret = ploop_open_dd(&di, argv[0]);
 		if (ret)
 			return ret;
 
-		ret = check_dd(di, uuid);
+		ret = check_dd(di, uuid, flags);
 
 		ploop_close_dd(di);
 
