@@ -2114,7 +2114,7 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 	if (di && (ret = check_and_restore_fmt_version(di)))
 		goto err;
 
-	ret = check_deltas(di, images, raw, &blocksize, &load_cbt);
+	ret = check_deltas(di, images, raw, &blocksize, &load_cbt, 0);
 	if (ret)
 		goto err;
 

@@ -384,7 +384,8 @@ int do_create_snapshot(struct ploop_disk_images_data *di,
 			char *topdelta[] = {find_image_by_guid(di, di->top_guid), NULL};
 			blocksize = di->blocksize;
 
-			ret = check_deltas(di, topdelta, 0, &blocksize, NULL);
+			ret = check_deltas(di, topdelta, 0, &blocksize,
+					NULL, 0);
 			if (ret)
 				return ret;
 
