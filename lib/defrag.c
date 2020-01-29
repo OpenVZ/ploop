@@ -60,8 +60,8 @@ static int reallocate_cluster(struct delta *delta, __u32 clu,
 	__u32 cluster = S2B(delta->blocksize);
 	int len = cluster;
 
-	s = src * cluster;
-	d = dst * cluster;
+	s = (off_t)src * cluster;
+	d = (off_t)dst * cluster;
 
 	ploop_log(0, "Reallocate cluster #%d data from %u/off: %lu to %u/off: %lu",
 			clu, src, s, dst, d);
