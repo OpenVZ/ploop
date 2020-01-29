@@ -344,11 +344,19 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 
 		if (!(flags & CHECK_READONLY) && (flags & CHECK_DEFRAG)) {
 			ret = image_defrag(&delta);
-			if (ret)
-				return ret;
+			goto out;
 		}
 
 		rmap_size = delta.l2_size + delta.l1_size;
+		if (delta.alloc_head > rmap_size) {
+			if (delta.alloc_head > rmap_size * 2) {
+				ploop_err(0, "Image %s size %d blocks exceeds device size %d blocks",
+					image, delta.alloc_head, rmap_size);
+				ret = SYSEXIT_PARAM;
+				goto out;
+			}
+			rmap_size = delta.alloc_head;
+		}
 		rmap = alloc_reverse_map(rmap_size);
 		if (rmap == NULL) {
 			ret = SYSEXIT_MALLOC;
