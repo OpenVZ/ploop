@@ -731,7 +731,7 @@ int check_deltas(struct ploop_disk_images_data *di, char **images,
 	for (i = 0; images[i] != NULL; i++) {
 		int raw_delta = (raw && i == 0);
 		int ro = (images[i+1] != NULL);
-		int flags = CHECK_DETAILED | CHECK_DEFRAG |
+		int flags = CHECK_DETAILED |
 			(di ? (CHECK_DROPINUSE | CHECK_REPAIR_SPARSE) : 0) |
 			(ro ? CHECK_READONLY : 0) |
 			(raw_delta ? CHECK_RAW : 0);
