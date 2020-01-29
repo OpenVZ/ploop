@@ -369,7 +369,7 @@ const char *get_snap_str(int temporary)
 
 int dump_bat(struct delta *delta, const char *image)
 {
-	__u32 clu, cluster;
+	__u32 clu, cluster, n = 0, m = 0;
 	struct ploop_pvd_header *hdr = (struct ploop_pvd_header *) delta->hdr0;
 
 	cluster = S2B(delta->blocksize);
@@ -389,8 +389,12 @@ int dump_bat(struct delta *delta, const char *image)
 
 		if (delta->l2[l2_slot] == 0)
 			continue;
-
+		if (m < delta->l2[l2_slot])
+			m = delta->l2[l2_slot];
+		n++;	
 		ploop_log(0, "%d -> %d", clu, delta->l2[l2_slot]);
 	}
+
+	ploop_log(0, "Allocated: %d  Max: %d", n, m);
 	return 0;
 }

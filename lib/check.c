@@ -338,15 +338,21 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 			return SYSEXIT_OPEN;
 		}
 
-		dump_bat(&delta, image);
-
 		if (!(flags & CHECK_READONLY) && (flags & CHECK_DEFRAG)) {
 			ret = image_defrag(&delta);
-			if (ret)
-				return ret;
+			goto out;
 		}
 
 		rmap_size = delta.l2_size + delta.l1_size;
+		if (delta.alloc_head > rmap_size) {
+			if (delta.alloc_head > rmap_size * 2) {
+				ploop_err(0, "Image %s size %d blocks exceeds device size %d blocks",
+					image, delta.alloc_head, rmap_size);
+				ret = SYSEXIT_PARAM;
+				goto out;
+			}
+			rmap_size = delta.alloc_head;
+		}
 		rmap = alloc_reverse_map(rmap_size);
 		if (rmap == NULL) {
 			ret = SYSEXIT_MALLOC;
@@ -720,7 +726,7 @@ done:
 }
 
 int check_deltas(struct ploop_disk_images_data *di, char **images,
-		int raw, __u32 *blocksize, int *cbt_allowed)
+		int raw, __u32 *blocksize, int *cbt_allowed, int flags)
 {
 	int i;
 	int ret = 0;
@@ -728,15 +734,17 @@ int check_deltas(struct ploop_disk_images_data *di, char **images,
 	if (cbt_allowed != NULL)
 		*cbt_allowed = 1;
 
+	flags |= CHECK_DETAILED |	
+		(di ? (CHECK_DROPINUSE | CHECK_REPAIR_SPARSE) : 0);
+
 	for (i = 0; images[i] != NULL; i++) {
 		int raw_delta = (raw && i == 0);
 		int ro = (images[i+1] != NULL);
-		int flags = CHECK_DETAILED | CHECK_DEFRAG |
-			(di ? (CHECK_DROPINUSE | CHECK_REPAIR_SPARSE) : 0) |
-			(ro ? CHECK_READONLY : 0) |
+		int delta_cbt_allowed;
+
+		flags |= (ro ? CHECK_READONLY : 0) |
 			(raw_delta ? CHECK_RAW : 0);
 		__u32 cur_blocksize = raw_delta ? *blocksize : 0;
-		int delta_cbt_allowed;
 
 		ret = ploop_check(images[i], flags, &cur_blocksize,
 				&delta_cbt_allowed);
@@ -762,7 +770,8 @@ int check_deltas(struct ploop_disk_images_data *di, char **images,
 	return ret;
 }
 
-int check_dd(struct ploop_disk_images_data *di, const char *uuid)
+int check_dd(struct ploop_disk_images_data *di, const char *uuid,
+		int flags)
 {
 	char **images;
 	__u32 blocksize;
@@ -795,7 +804,7 @@ int check_dd(struct ploop_disk_images_data *di, const char *uuid)
 	blocksize = di->blocksize;
 	raw = (di->mode == PLOOP_RAW_MODE);
 
-	ret = check_deltas(di, images, raw, &blocksize, NULL);
+	ret = check_deltas(di, images, raw, &blocksize, NULL, flags);
 
 	ploop_free_array(images);
 out:
