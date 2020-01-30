@@ -555,6 +555,6 @@ int fsync_safe(int fd);
 int build_hole_bitmap(struct delta *delta, __u64 **hole_bitmap,
 		__u32 *hole_bitmap_size, int *nr_clusters);
 int image_defrag(struct delta *delta);
-int dump_bat(struct delta *delta, const char *image);
+PL_EXT int dump_bat(const char *image);
 PL_EXT int ploop_image_shuffle(const char *image, int nr, int flags);
 #endif

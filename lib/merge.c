@@ -328,7 +328,7 @@ rm_delta:
 					device ? OD_NOFLAGS : OD_OFFLINE);
 		if (ret)
 			goto merge_done2;
-		dump_bat(&da.delta_arr[i], names[i]);
+		dump_bat(names[i]);
 
 		if (blocksize != da.delta_arr[i].blocksize) {
 			ploop_err(errno, "Wrong blocksize %s bs=%d [prev bs=%d]",
@@ -370,7 +370,7 @@ rm_delta:
 			goto merge_done2;
 		}
 
-		dump_bat(&odelta, names[i]);
+		dump_bat(names[i]);
 		ret = build_hole_bitmap(&odelta, &hb, &hb_size, &nr_clusters);
 		if (ret)
 			goto merge_done2;

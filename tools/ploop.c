@@ -1034,7 +1034,7 @@ static int plooptool_convert(int argc, char **argv)
 
 static void usage_info(void)
 {
-	fprintf(stderr, "Usage: ploop info [-s] [-d] DiskDescriptor.xml\n");
+	fprintf(stderr, "Usage: ploop info [-s [-b]] [-d] DiskDescriptor.xml\n");
 }
 
 static void print_info(struct ploop_info *info)
@@ -1056,9 +1056,10 @@ static int plooptool_info(int argc, char **argv)
 	int ret, i;
 	int spec = 0;
 	int device = 0;
+	int bat = 1;
 	struct ploop_info info = {};
 
-	while ((i = getopt(argc, argv, "sd")) != EOF) {
+	while ((i = getopt(argc, argv, "sdb")) != EOF) {
 		switch (i) {
 		case 's':
 			spec = 1;
@@ -1066,6 +1067,8 @@ static int plooptool_info(int argc, char **argv)
 		case 'd':
 			device = 1;
 			break;
+		case 'b':
+			bat = 1;
 		default:
 			usage_info();
 			return SYSEXIT_PARAM;
@@ -1098,6 +1101,11 @@ static int plooptool_info(int argc, char **argv)
 					(unsigned long long)spec.size,
 					spec.blocksize,
 					spec.fmt_version);
+			if (bat) {
+				int i;
+				for (i = 0; i < di->nimages; i++)
+					dump_bat(di->images[i]->file);
+			}
 		}
 
 		if (device) {
