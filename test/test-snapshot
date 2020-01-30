@@ -1,0 +1,96 @@
+#!/bin/bash
+
+set -e
+. functions
+
+SID1=77167520-004e-4423-a6f8-026bbbce0a00
+BLOCKSIZE=2048
+DELTA=100000
+SIZE=1048576
+V=2
+
+while [ "${#}" -gt 0 ]; do
+case "${1}" in
+	"--online")
+		OFFLINE="no"
+		shift
+		;;
+	"--offline")
+		OFFLINE="yes"
+		shift
+		;;
+	"--merge")
+		MERGE="yes"
+		shift
+		;;
+	"--size")
+		SIZE="${2}"
+		shift
+		shift
+		;;
+	"-v1")
+		V=1
+		shift
+		;;
+	"-v2")
+		V=2
+		shift
+		;;
+
+	*)
+		shift
+		;;
+	esac
+done
+
+test_cleanup
+
+let bs=$BLOCKSIZE/2
+
+ploop init -v ${V} -b $BLOCKSIZE -s ${SIZE}k $TEST_IMAGE
+N=2
+let total=$SIZE/$bs/$N
+echo $total
+for ((i=0; i<$total; i++)) do
+	progress Writing $i $total
+	ploop mount -d /dev/ploop0 -m $TEST_MNT $TEST_DDXML >/dev/null
+	rm -f $TEST_MNT/file.*
+
+	dd if=/dev/urandom bs=${bs}k count=$N of=$TEST_MNT/file.replace >/dev/null 2>&1
+
+	rm -f $TEST_MNT/file.rm
+	ploop balloon discard --defrag $TEST_DDXML >/dev/null
+
+	ploop snapshot -u $SID1 $TEST_DDXML >/dev/null
+	dd if=/dev/urandom bs=${bs}k count=$N of=$TEST_MNT/file.replace >/dev/null 2>&1
+	M1=$(md5sum $TEST_MNT/file.replace)
+	dd if=/dev/urandom bs=${bs}k count=$N of=$TEST_MNT/file.new >/dev/null 2>&1
+	M2=$(md5sum $TEST_MNT/file.new)
+
+	ploop umount $TEST_DDXML >/dev/null
+	ploop snapshot-delete -u $SID1 $TEST_DDXML >/dev/null
+	ploop mount -d /dev/ploop0 -m $TEST_MNT $TEST_DDXML >/dev/null
+
+	M1_n=$(md5sum $TEST_MNT/file.replace)
+	if [ "$M1" != "$M1_n" ]; then
+		echo "md5 replace mismatch"
+		echo $M1
+		echo $M1_n
+		exit 1
+	fi
+	M2_n=$(md5sum $TEST_MNT/file.new)
+	if [ "$M2" != "$M2_n" ]; then
+		echo "md5 new mismatch"
+		echo $M2
+		echo $M2_n
+
+		exit 1
+	fi
+	let SIZE=$SIZE+$bs
+	ploop resize -s ${SIZE}k $TEST_DDXML >/dev/null 2>&1
+	ploop umount $TEST_DDXML >/dev/null
+done
+
+test_cleanup
+
+echo "FINISHED"
