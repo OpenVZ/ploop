@@ -34,6 +34,7 @@
 
 #include "ploop.h"
 #include "cbt.h"
+#include "bit_ops.h"
 
 static int sync_cache(struct delta * delta)
 {
@@ -296,6 +297,8 @@ int merge_image(const char *device, int start_level, int end_level, int raw,
 	__u32 prev_blocksize = 0;
 	int version = PLOOP_FMT_UNDEFINED;
 	const char *merged_image;
+	__u64 *hb = NULL;
+	__u32 free_blk = 0, log, hb_size;
 
 	if (new_image && access(new_image, F_OK) == 0) {
 		ploop_err(EEXIST, "Can't merge to new image %s", new_image);
@@ -374,7 +377,6 @@ rm_delta:
 	}
 
 	init_delta_array(&da);
-
 	for (i = 0; i < last_delta; i++) {
 		// FIXME: add check for blocksize
 		ret = extend_delta_array(&da, names[i],
@@ -406,6 +408,8 @@ rm_delta:
 		goto merge_done2;
 
 	}
+
+	log = ploop_fmt_log(version);
 	cluster = S2B(blocksize);
 
 	if (new_image) { /* Create it */
@@ -422,12 +426,18 @@ rm_delta:
 	}
 
 	if (!raw) {
+		int nr_clusters;
 		if (open_delta(&odelta, merged_image, O_RDWR,
 			       device ? OD_NOFLAGS : OD_OFFLINE)) {
 			ploop_err(errno, "open_delta");
 			ret = SYSEXIT_OPEN;
 			goto merge_done2;
 		}
+
+		ret = build_hole_bitmap(&odelta, &hb, &hb_size, &nr_clusters);
+		if (ret)
+			goto merge_done2;
+
 		if (dirty_delta(&odelta)) {
 			ploop_err(errno, "dirty_delta");
 			ret = SYSEXIT_WRITE;
@@ -546,8 +556,22 @@ rm_delta:
 			}
 
 			if (odelta.l2[k] == 0) {
-				odelta.l2[k] = ploop_sec_to_ioff((off_t)odelta.alloc_head++ * B2S(cluster),
-							blocksize, version);
+				__u32 iblk;
+
+				if (hb) {
+					free_blk = BitFindNextSet64(hb, hb_size, free_blk);
+					if (free_blk == -1) {
+						ploop_log(0, "No free clusters found");
+						free(hb);
+						hb = NULL;
+						iblk = odelta.alloc_head++;
+					} else {
+						iblk = free_blk++;
+					}
+				} else
+					iblk = odelta.alloc_head++;
+
+				odelta.l2[k] = iblk << log;
 				if (odelta.l2[k] == 0) {
 					ploop_err(0, "abort: odelta.l2[k] == 0");
 					ret = SYSEXIT_ABORT;
@@ -663,6 +687,7 @@ merge_done2:
 		ploop_move_cbt(images[1], images[0]);
 
 	free(data_cache);
+	free(hb);
 	deinit_delta_array(&da);
 	return ret;
 }

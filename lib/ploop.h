@@ -301,8 +301,9 @@ int relocmap2relocblks(struct relocmap *relocmap, int lvl, __u32 a_h, __u32 n_sc
 PL_EXT int ploop_check(const char *img, int flags, __u32 *blocksize_p,
 		int *cbt_allowed);
 int check_deltas(struct ploop_disk_images_data *di, char **images,
-		int raw, __u32 *blocksize, int *cbt_allowed);
-PL_EXT int check_dd(struct ploop_disk_images_data *di, const char *uuid);
+		int raw, __u32 *blocksize, int *cbt_allowed, int flags);
+PL_EXT int check_dd(struct ploop_disk_images_data *di, const char *uuid,
+		int flags);
 /* Logging */
 #define LOG_BUF_SIZE	8192
 int ploop_get_log_level(void);
@@ -528,5 +529,8 @@ int range_build_rmap(__u32 iblk_start, __u32 iblk_end,
 		__u32 *rmap, __u32 rlen, struct delta *delta,
 		__u32 *out, __u32 *max);
 int fsync_safe(int fd);
+int build_hole_bitmap(struct delta *delta, __u64 **hole_bitmap,
+		__u32 *hole_bitmap_size, int *nr_clusters);
 int image_defrag(struct delta *delta);
+PL_EXT int dump_bat(const char *image);
 #endif
