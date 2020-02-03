@@ -730,25 +730,33 @@ done:
 int check_deltas(struct ploop_disk_images_data *di, char **images,
 		int raw, __u32 *blocksize, int *cbt_allowed, int flags)
 {
-	int i;
+	int i, f;
 	int ret = 0;
 
 	if (cbt_allowed != NULL)
 		*cbt_allowed = 1;
 
-	flags |= CHECK_DETAILED |	
+	f = flags | CHECK_DETAILED |
 		(di ? (CHECK_DROPINUSE | CHECK_REPAIR_SPARSE) : 0);
 
 	for (i = 0; images[i] != NULL; i++) {
 		int raw_delta = (raw && i == 0);
 		int ro = (images[i+1] != NULL);
 		int delta_cbt_allowed;
-
-		flags |= (ro ? CHECK_READONLY : 0) |
-			(raw_delta ? CHECK_RAW : 0);
 		__u32 cur_blocksize = raw_delta ? *blocksize : 0;
 
-		ret = ploop_check(images[i], flags, &cur_blocksize,
+		if (!(flags & CHECK_READONLY)) {
+			if (ro)
+				f |= CHECK_READONLY;
+			else
+				f &= ~CHECK_READONLY;
+		}
+		if (raw_delta)
+			f |= CHECK_RAW;
+		else
+			f &= ~CHECK_RAW;
+
+		ret = ploop_check(images[i], f, &cur_blocksize,
 				&delta_cbt_allowed);
 		if (ret) {
 			ploop_err(0, "%s : irrecoverable errors (%s)",
