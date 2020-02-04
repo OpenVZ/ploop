@@ -168,7 +168,6 @@ int build_hole_bitmap(struct delta *delta, __u64 **hole_bitmap,
 
 		off = delta->l2[l2_slot] >> log; 
 		if (off < *hole_bitmap_size) {
-			ploop_log(0, "BAT %d -> %d", clu, off);
 			BMAP_CLR(*hole_bitmap, off);
 			*nr_clusters += 1;
 		} else
