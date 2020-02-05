@@ -368,7 +368,13 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 		delta_p = &delta;
 		end = cluster * (max + 1);
 	} else {
-		return 0;
+		struct stat st;
+
+		if (fstat(*fd, &st)) {
+			ploop_err(errno, "Can not stat %s", image);
+			return SYSEXIT_FSTAT;
+		}
+		end = st.st_size;
 	}
 
 	prev_end = 0;
@@ -419,7 +425,7 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 							 delta_p, rmap, rmap_size, &log, repair)))
 				goto out;
 
-			if (repair) {
+			if (repair && rmap != NULL) {
 				ret = restore_hole(image, fd, fm_ext[i].fe_logical, fm_ext[i].fe_logical + fm_ext[i].fe_length,
 					delta_p, rmap, rmap_size, &log, repair);
 				if (ret)
