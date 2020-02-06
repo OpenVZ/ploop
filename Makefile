@@ -5,7 +5,7 @@ TARBALL=$(NAMEVER).tar.bz2
 LICENSES=COPYING GPL-2.0
 LLICENSES=$(LICENSES) LGPL-2.1
 
-SUBDIRS=include lib tools scripts etc python
+SUBDIRS=include lib tools scripts etc python test
 
 all install clean distclean:
 	@set -e; \
