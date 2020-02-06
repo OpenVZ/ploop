@@ -31,6 +31,7 @@ LOGROTATEDIR=/etc/logrotate.d
 COMPLETIONDIR=/etc/bash_completion.d
 MODULESLOADDIR=/etc/modules-load.d
 LIBSCRIPTDIR=/usr/libexec/ploop
+TESTDIR=/usr/libexec/ploop-test
 DEBUG=yes
 
 CFLAGS := $(if $(DEBUG),-g -O0 -DDEBUG,-O2) $(CFLAGS)
