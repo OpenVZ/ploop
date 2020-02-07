@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -ex
 . ./functions
 
 BLOCKSIZE=2048
@@ -42,42 +42,42 @@ done
 
 test_cleanup
 
-ploop init -v ${FROM} -b $BLOCKSIZE -s ${SIZE}k -t ext4 $TEST_IMAGE
-ploop mount -d /dev/ploop0 -m $TEST_MNT $TEST_DDXML
+ploop init -v ${FROM} -b $BLOCKSIZE -s ${SIZE}k -t ext4 $TEST_IMAGE >>$TEST_LOG 2>&1
+ploop mount -d /dev/ploop0 -m $TEST_MNT $TEST_DDXML >>$TEST_LOG 2>&1
 
 let bs=$BLOCKSIZE/2
-dd if=/dev/urandom bs=${bs}k count=1 of=$TEST_STORAGE/data
+dd if=/dev/urandom bs=${bs}k count=1 of=$TEST_STORAGE/data >>$TEST_LOG 2>&1
 
 for ((i = 0; i < SIZE; i += bs*DELTA)); do
 	progress Writing $i $SIZE
-	dd if=$TEST_STORAGE/data of=$TEST_MNT/$i bs=1k >/dev/null 2>&1
+	dd if=$TEST_STORAGE/data of=$TEST_MNT/$i bs=1k >>$TEST_LOG 2>&1
 	if [ "$NEXT_SNAP" != 0 -a $i -gt $NEXT_SNAP ]; then
 		echo
-		ploop snapshot $TEST_DDXML
+		ploop snapshot $TEST_DDXML >>$TEST_LOG 2>&1
 		let NEXT_SNAP+=$SNAP_DELTA
 	fi
 done
 echo
 
-ploop umount $TEST_DDXML
+ploop umount $TEST_DDXML >>$TEST_LOG 2>&1
 
-ploop convert -v ${TO} $TEST_DDXML
-ploop mount -d /dev/ploop0 -m $TEST_MNT $TEST_DDXML
+ploop convert -v ${TO} $TEST_DDXML >>$TEST_LOG 2>&1
+ploop mount -d /dev/ploop0 -m $TEST_MNT $TEST_DDXML >>$TEST_LOG 2>&1
 
 echo "Read"
 for ((i = 0; i < SIZE; i += bs*DELTA)); do
 	progress Reading $i $SIZE
-	cmp $TEST_STORAGE/data $TEST_MNT/$i
+	cmp $TEST_STORAGE/data $TEST_MNT/$i >>$TEST_LOG 2>&1
 done
 echo
 
-umount $TEST_MNT
+umount $TEST_MNT >>$TEST_LOG 2>&1
 
-fsck -f -C /dev/ploop0p1
+fsck -fn -C /dev/ploop0p1 >>$TEST_LOG 2>&1
 
-ploop umount $TEST_DDXML
+ploop umount $TEST_DDXML >>$TEST_LOG 2>&1
 
-ploop check -f $TEST_IMAGE
+ploop check -f $TEST_IMAGE >>$TEST_LOG 2>&1
 
 rm -f $TEST_STORAGE/data
 test_cleanup
