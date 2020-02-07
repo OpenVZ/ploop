@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -ex
 . ./functions
 
 V=2
@@ -36,43 +36,43 @@ done
 
 test_cleanup
 
-ploop init -v $V -b $BLOCKSIZE -s ${SIZE}k $TEST_IMAGE
-ploop mount -d /dev/ploop0 $TEST_DDXML
+ploop init -v $V -b $BLOCKSIZE -s ${SIZE}k $TEST_IMAGE >>$TEST_LOG 2>&1
+ploop mount -d /dev/ploop0 $TEST_DDXML >>$TEST_LOG 2>&1
 
 let bs=$BLOCKSIZE/2
-dd if=/dev/urandom bs=${bs}k count=1 of=$TEST_STORAGE/data
+dd if=/dev/urandom bs=${bs}k count=1 of=$TEST_STORAGE/data >>$TEST_LOG 2>&1
 
 size=$SIZE
 for ((i = 0; i < size; i += bs*DELTA)); do
 	progress Writing $i $size
-	dd if=$TEST_STORAGE/data of=/dev/ploop0 bs=1k seek=$i >/dev/null 2>&1
+	dd if=$TEST_STORAGE/data of=/dev/ploop0 bs=1k seek=$i >>$TEST_LOG 2>&1
 done
 echo
 
 if [ "$OFFLINE" = yes ]; then
 	echo "Offline resize"
-	ploop umount $TEST_DDXML
+	ploop umount $TEST_DDXML >>$TEST_LOG 2>&1
 else
 	echo "Online resize"
 fi
-ploop grow -s ${SIZENEW}k $TEST_DDXML
+ploop grow -s ${SIZENEW}k $TEST_DDXML >>$TEST_LOG 2>&1
 
 if [ "$OFFLINE" != yes ]; then
-	ploop umount $TEST_DDXML
+	ploop umount $TEST_DDXML >>$TEST_LOG 2>&1
 fi
 ploop mount $TEST_DDXML
 
 size=${SIZENEW}
 for ((; i < size; i += bs*DELTA)); do
 	progress Writing $i $size
-	dd if=$TEST_STORAGE/data of=/dev/ploop0 bs=1k seek=$i >/dev/null 2>&1
+	dd if=$TEST_STORAGE/data of=/dev/ploop0 bs=1k seek=$i >>$TEST_LOG 2>&1
 done
 echo
 
 echo "Read"
 for ((i = 0; i < size; i += bs*DELTA)); do
 	progress Reading $i $size
-	dd of=$TEST_STORAGE/data_out if=/dev/ploop0 bs=1k count=$bs skip=$i >/dev/null 2>&1
+	dd of=$TEST_STORAGE/data_out if=/dev/ploop0 bs=1k count=$bs skip=$i >>$TEST_LOG 2>&1
 	cmp $TEST_STORAGE/data $TEST_STORAGE/data_out
 	rm -f $TEST_STORAGE/data_out
 done

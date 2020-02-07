@@ -90,46 +90,46 @@ check_size()
 reuse_holes()
 {
 	echo "reuse_holes_offline"
-	ploop init -v ${V} -b $BLOCKSIZE -s ${SIZE}k $TEST_IMAGE >/dev/null 2>&1
+	ploop init -v ${V} -b $BLOCKSIZE -s ${SIZE}k $TEST_IMAGE >>$TEST_LOG 2>&1
 	for ((i=$SIZE; i<$SIZE_MAX;)) do
 		echo Size $i
-		ploop mount -d /dev/ploop0 -m $TEST_MNT $TEST_DDXML >/dev/null
+		ploop mount -d /dev/ploop0 -m $TEST_MNT $TEST_DDXML >>$TEST_LOG
 		rm -f $TEST_MNT/file.*
 
-		dd if=/dev/urandom bs=1M count=$B of=$TEST_MNT/file.replace >/dev/null 2>&1
+		dd if=/dev/urandom bs=1M count=$B of=$TEST_MNT/file.replace >>$TEST_LOG 2>&1
 
 		rm -f $TEST_MNT/file.rm
-		ploop balloon discard --defrag $TEST_DDXML >/dev/null
+		ploop balloon discard --defrag $TEST_DDXML >>$TEST_LOG
 
-		ploop snapshot -u $SID1 $TEST_DDXML >/dev/null
-		dd if=/dev/urandom bs=1M count=$B of=$TEST_MNT/file.replace >/dev/null 2>&1
+		ploop snapshot -u $SID1 $TEST_DDXML >>$TEST_LOG
+		dd if=/dev/urandom bs=1M count=$B of=$TEST_MNT/file.replace >>$TEST_LOG 2>&1
 		M1=$(md5sum $TEST_MNT/file.replace)
-		dd if=/dev/urandom bs=1M count=$B of=$TEST_MNT/file.new >/dev/null 2>&1
+		dd if=/dev/urandom bs=1M count=$B of=$TEST_MNT/file.new >>$TEST_LOG 2>&1
 		M2=$(md5sum $TEST_MNT/file.new)
 
 		if [ "$OFFLINE" = "yes" ]; then
-			ploop umount $TEST_DDXML >/dev/null
+			ploop umount $TEST_DDXML >>$TEST_LOG
 		else
-			ploop snapshot -u $SID2 $TEST_DDXML >/dev/null
+			ploop snapshot -u $SID2 $TEST_DDXML >>$TEST_LOG
 		fi
 
 		let s=$i*2
-		ploop grow -s ${s}k $TEST_DDXML >/dev/null 2>&1
-		ploop snapshot-delete -u $SID1 $TEST_DDXML >/dev/null
+		ploop grow -s ${s}k $TEST_DDXML >>$TEST_LOG 2>&1
+		ploop snapshot-delete -u $SID1 $TEST_DDXML >>$TEST_LOG
 		if [ "$OFFLINE" = "yes" ]; then
-			ploop mount -d /dev/ploop0 -m $TEST_MNT $TEST_DDXML >/dev/null
+			ploop mount -d /dev/ploop0 -m $TEST_MNT $TEST_DDXML >>$TEST_LOG
 			check_md5
 		else
 			check_md5
-			dd if=/dev/urandom bs=1M count=$B of=$TEST_MNT/file.new >/dev/null 2>&1
+			dd if=/dev/urandom bs=1M count=$B of=$TEST_MNT/file.new >>$TEST_LOG 2>&1
 			M2=$(md5sum $TEST_MNT/file.new)
-			ploop snapshot-delete -u $SID2 $TEST_DDXML >/dev/null
+			ploop snapshot-delete -u $SID2 $TEST_DDXML >>$TEST_LOG
 			check_md5
 		fi
 		let "i <<= 2"
-		ploop grow -s ${i}k $TEST_DDXML >/dev/null 2>&1
+		ploop grow -s ${i}k $TEST_DDXML >>$TEST_LOG 2>&1
 		check_md5
-		ploop umount $TEST_DDXML >/dev/null
+		ploop umount $TEST_DDXML >>$TEST_LOG
 
 		check_size "$TEST_IMAGE"
 	done
@@ -140,3 +140,4 @@ reuse_holes
 test_cleanup
 echo
 echo "FINISHED [OK]"
+exit 0

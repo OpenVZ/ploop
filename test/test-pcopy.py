@@ -59,7 +59,7 @@ def ploop_mount(ddxml):
 		raise Exception("failed to mount image")
 
 def ploop_umount(ddxml):
-	return sp.call(["ploop", "umount", "-d/dev/ploop0"])
+	return sp.call(["ploop", "umount", ddxml])
 
 def dump_cbt(img):
 	fout = img + ".cbt"

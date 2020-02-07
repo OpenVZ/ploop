@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -ex
 . ./functions
 
 V=2
@@ -36,50 +36,51 @@ done
 
 test_cleanup
 
-ploop init -v $V -b $BLOCKSIZE -s ${SIZE}k -t ext4 $TEST_IMAGE
-ploop mount -d /dev/ploop0 -m $TEST_MNT $TEST_DDXML
+ploop init -v $V -b $BLOCKSIZE -s ${SIZE}k -t ext4 $TEST_IMAGE >>$TEST_LOG 2>&1
+ploop mount -d /dev/ploop0 -m $TEST_MNT $TEST_DDXML >>$TEST_LOG 2>&1
 
 let bs=$BLOCKSIZE/2
-dd if=/dev/urandom bs=${bs}k count=1 of=$TEST_STORAGE/data
+dd if=/dev/urandom bs=${bs}k count=1 of=$TEST_STORAGE/data >>$TEST_LOG 2>&1
 
 size=$SIZE
 for ((i = 0; i < size; i += bs*DELTA)); do
 	progress Writing $i $size
-	dd if=$TEST_STORAGE/data of=$TEST_MNT/$i bs=1k >/dev/null 2>&1
+	dd if=$TEST_STORAGE/data of=$TEST_MNT/$i bs=1k >>$TEST_LOG 2>&1
 done
 echo
 
 if [ "$OFFLINE" = yes ]; then
 	echo "Offline resize"
-	ploop umount $TEST_DDXML
+	ploop umount $TEST_DDXML >>$TEST_LOG 2>&1
 else
 	echo "Online resize"
 fi
-ploop resize -s ${SIZENEW}k $TEST_DDXML
+ploop resize -s ${SIZENEW}k $TEST_DDXML >>$TEST_LOG 2>&1
 
 if [ "$OFFLINE" != yes ]; then
-	ploop umount $TEST_DDXML
+	ploop umount $TEST_DDXML >>$TEST_LOG 2>&1
 fi
-ploop mount -d /dev/ploop0 -m $TEST_MNT $TEST_DDXML
+ploop mount -d /dev/ploop0 -m $TEST_MNT $TEST_DDXML >>$TEST_LOG 2>&1
 
 size=${SIZENEW}
 for ((; i < size; i += bs*DELTA)); do
 	progress Writing $i $size
-	dd if=$TEST_STORAGE/data of=$TEST_MNT/$i bs=1k >/dev/null 2>&1
+	dd if=$TEST_STORAGE/data of=$TEST_MNT/$i bs=1k >>$TEST_LOG 2>&1
 done
 echo
 
-ploop umount $TEST_DDXML
-ploop mount -d /dev/ploop0 $TEST_DDXML
+ploop umount $TEST_DDXML >>$TEST_LOG 2>&1
+ploop mount -d /dev/ploop0 $TEST_DDXML >>$TEST_LOG 2>&1
 
-fsck -f /dev/ploop0p1
+fsck -fn /dev/ploop0p1 >>$TEST_LOG 2>&1
 
-ploop umount $TEST_DDXML
-ploop mount -d /dev/ploop0 -m $TEST_MNT $TEST_DDXML
+ploop umount $TEST_DDXML >>$TEST_LOG 2>&1
+ploop mount -d /dev/ploop0 -m $TEST_MNT $TEST_DDXML >>$TEST_LOG 2>&1
 
 rm -f $TEST_MNT/* || true
 
-ploop resize -s ${SIZE}k $TEST_DDXML
+ploop resize -s ${SIZE}k $TEST_DDXML >>$TEST_LOG 2>&1
+fsck -fn /dev/ploop0p1 >>$TEST_LOG 2>&1
 
 test_cleanup
 
