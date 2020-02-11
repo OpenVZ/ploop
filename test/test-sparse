@@ -34,16 +34,14 @@ for ((i=0; i<1000; i++)); do
 done
 ploop snapshot  $TEST_DDXML >>$TEST_LOG 2>&1
 ploop umount -d /dev/ploop0 -m $TEST_MNT $TEST_DDXML >>$TEST_LOG 2>&1
-tar --sparse -C / -cvf $TEST_STORAGE/data.tar ${TEST_IMAGE}* 
+rsync --sparse ${TEST_IMAGE}* $TEST_STORAGE/s/
 rm -f ${TEST_IMAGE}*
-tar --sparse -C / -xvf $TEST_STORAGE/data.tar
-exit
+mv -f $TEST_STORAGE/s/* $TEST_STORAGE/
+rmdir -f ${TEST_IMAGE}/s
 ploop mount -d /dev/ploop0 -m $TEST_MNT $TEST_DDXML >>$TEST_LOG 2>&1
-M1=`md5sum $TEST_STORAGE/data`
-for ((i=0 i<5000; i++)); do
-	M1_1=`md5sum $TEST_MNT/$i`
-	if [ "$M1" != "$M1_1" ]; then
-		echo "FAILED md5 mismatch $M1 != $M1_1"
+for ((i=0; i<1000; i++)); do
+	if ! cmp $TEST_STORAGE/data $TEST_MNT/$i; then
+		echo "FAILED cmp $TEST_STORAGE/data $TEST_MNT/$i  mismatch"
 		exit 1
 	fi
 done
