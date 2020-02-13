@@ -340,7 +340,7 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 			return SYSEXIT_OPEN;
 		}
 
-		if (!(flags & CHECK_READONLY) && (flags & CHECK_DEFRAG)) {
+		if (flags & CHECK_DEFRAG) {
 			ret = image_defrag(&delta);
 			goto out;
 		}
