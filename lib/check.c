@@ -335,10 +335,8 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 	if (!(flags & CHECK_RAW)) {
 		__u32 max = 0;
 
-		if (open_delta(&delta, image, O_RDWR, OD_ALLOW_DIRTY)) {
-			ploop_err(errno, "open_delta %s", image);
+		if (open_delta(&delta, image, O_RDWR, OD_ALLOW_DIRTY))
 			return SYSEXIT_OPEN;
-		}
 
 		if (flags & CHECK_DEFRAG) {
 			ret = image_defrag(&delta);
