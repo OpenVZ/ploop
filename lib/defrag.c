@@ -218,6 +218,7 @@ int ploop_image_shuffle(const char *image, int nr, int flags)
 	__u64 *hole_bitmap;
 	struct delta d = {};
 	struct ploop_pvd_header *hdr;
+
 	rc = open_delta(&d, image, O_RDWR, OD_ALLOW_DIRTY);
 	if (rc)
 		return rc;
@@ -229,7 +230,7 @@ int ploop_image_shuffle(const char *image, int nr, int flags)
 	hdr = (struct ploop_pvd_header *) d.hdr0;
 	ploop_log(0, "Image %s clusters: %d total: %d",
 			image, nr_clusters, hdr->m_Size);
-	dst = d.l2_size;
+	dst = MAX((d.l2_size + d.l1_size), d.alloc_head);
 	log = ploop_fmt_log(d.version);
 	cluster = S2B(d.blocksize);
 	for (i = 0; i < hdr->m_Size; i++) {
