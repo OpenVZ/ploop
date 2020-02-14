@@ -261,7 +261,7 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end,
 		}
 	}
 
-	return fsync_safe(*fd);
+	return 0;
 }
 
 static int restore_hole(const char *image, int *fd, off_t start,
@@ -300,7 +300,7 @@ static int restore_hole(const char *image, int *fd, off_t start,
 		}
 	}
 
-	return fsync_safe(*fd);
+	return 0;
 }
 
 static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags)
