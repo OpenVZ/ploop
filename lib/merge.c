@@ -501,7 +501,6 @@ rm_delta:
 						hb = NULL;
 						iblk = odelta.alloc_head++;
 					} else {
-						ploop_log(0, "NEW block %d", free_blk);
 						iblk = free_blk++;
 					}
 				} else
@@ -516,7 +515,6 @@ rm_delta:
 				odelta.l2_dirty = 1;
 				allocated++;
 			}
-			ploop_log(0, "MERGE N%d %d -> %d", n, da.delta_arr[level2].l2[k], odelta.l2[k]);
 			if (PWRITE(&odelta, data_cache, cluster,
 						S2B(ploop_ioff_to_sec(odelta.l2[k],
 								blocksize, version)))) {
