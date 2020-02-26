@@ -1113,7 +1113,7 @@ void unmangle_to_buffer(const char *s, char *buf, size_t len)
  *  1 mount point not found (fs not mounted)
  * -1 some system error
  */
-static int get_mntns_mount_dir(const char *device, int pid, char *out, int size)
+int get_mount_dir(const char *device, int pid, char *out, int size)
 {
 	FILE *fp;
 	int ret = 1;
@@ -1124,7 +1124,7 @@ static int get_mntns_mount_dir(const char *device, int pid, char *out, int size)
 	struct stat st;
 
 	if (stat(device, &st)) {
-		ploop_err(errno, "get_mntns_mount_dir stat(%s)", device);
+		ploop_err(errno, "get_mount_dir stat(%s)", device);
 		return -1;
 	}
 
@@ -1145,19 +1145,19 @@ static int get_mntns_mount_dir(const char *device, int pid, char *out, int size)
 		if (n != 5)
 			continue;
 		if (_major == major && _minor == minor)	{
-			if (out != NULL)
-				unmangle_to_buffer(target, out, size);
+			if (out != NULL) {
+				unmangle_to_buffer(target, buf, sizeof(buf));
+				if (pid > 0)
+					snprintf(out, size, "/proc/%d/root/%s", pid, buf);
+				else
+					snprintf(out, size, "%s", buf);
+			}
 			ret = 0;
 			break;
 		}
 	}
 	fclose(fp);
 	return ret;
-}
-
-static int get_mount_dir(const char *device, char *out, int size)
-{
-	return get_mntns_mount_dir(device, 0, out, size);
 }
 
 int ploop_get_mnt_by_dev(const char *dev, char *buf, int size)
@@ -1177,7 +1177,7 @@ int ploop_get_mnt_by_dev(const char *dev, char *buf, int size)
 		ploop_free_array(dirs);
 	}
 
-	return get_mount_dir(partname, buf, size);
+	return get_mount_dir(partname, 0, buf, size);
 }
 
 int fname_cmp(const char *p1, struct stat *st)
@@ -2257,7 +2257,7 @@ static int remount_image(struct ploop_disk_images_data *di,
 	if (ploop_get_part(di, dev, part, sizeof(part)))
 		 return SYSEXIT_MOUNT;
 
-	ret = get_mount_dir(part, path, sizeof(path));
+	ret = get_mount_dir(part, 0, path, sizeof(path));
 	if (ret == -1) {
 		return SYSEXIT_MOUNT;
 	} else if (ret == 0) {
@@ -2359,7 +2359,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	if (ret)
 		return ret;
 
-	if (get_mount_dir(partname, mnt, sizeof(mnt)) == 0) {
+	if (get_mount_dir(partname, 0, mnt, sizeof(mnt)) == 0) {
 		ret = ploop_umount_fs(mnt, di);
 		if (ret)
 			return ret;
@@ -2760,14 +2760,13 @@ int ploop_resize_image(struct ploop_disk_images_data *di,
 		if (ret)
 			goto err;
 
-		ret = get_mount_dir(partname, buf, sizeof(buf));
+		ret = get_mount_dir(partname, param->mntns_pid, buf, sizeof(buf));
 		if (ret < 0) {
 			/* error message is printed by get_mount_dir() */
 			ret = SYSEXIT_SYS;
 			goto err;
 		} else if (ret > 0) { /* not mounted */
-			ret = auto_mount_fs(di, param->mntns_pid, partname,
-					&mount_param);
+			ret = auto_mount_fs(di, partname, &mount_param);
 			if (ret)
 				goto err;
 			umount_fs = 1;
@@ -3626,7 +3625,7 @@ static int get_fs_info(struct ploop_disk_images_data *di, struct ploop_fs_info *
 		if (ret)
 			return ret;
 
-		ret = get_mount_dir(partname, mnt, sizeof(mnt));
+		ret = get_mount_dir(partname, 0, mnt, sizeof(mnt));
 		if (ret == -1)
 			return SYSEXIT_SYS;
 
