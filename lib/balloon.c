@@ -1018,40 +1018,68 @@ int ploop_blk_discard(const char* device, __u32 blocksize, off_t start, off_t en
 	return ret;
 }
 
+static int _umount(struct ploop_disk_images_data *di, const char *dev,
+		const char *mnt, int mounted)
+{
+	if (mounted == 2)
+		return ploop_umount(dev, di);
+	else if (mounted == 1)
+		return do_umount(mnt, PLOOP_UMOUNT_TIMEOUT);
+	return 0;
+}
+
 static int get_dev_and_mnt(struct ploop_disk_images_data *di, int automount,
 		char *dev, int dev_len, char *mnt, int mnt_len, int *mounted)
 {
-	int ret;
+	int ret, r;        
+	struct ploop_mount_param m = {};
+	char partname[64]; 
+	char devname[64]; 
 
-	ret = ploop_find_dev_by_dd(di, dev, dev_len);
-	if (ret == -1) {
+	r = ploop_find_dev_by_dd(di, dev, dev_len);
+	if (r == -1)
 		return SYSEXIT_SYS;
-	} else if (ret == 0) {
-		if (ploop_get_mnt_by_dev(dev, mnt, mnt_len)) {
-			ploop_err(0, "Unable to find mount point for %s", dev);
-			return SYSEXIT_PARAM;
-		}
-	} else {
-		struct ploop_mount_param mount_param = {};
 
-		if (!automount) {
-			ploop_err(0, "Unable to discard: image is not mounted");
-			return SYSEXIT_PARAM;
-		}
-
-		ret = auto_mount_image(di, &mount_param);
+	if (r == 0) {
+		ret = get_part_devname(di, dev, devname, sizeof(devname),
+				partname, sizeof(partname));
 		if (ret)
 			return ret;
 
-		*mounted = 1;
-		snprintf(dev, dev_len, "%s", mount_param.device);
-		snprintf(mnt, mnt_len, "%s", mount_param.target);
-
-		free_mount_param(&mount_param);
+		ret = get_mount_dir(partname, 0, mnt, mnt_len);
+		if (ret < 0)
+			return SYSEXIT_SYS;
+		else if (ret == 0)
+			return 0;
 	}
 
+	if (!automount) {
+		ploop_err(0, "Unable to discard: image is not mounted");
+		return SYSEXIT_PARAM;
+	}
+
+	if (r == 0) {
+		ret = auto_mount_fs(di, partname, &m);
+		if (ret)
+			return ret;
+		*mounted = 1;
+	} else {
+		ret = auto_mount_image(di, &m);
+		if (ret)
+			return ret;
+		snprintf(dev, dev_len, "%s", m.device);
+		*mounted = 2;
+	}
+	if (ret)
+		return ret;
+
+	snprintf(mnt, mnt_len, "%s", m.target);
+
+	free_mount_param(&m);
 	return 0;
 }
+
+
 
 int ploop_discard_by_dev(const char *device, const char *mount_point,
 		__u64 minlen_b, __u64 to_free, const int *stop)
@@ -1218,7 +1246,7 @@ int ploop_discard(struct ploop_disk_images_data *di,
 
 out:
 	if (mounted && ploop_lock_dd(di) == 0) {
-		ploop_umount(dev, di);
+		_umount(di, dev, mnt, mounted);
 		ploop_unlock_dd(di);
 	}
 
@@ -1423,8 +1451,7 @@ int ploop_discard_get_stat(struct ploop_disk_images_data *di,
 		goto err;
 
 	ret = ploop_discard_get_stat_by_dev(dev, mnt, pd_stat);
-	if (mounted)
-		ploop_umount(dev, di);
+	_umount(di, dev, mnt, mounted);
 
 err:
 	ploop_unlock_dd(di);
