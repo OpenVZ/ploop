@@ -58,7 +58,7 @@ static off_t round_bdsize(off_t size, __u32 blocksize, int version)
 	return ROUNDUP(size, blocksize);
 }
 
-static int get_part_devname(struct ploop_disk_images_data *di,
+int get_part_devname(struct ploop_disk_images_data *di,
 		const char *device, char *devname, int dlen,
 		char *partname, int plen)
 {
@@ -1103,7 +1103,7 @@ out:
 	return ret;
 }
 
-static int do_umount(const char *mnt, int tmo_sec)
+int do_umount(const char *mnt, int tmo_sec)
 {
 	useconds_t total = 0;
 	useconds_t wait = 10000; // initial wait time 0.01s
@@ -2398,7 +2398,7 @@ int mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *par
 	return ret;
 }
 
-static int mount_fs(const char *part, const char *target)
+int mount_fs(const char *part, const char *target)
 {
 	ploop_log(0, "Mounting %s at %s", part, target);
 	if (mount(part, target, DEFAULT_FSTYPE, 0, 0)) {
@@ -2410,7 +2410,7 @@ static int mount_fs(const char *part, const char *target)
 	return 0;
 }
 
-static int auto_mount_fs(struct ploop_disk_images_data *di, pid_t mntns_pid,
+int auto_mount_fs(struct ploop_disk_images_data *di,
 		const char *partname, struct ploop_mount_param *param)
 {
 	int ret;
@@ -2422,16 +2422,11 @@ static int auto_mount_fs(struct ploop_disk_images_data *di, pid_t mntns_pid,
 
 	param->target = strdup(target);
 
-	if (mntns_pid) {
-		ret = get_mntns_mount_dir(partname, mntns_pid, NULL, 0);
-		if (ret < 0)
-			return SYSEXIT_SYS;
+	ret = ploop_mount_fs(di, partname, param, 1);
+	if (ret && errno == EPERM)
+		return mount_fs(partname, target);
 
-		if (ret == 0) /* image mounted inside mnt namespace */
-			return mount_fs(partname, target);
-	}
-
-	return ploop_mount_fs(di, partname, param, 1);
+	return ret;
 }
 
 int auto_mount_image(struct ploop_disk_images_data *di,

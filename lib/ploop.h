@@ -532,6 +532,13 @@ int fsync_safe(int fd);
 int build_hole_bitmap(struct delta *delta, __u64 **hole_bitmap,
 		__u32 *hole_bitmap_size, int *nr_clusters);
 int image_defrag(struct delta *delta);
+int do_umount(const char *mnt, int tmo_sec);
+int get_part_devname(struct ploop_disk_images_data *di,
+		const char *device, char *devname, int dlen,
+		char *partname, int plen);
+int get_mount_dir(const char *device, int pid, char *out, int size);
+int auto_mount_fs(struct ploop_disk_images_data *di,
+		const char *partname, struct ploop_mount_param *param);
 PL_EXT int dump_bat(const char *image);
 PL_EXT int ploop_image_shuffle(const char *image, int nr, int flags);
 #endif
