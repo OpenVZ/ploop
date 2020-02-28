@@ -425,7 +425,7 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 							 delta_p, rmap, rmap_size, &log, repair)))
 				goto out;
 
-			if (repair && rmap != NULL) {
+			if (repair && !(flags & CHECK_READONLY) && rmap != NULL) {
 				ret = restore_hole(image, fd, fm_ext[i].fe_logical, fm_ext[i].fe_logical + fm_ext[i].fe_length,
 					delta_p, rmap, rmap_size, &log, repair);
 				if (ret)
