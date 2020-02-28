@@ -1028,8 +1028,9 @@ int umnt(struct ploop_disk_images_data *di, const char *dev,
 	return 0;
 }
 
-int get_dev_and_mnt(struct ploop_disk_images_data *di, int automount,
-		char *dev, int dev_len, char *mnt, int mnt_len, int *mounted)
+int get_dev_and_mnt(struct ploop_disk_images_data *di, pid_t pid,
+		int automount, char *dev, int dev_len, char *mnt,
+		int mnt_len, int *mounted)
 {
 	int ret, r;        
 	struct ploop_mount_param m = {};
@@ -1059,7 +1060,7 @@ int get_dev_and_mnt(struct ploop_disk_images_data *di, int automount,
 	}
 
 	if (r == 0) {
-		ret = auto_mount_fs(di, partname, &m);
+		ret = auto_mount_fs(di, pid, partname, &m);
 		if (ret)
 			return ret;
 		*mounted = 1;
@@ -1229,7 +1230,7 @@ int ploop_discard(struct ploop_disk_images_data *di,
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	ret = get_dev_and_mnt(di, param->automount, dev, sizeof(dev),
+	ret = get_dev_and_mnt(di, 0, param->automount, dev, sizeof(dev),
 			mnt, sizeof(mnt), &mounted);
 	ploop_unlock_dd(di);
 	if (ret)
@@ -1445,7 +1446,7 @@ int ploop_discard_get_stat(struct ploop_disk_images_data *di,
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	ret = get_dev_and_mnt(di, 1, dev, sizeof(dev),
+	ret = get_dev_and_mnt(di, 0, 1, dev, sizeof(dev),
 			mnt, sizeof(mnt), &mounted);
 	if (ret)
 		goto err;

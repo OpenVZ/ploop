@@ -2209,7 +2209,7 @@ int mount_fs(const char *part, const char *target)
 	return 0;
 }
 
-int auto_mount_fs(struct ploop_disk_images_data *di,
+int auto_mount_fs(struct ploop_disk_images_data *di, pid_t pid,
 		const char *partname, struct ploop_mount_param *param)
 {
 	int ret;
@@ -2220,6 +2220,14 @@ int auto_mount_fs(struct ploop_disk_images_data *di,
 		return ret;
 
 	param->target = strdup(target);
+
+	if (pid) {
+		ret = get_mount_dir(partname, pid, NULL, 0);
+		if (ret < 0)
+			return SYSEXIT_SYS;
+		if (ret == 0)
+			return mount_fs(partname, target);
+	}
 
 	ret = ploop_mount_fs(di, partname, param, 1);
 	if (ret && errno == EPERM)
@@ -2732,7 +2740,8 @@ int ploop_resize_image(struct ploop_disk_images_data *di,
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	ret = get_dev_and_mnt(di, 1, dev, sizeof(dev), buf, sizeof(buf), &mounted);
+	ret = get_dev_and_mnt(di, param->mntns_pid,  1, dev, sizeof(dev),
+			buf, sizeof(buf), &mounted);
 	target = strdup(buf);
 
 	//FIXME: Deny resize image if there are childs
