@@ -2410,7 +2410,7 @@ int mount_fs(const char *part, const char *target)
 	return 0;
 }
 
-int auto_mount_fs(struct ploop_disk_images_data *di,
+int auto_mount_fs(struct ploop_disk_images_data *di, pid_t pid,
 		const char *partname, struct ploop_mount_param *param)
 {
 	int ret;
@@ -2421,6 +2421,14 @@ int auto_mount_fs(struct ploop_disk_images_data *di,
 		return ret;
 
 	param->target = strdup(target);
+
+	if (pid) {
+		ret = get_mount_dir(partname, pid, NULL, 0);
+		if (ret < 0)
+			return SYSEXIT_SYS;
+		if (ret == 0)
+			return mount_fs(partname, target);
+	}
 
 	ret = ploop_mount_fs(di, partname, param, 1);
 	if (ret && errno == EPERM)
@@ -2954,12 +2962,12 @@ static int shrink_device(struct ploop_disk_images_data *di,
 int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_param *param)
 {
 	int ret;
-	struct ploop_mount_param mount_param = {};
 	char buf[PATH_MAX];
 	char partname[64];
+	char dev[64];
 	char devname[64];
-	int mounted = -1;
-	int umount_fs = 0;
+	char *target = NULL;
+	int mounted = 0;
 	int balloonfd = -1;
 	struct stat st;
 	off_t part_dev_size = 0;
@@ -2971,52 +2979,22 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 	__u32 blocksize = 0;
 	int version;
 	off_t new_fs_size = 0;
-	int rc;
 
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	rc = ploop_find_dev_by_dd(di, buf, sizeof(buf));
-	if (rc == -1) {
-		ret = SYSEXIT_SYS;
-		goto err;
-	} else if (rc != 0) {
-		ret = auto_mount_image(di, &mount_param);
-		if (ret)
-			goto err;
-		mounted = 0;
-	} else
-		strncpy(mount_param.device, buf, sizeof(mount_param.device));
+	ret = get_dev_and_mnt(di, param->mntns_pid,  1, dev, sizeof(dev),
+			buf, sizeof(buf), &mounted);
+	target = strdup(buf);
 
-	ret = get_part_devname(di, mount_param.device, devname, sizeof(devname),
-			partname, sizeof(partname));
+	//FIXME: Deny resize image if there are childs
+	ret = get_image_param_online(dev, &dev_size,
+			&blocksize, &version);
 	if (ret)
 		goto err;
 
-	if (rc == 0) {
-		ret = complete_running_operation(di, mount_param.device);
-		if (ret)
-			goto err;
-
-		ret = get_mount_dir(partname, param->mntns_pid, buf, sizeof(buf));
-		if (ret < 0) {
-			/* error message is printed by get_mount_dir() */
-			ret = SYSEXIT_SYS;
-			goto err;
-		} else if (ret > 0) { /* not mounted */
-			ret = auto_mount_fs(di, partname, &mount_param);
-			if (ret)
-				goto err;
-			umount_fs = 1;
-		} else
-			mount_param.target = strdup(buf);
-
-		mounted = 1;
-	}
-
-	//FIXME: Deny resize image if there are childs
-	ret = get_image_param_online(mount_param.device, &dev_size,
-			&blocksize, &version);
+	ret = get_part_devname(di, dev, devname, sizeof(devname),
+			partname, sizeof(partname));
 	if (ret)
 		goto err;
 
@@ -3041,7 +3019,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		new_fs_size = new_size - (4 * blocksize);
 	}
 
-	ret = get_balloon(mount_param.target, &st, &balloonfd);
+	ret = get_balloon(target, &st, &balloonfd);
 	if (ret)
 		goto err;
 	balloon_size = bytes2sec(st.st_size);
@@ -3051,8 +3029,8 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		__u64 free_space;
 
 		/* Iteratively inflate balloon up to max free space */
-		if (statfs(mount_param.target, &fs) != 0) {
-			ploop_err(errno, "statfs(%s)", mount_param.target);
+		if (statfs(target, &fs) != 0) {
+			ploop_err(errno, "statfs(%s)", target);
 			ret = SYSEXIT_FSTAT;
 			goto err;
 		}
@@ -3063,7 +3041,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 				delta < free_space && new_balloon_size > balloon_size;
 				delta *= 2)
 		{
-			ret = ploop_balloon_change_size(mount_param.device,
+			ret = ploop_balloon_change_size(dev,
 					balloonfd, new_balloon_size - delta);
 			if (ret != SYSEXIT_FALLOCATE)
 				break;
@@ -3074,8 +3052,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 
 		/* GROW */
 		if (balloon_size != 0) {
-			ret = ploop_balloon_change_size(mount_param.device,
-					balloonfd, 0);
+			ret = ploop_balloon_change_size(dev, balloonfd, 0);
 			if (ret)
 				goto err;
 		}
@@ -3083,7 +3060,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		balloonfd = -1;
 		if (!mounted && param->offline_resize) {
 			/* offline */
-			ret = ploop_umount_fs(mount_param.target, di);
+			ret = ploop_umount_fs(target, di);
 			if (ret)
 				goto err;
 			ret = e2fsck(partname, E2FSCK_FORCE | E2FSCK_PREEN, NULL);
@@ -3099,7 +3076,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		if (ret)
 			goto err;
 
-		ret = ploop_grow_device(mount_param.device, new_size);
+		ret = ploop_grow_device(dev, new_size);
 		if (ret) {
 			unlink(conf_tmp);
 			goto err;
@@ -3112,7 +3089,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			goto err;
 		}
 
-		ret = resize_gpt_partition(mount_param.device, 0, blocksize);
+		ret = resize_gpt_partition(dev, 0, blocksize);
 		if (ret)
 			goto err;
 
@@ -3130,7 +3107,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		/* Grow or shrink fs but do not change block device size */
 		if (part_dev_size < new_fs_size) {
 			/* sync gpt with new_size */
-			ret = resize_gpt_partition(mount_param.device, new_size, blocksize);
+			ret = resize_gpt_partition(dev, new_size, blocksize);
 			if (ret)
 				goto err;
 		}
@@ -3139,20 +3116,20 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			/* Offline */
 			if (balloon_size != 0) {
 				/* FIXME: restore balloon size on failure */
-				ret = ploop_balloon_change_size(mount_param.device, balloonfd, 0);
+				ret = ploop_balloon_change_size(dev, balloonfd, 0);
 				if (ret)
 					goto err;
 			}
 			close(balloonfd); /* close to make umount possible */
 			balloonfd = -1;
 
-			ret = ploop_umount_fs(mount_param.target, di);
+			ret = ploop_umount_fs(target, di);
 			if (ret)
 				goto err;
 
 			drop_statfs_info(di->images[0]->file);
 
-			ret = shrink_device(di, mount_param.device, partname,
+			ret = shrink_device(di, dev, partname,
 					st.st_dev, part_dev_size,
 					new_fs_size, blocksize);
 			if (ret)
@@ -3171,8 +3148,8 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			blocks = data.block_count * B2S(data.block_size);
 			if (new_fs_size < blocks) {
 				/* shrink fs */
-				if (statfs(mount_param.target, &fs) != 0) {
-					ploop_err(errno, "statfs(%s)", mount_param.target);
+				if (statfs(target, &fs) != 0) {
+					ploop_err(errno, "statfs(%s)", target);
 					ret = SYSEXIT_FSTAT;
 					goto err;
 				}
@@ -3183,7 +3160,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 				 */
 				reserved_blocks = B2S(fs.f_files * 256);
 				if (reserved_blocks > new_balloon_size) {
-					ret = ploop_balloon_change_size(mount_param.device,
+					ret = ploop_balloon_change_size(dev,
 							balloonfd, 0);
 					goto err;
 				}
@@ -3204,7 +3181,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			}
 
 			if (new_balloon_size != balloon_size) {
-				ret = ploop_balloon_change_size(mount_param.device,
+				ret = ploop_balloon_change_size(dev,
 						balloonfd, new_balloon_size);
 				if (ret)
 					goto err;
@@ -3222,13 +3199,11 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 err:
 	if (balloonfd != -1)
 		close(balloonfd);
-	if (mounted == 0)
-		ploop_umount(mount_param.device, di);
-	else if (umount_fs)
-		ploop_umount_fs(mount_param.target, di);
+
+	umnt(di, dev, target, mounted);
 
 	ploop_unlock_dd(di);
-	free_mount_param(&mount_param);
+	free(target);
 
 	return ret;
 }

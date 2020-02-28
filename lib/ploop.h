@@ -537,8 +537,14 @@ int get_part_devname(struct ploop_disk_images_data *di,
 		const char *device, char *devname, int dlen,
 		char *partname, int plen);
 int get_mount_dir(const char *device, int pid, char *out, int size);
-int auto_mount_fs(struct ploop_disk_images_data *di,
+int auto_mount_fs(struct ploop_disk_images_data *di, pid_t pid,
 		const char *partname, struct ploop_mount_param *param);
+int get_dev_and_mnt(struct ploop_disk_images_data *di, pid_t pid,
+		int automount, char *dev, int dev_len, char *mnt,
+		int mnt_len, int *mounted);
+int umnt(struct ploop_disk_images_data *di, const char *dev,
+		const char *mnt, int mounted);
+
 PL_EXT int dump_bat(const char *image);
 PL_EXT int ploop_image_shuffle(const char *image, int nr, int flags);
 #endif
