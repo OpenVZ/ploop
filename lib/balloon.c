@@ -1018,7 +1018,7 @@ int ploop_blk_discard(const char* device, __u32 blocksize, off_t start, off_t en
 	return ret;
 }
 
-static int _umount(struct ploop_disk_images_data *di, const char *dev,
+int umnt(struct ploop_disk_images_data *di, const char *dev,
 		const char *mnt, int mounted)
 {
 	if (mounted == 2)
@@ -1028,7 +1028,7 @@ static int _umount(struct ploop_disk_images_data *di, const char *dev,
 	return 0;
 }
 
-static int get_dev_and_mnt(struct ploop_disk_images_data *di, int automount,
+int get_dev_and_mnt(struct ploop_disk_images_data *di, int automount,
 		char *dev, int dev_len, char *mnt, int mnt_len, int *mounted)
 {
 	int ret, r;        
@@ -1246,7 +1246,7 @@ int ploop_discard(struct ploop_disk_images_data *di,
 
 out:
 	if (mounted && ploop_lock_dd(di) == 0) {
-		_umount(di, dev, mnt, mounted);
+		umnt(di, dev, mnt, mounted);
 		ploop_unlock_dd(di);
 	}
 
@@ -1451,7 +1451,7 @@ int ploop_discard_get_stat(struct ploop_disk_images_data *di,
 		goto err;
 
 	ret = ploop_discard_get_stat_by_dev(dev, mnt, pd_stat);
-	_umount(di, dev, mnt, mounted);
+	umnt(di, dev, mnt, mounted);
 
 err:
 	ploop_unlock_dd(di);
