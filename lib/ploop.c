@@ -2815,7 +2815,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di,
 		}
 		close(balloonfd);
 		balloonfd = -1;
-		if (!mounted && param->offline_resize) {
+		if (mounted && param->offline_resize) {
 			/* offline */
 			ret = ploop_umount_fs(target, di);
 			if (ret)
@@ -2869,7 +2869,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di,
 				goto err;
 		}
 
-		if (!mounted && param->offline_resize) {
+		if (mounted && param->offline_resize) {
 			/* Offline */
 			if (balloon_size != 0) {
 				/* FIXME: restore balloon size on failure */
