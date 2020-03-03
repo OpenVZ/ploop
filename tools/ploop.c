@@ -1090,7 +1090,7 @@ static int plooptool_info(int argc, char **argv)
 	int ret, i;
 	int spec = 0;
 	int device = 0;
-	int bat = 1;
+	int bat = 0;
 	struct ploop_info info = {};
 
 	while ((i = getopt(argc, argv, "sdb")) != EOF) {
@@ -1103,6 +1103,7 @@ static int plooptool_info(int argc, char **argv)
 			break;
 		case 'b':
 			bat = 1;
+			break;
 		default:
 			usage_info();
 			return SYSEXIT_PARAM;
