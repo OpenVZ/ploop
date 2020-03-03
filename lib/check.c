@@ -635,24 +635,6 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 
 	alloc_head++;
 
-	if (check) {
-		for (i = 0; i < bmap_size/4; i++) {
-			int k;
-
-			if (bmap[i] == 0xFFFFFFFF)
-				continue;
-
-			if (i * 32 >= alloc_head)
-				break;
-
-			for (k = 0; k < 32 && k < alloc_head - i * 32; k++) {
-				if (!(bmap[i] & (1 << k))) {
-					ploop_log(0, "Hole at block %u", i*32 + k);
-				}
-			}
-		}
-	}
-
 	if (fatality) {
 		ploop_err(0, "Fatal errors were found, image %s is not repaired", img);
 		ret = SYSEXIT_PLOOPFMT;
