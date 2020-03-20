@@ -481,12 +481,6 @@ static void *get_free_iobuf(struct ploop_copy_handle *h)
 	return h->iobuf[h->cur_iobuf];
 }
 
-static int is_zero_block(void *buf, __u64 size)
-{
-	return *(__u64 *)buf == 0 &&
-		!memcmp(buf, buf + sizeof(__u64), size - sizeof(__u64));
-}
-
 static int send_image_block(struct ploop_copy_handle *h, __u64 size,
 		__u64 pos, ssize_t *nread)
 {
@@ -501,13 +495,6 @@ static int send_image_block(struct ploop_copy_handle *h, __u64 size,
 		ploop_err(errno, "Error from pread() size=%llu pos=%llu",
 				 size, pos);
 		return SYSEXIT_READ;
-	}
-
-	if ((pos % (__u64)h->cluster) == 0 && (*nread % (size_t)h->cluster) == 0 &&
-			is_zero_block(iobuf, *nread)) {
-		ploop_dbg(4, "Skip zero cluster block at offset %llu size %lu",
-				pos, *nread);
-		return 0;
 	}
 
 	return send_async(h, iobuf, *nread, pos);
