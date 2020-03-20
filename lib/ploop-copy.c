@@ -70,6 +70,11 @@ struct sender_data {
 	pthread_barrier_t barrier;
 };
 
+enum {
+	PLOOP_COPY_START,
+	PLOOP_COPY_ITER,
+};
+
 struct ploop_copy_handle {
 	struct sender_data sd;
 	struct delta idelta;
@@ -94,6 +99,7 @@ struct ploop_copy_handle {
 	int cancelled;
 	off_t eof_offset;
 	int async;
+	int stage;
 };
 
 /* Check what a file descriptor refers to.
@@ -481,7 +487,8 @@ static int send_image_block(struct ploop_copy_handle *h, __u64 size, __u64 pos)
 		return SYSEXIT_READ;
 	}
 
-	if ((pos % (__u64)h->cluster) == 0 && (n % (size_t)h->cluster) == 0 &&
+	if (h->stage == PLOOP_COPY_START &&
+			(pos % (__u64)h->cluster) == 0 && (n % (size_t)h->cluster) == 0 &&
 			is_zero_block(iobuf, n)) {
 		ploop_dbg(4, "Skip zero cluster block at offset %llu size %lu",
 				pos, n);
@@ -727,6 +734,7 @@ int ploop_copy_start(struct ploop_copy_handle *h,
 {
 	int ret;
 
+	h->stage = PLOOP_COPY_START;
 	if (pthread_create(&h->send_th, NULL, sender_thread, h)) {
 		ploop_err(errno, "Can't create send thread");
 		ret = SYSEXIT_SYS;
@@ -760,6 +768,8 @@ int ploop_copy_next_iteration(struct ploop_copy_handle *h,
 	int ret;
 
 	ploop_dbg(3, "pcopy iter %d", h->niter);
+
+	h->stage = PLOOP_COPY_ITER;
 	ret = process(h, stat);
 	if (ret) {
 		ploop_copy_release(h);
