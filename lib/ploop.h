@@ -547,4 +547,5 @@ int umnt(struct ploop_disk_images_data *di, const char *dev,
 
 PL_EXT int dump_bat(const char *image);
 PL_EXT int ploop_image_shuffle(const char *image, int nr, int flags);
+PL_EXT int ploop_check_bat(struct ploop_disk_images_data *di, const char *device);
 #endif

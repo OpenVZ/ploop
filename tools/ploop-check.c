@@ -52,11 +52,12 @@ static void usage(void)
 
 int plooptool_check(int argc, char ** argv)
 {
-	int i, idx;
+	int i, idx, ret;
 	int flags = CHECK_TALKATIVE;
 	unsigned int blocksize = 0;
 	char *endptr;
 	const char *uuid = NULL;
+	int check_bat = 0;
 	static struct option options[] = {
 		{"force", no_argument, NULL, 'f'},
 		{"hard-force", no_argument, NULL, 'F'},
@@ -69,6 +70,7 @@ int plooptool_check(int argc, char ** argv)
 		{"repair-sparse", no_argument, NULL, 'S'},
 		{"uuid", required_argument, NULL, 'u'},
 		{"defrag", no_argument, NULL, 'D'},
+		{"live-bat", no_argument, NULL, 'B'},
 		{ NULL, 0, NULL, 0 }
 	};
 
@@ -116,6 +118,9 @@ int plooptool_check(int argc, char ** argv)
 		case 'D':
 			flags |= CHECK_DEFRAG;
 			break;
+		case 'B':
+			check_bat = 1;
+			break;
 		default:
 			usage();
 			return SYSEXIT_PARAM;
@@ -132,7 +137,6 @@ int plooptool_check(int argc, char ** argv)
 
 	if (is_xml_fname(argv[0])) {
 		struct ploop_disk_images_data *di;
-		int ret;
 
 		if (blocksize)
 			fprintf(stderr, "WARNING: blocksize options is ignored "
@@ -142,7 +146,10 @@ int plooptool_check(int argc, char ** argv)
 		if (ret)
 			return ret;
 
-		ret = check_dd(di, uuid, flags);
+		if (check_bat)
+			ret = ploop_check_bat(di, NULL);
+		else
+			ret = check_dd(di, uuid, flags);
 
 		ploop_close_dd(di);
 
@@ -156,5 +163,9 @@ int plooptool_check(int argc, char ** argv)
 		return SYSEXIT_PARAM;
 	}
 
-	return ploop_check(argv[0], flags, &blocksize, NULL);
+	if (check_bat)
+		ret = ploop_check_bat(NULL, argv[0]);
+	else
+		ret = ploop_check(argv[0], flags, &blocksize, NULL);
+	return ret;
 }
