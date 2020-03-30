@@ -838,7 +838,7 @@ static int validate_bat(__u32 *image, __u32 *kernel, int nelem,
 static int check_bat(int fd, const char *dev, int level)
 {
 	int rc = 0, cluster, n_per_cluster, clu;
-	struct ploop_dump_bat_ctl *ctl;
+	struct ploop_dump_bat_ctl *ctl = NULL;
 	struct delta d = {.fd = -1};
 	char *image = NULL;
 	struct statfs fs;
@@ -908,7 +908,7 @@ err:
 
 int ploop_check_bat(struct ploop_disk_images_data *di, const char *device)
 {
-	int rc, fd, top_level, l;
+	int rc = 0, fd, top_level, l;
 	char dev[64];
 
 	if (device == NULL) {
