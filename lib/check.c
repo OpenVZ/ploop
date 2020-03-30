@@ -806,3 +806,148 @@ out:
 
 	return ret;
 }
+
+static int validate_bat(__u32 *image, __u32 *kernel, int nelem,
+		int start, int clu)
+{
+	int i, failed = 0, checked = 0;
+	
+	ploop_log(4, "Check cluster %d", clu);
+	for (i = 0; i < nelem; i++) {
+		if (kernel[i] == PLOOP_DUMP_BAT_UNCACHED_INDEX)
+			continue;
+		checked++;
+		if (kernel[i] != image[i]) {
+			ploop_log(0, "BAT mismatch index: %d k:%d/i:%d",
+					start + i, kernel[i], image[i]);
+			failed++;
+		}
+	}
+
+	if (failed) {
+		float r = (float)failed/checked* 100;
+		ploop_err(0, "Warning BAT mismatch cluster: %d failed: %d/%d (%f%%)",
+			 clu, failed, checked, r);
+		if (r > 90)
+			return 1;
+	}
+
+	return 0;
+}
+
+static int check_bat(int fd, const char *dev, int level)
+{
+	int rc = 0, cluster, n_per_cluster, clu;
+	struct ploop_dump_bat_ctl *ctl;
+	struct delta d = {.fd = -1};
+	char *image = NULL;
+	struct statfs fs;
+
+	if (find_delta_names(dev, level, level, &image, NULL))
+		return SYSEXIT_SYSFS;
+
+	if (open_delta(&d, image, O_DIRECT | O_RDONLY, OD_ALLOW_DIRTY)) {
+		rc = SYSEXIT_OPEN;
+		goto err;
+	}
+
+	cluster = S2B(d.blocksize);
+	if (fstatfs(d.fd, &fs)) {
+		ploop_err(errno, "Failed to statfs %s", image);
+		rc = SYSEXIT_PARAM;
+		goto err;
+	}
+
+	if (cluster % fs.f_bsize) {
+		ploop_err(0, "Unable to check %s: fs blocksize %lu is not multiple to ploop cluster size %d",
+				image, fs.f_bsize, cluster);
+		rc = SYSEXIT_PARAM;
+		goto err;
+	}
+
+	n_per_cluster = cluster / sizeof(int);
+
+	ctl = calloc(1, cluster + sizeof(*ctl));
+	if (ctl == NULL) {
+		ploop_err(ENOMEM, "Cannot allocate %lu", cluster + sizeof(*ctl));
+		rc = SYSEXIT_MALLOC;
+		goto err;
+	}
+	ctl->level = level;
+	ctl->start_cluster = 0;
+
+	ploop_log(0, "check image %s level=%d", image, level);
+	for (clu = 0; clu < d.l1_size; clu++) {
+		int skip = clu == 0 ? PLOOP_MAP_OFFSET : 0;
+		if (PREAD(&d, d.l2, cluster, clu * cluster)) {
+			rc = SYSEXIT_READ;
+			goto err;
+		}
+
+		ctl->nr_clusters = n_per_cluster - skip;
+		if (ioctl(fd, PLOOP_IOC_DUMP_CACHED_BAT, ctl)) {
+			ploop_err(errno, "PLOOP_IOC_DUMP_CACHED_BAT");
+			rc = SYSEXIT_DEVIOC;
+			break;
+		}
+
+		if (validate_bat(d.l2 + skip, ctl->bat, ctl->nr_clusters, ctl->start_cluster, clu))
+			rc = SYSEXIT_FSCK;
+
+		ctl->start_cluster += ctl->nr_clusters;
+	}
+	ploop_log(0, "Status: [%s]", rc == SYSEXIT_FSCK ? "FAILED" : "OK");
+
+err:
+	close_delta(&d);
+	free(image);
+	free(ctl);
+
+	return rc;
+}
+
+int ploop_check_bat(struct ploop_disk_images_data *di, const char *device)
+{
+	int rc, fd, top_level, l;
+	char dev[64];
+
+	if (device == NULL) {
+		if (di == NULL)
+			return SYSEXIT_PARAM;
+		rc = ploop_read_dd(di);
+		if (rc)
+			return rc;
+		rc = ploop_find_dev_by_dd(di, dev, sizeof(dev));
+		if (rc == -1) {
+			return SYSEXIT_OPEN;
+		} else if (rc == 1) {
+			ploop_err(0, "ploop is not mounted");
+			return SYSEXIT_PARAM;
+		}
+	} else {
+		snprintf(dev, sizeof(dev), "%s", device);
+	}
+
+	if (ploop_get_attr(dev, "top", &top_level))
+		return SYSEXIT_SYSFS;
+
+	fd = open(dev, O_RDONLY);
+	if (fd == -1) {
+		ploop_err(errno, "Can not open %s", dev);
+		return SYSEXIT_OPEN;
+	}
+
+	ploop_log(0, "Live BAT check top_level=%d dev=%s", top_level, dev);
+	for (l = 0; l <= top_level; l++) {
+		int r = check_bat(fd, dev, l);
+		if (r) {
+			rc = r;
+			if (rc != SYSEXIT_FSCK)
+				break;
+		}
+	}
+
+	close(fd);
+
+	return rc;
+}
