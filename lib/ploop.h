@@ -43,7 +43,7 @@
 #define EXT4_SUPER_MAGIC	0xEF53
 #endif
 
-/* Compatibility: Parallels use this UUID to mark top delta */
+/* Compatibility: use this UUID to mark top delta */
 #define TOPDELTA_UUID		"{5fbaabe3-6958-40ff-92a7-860e329aab41}"
 #define NONE_UUID		"{00000000-0000-0000-0000-000000000000}"
 #define UUID_SIZE		39	/* sizeof(TOPDELTA_UUID) for example */
