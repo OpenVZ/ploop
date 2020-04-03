@@ -34,6 +34,14 @@
 #include "bit_ops.h"
 #include "ploop.h"
 
+#ifndef copy_file_range
+static ssize_t copy_file_range(int fd_in, loff_t *off_in, int fd_out,
+		loff_t *off_out, size_t len, unsigned int flags)
+{
+	return syscall(__NR_copy_file_range, fd_in, off_in, fd_out,
+			off_out, len, flags);
+}
+#endif
 
 static int update_bat(struct delta *delta, __u32 clu, __u32 old, __u32 new)
 {
