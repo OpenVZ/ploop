@@ -2983,8 +2983,10 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	ret = get_dev_and_mnt(di, param->mntns_pid,  1, dev, sizeof(dev),
+	ret = get_dev_and_mnt(di, param->mntns_pid, 1, dev, sizeof(dev),
 			buf, sizeof(buf), &mounted);
+	if (ret)
+		goto err;
 	target = strdup(buf);
 
 	//FIXME: Deny resize image if there are childs
