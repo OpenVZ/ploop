@@ -825,46 +825,92 @@ out:
 	return ret;
 }
 
-static int validate_bat(__u32 *image, __u32 *kernel, int nelem,
-		int start, int clu)
+static float validate_image_bat(__u32 *image, struct ploop_dump_bat_ctl *ctl,
+		int clu)
 {
+	float f = 0;
 	int i, failed = 0, checked = 0;
-	
+
 	ploop_log(4, "Check cluster %d", clu);
-	for (i = 0; i < nelem; i++) {
-		if (kernel[i] == PLOOP_DUMP_BAT_UNCACHED_INDEX)
+	for (i = 0; i < ctl->nr_clusters; i++) {
+		if (image[i])
+			ploop_log(4, "%d k:%d/i:%d",
+					ctl->start_cluster + i, ctl->bat[i], image[i]);
+
+		if (ctl->bat[i] == PLOOP_DUMP_BAT_UNCACHED_INDEX)
 			continue;
 		checked++;
-		if (kernel[i] != image[i]) {
+		if (ctl->bat[i] != image[i]) {
 			ploop_log(0, "BAT mismatch index: %d k:%d/i:%d",
-					start + i, kernel[i], image[i]);
+					ctl->start_cluster + i, ctl->bat[i], image[i]);
 			failed++;
 		}
 	}
 
 	if (failed) {
-		float r = (float)failed/checked* 100;
+		f = (float)failed/checked * 100;
 		ploop_err(0, "Warning BAT mismatch cluster: %d failed: %d/%d (%f%%)",
-			 clu, failed, checked, r);
-		if (r > 90)
-			return 1;
+			 clu, failed, checked, f);
 	}
 
-	return 0;
+	return f;
 }
 
-static int check_bat(int fd, const char *dev, int level)
+static int sync_bat(struct delta *delta, __u32 *bat,
+		struct ploop_dump_bat_ctl *ctl,	int fd, int partfd, int clu )
 {
-	int rc = 0, cluster, n_per_cluster, clu;
-	struct ploop_dump_bat_ctl *ctl;
+	int i, ret;
+	off_t cluster;
+	
+	ploop_log(0, "Syncing cluster: %d", clu);
+	ploop_log(0, "\tfreeze");
+	if (ioctl(partfd, PLOOP_IOC_FREEZE)) {
+		ploop_err(errno, "Failed to freeze device");
+		return SYSEXIT_DEVIOC;
+	}
+
+	ploop_log(0, "\tdump");
+	if (ioctl(fd, PLOOP_IOC_DUMP_CACHED_BAT, ctl)) {
+		ploop_err(errno, "PLOOP_IOC_DUMP_CACHED_BAT");
+		ret = SYSEXIT_DEVIOC;
+		goto err;
+	}
+
+	for (i = 0; i < ctl->nr_clusters; i++) {
+		if (ctl->bat[i] == PLOOP_DUMP_BAT_UNCACHED_INDEX)
+			continue;
+		bat[i] = ctl->bat[i];
+	}
+
+	cluster = S2B(delta->blocksize);
+	ploop_log(0, "\tupdate");
+	if (PWRITE(delta, delta->l2, cluster, cluster * clu))
+		ret = SYSEXIT_WRITE;
+err:
+	ploop_log(0, "\tthaw");
+	if (ioctl_device(partfd, PLOOP_IOC_THAW, 0))
+		ploop_err(errno, "Failed to PLOOP_IOC_THAW");
+
+	return ret;
+}
+
+static int check_image_bat(int fd, int partfd, const char *dev,
+		int level, int flags)
+{
+	int rc = 0, n_per_cluster, clu;
+	struct ploop_dump_bat_ctl *ctl = NULL;
 	struct delta d = {.fd = -1};
 	char *image = NULL;
 	struct statfs fs;
+	__u32 remain;
+	off_t cluster;
+	float r;
+	int f = O_DIRECT | (CHECK_SYNC_BAT ? O_RDWR : O_RDONLY);
 
 	if (find_delta_names(dev, level, level, &image, NULL))
 		return SYSEXIT_SYSFS;
 
-	if (open_delta(&d, image, O_DIRECT | O_RDONLY, OD_ALLOW_DIRTY)) {
+	if (open_delta(&d, image, f, OD_ALLOW_DIRTY)) {
 		rc = SYSEXIT_OPEN;
 		goto err;
 	}
@@ -877,7 +923,7 @@ static int check_bat(int fd, const char *dev, int level)
 	}
 
 	if (cluster % fs.f_bsize) {
-		ploop_err(0, "Unable to check %s: fs blocksize %lu is not multiple to ploop cluster size %d",
+		ploop_err(0, "Unable to check %s: fs blocksize %lu is not multiple to ploop cluster size %lu",
 				image, fs.f_bsize, cluster);
 		rc = SYSEXIT_PARAM;
 		goto err;
@@ -893,28 +939,42 @@ static int check_bat(int fd, const char *dev, int level)
 	}
 	ctl->level = level;
 	ctl->start_cluster = 0;
-
+	remain = d.l2_size;
 	ploop_log(0, "check image %s level=%d", image, level);
-	for (clu = 0; clu < d.l1_size; clu++) {
+	for (clu = 0; remain != 0; clu++) {
 		int skip = clu == 0 ? PLOOP_MAP_OFFSET : 0;
-		if (PREAD(&d, d.l2, cluster, clu * cluster)) {
+
+		if (PREAD(&d, d.l2, cluster, cluster * clu)) {
 			rc = SYSEXIT_READ;
 			goto err;
 		}
 
 		ctl->nr_clusters = n_per_cluster - skip;
+		if (remain < ctl->nr_clusters)
+			 ctl->nr_clusters = remain;
+		remain -= ctl->nr_clusters;
+
 		if (ioctl(fd, PLOOP_IOC_DUMP_CACHED_BAT, ctl)) {
 			ploop_err(errno, "PLOOP_IOC_DUMP_CACHED_BAT");
 			rc = SYSEXIT_DEVIOC;
 			break;
 		}
 
-		if (validate_bat(d.l2 + skip, ctl->bat, ctl->nr_clusters, ctl->start_cluster, clu))
-			rc = SYSEXIT_FSCK;
+		r = validate_image_bat(d.l2 + skip, ctl, clu);
+		if (r) {
+			if (r >= 90) {
+				ploop_log(0, "Status: [FAILED]");
+				rc = SYSEXIT_FSCK;
+			}
+			if (flags & CHECK_SYNC_BAT) {
+				rc = sync_bat(&d, d.l2 + skip, ctl, fd, partfd, clu);
+				if (rc)
+					goto err;
+			}
+		}
 
 		ctl->start_cluster += ctl->nr_clusters;
 	}
-	ploop_log(0, "Status: [%s]", rc == SYSEXIT_FSCK ? "FAILED" : "OK");
 
 err:
 	close_delta(&d);
@@ -924,10 +984,11 @@ err:
 	return rc;
 }
 
-int ploop_check_bat(struct ploop_disk_images_data *di, const char *device)
+int ploop_check_bat(struct ploop_disk_images_data *di, const char *device,
+		int flags)
 {
-	int rc, fd, top_level, l;
-	char dev[64];
+	int rc = 0, fd, partfd, top_level, l;
+	char dev[64], partdev[64];
 
 	if (device == NULL) {
 		if (di == NULL)
@@ -946,6 +1007,10 @@ int ploop_check_bat(struct ploop_disk_images_data *di, const char *device)
 		snprintf(dev, sizeof(dev), "%s", device);
 	}
 
+	rc = get_partition_device_name(dev, partdev, sizeof(partdev));
+	if (rc)
+		return rc;
+
 	if (ploop_get_attr(dev, "top", &top_level))
 		return SYSEXIT_SYSFS;
 
@@ -954,10 +1019,17 @@ int ploop_check_bat(struct ploop_disk_images_data *di, const char *device)
 		ploop_err(errno, "Can not open %s", dev);
 		return SYSEXIT_OPEN;
 	}
+	partfd = open(partdev, O_RDONLY);
+	if (partfd == -1) {
+		ploop_err(errno, "Can not open %s", dev);
+		close(fd);
+		return SYSEXIT_OPEN;
+	}
 
-	ploop_log(0, "Live BAT check top_level=%d dev=%s", top_level, dev);
+	ploop_log(0, "Live BAT check top_level=%d dev=%s part=%s",
+			top_level, dev, partdev);
 	for (l = 0; l <= top_level; l++) {
-		int r = check_bat(fd, dev, l);
+		int r = check_image_bat(fd, partfd, dev, l, flags);
 		if (r) {
 			rc = r;
 			if (rc != SYSEXIT_FSCK)
@@ -966,6 +1038,7 @@ int ploop_check_bat(struct ploop_disk_images_data *di, const char *device)
 	}
 
 	close(fd);
+	close(partfd);
 
 	return rc;
 }

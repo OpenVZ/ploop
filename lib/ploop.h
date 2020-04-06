@@ -65,6 +65,7 @@
 #define CHECK_TALKATIVE		0x40	/* be verbose, produce more output */
 #define CHECK_RAW		0x80	/* delta is in raw format */
 #define CHECK_DEFRAG		0x100
+#define CHECK_SYNC_BAT		0x200
 
 /* load/remove dirty bitmap flags */
 #define DIRTY_BITMAP_REMOVE	0x01
@@ -547,5 +548,6 @@ int umnt(struct ploop_disk_images_data *di, const char *dev,
 
 PL_EXT int dump_bat(const char *image);
 PL_EXT int ploop_image_shuffle(const char *image, int nr, int flags);
-PL_EXT int ploop_check_bat(struct ploop_disk_images_data *di, const char *device);
+PL_EXT int ploop_check_bat(struct ploop_disk_images_data *di, const char *device,
+		int flags);
 #endif
