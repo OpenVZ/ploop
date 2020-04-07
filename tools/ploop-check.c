@@ -70,7 +70,8 @@ int plooptool_check(int argc, char ** argv)
 		{"repair-sparse", no_argument, NULL, 'S'},
 		{"uuid", required_argument, NULL, 'u'},
 		{"defrag", no_argument, NULL, 'D'},
-		{"live-bat", no_argument, NULL, 'B'},
+		{"live-check-bat", no_argument, NULL, 1},
+		{"live-sync-bat", no_argument, NULL, 2},
 		{ NULL, 0, NULL, 0 }
 	};
 
@@ -118,8 +119,12 @@ int plooptool_check(int argc, char ** argv)
 		case 'D':
 			flags |= CHECK_DEFRAG;
 			break;
-		case 'B':
+		case 1:
 			check_bat = 1;
+			break;
+		case 2:
+			check_bat = 1;
+			flags |= CHECK_SYNC_BAT;
 			break;
 		default:
 			usage();
@@ -147,7 +152,7 @@ int plooptool_check(int argc, char ** argv)
 			return ret;
 
 		if (check_bat)
-			ret = ploop_check_bat(di, NULL);
+			ret = ploop_check_bat(di, NULL, flags);
 		else
 			ret = check_dd(di, uuid, flags);
 
@@ -164,7 +169,7 @@ int plooptool_check(int argc, char ** argv)
 	}
 
 	if (check_bat)
-		ret = ploop_check_bat(NULL, argv[0]);
+		ret = ploop_check_bat(NULL, argv[0], flags);
 	else
 		ret = ploop_check(argv[0], flags, &blocksize, NULL);
 	return ret;
