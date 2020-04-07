@@ -138,10 +138,9 @@ int build_hole_bitmap(struct delta *delta, __u64 **hole_bitmap,
 	int log, nr_clu_in_bat;
 	__u32 clu, cluster, off;
 	__u64 size;
-	struct ploop_pvd_header *hdr = (struct ploop_pvd_header *) delta->hdr0;
 
-	nr_clu_in_bat = hdr->m_FirstBlockOffset / hdr->m_Sectors;
-	*hole_bitmap_size = hdr->m_Size + nr_clu_in_bat;
+	nr_clu_in_bat = delta->l1_size;
+	*hole_bitmap_size = delta->l1_size + delta->l2_size;
 	size = (*hole_bitmap_size + 7) / 8; /* round up byte */
 	size = (size + sizeof(unsigned long)-1) & ~(sizeof(unsigned long)-1);
 	if (p_memalign((void *)hole_bitmap, sizeof(__u64), size))
@@ -154,7 +153,7 @@ int build_hole_bitmap(struct delta *delta, __u64 **hole_bitmap,
 	for (clu = 0; clu < nr_clu_in_bat; clu++)
 		BMAP_CLR(*hole_bitmap, clu);
 
-	for (clu = 0; clu < hdr->m_Size; clu++) {
+	for (clu = 0; clu < delta->l2_size; clu++) {
 		int l2_cluster = (clu + PLOOP_MAP_OFFSET) / (cluster / sizeof(__u32));
 		__u32 l2_slot  = (clu + PLOOP_MAP_OFFSET) % (cluster / sizeof(__u32));
 		if (delta->l2_cache != l2_cluster) {
