@@ -856,11 +856,12 @@ static float validate_image_bat(__u32 *image, struct ploop_dump_bat_ctl *ctl,
 	return f;
 }
 
-static int sync_bat(struct delta *delta, __u32 *bat,
-		struct ploop_dump_bat_ctl *ctl,	int fd, int partfd, int clu )
+static int sync_bat(struct delta *delta, struct ploop_dump_bat_ctl *ctl,
+		int fd, int partfd, int clu )
 {
-	int i, ret;
+	int i, ret = 0;
 	off_t cluster;
+	__u32 *bat;
 	
 	ploop_log(0, "Syncing cluster: %d", clu);
 	ploop_log(0, "\tfreeze");
@@ -876,13 +877,19 @@ static int sync_bat(struct delta *delta, __u32 *bat,
 		goto err;
 	}
 
+	cluster = S2B(delta->blocksize);
+	if (PREAD(delta, delta->l2, cluster, cluster * clu)) {
+		ret = SYSEXIT_READ;
+		goto err;
+	}
+	bat = delta->l2 + (clu == 0 ? PLOOP_MAP_OFFSET : 0); 
+
 	for (i = 0; i < ctl->nr_clusters; i++) {
 		if (ctl->bat[i] == PLOOP_DUMP_BAT_UNCACHED_INDEX)
 			continue;
 		bat[i] = ctl->bat[i];
 	}
 
-	cluster = S2B(delta->blocksize);
 	ploop_log(0, "\tupdate");
 	if (PWRITE(delta, delta->l2, cluster, cluster * clu))
 		ret = SYSEXIT_WRITE;
@@ -967,7 +974,7 @@ static int check_image_bat(int fd, int partfd, const char *dev,
 				rc = SYSEXIT_FSCK;
 			}
 			if (flags & CHECK_SYNC_BAT) {
-				rc = sync_bat(&d, d.l2 + skip, ctl, fd, partfd, clu);
+				rc = sync_bat(&d, ctl, fd, partfd, clu);
 				if (rc)
 					goto err;
 			}
