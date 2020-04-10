@@ -496,7 +496,7 @@ static int validate_disk_descriptor(struct ploop_disk_images_data *di)
 			di->top_guid = strdup(TOPDELTA_UUID);
 	}
 	if (di->top_guid == NULL && find_snapshot_by_guid(di, TOPDELTA_UUID) != -1) {
-		/* Parallels VM compatibility.
+		/* VM compatibility.
 		 * The top delta is hardcoded {5fbaabe3-6958-40ff-92a7-860e329aab41}
 		 */
 		di->top_guid = strdup(TOPDELTA_UUID);
@@ -727,7 +727,7 @@ int store_diskdescriptor(const char *fname, struct ploop_disk_images_data *di,
 		ploop_err(0, "Error at xmlTextWriterStartDocument");
 		goto err;
 	}
-	rc = xmlTextWriterStartElement(writer, BAD_CAST "Parallels_disk_image");
+	rc = xmlTextWriterStartElement(writer, BAD_CAST "Virtuozzo_disk_image");
 	if (rc < 0) {
 		ploop_err(0, "Error at xmlTextWriterStartDocument");
 		goto err;
@@ -1008,7 +1008,7 @@ int store_diskdescriptor(const char *fname, struct ploop_disk_images_data *di,
 		goto err;
 	}
 
-	/* Close Parallels_disk_image */
+	/* Close Virtuozzo_disk_image */
 	rc = xmlTextWriterEndElement(writer);
 	if (rc < 0) {
 		ploop_err(0, "Error at xmlTextWriterEndElement");

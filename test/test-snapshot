@@ -1,0 +1,142 @@
+#!/bin/bash
+
+set -ex
+. functions
+
+SID1=77167520-004e-4423-a6f8-026bbbce0a00
+SID2=77167520-004e-4423-a6f8-026bbbce0a01
+BLOCKSIZE=2048
+SIZE=819200
+SIZE_MAX=62914560
+V=2
+OFFLINE=yes
+while [ "${#}" -gt 0 ]; do
+case "${1}" in
+	"--online")
+		OFFLINE="no"
+		shift
+		;;
+	"--offline")
+		OFFLINE="yes"
+		shift
+		;;
+	"--merge")
+		MERGE="yes"
+		shift
+		;;
+	"--size")
+		SIZE="${2}"
+		shift
+		shift
+		;;
+	"-v1")
+		V=1
+		SIZE_MAX=2097152
+		shift
+		;;
+	"-v2")
+		V=2
+		shift
+		;;
+
+	*)
+		shift
+		;;
+	esac
+done
+
+test_cleanup
+
+
+B=256
+check_md5()
+{
+	M1_n=$(md5sum $TEST_MNT/file.replace)
+	if [ "$M1" != "$M1_n" ]; then
+		echo "ERROR md5 $TEST_MNT/file.replace mismatch"
+		echo $M1
+		echo $M1_n
+		exit 1
+	fi
+	M2_n=$(md5sum $TEST_MNT/file.new)
+	if [ "$M2" != "$M2_n" ]; then
+		echo "md5 $TEST_MNT/file.new mismatch"
+		echo $M2
+		echo $M2_n
+
+		exit 1
+	fi
+}
+
+check_size()
+{
+	local total=0 bs=0 alloc=0 delta=0
+
+	total=`stat -c "%s" $1`
+	bs=`stat -c "%B" $1`
+	alloc=`stat -c "%b" $1`
+
+	let alloc*=$bs
+
+	delta=$total
+	let delta=$total-$alloc
+	echo "Delta $1 delta: $delta total: $total allocated: $alloc"
+	if [ $delta -gt 134217728 ]; then
+		echo "ERROR check image $1 size failed: total $total allocated $alloc delta $delta > 134217728"
+		exit 1
+	fi
+}
+
+reuse_holes()
+{
+	echo "reuse_holes_offline"
+	ploop init -v ${V} -b $BLOCKSIZE -s ${SIZE}k $TEST_IMAGE >/dev/null 2>&1
+	for ((i=$SIZE; i<$SIZE_MAX;)) do
+		echo Size $i
+		ploop mount -d /dev/ploop0 -m $TEST_MNT $TEST_DDXML >/dev/null
+		rm -f $TEST_MNT/file.*
+
+		dd if=/dev/urandom bs=1M count=$B of=$TEST_MNT/file.replace >/dev/null 2>&1
+
+		rm -f $TEST_MNT/file.rm
+		ploop balloon discard --defrag $TEST_DDXML >/dev/null
+
+		ploop snapshot -u $SID1 $TEST_DDXML >/dev/null
+		dd if=/dev/urandom bs=1M count=$B of=$TEST_MNT/file.replace >/dev/null 2>&1
+		M1=$(md5sum $TEST_MNT/file.replace)
+		dd if=/dev/urandom bs=1M count=$B of=$TEST_MNT/file.new >/dev/null 2>&1
+		M2=$(md5sum $TEST_MNT/file.new)
+
+		if [ "$OFFLINE" = "yes" ]; then
+			ploop umount $TEST_DDXML >/dev/null
+		else
+			ploop snapshot -u $SID2 $TEST_DDXML >/dev/null
+		fi
+
+		let s=$i*2
+		ploop grow -s ${s}k $TEST_DDXML >/dev/null 2>&1
+		ploop snapshot-delete -u $SID1 $TEST_DDXML >/dev/null
+		if [ "$OFFLINE" = "yes" ]; then
+			ploop mount -d /dev/ploop0 -m $TEST_MNT $TEST_DDXML >/dev/null
+			check_md5
+		else
+			check_md5
+			dd if=/dev/urandom bs=1M count=$B of=$TEST_MNT/file.new >/dev/null 2>&1
+			M2=$(md5sum $TEST_MNT/file.new)
+			ploop snapshot-delete -u $SID2 $TEST_DDXML >/dev/null
+			check_md5
+		fi
+		let "i <<= 2"
+		ploop grow -s ${i}k $TEST_DDXML >/dev/null 2>&1
+		check_md5
+		ploop umount $TEST_DDXML >/dev/null
+
+		check_size "$TEST_IMAGE"
+	done
+}
+
+reuse_holes
+
+test_cleanup
+echo
+echo "FINISHED [OK]"

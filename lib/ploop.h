@@ -43,7 +43,7 @@
 #define EXT4_SUPER_MAGIC	0xEF53
 #endif
 
-/* Compatibility: Parallels use this UUID to mark top delta */
+/* Compatibility: use this UUID to mark top delta */
 #define TOPDELTA_UUID		"{5fbaabe3-6958-40ff-92a7-860e329aab41}"
 #define NONE_UUID		"{00000000-0000-0000-0000-000000000000}"
 #define UUID_SIZE		39	/* sizeof(TOPDELTA_UUID) for example */
@@ -297,8 +297,9 @@ int relocmap2relocblks(struct relocmap *relocmap, int lvl, __u32 a_h, __u32 n_sc
 PL_EXT int ploop_check(const char *img, int flags, __u32 *blocksize_p,
 		int *cbt_allowed);
 int check_deltas(struct ploop_disk_images_data *di, char **images,
-		int raw, __u32 *blocksize, int *cbt_allowed);
-PL_EXT int check_dd(struct ploop_disk_images_data *di, const char *uuid);
+		int raw, __u32 *blocksize, int *cbt_allowed, int flags);
+PL_EXT int check_dd(struct ploop_disk_images_data *di, const char *uuid,
+		int flags);
 /* Logging */
 #define LOG_BUF_SIZE	8192
 int ploop_get_log_level(void);
@@ -514,8 +515,8 @@ int store_diskdescriptor(const char *fname, struct ploop_disk_images_data *di,
 int ploop_get_mntn_state(int fd, int *state);
 __u32 *alloc_reverse_map(__u32 len);
 int range_build_rmap(__u32 iblk_start, __u32 iblk_end,
-		__u32 *rmap, __u32 rlen, struct delta *delta, __u32 *out);
-
+		__u32 *rmap, __u32 rlen, struct delta *delta,
+		__u32 *out, __u32 *max);
 int get_loop_by_delta(const char *delta, char **out[]);
 int get_dev_by_loop(char **devs, char **out[]);
 int get_dev_from_sys(const char *devname, const char *type,char *out, int len);
@@ -551,5 +552,22 @@ int grow_loop_image(const char *devname, const char *delta,
 		int blocksize, __u64 size);
 PL_EXT int ploop_list(void);
 int fsync_safe(int fd);
+int build_hole_bitmap(struct delta *delta, __u64 **hole_bitmap,
+		__u32 *hole_bitmap_size, int *nr_clusters);
 int image_defrag(struct delta *delta);
+int do_umount(const char *mnt, int tmo_sec);
+int get_part_devname(struct ploop_disk_images_data *di,
+		const char *device, char *devname, int dlen,
+		char *partname, int plen);
+int get_mount_dir(const char *device, int pid, char *out, int size);
+int auto_mount_fs(struct ploop_disk_images_data *di, pid_t pid,
+		const char *partname, struct ploop_mount_param *param);
+int get_dev_and_mnt(struct ploop_disk_images_data *di, pid_t pid,
+		int automount, char *dev, int dev_len, char *mnt,
+		int mnt_len, int *mounted);
+int umnt(struct ploop_disk_images_data *di, const char *dev,
+		const char *mnt, int mounted);
+
+PL_EXT int dump_bat(const char *image);
+PL_EXT int ploop_image_shuffle(const char *image, int nr, int flags);
 #endif
