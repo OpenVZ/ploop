@@ -811,19 +811,19 @@ static float validate_image_bat(__u32 *image, struct ploop_dump_bat_ctl *ctl,
 		int clu)
 {
 	float f = 0;
-	int i, failed = 0, checked = 0;
+	unsigned int i, failed = 0, checked = 0;
 
 	ploop_log(4, "Check cluster %d", clu);
 	for (i = 0; i < ctl->nr_clusters; i++) {
 		if (image[i])
-			ploop_log(4, "%d k:%d/i:%d",
+			ploop_log(4, "%d k:%u/i:%u",
 					ctl->start_cluster + i, ctl->bat[i], image[i]);
 
 		if (ctl->bat[i] == PLOOP_DUMP_BAT_UNCACHED_INDEX)
 			continue;
 		checked++;
 		if (ctl->bat[i] != image[i]) {
-			ploop_log(0, "BAT mismatch index: %d k:%d/i:%d",
+			ploop_log(0, "BAT mismatch index: %d k:%u/i:%u",
 					ctl->start_cluster + i, ctl->bat[i], image[i]);
 			failed++;
 		}
