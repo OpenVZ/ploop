@@ -4248,10 +4248,17 @@ int check_snapshot_mount(struct ploop_disk_images_data *di,
 
 	/* Try to unmount temp snapshot(s) */
 	for (p = devs; *p != NULL; p++) {
+		int retry = 0;
+retry:
 		if (!is_device_inuse(*p))
 			ret = ploop_umount(*p, NULL);
-		else
+		else {
 			ret = SYSEXIT_EBUSY;
+			if (retry++ < 3) {
+				sleep(1);
+				goto retry;
+			}
+		}
 
 		if (ret) {
 			/* print current device and remaining ones */
