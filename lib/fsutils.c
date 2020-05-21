@@ -138,41 +138,19 @@ int sgdisk_mkpart(const char *device,
 	return 0;
 }
 
-int sgdisk_rmpart(const char *device, int part_num)
+int sgdisk_resize_gpt(const char *device, int part_num, off_t part_start)
 {
-	char *argv[5];
-	char s1[4];
+	char n[64];
+	char *argv[] = {"sgdisk", "-e", "-d1", "-n", n,  (char *)device, NULL};
 
-	snprintf(s1, sizeof(s1), "%d", part_num);
-
-	argv[0] = "sgdisk";
-	argv[1] = "-d";
-	argv[2] = s1;
-	argv[3] = (char *)device;
-	argv[4] = NULL;
-
+	snprintf(n, sizeof(n), "%d:%lu:0", part_num, part_start);
 	if (run_prg(argv)) {
-		ploop_err(0, "Failed to delete partition %d", part_num);
+		ploop_err(0, "Failed to resize GPT partition %d", part_num);
 		return SYSEXIT_SYS;
 	}
 	return 0;
 }
 
-int sgdisk_move_gpt_header(const char *device)
-{
-	char *argv[4];
-
-	argv[0] = "sgdisk";
-	argv[1] = "-e";
-	argv[2] = (char *)device;
-	argv[3] = NULL;
-
-	if (run_prg(argv)) {
-		ploop_err(0, "Failed to move GPT header to the end of the device");
-		return SYSEXIT_SYS;
-	}
-	return 0;
-}
 
 #define FOUND_START_SECTOR_BIT 1
 #define FOUND_END_SECTOR_BIT 2
