@@ -121,7 +121,7 @@ static int plooptool_init(int argc, char **argv)
 	};
 
 
-	while ((i = getopt_long(argc, argv, "s:b:B:f:t:L:v:nSk:",
+	while ((i = getopt_long(argc, argv, "s:b:B:f:t:L:v:nSk:P",
 					long_opts, NULL)) != EOF) {
 		switch (i) {
 		case 's':
@@ -183,6 +183,9 @@ static int plooptool_init(int argc, char **argv)
 			break;
 		case 'k':
 			param.keyid = optarg;
+			break;
+		case 'P':
+			param.without_partition = 1;
 			break;
 		default:
 			usage_init();
