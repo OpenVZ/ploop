@@ -945,7 +945,7 @@ static int plooptool_resize(int argc, char **argv)
 	char fname[PATH_MAX];
 	char *dev_name;
 
-	while ((i = getopt(argc, argv, "s:b")) != EOF) {
+	while ((i = getopt(argc, argv, "s:bo")) != EOF) {
 		switch (i) {
 		case 's':
 			if (parse_size(optarg, &new_size, "-s")) {
@@ -956,6 +956,9 @@ static int plooptool_resize(int argc, char **argv)
 			break;
 		case 'b':
 			max_balloon_size = 1;
+			break;
+		case 'o':
+			param.offline_resize = 0;
 			break;
 		default:
 			usage_resize();
