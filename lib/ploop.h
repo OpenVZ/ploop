@@ -253,7 +253,7 @@ int ploop_get_delta_attr(const char * device, int level, const char * attr, int 
 int ploop_get_delta_attr_str(const char *device, int level, const char *attr, char *out, int len);
 int ploop_get_size(const char * device, off_t * res);
 int get_dev_by_name(const char *name, dev_t *dev);
-int dev_num2dev_start(dev_t dev_num, __u32 *dev_start, __u32 *start_offset);
+int dev_num2dev_start(dev_t dev_num, __u32 *dev_start);
 void init_delta_array(struct delta_array *);
 void deinit_delta_array(struct delta_array * p);
 int extend_delta_array(struct delta_array * p, char * path, int rw, int od_flags);
