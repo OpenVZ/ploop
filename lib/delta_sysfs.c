@@ -698,7 +698,21 @@ int ploop_find_dev(const char *component_name, const char *delta,
 	return find_dev_by_delta(component_name, delta, NULL, out, size);
 }
 
-int get_part_devname_from_sys(const char *device, char *out, int size)
+const char *get_dm_name(const char *devname, char *out, int size)
+{
+	char b[512];
+
+	snprintf(out, size, "/dev/%s", devname);
+
+	snprintf(b, sizeof(b), "/sys/class/block/%s/dm/name", devname);
+	if (access(b, F_OK) == 0 && read_line(b, b, sizeof(b)) == 0)
+		snprintf(out, size, "/dev/mapper/%s", b);
+
+	return out;
+}
+
+int get_part_devname_from_sys(const char *device, char *devname, int dsize,
+		char *partname, int psize)
 {
 	char path[PATH_MAX];
 	char **dirs = NULL;
@@ -721,18 +735,40 @@ int get_part_devname_from_sys(const char *device, char *out, int size)
 			break;
 	}
 
-	if (*p == NULL) {
-		snprintf(out, size, "/dev/%s", device);
-	} else {
 
-		snprintf(out, size, "/dev/%s", *p);
+	snprintf(devname, dsize, "%s", device);
+	/* ploopNp1 */
+	snprintf(partname, psize, "/dev/%s", *p ? *p : device);
 
-		snprintf(path, sizeof(path), "/sys/class/block/%s/holders", *p);
+	snprintf(path, sizeof(path), "/sys/class/block/%s/holders",	
+			get_basename(partname));
+	ploop_free_array(dirs);
+	dirs = NULL;
+
+	/* crypto based schema
+ 	 * old
+		ploopN                               disk
+		└─ploopNp1                           part
+		  └─CRYPT-ploopNp1                   crypt
+	 * new
+	 	ploopN                               disk
+		└─CRYPT-ploopN                       crypt
+		  └─CRYPT-ploopNp1                   part
+	 */
+	if (get_dir_entry(path, &dirs) == 0 && dirs != NULL) {
+		snprintf(devname, dsize, "%s", partname);
+		snprintf(partname, psize, "%s", get_dm_name(dirs[0], path, sizeof(path)));
+		snprintf(path, sizeof(path), "/sys/class/block/%s/holders", dirs[0]);
+
 		ploop_free_array(dirs);
 		dirs = NULL;
-		if (get_dir_entry(path, &dirs) == 0 && dirs != NULL)
-			snprintf(out, size, "/dev/%s", dirs[0]);
+
+		if (get_dir_entry(path, &dirs) == 0 && dirs != NULL) {
+			snprintf(devname, dsize, "%s", partname);
+			snprintf(partname, psize, "%s",  get_dm_name(dirs[0], path, sizeof(path)));
+		}
 	}
+
 	ploop_free_array(dirs);
 
 	return 0;
