@@ -385,45 +385,94 @@ int get_dir_entry(const char *path, char **out[])
 	return ret;
 }
 
-int dev_num2dev_start(dev_t dev_num, __u32 *dev_start, __u32 *start_offset)
+static int get_dm_offset(dev_t dev, dev_t *parent, __u32 *offset)
+{
+	FILE *fp;
+	char b[PATH_MAX];
+	char *token, *savedptr = NULL;
+	unsigned int found = 0, major, minor;
+	char name[64];
+
+	snprintf(b, sizeof(b), "/sys/dev/block/%d:%d/dm/name",
+			major(dev), minor(dev));
+	if (read_line(b, name, sizeof(name))) {
+		ploop_err(0, "Cannot read dm name from %s", b);
+		return -1;
+	}
+
+	snprintf(b, sizeof(b), "LANG=C dmsetup table %s", name);
+	fp = popen(b, "r");
+	if (fp == NULL) {
+		ploop_err(0, "Failed %s", b);
+		return SYSEXIT_SYS;
+	}
+
+	if (fgets(b, sizeof(b), fp) == NULL)
+		goto err;
+
+	if ((token = strtok_r(b, " ", &savedptr)) == NULL)
+		goto err;
+
+	do {
+		if (found) {
+			if (sscanf(token, "%u", offset) != 1)
+				found = 0;
+			break;
+		}
+		if (sscanf(token, "%u:%u", &major, &minor) == 2)
+			found = 1;
+
+	} while ((token = strtok_r(NULL, " ", &savedptr)) != NULL);
+
+err:
+	if (pclose(fp)) {
+		ploop_err(0, "Failed to get dm table %s", name);
+		return -1;
+	}
+
+	if (!found) {
+		ploop_err(0, "Cannot to find start offset for %s", name);
+		return -1;
+	}
+
+	*parent = makedev(major, minor);
+
+	return 0;
+}
+
+int dev_num2dev_start(dev_t dev_num, __u32 *dev_start)
 {
 	int ret;
 	char path[PATH_MAX];
 	__u32 offset = 0;
+	dev_t parent;
 
 	snprintf(path, sizeof(path), "/sys/dev/block/%d:%d/start",
 			major(dev_num), minor(dev_num));
-	if (access(path, F_OK)) {
-		char **dirs = NULL;
+	/* ploopNp1 */
+	if (access(path, F_OK) == 0)
+		return get_dev_start(path, dev_start);
 
-		snprintf(path, sizeof(path), "/sys/dev/block/%d:%d/slaves",
+	snprintf(path, sizeof(path), "/sys/dev/block/%d:%d/dm",
 			major(dev_num), minor(dev_num));
-		if (get_dir_entry(path, &dirs))
-			return -1;
-
-		if (dirs == NULL) {
-			ploop_err(0, "No slaves found in %s", path);
-			return -1;
-		}
-
-		snprintf(path, sizeof(path), "/sys/class/block/%s/start",
-				dirs[0]);
-
-		/* FIXME: get dm-crypt offset */
-		offset = 4096;
-
-		ploop_free_array(dirs);
+	/* ploopN */
+	if (access(path, F_OK)) {
+		*dev_start = 0;
+		return 0;
 	}
 
-	ret = get_dev_start(path, dev_start);
+	/* CRYPT-ploop */
+	ret = get_dm_offset(dev_num, &parent, dev_start);
 	if (ret)
 		return ret;
 
-	*dev_start += offset;
-	if (start_offset)
-		*start_offset = offset;
+	if (major(parent) == 182)
+		ret = get_dev_start(path, &offset);
+	else 
+		ret = get_dm_offset(parent, &parent, &offset);
 
-	return 0;
+	*dev_start += offset;
+	return ret;
 }
 
 static int check_dev_by_name(const char *devname, const char *delta,
@@ -649,7 +698,21 @@ int ploop_find_dev(const char *component_name, const char *delta,
 	return find_dev_by_delta(component_name, delta, NULL, out, size);
 }
 
-int get_part_devname_from_sys(const char *device, char *out, int size)
+const char *get_dm_name(const char *devname, char *out, int size)
+{
+	char b[512];
+
+	snprintf(out, size, "/dev/%s", devname);
+
+	snprintf(b, sizeof(b), "/sys/class/block/%s/dm/name", devname);
+	if (access(b, F_OK) == 0 && read_line(b, b, sizeof(b)) == 0)
+		snprintf(out, size, "/dev/mapper/%s", b);
+
+	return out;
+}
+
+int get_part_devname_from_sys(const char *device, char *devname, int dsize,
+		char *partname, int psize)
 {
 	char path[PATH_MAX];
 	char **dirs = NULL;
@@ -672,18 +735,40 @@ int get_part_devname_from_sys(const char *device, char *out, int size)
 			break;
 	}
 
-	if (*p == NULL) {
-		snprintf(out, size, "/dev/%s", device);
-	} else {
 
-		snprintf(out, size, "/dev/%s", *p);
+	snprintf(devname, dsize, "%s", device);
+	/* ploopNp1 */
+	snprintf(partname, psize, "/dev/%s", *p ? *p : device);
 
-		snprintf(path, sizeof(path), "/sys/class/block/%s/holders", *p);
+	snprintf(path, sizeof(path), "/sys/class/block/%s/holders",	
+			get_basename(partname));
+	ploop_free_array(dirs);
+	dirs = NULL;
+
+	/* crypto based schema
+ 	 * old
+		ploopN                               disk
+		└─ploopNp1                           part
+		  └─CRYPT-ploopNp1                   crypt
+	 * new
+	 	ploopN                               disk
+		└─CRYPT-ploopN                       crypt
+		  └─CRYPT-ploopNp1                   part
+	 */
+	if (get_dir_entry(path, &dirs) == 0 && dirs != NULL) {
+		snprintf(devname, dsize, "%s", partname);
+		snprintf(partname, psize, "%s", get_dm_name(dirs[0], path, sizeof(path)));
+		snprintf(path, sizeof(path), "/sys/class/block/%s/holders", dirs[0]);
+
 		ploop_free_array(dirs);
 		dirs = NULL;
-		if (get_dir_entry(path, &dirs) == 0 && dirs != NULL)
-			snprintf(out, size, "/dev/%s", dirs[0]);
+
+		if (get_dir_entry(path, &dirs) == 0 && dirs != NULL) {
+			snprintf(devname, dsize, "%s", partname);
+			snprintf(partname, psize, "%s",  get_dm_name(dirs[0], path, sizeof(path)));
+		}
 	}
+
 	ploop_free_array(dirs);
 
 	return 0;

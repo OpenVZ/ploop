@@ -121,7 +121,7 @@ static int plooptool_init(int argc, char **argv)
 	};
 
 
-	while ((i = getopt_long(argc, argv, "s:b:B:f:t:L:v:nSk:",
+	while ((i = getopt_long(argc, argv, "s:b:B:f:t:L:v:nSk:P",
 					long_opts, NULL)) != EOF) {
 		switch (i) {
 		case 's':
@@ -183,6 +183,9 @@ static int plooptool_init(int argc, char **argv)
 			break;
 		case 'k':
 			param.keyid = optarg;
+			break;
+		case 'P':
+			param.without_partition = 1;
 			break;
 		default:
 			usage_init();
@@ -942,7 +945,7 @@ static int plooptool_resize(int argc, char **argv)
 	char fname[PATH_MAX];
 	char *dev_name;
 
-	while ((i = getopt(argc, argv, "s:b")) != EOF) {
+	while ((i = getopt(argc, argv, "s:bo")) != EOF) {
 		switch (i) {
 		case 's':
 			if (parse_size(optarg, &new_size, "-s")) {
@@ -953,6 +956,9 @@ static int plooptool_resize(int argc, char **argv)
 			break;
 		case 'b':
 			max_balloon_size = 1;
+			break;
+		case 'o':
+			param.offline_resize = 0;
 			break;
 		default:
 			usage_resize();

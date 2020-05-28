@@ -97,9 +97,28 @@ static int get_sector_size(int fd, int *sector_size)
 	return ioctl_device(fd, BLKSSZGET, sector_size);
 }
 
+int is_luks(const char *device, int *res)
+{
+	int fd, ret;
+	__u64 signature;
+
+	fd = open(device, O_RDONLY|O_CLOEXEC);
+	if (fd == -1) {
+		ploop_err(errno, "Can't open %s", device);
+		return SYSEXIT_OPEN;
+	}
+
+	ret = read_safe(fd, &signature, sizeof(signature), 0,
+			"Failed to read signature");
+	*res = memcmp(&signature, "LUKS", 4) == 0;
+	close(fd);
+
+	return ret;
+}
+
 int has_partition(const char *device, int *res)
 {
-	int fd, sector_size, ret;
+	int ret, fd, sector_size;
 	__u64 signature;
 
 	fd = open(device, O_RDONLY|O_CLOEXEC);
@@ -113,7 +132,7 @@ int has_partition(const char *device, int *res)
 		goto err;
 
 	ret = read_safe(fd, &signature, sizeof(signature), sector_size,
-			"Failed to read the GPT signaturer");
+			"Failed to read the GPT signature");
 	if (ret)
 		goto err;
 
@@ -182,26 +201,6 @@ int get_partition_device_name_by_num(const char *device, int part_num, char *out
 		snprintf(out, size, "%s", device);
 
 	return 0;
-}
-
-static int blkpg_resize_partition(int fd, struct GptEntry *pe, int sector_size)
-{
-	struct blkpg_ioctl_arg ioctl_arg;
-	struct blkpg_partition part;
-
-	bzero(&part, sizeof(part));
-	part.pno = 1;
-	part.start = pe->starting_lba * sector_size;
-	part.length = (pe->ending_lba - pe->starting_lba + 1) * sector_size;
-
-	ploop_log(3, "update partition table start=%llu length=%llu",
-			part.start, part.length);
-	ioctl_arg.op = BLKPG_RESIZE_PARTITION;
-	ioctl_arg.flags = 0;
-	ioctl_arg.datalen = sizeof(struct blkpg_partition);
-	ioctl_arg.data = &part;
-
-	return ioctl_device(fd, BLKPG, &ioctl_arg);
 }
 
 static void update_protective_mbr(int fd, __u64 new_size)
@@ -363,14 +362,16 @@ static int update_gpt_partition(int fd, const char *devname, __u64 new_size512,
 
 	update_protective_mbr(fd, new_size);
 	fsync(fd);
-	blkpg_resize_partition(fd, pe, sector_size);
+	reread_part(devname);
 
 	return 0;
 }
 
-int resize_gpt_partition(const char *device, __u64 new_size512, __u32 blocksize512)
+int resize_gpt_partition(const char *device, const char *partname,
+		__u64 new_size512, __u32 blocksize512)
 {
 	int fd, ret, part, sector_size;
+	int cver = get_crypt_layout(device, partname);
 
 	ret = has_partition(device, &part);
 	if (ret)
@@ -378,6 +379,12 @@ int resize_gpt_partition(const char *device, __u64 new_size512, __u32 blocksize5
 
 	if (!part)
 		return 0;
+
+	if (cver == CRYPT_V2) {
+		ret = crypt_resize(device);
+		if (ret)
+			return ret;
+	}
 
 	fd = open(device, O_RDWR|O_CLOEXEC);
 	if (fd == -1) {
@@ -391,6 +398,14 @@ int resize_gpt_partition(const char *device, __u64 new_size512, __u32 blocksize5
 	/* resize is performed only on mounted fs so sectors are equals */
 	ret = update_gpt_partition(fd, device, new_size512, sector_size,
 			sector_size, blocksize512);
+	if (ret)
+		goto err;
+
+	if (cver == CRYPT_V1) {
+		ret = crypt_resize(device);
+		if (ret)
+			return ret;
+	}
 
 err:
 	close(fd);

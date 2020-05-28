@@ -84,6 +84,12 @@
 #define DEF_PATH_LIST	{ "/sbin", "/bin", "/usr/sbin", "/usr/bin", \
 			"/usr/local/sbin", "/usr/bin", NULL }
 
+enum {
+	CRYPT_NONE,
+	CRYPT_V1,
+	CRYPT_V2,
+};
+
 typedef int (*writer_fn) (void *h, const void *iobuf, int len, off_t pos);
 
 struct delta
@@ -253,7 +259,7 @@ int ploop_get_delta_attr(const char * device, int level, const char * attr, int 
 int ploop_get_delta_attr_str(const char *device, int level, const char *attr, char *out, int len);
 int ploop_get_size(const char * device, off_t * res);
 int get_dev_by_name(const char *name, dev_t *dev);
-int dev_num2dev_start(dev_t dev_num, __u32 *dev_start, __u32 *start_offset);
+int dev_num2dev_start(dev_t dev_num, __u32 *dev_start);
 void init_delta_array(struct delta_array *);
 void deinit_delta_array(struct delta_array * p);
 int extend_delta_array(struct delta_array * p, char * path, int rw, int od_flags);
@@ -415,13 +421,13 @@ int resize_fs(const char *device, off_t blocks);
 int dumpe2fs(const char *device, struct dump2fs_data *data);
 int e2fsck(const char *device, int flags, int *rc);
 int create_gpt_partition(const char *dev, off_t size, __u32 blocksize);
-int resize_gpt_partition(const char *devname, __u64 new_size512, __u32 blocksize512);
+int resize_gpt_partition(const char *devname, const char *partname,
+		__u64 new_size512, __u32 blocksize512);
 int check_and_repair_gpt(const char *device, __u32 blocksize512);
 int parted_mklabel_gpt(const char *device);
+int sgdisk_resize_gpt(const char *device, int part_num, off_t part_start);
 int sgdisk_mkpart(const char *device, int part_num,
 		unsigned long long part_start, unsigned long long part_end);
-int sgdisk_rmpart(const char *device, int part_num);
-int sgdisk_move_gpt_header(const char *device);
 int get_partition_range(const char *device, int part_num,
 		unsigned long long *part_start, unsigned long long *part_end);
 int get_last_partition_num(const char *device, int *part_num);
@@ -496,11 +502,13 @@ int store_encryption_keyid(struct ploop_disk_images_data *di,
 		const char *keyid);
 const char *crypt_get_device_name(const char *part, char *out, int len);
 int crypt_init(const char *device, const char *keyid);
-int crypt_open(const char *device, const char *part, const char *keyid);
-int crypt_close(const char *part);
+int crypt_open(const char *device, const char *keyid);
+int crypt_close(const char *devname, const char *partname);
 int crypt_resize(const char *part);
+int get_crypt_layout(const char *devname, const char *partname);
 int get_dir_entry(const char *path, char **out[]);
-int get_part_devname_from_sys(const char *device, char *out, int size);
+int get_part_devname_from_sys(const char *device, char *devname, int dsize,
+		char *partname, int psize);
 int ploop_create(const char *path, const char *ipath,
 		struct ploop_create_param *param);
 int do_create_snapshot(struct ploop_disk_images_data *di,
@@ -519,6 +527,7 @@ void normalize_path(const char *path, char *out);
 int get_snap_file_name(struct ploop_disk_images_data *di, const char *snap_dir,
 		const char *file_guid, char *out, int size);
 int has_partition(const char *device, int *res);
+int is_luks(const char *device, int *res);
 void free_encryption_data(struct ploop_disk_images_data *di);
 const char *get_ddxml_fname(const char *dir, char *buf, int size);
 int store_diskdescriptor(const char *fname, struct ploop_disk_images_data *di,
