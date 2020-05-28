@@ -87,6 +87,7 @@ struct ploop_functions {
 	int (*read_dd)(struct ploop_disk_images_data *di);
 	/* padding for up to 64 pointers */
 	int (*get_part)(struct ploop_disk_images_data *di, const char *dev, char *partname, int len);
+	int (*get_devname)(struct ploop_disk_images_data *di, const char *dev, char *devname, int dlen, char *partname, int plen);
 	int (*set_encryption_keyid)(struct ploop_disk_images_data *di, const char *keyid);
 	int (*encrypt_image)(struct ploop_disk_images_data *di, struct ploop_encrypt_param *param);
 	int (*init_device)(const char *device, struct ploop_create_param *param);
@@ -105,7 +106,7 @@ struct ploop_functions {
 	int (*resume_device)(const char *devname);
 	int (*suspend_device)(const char *devname);
 	void (*free_dm_message)(char *msg);
-	void *padding[58];
+	void *padding[57];
 }; /* struct ploop_functions */
 
 __attribute__ ((visibility("default")))
