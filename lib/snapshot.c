@@ -192,6 +192,7 @@ int create_snapshot(const char *device, const char *delta, int syncfs,
 	__u32 blocksize;
 	int version;
 	void *or_data = NULL;
+	int frozen = 0;
 
 	ret = get_image_param_online(device, &bdsize,
 			&blocksize, &version);
@@ -220,6 +221,13 @@ int create_snapshot(const char *device, const char *delta, int syncfs,
 	req.f.pctl_type = PLOOP_IO_AUTO;
 
 	if (cbt_u != NULL) {
+		req.c.pctl_flags = 0;
+		ploop_log(0, "freeze %s", device);
+		ret = ioctl_device(lfd, PLOOP_IOC_FREEZE, 0);
+		if (ret)
+			goto err;
+		frozen = 1;
+
 		if ((ret = cbt_snapshot_prepare(lfd, cbt_u, &or_data))) {
 			unlink(delta);
 			goto err;
@@ -241,6 +249,11 @@ int create_snapshot(const char *device, const char *delta, int syncfs,
 	}
 
 err:
+	if (frozen) {
+		ploop_log(0, "unfreeze %s", device);
+		ioctl_device(lfd, PLOOP_IOC_THAW, 0);
+	}
+
 	free(or_data);
 
 	if (lfd >= 0)
