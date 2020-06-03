@@ -455,7 +455,7 @@ void free_mount_param(struct ploop_mount_param *param);
 int check_and_restore_fmt_version(struct ploop_disk_images_data *di);
 int check_blockdev_size(unsigned long long sectors, __u32 blocksize, int version);
 int print_output(int level, const char *cmd, const char *arg);
-int read_safe(int fd, void * buf, unsigned int size, off_t pos, char *msg);
+PL_EXT int read_safe(int fd, void * buf, unsigned int size, off_t pos, char *msg);
 int write_safe(int fd, void * buf, unsigned int size, off_t pos, char *msg);
 const char *get_snap_str(int temporary);
 PL_EXT int ploop_restore_descriptor(const char *dir, char *delta_path, int raw, int blocksize);
