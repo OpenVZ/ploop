@@ -235,7 +235,7 @@ static int diff(int argc, char **argv)
 		int o;
 
 		printf("Store CBT %s\n", out);
-		o = open(out, O_WRONLY|O_TRUNC|O_CREAT);
+		o = open(out, O_WRONLY|O_TRUNC|O_CREAT, 0600);
 		if (o == -1) {
 			fprintf(stderr, "Error: Cannot open %s: %m\n", out);
 			return 1;
