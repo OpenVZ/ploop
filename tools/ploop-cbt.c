@@ -299,18 +299,18 @@ static int cmp(int argc, char **argv)
 		unsigned long b1, b2;
 		r = read(f1, &b1, sizeof(b1));
 		if (r != sizeof(b1)) {
-			fprintf(stderr, "Error: failed read %s off %lu: %m\n", argv[0], n * sizeof(unsigned long));
+			fprintf(stderr, "Error: failed read %s off %lu: %m\n", argv[0], i * sizeof(unsigned long));
 			ret = 1;
 			break;
 		}
 		r = read(f2, &b2, sizeof(b2));
 		if (r != sizeof(b2)) {
-			fprintf(stderr, "Error: failed read %s off %lu: %m\n", argv[1], n * sizeof(unsigned long));
+			fprintf(stderr, "Error: failed read %s off %lu: %m\n", argv[1], i * sizeof(unsigned long));
 			ret = 1;
 			break;
 		}
 		if (b1 != b2) {
-			printf("differ off %lu %lx %lx\n", n * sizeof(unsigned long), b1, b2);
+			printf("differ off %lu %lx %lx\n", i * sizeof(unsigned long), b1, b2);
 			if (~b1 & b2) {
 				fprintf(stderr, "Failed");
 				ret = 1;
