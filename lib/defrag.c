@@ -35,7 +35,7 @@
 #include "ploop.h"
 
 #ifndef copy_file_range
-static ssize_t copy_file_range(int fd_in, loff_t *off_in, int fd_out,
+ssize_t copy_file_range(int fd_in, loff_t *off_in, int fd_out,
 		loff_t *off_out, size_t len, unsigned int flags)
 {
 	return syscall(__NR_copy_file_range, fd_in, off_in, fd_out,
