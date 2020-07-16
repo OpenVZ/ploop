@@ -948,7 +948,7 @@ int ploop_create_image(struct ploop_create_param *param)
  * kernel returns EBUSY and we need to retry ioctl() after some delay.
  * Start with a small delay, increasing it exponentially.
  */
-static int do_ioctl_tm(int fd, int req, const char *dev, int tm_sec)
+int do_ioctl_tm(int fd, int req, const char *dev, int tm_sec)
 {
 	useconds_t total = 0;
 	useconds_t wait = 10000; // initial wait time 0.01s
@@ -1369,24 +1369,7 @@ int ploop_is_mounted(struct ploop_disk_images_data *di)
 
 int reread_part(const char *device)
 {
-	int fd;
-	int ret;
-
-	ret = is_device_from_devmapper(device);
-	if (ret < 0)
-		return ret;
-	if (ret)
-		return partprobe(device);
-	fd = open(device, O_RDONLY);
-	if (fd == -1) {
-		ploop_err(errno, "Can't open %s", device);
-		return -1;
-	}
-	if (do_ioctl_tm(fd, BLKRRPART, device, PLOOP_UMOUNT_TIMEOUT))
-		ploop_err(errno, "BLKRRPART %s", device);
-	close(fd);
-
-	return 0;
+	return partprobe(device);
 }
 
 static int ploop_mount_fs(struct ploop_disk_images_data *di,
