@@ -1477,24 +1477,7 @@ int ploop_get_devs(struct ploop_disk_images_data *di, char ***out)
 
 int reread_part(const char *device)
 {
-	int fd;
-	int ret;
-
-	ret = is_device_from_devmapper(device);
-	if (ret < 0)
-		return ret;
-	if (ret)
-		return partprobe(device);
-	fd = open(device, O_RDONLY);
-	if (fd == -1) {
-		ploop_err(errno, "Can't open %s", device);
-		return -1;
-	}
-	if (do_ioctl_tm(fd, BLKRRPART, device, PLOOP_UMOUNT_TIMEOUT))
-		ploop_err(errno, "BLKRRPART %s", device);
-	close(fd);
-
-	return 0;
+	return partprobe(device);
 }
 
 static int ploop_mount_fs(struct ploop_disk_images_data *di,
