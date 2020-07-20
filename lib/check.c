@@ -225,10 +225,10 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end,
 
 	for (len = 0, offset = start; offset < end; offset += len) {
 		ssize_t e = (offset + cluster) / cluster * cluster;
+		__u32 id = offset / cluster ;
 
 		len = MIN(e - offset, end - offset);
 		if (rmap) {
-			__u32 id = offset / cluster ;
 			if (id >= rmap_size)
 				continue;
 			if (offset > data_offset && rmap[id] == PLOOP_ZERO_INDEX)
@@ -248,7 +248,11 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end,
 				return ret;
 		}
 
-		ploop_log(0, "Filling hole at start=%lu len=%lu",
+		if (rmap)
+			ploop_log(0, "Filling hole at start=%lu len=%lu rmap[%u]=%u",
+				(long unsigned)offset, (long unsigned)len, id, rmap[id]);
+		else
+			ploop_log(0, "Filling hole at start=%lu len=%lu",
 				(long unsigned)offset, (long unsigned)len);
 
 		n = pwrite(*fd, buf, len, offset);
