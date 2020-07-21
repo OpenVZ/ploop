@@ -251,6 +251,7 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 	void *iobuf = NULL;
 	int n;
 	struct pcopy_pkt_desc desc;
+	struct ploop_pvd_header vh;
 
 	if (!arg)
 		return SYSEXIT_PARAM;
@@ -261,7 +262,7 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 		return SYSEXIT_PARAM;
 	}
 
-	ofd = open(arg->file, O_WRONLY|O_CREAT|O_TRUNC, 0600);
+	ofd = open(arg->file, O_RDWR|O_CREAT|O_TRUNC, 0600);
 	if (ofd < 0) {
 		ploop_err(errno, "Can't open %s", arg->file);
 		return SYSEXIT_CREAT;
@@ -353,6 +354,17 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 		goto out;
 
 	ploop_dbg(3, "RCV exited");
+
+	ret = read_safe(ofd, &vh, sizeof(vh), 0, "read PVD header");
+	if (ret)
+		goto out;
+
+	print_output(0, "filefrag -vs", arg->file);
+	if (ploop1_version(&vh) != PLOOP_FMT_ERROR) {
+		ret = ploop_check(arg->file, CHECK_READONLY|CHECK_FORCE, NULL, NULL);
+		if (ret)
+			goto out;
+	}
 	/* send final reply */
 	ret = 0;
 	if (nwrite(arg->ifd, &ret, sizeof(int))) {
@@ -367,11 +379,10 @@ out:
 		if (!ret)
 			ret = SYSEXIT_WRITE;
 	}
+	free(iobuf);
+
 	if (ret)
 		unlink(arg->file);
-	else
-		print_output(0, "filefrag -vs", arg->file);
-	free(iobuf);
 
 	return ret;
 }
