@@ -225,10 +225,10 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end,
 
 	for (len = 0, offset = start; offset < end; offset += len) {
 		ssize_t e = (offset + cluster) / cluster * cluster;
+		__u32 id = offset / cluster ;
 
 		len = MIN(e - offset, end - offset);
 		if (rmap) {
-			__u32 id = offset / cluster ;
 			if (id >= rmap_size)
 				continue;
 			if (offset > data_offset && rmap[id] == PLOOP_ZERO_INDEX)
@@ -248,7 +248,11 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end,
 				return ret;
 		}
 
-		ploop_log(0, "Filling hole at start=%lu len=%lu",
+		if (rmap)
+			ploop_log(0, "Filling hole at start=%lu len=%lu rmap[%u]=%u",
+				(long unsigned)offset, (long unsigned)len, id, rmap[id]);
+		else
+			ploop_log(0, "Filling hole at start=%lu len=%lu",
 				(long unsigned)offset, (long unsigned)len);
 
 		n = pwrite(*fd, buf, len, offset);
@@ -291,6 +295,8 @@ static int restore_hole(const char *image, int *fd, off_t start,
 				if (ret)
 					return ret;
 			}
+			if (!repair)
+				return SYSEXIT_PLOOPFMT;
 
 			if (fallocate(*fd, FALLOC_FL_PUNCH_HOLE|FALLOC_FL_KEEP_SIZE, offset, len) == -1 ) {
 				ploop_err(errno, "Failed to fallocate offset=%lu len=%lu",
@@ -423,7 +429,7 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 							 delta_p, rmap, rmap_size, &log, repair)))
 				goto out;
 
-			if (repair && !(flags & CHECK_READONLY) && rmap != NULL) {
+			if (!(flags & CHECK_READONLY) && rmap != NULL) {
 				ret = restore_hole(image, fd, fm_ext[i].fe_logical, fm_ext[i].fe_logical + fm_ext[i].fe_length,
 					delta_p, rmap, rmap_size, &log, repair);
 				if (ret)

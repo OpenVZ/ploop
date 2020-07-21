@@ -344,7 +344,7 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 			unsigned int cmd = ((unsigned int *) iobuf)[0];
 			switch(cmd) {
 			case PCOPY_CMD_SYNC:
-				ret = data_sync(ofd);
+				ret = fsync_safe(ofd);
 				if (ret)
 					goto out;
 				break;
@@ -371,7 +371,7 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 		}
 	}
 
-	ret = data_sync(ofd);
+	ret = fsync_safe(ofd);
 	if (ret)
 		goto out;
 
@@ -392,6 +392,8 @@ out:
 	}
 	if (ret)
 		unlink(arg->file);
+	else
+		print_output(0, "filefrag -vs", arg->file);
 	free(iobuf);
 
 	return ret;
