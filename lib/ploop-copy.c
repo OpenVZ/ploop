@@ -369,6 +369,8 @@ out:
 	}
 	if (ret)
 		unlink(arg->file);
+	else
+		print_output(0, "filefrag -vs", arg->file);
 	free(iobuf);
 
 	return ret;
