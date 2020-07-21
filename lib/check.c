@@ -295,6 +295,8 @@ static int restore_hole(const char *image, int *fd, off_t start,
 				if (ret)
 					return ret;
 			}
+			if (!repair)
+				return SYSEXIT_PLOOPFMT;
 
 			if (fallocate(*fd, FALLOC_FL_PUNCH_HOLE|FALLOC_FL_KEEP_SIZE, offset, len) == -1 ) {
 				ploop_err(errno, "Failed to fallocate offset=%lu len=%lu",
@@ -427,7 +429,7 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 							 delta_p, rmap, rmap_size, &log, repair)))
 				goto out;
 
-			if (repair && !(flags & CHECK_READONLY) && rmap != NULL) {
+			if (!(flags & CHECK_READONLY) && rmap != NULL) {
 				ret = restore_hole(image, fd, fm_ext[i].fe_logical, fm_ext[i].fe_logical + fm_ext[i].fe_length,
 					delta_p, rmap, rmap_size, &log, repair);
 				if (ret)
