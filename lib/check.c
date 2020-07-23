@@ -238,8 +238,6 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end,
 		if (!*log) {
 			ploop_err(0, "%s: ploop image '%s' is sparse",
 					repair ? "Warning" : "Error", image);
-			if (!repair)
-				return SYSEXIT_PLOOPFMT;
 			*log = 1;
 			print_output(0, "filefrag -vs", image);
 			ploop_log(0, "Reallocating sparse blocks back");
@@ -254,6 +252,9 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end,
 		else
 			ploop_log(0, "Filling hole at start=%lu len=%lu",
 				(long unsigned)offset, (long unsigned)len);
+
+		if (!repair)
+			return SYSEXIT_PLOOPFMT;
 
 		n = pwrite(*fd, buf, len, offset);
 		if (n != len) {
