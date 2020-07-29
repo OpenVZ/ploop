@@ -78,21 +78,6 @@ int get_part_devname(struct ploop_disk_images_data *di,
 	return 0;
 }
 
-/* set cancel flag
- * Note: this function also clear the flag
- */
-static int is_operation_cancelled(void)
-{
-	struct ploop_cancel_handle *cancel_data;
-
-	cancel_data = ploop_get_cancel_handle();
-	if (cancel_data->flags) {
-		cancel_data->flags = 0;
-		return 1;
-	}
-	return 0;
-}
-
 void free_mount_param(struct ploop_mount_param *param)
 {
 	free(param->target);
