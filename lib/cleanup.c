@@ -24,8 +24,34 @@
 #include "list.h"
 #include "cleanup.h"
 #include "ploop.h"
+struct ploop_cancel_handle
+{
+	list_head_t head;
+	int flags;
+};
+
+struct ploop_cleanup_hook {
+	list_elem_t list;
+	cleanup_FN fn;
+	void *data;
+};
 
 static __thread struct ploop_cancel_handle __cancel_data;
+
+/* set cancel flag
+ *  * Note: this function also clear the flag
+ *   */
+int is_operation_cancelled(void)
+{
+	struct ploop_cancel_handle *cancel_data;
+
+	cancel_data = ploop_get_cancel_handle();
+	if (cancel_data->flags) {
+		cancel_data->flags = 0;
+		return 1;
+	}
+	return 0;
+}
 
 struct ploop_cancel_handle *ploop_get_cancel_handle(void)
 {
