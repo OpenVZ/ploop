@@ -31,6 +31,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <openssl/md5.h>
+#include <sys/queue.h>
 
 #include "ploop.h"
 #include "cleanup.h"
@@ -46,6 +47,7 @@ typedef enum {
 
 typedef enum {
 	PCOPY_CMD_SYNC,
+	PCOPY_CMD_FINISH,
 } pcopy_cmd_t;
 
 struct pcopy_pkt_desc
@@ -57,22 +59,29 @@ struct pcopy_pkt_desc
         __u64		pos;
 };
 
-struct sender_data {
-	void *buf;
-	int len;
+struct chunk {
+	TAILQ_ENTRY(chunk) list;
+	size_t size;
+	void *data;
 	off_t pos;
+};
+
+struct sender_data {
+	TAILQ_HEAD(, chunk) queue;
+	int queue_size;
 	int ret;
 	int err_no;
+	pthread_mutex_t queue_mutex;
 	pthread_mutex_t mutex;
 	pthread_cond_t cond;
 	pthread_mutex_t wait_mutex;
 	pthread_cond_t wait_cond;
-	pthread_barrier_t barrier;
 };
 
 enum {
 	PLOOP_COPY_START,
 	PLOOP_COPY_ITER,
+	PLOOP_COPY_FINISH,
 };
 
 struct ploop_copy_handle {
@@ -83,8 +92,6 @@ struct ploop_copy_handle {
 	int ofd;
 	int is_remote;
 	int mntfd;
-	void *iobuf[2];
-	int cur_iobuf;
 	int niter;
 	int cluster;
 	__u64 trackpos;
@@ -100,6 +107,83 @@ struct ploop_copy_handle {
 	int async;
 	int stage;
 };
+
+static struct chunk *alloc_chunk(size_t size, off_t pos)
+{
+	struct chunk *c;
+
+	c = calloc(1, sizeof(struct chunk));
+	if (c == NULL)
+		return NULL;
+
+	if (size != 0 && p_memalign(&c->data, 4096, size))
+		goto err;
+
+	c->pos = pos;
+	c->size = size;
+
+	return c;
+err:
+	ploop_err(ENOMEM, "Can not create chunk");
+	free(c);
+	return NULL;
+}
+
+static void free_chunk(struct chunk *chunk)
+{
+	if (chunk == NULL)
+		return;
+	free(chunk->data);
+	free(chunk);
+}
+
+static struct chunk *q_get_first(struct sender_data *sd)
+{
+	struct chunk *c;
+
+	pthread_mutex_lock(&sd->queue_mutex);
+	if (TAILQ_EMPTY(&sd->queue)) {
+		pthread_mutex_unlock(&sd->queue_mutex);
+		return NULL;
+	}
+	c = TAILQ_FIRST(&sd->queue);
+	pthread_mutex_unlock(&sd->queue_mutex);
+
+	return c;
+}
+
+static void enqueue(struct sender_data *sd, struct chunk *chunk)
+{
+	pthread_mutex_lock(&sd->queue_mutex);
+	TAILQ_INSERT_TAIL(&sd->queue, chunk, list);
+	sd->queue_size++;
+	pthread_mutex_unlock(&sd->queue_mutex);
+}
+
+static void dequeue(struct sender_data *sd, struct chunk *c)
+{
+	pthread_mutex_lock(&sd->queue_mutex);
+	TAILQ_REMOVE(&sd->queue, c, list);
+	sd->queue_size--;
+	pthread_mutex_unlock(&sd->queue_mutex);
+	free_chunk(c);
+}
+
+static int q_get_size(struct sender_data *sd)
+{
+	return sd->queue_size;
+}
+
+static int wait_sender(struct ploop_copy_handle *h)
+{
+	pthread_mutex_lock(&h->sd.wait_mutex);
+	while ((q_get_size(&h->sd) > 0 && h->sd.ret == 0)) {
+		pthread_cond_wait(&h->sd.wait_cond, &h->sd.wait_mutex);
+	}
+	pthread_mutex_unlock(&h->sd.wait_mutex);
+
+	return h->sd.ret;
+}
 
 /* Check what a file descriptor refers to.
  * Return:
@@ -141,6 +225,7 @@ static int nwrite(int fd, const void *buf, int len)
 		if (n < 0) {
 			if (errno == EINTR)
 				continue;
+			ploop_err(errno, "Cannot write");
 			return -1;
 		}
 		if (n == 0)
@@ -156,28 +241,29 @@ static int nwrite(int fd, const void *buf, int len)
 	return -1;
 }
 
-static int remote_write(int fd, pcopy_pkt_type_t type,
+static int remote_write(struct ploop_copy_handle *h, pcopy_pkt_type_t type,
 		const void *data, int len, off_t pos)
 {
 	int rc;
 	struct pcopy_pkt_desc desc = {
 		.marker = PCOPY_MARKER,
 		.type = type,
+		.size = len,
+		.pos= pos,
 	};
 
+	ploop_log(0, "SEND type: %d size=%d pos: %lu", type, len, pos);
 	/* Header */
-	desc.size = len;
-	desc.pos = pos;
-	if (nwrite(fd, &desc, sizeof(desc)))
+	if (nwrite(h->ofd, &desc, sizeof(desc)))
 		return SYSEXIT_WRITE;
 
 	/* Data */
-	if (len && nwrite(fd, data, len))
+	if (len && nwrite(h->ofd, data, len))
 		return SYSEXIT_WRITE;
 
 	/* get reply */
 	if (type != PCOPY_PKT_DATA_ASYNC) {
-		rc = TEMP_FAILURE_RETRY(read(fd, &rc, sizeof(rc)));
+		rc = TEMP_FAILURE_RETRY(read(h->ofd, &rc, sizeof(rc)));
 		if (rc != sizeof(rc))
 			return SYSEXIT_PROTOCOL;
 	}
@@ -210,8 +296,15 @@ static int local_write(int ofd, const void *iobuf, int len, off_t pos)
 
 static int send_cmd(struct ploop_copy_handle *h, pcopy_cmd_t cmd)
 {
+	int ret;
+	size_t size = cmd == PCOPY_CMD_FINISH ? 0 : sizeof(cmd);
+
+	ret = wait_sender(h);
+	if (ret)
+		return ret;
+
 	if (h->is_remote)
-		return remote_write(h->ofd, PCOPY_PKT_CMD, &cmd, sizeof(cmd), 0);
+		return remote_write(h, PCOPY_PKT_CMD, &cmd, size, 0);
 	else
 		if (cmd == PCOPY_CMD_SYNC)
 			return data_sync(h->ofd);
@@ -300,7 +393,8 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 		}
 
 		if (desc.marker != PCOPY_MARKER) {
-			ploop_err(0, "Stream corrupted");
+			ploop_err(0, "Stream corrupted: marker: %x type: %d size: %d pos: %llu",
+				desc.marker, desc.type, desc.size, desc.pos);
 			ret = SYSEXIT_PROTOCOL;
 			goto out;
 		}
@@ -407,6 +501,7 @@ out:
 	if (ret)
 		unlink(arg->file);
 
+	ploop_dbg(3, "ploop_copy_receiver rc: %d", ret);
 	return ret;
 }
 
@@ -415,12 +510,6 @@ static void cancel_sender(void *data)
 	struct ploop_copy_handle *h = (struct ploop_copy_handle *)data;
 
 	h->cancelled = 1;
-}
-
-static void wait_sender(struct ploop_copy_handle *h)
-{
-	pthread_mutex_lock(&h->sd.mutex);
-	pthread_mutex_unlock(&h->sd.mutex);
 }
 
 static void wakeup(pthread_mutex_t *m, pthread_cond_t *c)
@@ -436,8 +525,7 @@ static int send_buf(struct ploop_copy_handle *h, const void *iobuf, int len, off
 		return SYSEXIT_WRITE;
 
 	if (h->is_remote)
-		return remote_write(h->ofd,
-			h->async ? PCOPY_PKT_DATA_ASYNC : PCOPY_PKT_DATA, iobuf, len, pos);
+		return remote_write(h, h->async ? PCOPY_PKT_DATA_ASYNC : PCOPY_PKT_DATA, iobuf, len, pos);
 	else
 		return local_write(h->ofd, iobuf, len, pos);
 }
@@ -446,58 +534,53 @@ static void *sender_thread(void *data)
 {
 	struct ploop_copy_handle *h = data;
 	struct sender_data *sd = &h->sd;
-	int done;
+	struct chunk *c;
+	int ret;
 
-	pthread_mutex_lock(&sd->mutex);
 	ploop_dbg(3, "start sender_thread");
-	pthread_barrier_wait(&sd->barrier);
 	do {
-		pthread_cond_wait(&sd->cond, &sd->mutex);
+		pthread_mutex_lock(&sd->mutex);
+		c = q_get_first(sd);
+		if (c == NULL) {
+			pthread_cond_wait(&sd->cond, &sd->mutex);
+			pthread_mutex_unlock(&sd->mutex);
+			continue;
+		}
+		pthread_mutex_unlock(&sd->mutex);
 
-		wakeup(&sd->wait_mutex, &sd->wait_cond);
-
-		sd->ret = send_buf(h, sd->buf, sd->len, sd->pos);
-		if (sd->ret)
+		ret = send_buf(h, c->data, c->size, c->pos);
+		if (ret) {
+			sd->ret = ret;
 			sd->err_no = errno;
-		done = (sd->len == 0 && sd->pos == 0);
-	} while (!done);
+		}
+		dequeue(sd, c);
+		wakeup(&sd->wait_mutex, &sd->wait_cond);
+	} while (h->stage != PLOOP_COPY_FINISH);
 
-	pthread_mutex_unlock(&sd->mutex);
-
+	wakeup(&sd->wait_mutex, &sd->wait_cond);
 	ploop_log(3, "send_thread exited ret=%d", sd->ret);
 	return NULL;
 }
 
-static int send_async(struct ploop_copy_handle *h, void *data,
-		__u64 size, __u64 pos)
+static int send_async(struct ploop_copy_handle *h, struct chunk *chunk)
 {
 	struct sender_data *sd = &h->sd;
 
-	pthread_mutex_lock(&sd->mutex);
-
 	if (sd->ret) {
 		ploop_err(sd->err_no, "write error");
-		pthread_mutex_unlock(&sd->mutex);
+		free_chunk(chunk);
 		return sd->ret;
 	}
 
-	sd->buf = data;
-	sd->len = size;
-	sd->pos = pos;
+	if (q_get_size(sd) > 2)
+		wait_sender(h);
 
+	pthread_mutex_lock(&sd->mutex);
+	enqueue(sd, chunk);
 	pthread_cond_signal(&sd->cond);
 	pthread_mutex_unlock(&sd->mutex);
 
-	/* wait till sender start processing */
-	pthread_cond_wait(&sd->wait_cond, &sd->wait_mutex);
-
 	return 0;
-}
-
-static void *get_free_iobuf(struct ploop_copy_handle *h)
-{
-	h->cur_iobuf = !h->cur_iobuf;
-	return h->iobuf[h->cur_iobuf];
 }
 
 static int is_zero_block(void *buf, __u64 size)
@@ -509,28 +592,44 @@ static int is_zero_block(void *buf, __u64 size)
 static int send_image_block(struct ploop_copy_handle *h, __u64 size,
 		__u64 pos, ssize_t *nread)
 {
+	int ret = 0;
 	struct delta *idelta = &h->idelta;
-	void *iobuf = get_free_iobuf(h);
+	struct chunk *c;
 
-	ploop_dbg(4, "READ size=%llu pos=%llu", size, pos);
-	*nread = TEMP_FAILURE_RETRY(pread(idelta->fd, iobuf, size, pos));
+	if (h->sd.ret) {
+		ploop_err(h->sd.err_no, "write error");
+		return h->sd.ret;
+	}
+
+	c = alloc_chunk(size, pos);
+	if (c == NULL) {
+		return SYSEXIT_MALLOC;
+	}
+
+	ploop_dbg(3, "READ size=%llu pos=%llu", size, pos);
+	*nread = TEMP_FAILURE_RETRY(pread(idelta->fd, c->data, c->size, c->pos));
 	if (*nread == 0)
-		return 0;
+		goto out;
 	if (*nread < 0) {
 		ploop_err(errno, "Error from pread() size=%llu pos=%llu",
 				 size, pos);
-		return SYSEXIT_READ;
+		ret = SYSEXIT_READ;
+		goto out;
 	}
+	c->size = *nread;
 
 	if (h->stage == PLOOP_COPY_START &&
-			(pos % (__u64)h->cluster) == 0 && (*nread % (size_t)h->cluster) == 0 &&
-			is_zero_block(iobuf, *nread)) {
+			(pos % (__u64)h->cluster) == 0 && (c->size % (size_t)h->cluster) == 0 &&
+			is_zero_block(c->data, c->size)) {
 		ploop_dbg(4, "Skip zero cluster block at offset %llu size %lu",
-				pos, *nread);
-		return 0;
+				pos, c->size);
+		goto out;
 	}
 
-	return send_async(h, iobuf, *nread, pos);
+	return send_async(h, c);
+out:
+	free_chunk(c);
+	return ret;
 }
 
 void ploop_copy_release(struct ploop_copy_handle *h)
@@ -578,16 +677,13 @@ void free_ploop_copy_handle(struct ploop_copy_handle *h)
 	if (h == NULL)
 		return;
 
+	pthread_mutex_destroy(&h->sd.queue_mutex);
 	pthread_mutex_destroy(&h->sd.mutex);
 	pthread_cond_destroy(&h->sd.cond);
 	pthread_mutex_destroy(&h->sd.wait_mutex);
 	pthread_cond_destroy(&h->sd.wait_cond);
-	pthread_barrier_destroy(&h->sd.barrier);
 
 	unregister_cleanup_hook(h->cl);
-
-	free(h->iobuf[0]);
-	free(h->iobuf[1]);
 
 	free(h);
 }
@@ -600,25 +696,17 @@ static struct ploop_copy_handle *alloc_ploop_copy_handle(int cluster)
 	if (h == NULL)
 		return NULL;
 
+	TAILQ_INIT(&h->sd.queue);
+	pthread_mutex_init(&h->sd.queue_mutex, NULL);
 	pthread_mutex_init(&h->sd.mutex, NULL);
 	pthread_cond_init(&h->sd.cond, NULL);
 	pthread_mutex_init(&h->sd.wait_mutex, NULL);
 	pthread_cond_init(&h->sd.wait_cond, NULL);
-	pthread_barrier_init(&h->sd.barrier, NULL, 2);
 
 	h->devfd = h->ofd = h->mntfd = h->idelta.fd = -1;
 	h->cluster = cluster;
 
-	if (p_memalign(&h->iobuf[0], 4096, cluster))
-		goto err;
-
-	if (p_memalign(&h->iobuf[1], 4096, cluster))
-		goto err;
-
 	return h;
-err:
-	free_ploop_copy_handle(h);
-	return NULL;
 }
 
 
@@ -718,7 +806,6 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 
 	_h->cl = register_cleanup_hook(cancel_sender, _h);
 
-	pthread_mutex_lock(&_h->sd.wait_mutex);
 err:
 	if (ret) {
 		ploop_copy_release(_h);
@@ -748,8 +835,6 @@ int ploop_copy_start(struct ploop_copy_handle *h,
 		goto err;
 	}
 
-	pthread_barrier_wait(&h->sd.barrier);
-
 	ploop_dbg(3, "pcopy track init");
 	ret = ioctl_device(h->devfd, PLOOP_IOC_TRACK_INIT, &e);
 	if (ret)
@@ -776,10 +861,10 @@ int ploop_copy_start(struct ploop_copy_handle *h,
 			h->eof_offset = pos;
 	}
 
-	wait_sender(h);
-
 	stat->xferred_total = stat->xferred = pos;
-	send_cmd(h, PCOPY_CMD_SYNC);
+	ret = send_cmd(h, PCOPY_CMD_SYNC);
+	if (ret)
+		goto err;
 	ploop_dbg(3, "pcopy start finished");
 
 	return 0;
@@ -850,8 +935,6 @@ int ploop_copy_next_iteration(struct ploop_copy_handle *h,
 				h->eof_offset = pos;
 		}
 	} while (!done);
-
-	wait_sender(h);
 
 	/* sync after each iteration */
 	ret = send_cmd(h, PCOPY_CMD_SYNC);
@@ -989,6 +1072,7 @@ int ploop_copy_stop(struct ploop_copy_handle *h,
 {
 	int ret;
 	int iter;
+	void *buf = NULL;
 
 	ploop_log(3, "pcopy last");
 
@@ -1011,13 +1095,19 @@ int ploop_copy_stop(struct ploop_copy_handle *h,
 
 	if (!h->raw) {
 		/* Must clear dirty flag on ploop1 image. */
-		struct ploop_pvd_header *vh = get_free_iobuf(h);
+		struct ploop_pvd_header *vh;
 
-		if (PREAD(&h->idelta, vh, 4096, 0)) {
+		if (p_memalign(&buf, 4096, 4096)) {
+			ret = SYSEXIT_MALLOC;
+	               	goto err;
+		}
+
+		if (PREAD(&h->idelta, buf, 4096, 0)) {
 			ret = SYSEXIT_READ;
 			goto err;
 		}
 
+		vh = (struct ploop_pvd_header *)buf;
 		vh->m_DiskInUse = 0;
 
 		ploop_dbg(3, "Update header");
@@ -1038,8 +1128,9 @@ int ploop_copy_stop(struct ploop_copy_handle *h,
 
 	h->tracker_on = 0;
 
-	ploop_dbg(3, "SEND 0 0 (close)");
-	send_async(h, NULL, 0, 0);
+	send_cmd(h, PCOPY_CMD_FINISH);
+	h->stage = PLOOP_COPY_FINISH;
+	wakeup(&h->sd.mutex, &h->sd.cond);
 
 	pthread_join(h->send_th, NULL);
 	h->send_th = 0;
@@ -1047,20 +1138,20 @@ int ploop_copy_stop(struct ploop_copy_handle *h,
 	ploop_dbg(3, "pcopy stop done");
 
 err:
+	free(buf);
 	ploop_copy_release(h);
 
 	return ret;
 }
 
-
 void ploop_copy_deinit(struct ploop_copy_handle *h)
 {
+	struct chunk *c;
+
 	if (h == NULL)
 		return;
 
 	ploop_dbg(4, "pcopy deinit");
-
-	pthread_mutex_unlock(&h->sd.wait_mutex);
 
 	if (h->send_th) {
 		pthread_cancel(h->send_th);
@@ -1070,6 +1161,9 @@ void ploop_copy_deinit(struct ploop_copy_handle *h)
 
 	ploop_copy_release(h);
 	free_ploop_copy_handle(h);
+
+	while ((c = q_get_first(&h->sd)))
+		dequeue(&h->sd, c);
 
 	ploop_dbg(3, "pcopy deinit done");
 }
