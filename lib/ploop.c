@@ -2510,6 +2510,7 @@ static int ploop_stop_device(const char *device,
 		return SYSEXIT_DEVICE;
 	}
 
+	ioctl(lfd, PLOOP_IOC_THAW);
 	ret = ploop_stop(lfd, device, di);
 	close(lfd);
 
