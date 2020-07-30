@@ -50,6 +50,9 @@ typedef enum {
 	PCOPY_CMD_FINISH,
 } pcopy_cmd_t;
 
+#define PCOPY_FEATURE_MD5SUM	0x01
+#define PCOPY_SUP_FLAGS		PCOPY_FEATURE_MD5SUM
+
 struct pcopy_pkt_desc
 {
         __u32		marker;
@@ -106,6 +109,7 @@ struct ploop_copy_handle {
 	off_t eof_offset;
 	int async;
 	int stage;
+	int remote_flags;
 };
 
 static struct chunk *alloc_chunk(size_t size, off_t pos)
@@ -257,12 +261,12 @@ static int remote_write(struct ploop_copy_handle *h, pcopy_pkt_type_t type,
 		.marker = PCOPY_MARKER,
 		.type = type,
 		.size = len,
-		.pos= pos,
+		.pos = pos,
 	};
 
 	MD5(data, len, desc.md5);
 	ploop_log(0, "SEND type: %d size=%d pos: %lu md5: %s",
-			type, len, pos, md52str(desc.md5, s));
+			desc.type, len, pos, md52str(desc.md5, s));
 	/* Header */
 	if (nwrite(h->ofd, &desc, sizeof(desc)))
 		return SYSEXIT_WRITE;
@@ -393,6 +397,7 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 	int n;
 	struct pcopy_pkt_desc desc;
 	struct ploop_pvd_header vh;
+	int remote_flags = 0;
 
 	if (!arg)
 		return SYSEXIT_PARAM;
@@ -467,9 +472,15 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 			unsigned int cmd = ((unsigned int *) iobuf)[0];
 			switch(cmd) {
 			case PCOPY_CMD_SYNC:
-				ret = fsync_safe(ofd);
-				if (ret)
-					goto out;
+				if (desc.pos != 0) {
+					remote_flags = desc.pos;
+					ploop_log(0, "handshake remote flags %x", remote_flags);
+					ret = -PCOPY_SUP_FLAGS;
+				} else {
+					ret = fsync_safe(ofd);
+					if (ret)
+						goto out;
+				}
 				break;
 			default:
 				ploop_err(0, "ploop_copy_receiver: unsupported command %d",
@@ -737,6 +748,47 @@ static struct ploop_copy_handle *alloc_ploop_copy_handle(int cluster)
 	return h;
 }
 
+static int handshake(struct ploop_copy_handle *h)
+{
+       int rc, f;
+       int cmd = PCOPY_CMD_SYNC;
+       struct pcopy_pkt_desc desc = {
+               .marker = PCOPY_MARKER,
+               .type = PCOPY_PKT_CMD,
+               .size = sizeof(cmd),
+               .pos = PCOPY_SUP_FLAGS,
+       };
+
+       ploop_log(0, "handshake");
+       if (!h->is_remote) {
+	       h->remote_flags = PCOPY_SUP_FLAGS;
+	       return 0;
+       }
+
+       /* Header */
+       if (nwrite(h->ofd, &desc, sizeof(desc)))
+	       return SYSEXIT_WRITE;
+       if (nwrite(h->ofd, &cmd, sizeof(cmd)))
+	       return SYSEXIT_WRITE;
+
+       /* get reply */
+       rc = TEMP_FAILURE_RETRY(read(h->ofd, &f, sizeof(f)));
+       if (rc != sizeof(rc)) {
+	       ploop_err(errno, "handshake read()");
+	       return SYSEXIT_PROTOCOL;
+       }
+
+       if (f > 0) {
+	       ploop_err(0, "handshake failed: rc=%d", f);
+	       return SYSEXIT_PROTOCOL;
+       }
+
+       h->remote_flags = -f;
+       ploop_log(0, "remote proto ver: %x", h->remote_flags);
+
+       return 0;
+}
+
 
 int ploop_copy_init(struct ploop_disk_images_data *di,
 		struct ploop_copy_param *param,
@@ -854,6 +906,10 @@ int ploop_copy_start(struct ploop_copy_handle *h,
 	struct ploop_track_extent e;
 	ssize_t n;
 	__u64 pos;
+
+	ret = handshake(h);
+	if (ret)
+		goto err;
 
 	h->stage = PLOOP_COPY_START;
 	ret = pthread_create(&h->send_th, NULL, sender_thread, h);
