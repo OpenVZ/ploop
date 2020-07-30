@@ -62,6 +62,11 @@ struct pcopy_pkt_desc
         __u64		pos;
 };
 
+struct pcopy_pkt_desc_md5
+{
+	__u8            md5[16];
+};
+
 struct chunk {
 	TAILQ_ENTRY(chunk) list;
 	size_t size;
@@ -256,7 +261,6 @@ static int remote_write(struct ploop_copy_handle *h, pcopy_pkt_type_t type,
 		const void *data, int len, off_t pos)
 {
 	int rc;
-	char s[34];
 	struct pcopy_pkt_desc desc = {
 		.marker = PCOPY_MARKER,
 		.type = type,
@@ -264,12 +268,20 @@ static int remote_write(struct ploop_copy_handle *h, pcopy_pkt_type_t type,
 		.pos = pos,
 	};
 
-	MD5(data, len, desc.md5);
-	ploop_log(0, "SEND type: %d size=%d pos: %lu md5: %s",
-			desc.type, len, pos, md52str(desc.md5, s));
 	/* Header */
 	if (nwrite(h->ofd, &desc, sizeof(desc)))
 		return SYSEXIT_WRITE;
+
+	if (h->remote_flags & PCOPY_FEATURE_MD5SUM) {
+		char s[34];
+		struct pcopy_pkt_desc_md5 m;
+
+		MD5(data, len, m.md5);
+		ploop_log(3, "SEND type: %d size=%d pos: %lu md5: %s",
+				desc.type, len, pos, md52str(m.md5, s));
+		if (nwrite(h->ofd, &m, sizeof(m)))
+			return SYSEXIT_WRITE;
+	}
 
 	/* Data */
 	if (len && nwrite(h->ofd, data, len))
@@ -374,16 +386,17 @@ static int get_image_info(const char *device, char **send_from_p,
 	return 0;
 }
 
-static int check_data(void *buf, struct pcopy_pkt_desc *desc)
+static int check_data(void *buf, struct pcopy_pkt_desc *desc,
+		struct pcopy_pkt_desc_md5 *md5)
 {
 	__u8 m[16];
 	char s[34];
 	char d[34];
 
 	MD5(buf, desc->size, m);
-	if (memcmp(desc->md5, m, sizeof(m))) {
+	if (memcmp(md5->md5, m, sizeof(m))) {
 		ploop_err(0, "MD5 mismatch pos: %llu src: %s dst: %s",
-				desc->pos, md52str(desc->md5, s), md52str(m, d));
+				desc->pos, md52str(md5->md5, s), md52str(m, d));
 		return SYSEXIT_WRITE;
 	}
 	return 0;
@@ -396,6 +409,7 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 	void *iobuf = NULL;
 	int n;
 	struct pcopy_pkt_desc desc;
+	struct pcopy_pkt_desc_md5 md5;
 	struct ploop_pvd_header vh;
 	int remote_flags = 0;
 
@@ -429,6 +443,14 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 			goto out;
 		}
 
+		if (remote_flags & PCOPY_FEATURE_MD5SUM) {
+			if (nread(arg->ifd, &md5, sizeof(md5))) {
+				ploop_err(errno, "Error in nread(md5)");
+				ret = SYSEXIT_READ;
+				goto out;
+			}
+		}
+
 		if (desc.size > cluster) {
 			free(iobuf);
 			iobuf = NULL;
@@ -454,9 +476,11 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 		switch (desc.type) {
 		case PCOPY_PKT_DATA:
 		case PCOPY_PKT_DATA_ASYNC: {
-			ret = check_data(iobuf, &desc);
-			if (ret)
-				goto out;
+			if (remote_flags & PCOPY_FEATURE_MD5SUM) {
+				ret = check_data(iobuf, &desc, &md5);
+				if (ret)
+					goto out;
+			}
 			n = TEMP_FAILURE_RETRY(pwrite(ofd, iobuf, desc.size, desc.pos));
 			if (n != desc.size) {
 				if (n < 0)
