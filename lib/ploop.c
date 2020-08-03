@@ -90,21 +90,6 @@ int get_part_devname(struct ploop_disk_images_data *di,
 	return get_partition_device_name(device, partname, plen);
 }
 
-/* set cancel flag
- * Note: this function also clear the flag
- */
-static int is_operation_cancelled(void)
-{
-	struct ploop_cancel_handle *cancel_data;
-
-	cancel_data = ploop_get_cancel_handle();
-	if (cancel_data->flags) {
-		cancel_data->flags = 0;
-		return 1;
-	}
-	return 0;
-}
-
 void free_mount_param(struct ploop_mount_param *param)
 {
 	free(param->target);
@@ -2525,6 +2510,7 @@ static int ploop_stop_device(const char *device,
 		return SYSEXIT_DEVICE;
 	}
 
+	ioctl(lfd, PLOOP_IOC_THAW);
 	ret = ploop_stop(lfd, device, di);
 	close(lfd);
 
