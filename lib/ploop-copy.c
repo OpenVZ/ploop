@@ -658,7 +658,7 @@ static int send_image_block(struct ploop_copy_handle *h, __u64 size,
 		return SYSEXIT_MALLOC;
 	}
 
-	ploop_dbg(3, "READ size=%llu pos=%llu", size, pos);
+	ploop_dbg(4, "READ size=%llu pos=%llu", size, pos);
 	*nread = TEMP_FAILURE_RETRY(pread(idelta->fd, c->data, c->size, c->pos));
 	if (*nread == 0)
 		goto out;
