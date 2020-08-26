@@ -409,3 +409,64 @@ int dump_bat(const char *image)
 	close_delta(&delta);
 	return 0;
 }
+
+static char *parse_line(char *str, char *out, int lsz)
+{
+	char *sp = str;
+	char *ep = str + strlen(str) - 1;
+	char *p;
+	int len;
+
+	while (*sp && isspace(*sp)) sp++;
+	if (!*sp || *sp == '#')
+		return NULL;
+
+	while (ep >= str && (isspace(*ep) || *ep == '\n'))
+		*ep-- = '\0';
+
+	ep = sp + strlen(sp) - 1;
+	if (*ep == '"' || *ep == '\'')
+		*ep = 0;
+	if (!(p = strchr(sp, '=')))
+		return NULL;
+	len = p - sp;
+	if (len >= lsz)
+		return NULL;
+	strncpy(out, sp, len);
+	out[len] = 0;
+	p++;
+	if (*p == '"' || *p == '\'' )
+		p++;
+
+	return p;
+}
+
+int read_conf(struct conf_data *conf)
+{
+	char buf[64 * 2];
+	char name[64];
+	char *val;
+	FILE *f;
+
+	f = fopen("/etc/vz/ploop.conf", "r");
+	if (f == NULL)
+		return -1;
+
+	conf->use_kio = -1;
+	while (fgets(buf, sizeof(buf), f) != NULL) {
+		val = parse_line(buf, name, sizeof(name));
+		if (val == NULL)
+			continue;
+		if (strcmp(name, "USE_KAIO_FOR_EXT4") == 0) {
+			if (strcmp(val, "yes") == 0)
+				conf->use_kio = 1;
+			else if (strcmp(val, "no") == 0)
+				conf->use_kio = 0;
+
+		}
+	}
+
+	fclose(f);
+
+	return 0;
+}

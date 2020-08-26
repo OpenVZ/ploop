@@ -198,6 +198,9 @@ struct dump2fs_data {
 	uint32_t block_size;
 };
 
+struct conf_data {
+	int use_kio;
+};
 
 /* Mark lib functions used by ploop tools */
 #define PL_EXT __attribute__ ((visibility("default")))
@@ -559,4 +562,6 @@ PL_EXT int dump_bat(const char *image);
 PL_EXT int ploop_image_shuffle(const char *image, int nr, int flags);
 PL_EXT int ploop_check_bat(struct ploop_disk_images_data *di, const char *device,
 		int flags);
+int get_pctl_type(struct conf_data *conf, const char *image, __u32 *out);
+int read_conf(struct conf_data *conf);
 #endif

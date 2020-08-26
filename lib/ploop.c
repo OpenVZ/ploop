@@ -1572,7 +1572,9 @@ out:
 int do_replace_delta(int devfd, int level, int imgfd, __u32 blocksize,
 		const char *image, int raw, int flags)
 {
+	int ret;
 	struct ploop_ctl_delta req = {};
+	struct conf_data conf = {};
 
 	req.c.pctl_cluster_log = ffs(blocksize) - 1;
 	req.c.pctl_level = level;
@@ -1582,7 +1584,14 @@ int do_replace_delta(int devfd, int level, int imgfd, __u32 blocksize,
 		req.c.pctl_format = PLOOP_FMT_RAW;
 	req.c.pctl_flags = flags;
 
-	req.f.pctl_type = PLOOP_IO_AUTO;
+	ret = read_conf(&conf);
+	if (ret)
+		return ret;
+
+	ret = get_pctl_type(&conf, image, &req.f.pctl_type);
+	if (ret)
+		return ret;
+
 	req.f.pctl_fd = imgfd;
 
 	if (ioctl(devfd, PLOOP_IOC_REPLACE_DELTA, &req) < 0) {
@@ -1976,6 +1985,33 @@ static int set_max_delta_size(int fd, unsigned long long size)
 	return ioctl_device(fd, PLOOP_IOC_MAX_DELTA_SIZE, &size);
 }
 
+int get_pctl_type(struct conf_data *conf, const char *image, __u32 *out)
+{
+	struct statfs s;
+
+	*out = PLOOP_IO_AUTO;
+	if (conf->use_kio == -1)
+		return 0;
+
+	if (access("/sys/module/ploop/parameters/kaio_backed_ext4", F_OK))
+		return 0;
+
+	if (statfs(image, &s) != 0) {
+		ploop_err(errno, "statfs %s", image);
+		return SYSEXIT_FSTAT;
+	}
+
+	if (s.f_type != EXT4_SUPER_MAGIC)
+		return 0;
+
+	if (!conf->use_kio)
+		return 0;
+
+	*out = PLOOP_IO_KAIO;
+
+	return 0;
+}
+
 /* NB: caller will take care about *lfd_p even if we fail */
 static int add_deltas(struct ploop_disk_images_data *di,
 		char **images, struct ploop_mount_param *param,
@@ -1988,6 +2024,10 @@ static int add_deltas(struct ploop_disk_images_data *di,
 	struct ploop_ctl_delta req = {};
 	int format_extension_loaded = 0;
 	struct ext_context *ctx = NULL;
+	struct conf_data conf = {};
+
+	if (read_conf(&conf))
+		return SYSEXIT_PARAM;
 
 	if (device[0] == '\0') {
 		char buf[64];
@@ -2021,12 +2061,15 @@ static int add_deltas(struct ploop_disk_images_data *di,
 	req.c.pctl_chunks = 1;
 
 	req.f.pctl_fd = -1;
-	req.f.pctl_type = PLOOP_IO_AUTO;
 
 	for (i = 0; images[i] != NULL; i++) {
 		int ro = (images[i+1] != NULL || param->ro ||
 				(di && di->vol && di->vol->ro)) ? 1: 0;
 		char *image = images[i];
+
+		ret = get_pctl_type(&conf, image, &req.f.pctl_type);
+		if (ret)
+			goto err1;
 
 		req.c.pctl_format = PLOOP_FMT_PLOOP1;
 		if (raw && i == 0)
@@ -2058,8 +2101,8 @@ static int add_deltas(struct ploop_disk_images_data *di,
 		}
 
 
-		ploop_log(0, "Adding delta dev=%s img=%s (%s)",
-				device, image, ro ? "ro" : "rw");
+		ploop_log(0, "Adding delta dev=%s img=%s (%s) type=%u",
+				device, image, ro ? "ro" : "rw", req.f.pctl_type);
 		ret = add_delta(*lfd_p, image, &req);
 		if (ret)
 			goto err1;
