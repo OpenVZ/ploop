@@ -549,8 +549,6 @@ out:
 	}
 	if (ret)
 		unlink(arg->file);
-	else
-		print_output(0, "filefrag -vs", arg->file);
 	free(iobuf);
 
 	ploop_dbg(3, "ploop_copy_receiver rc: %d", ret);
