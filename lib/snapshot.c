@@ -189,6 +189,10 @@ static int create_image_snapshot(int fd, const char *device, const char *delta,
 	struct ploop_ctl_delta req;
 	__u32 blocksize;
 	int version;
+	struct conf_data conf = {};
+
+	if (read_conf(&conf))
+		return SYSEXIT_PARAM;
 
 	ret = get_image_param_online(device, &bdsize,
 			&blocksize, &version);
@@ -200,13 +204,15 @@ static int create_image_snapshot(int fd, const char *device, const char *delta,
 		return SYSEXIT_OPEN;
 
 	memset(&req, 0, sizeof(req));
+	ret = get_pctl_type(&conf, delta, &req.f.pctl_type);
+	if (ret)
+		return ret;
 
 	req.c.pctl_format = PLOOP_FMT_PLOOP1;
 	req.c.pctl_flags = syncfs ? PLOOP_FLAG_FS_SYNC : 0;
 	req.c.pctl_cluster_log = ffs(blocksize) - 1;
 	req.c.pctl_size = 0;
 	req.c.pctl_chunks = 1;
-	req.f.pctl_type = PLOOP_IO_AUTO;
 
 	ploop_log(0, "Creating snapshot dev=%s img=%s", device, delta);
 	ret = create_snapshot_ioctl(fd, f, &req);
