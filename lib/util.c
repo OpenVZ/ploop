@@ -448,11 +448,15 @@ int read_conf(struct conf_data *conf)
 	char *val;
 	FILE *f;
 
-	f = fopen("/etc/vz/ploop.conf", "r");
-	if (f == NULL)
-		return -1;
-
 	conf->use_kio = -1;
+	f = fopen("/etc/vz/ploop.conf", "r");
+	if (f == NULL) {
+		if (errno == ENOENT)
+			return 0;
+		ploop_err(errno, "Can not open /etc/vz/ploop.conf");
+		return SYSEXIT_OPEN;
+	}
+
 	while (fgets(buf, sizeof(buf), f) != NULL) {
 		val = parse_line(buf, name, sizeof(name));
 		if (val == NULL)
