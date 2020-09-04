@@ -90,6 +90,13 @@ enum {
 	CRYPT_V2,
 };
 
+typedef enum {
+	PCTL_AUTO,
+	PCTL_EXT4_KAIO,
+	PCTL_FUSE_KAIO,
+} pctl_type_t;
+
+
 typedef int (*writer_fn) (void *h, const void *iobuf, int len, off_t pos);
 
 struct delta
@@ -200,6 +207,8 @@ struct dump2fs_data {
 
 struct conf_data {
 	int use_kio;
+	unsigned long ext4_discard_granularity;
+	unsigned long fuse_discard_granularity;
 };
 
 /* Mark lib functions used by ploop tools */
@@ -562,6 +571,6 @@ PL_EXT int dump_bat(const char *image);
 PL_EXT int ploop_image_shuffle(const char *image, int nr, int flags);
 PL_EXT int ploop_check_bat(struct ploop_disk_images_data *di, const char *device,
 		int flags);
-int get_pctl_type(struct conf_data *conf, const char *image, __u32 *out);
+int get_pctl_type(struct conf_data *conf, const char *image, pctl_type_t *out);
 int read_conf(struct conf_data *conf);
 #endif
