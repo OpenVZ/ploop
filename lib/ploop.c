@@ -2028,7 +2028,7 @@ static int get_discard_granularity(const char *image, const char *dev,
 	char f[64];
 	struct stat st;
 
-i	*out = 0;
+	*out = 0;
 	switch (type) {
 	case PCTL_AUTO:
 		return 0;
