@@ -449,6 +449,9 @@ int read_conf(struct conf_data *conf)
 	FILE *f;
 
 	conf->use_kio = -1;
+	conf->ext4_discard_granularity = 0;
+	conf->fuse_discard_granularity = 0;
+
 	f = fopen("/etc/vz/ploop.conf", "r");
 	if (f == NULL) {
 		if (errno == ENOENT)
@@ -457,6 +460,7 @@ int read_conf(struct conf_data *conf)
 		return SYSEXIT_OPEN;
 	}
 
+	conf->use_kio = 0;
 	while (fgets(buf, sizeof(buf), f) != NULL) {
 		val = parse_line(buf, name, sizeof(name));
 		if (val == NULL)
@@ -464,9 +468,10 @@ int read_conf(struct conf_data *conf)
 		if (strcmp(name, "USE_KAIO_FOR_EXT4") == 0) {
 			if (strcmp(val, "yes") == 0)
 				conf->use_kio = 1;
-			else if (strcmp(val, "no") == 0)
-				conf->use_kio = 0;
-
+		} else if (strcmp(name, "EXT4_DISCARD_GRANULARITY") == 0) {
+			conf->ext4_discard_granularity = strtoul(val, NULL, 10);
+		} else if (strcmp(name, "FUSE_DISCARD_GRANULARITY") == 0) {
+			conf->fuse_discard_granularity = strtoul(val, NULL, 10);
 		}
 	}
 

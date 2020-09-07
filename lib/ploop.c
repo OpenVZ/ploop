@@ -41,6 +41,12 @@
 #include "cleanup.h"
 #include "cbt.h"
 
+#ifndef FUSE_SUPER_MAGIC
+#define FUSE_SUPER_MAGIC	0x65735546
+#endif
+
+static int ploop_stop_device(const char *device,
+		struct ploop_disk_images_data *di);
 static int ploop_mount_fs(struct ploop_disk_images_data *di,
 		const char *partname,	struct ploop_mount_param *param,
 		int need_balloon);
@@ -1575,6 +1581,7 @@ int do_replace_delta(int devfd, int level, int imgfd, __u32 blocksize,
 	int ret;
 	struct ploop_ctl_delta req = {};
 	struct conf_data conf = {};
+	pctl_type_t type;
 
 	req.c.pctl_cluster_log = ffs(blocksize) - 1;
 	req.c.pctl_level = level;
@@ -1588,10 +1595,11 @@ int do_replace_delta(int devfd, int level, int imgfd, __u32 blocksize,
 	if (ret)
 		return ret;
 
-	ret = get_pctl_type(&conf, image, &req.f.pctl_type);
+	ret = get_pctl_type(&conf, image, &type);
 	if (ret)
 		return ret;
 
+	req.f.pctl_type = type == PCTL_AUTO ? PLOOP_IO_AUTO : PLOOP_IO_KAIO;
 	req.f.pctl_fd = imgfd;
 
 	if (ioctl(devfd, PLOOP_IOC_REPLACE_DELTA, &req) < 0) {
@@ -1985,14 +1993,13 @@ static int set_max_delta_size(int fd, unsigned long long size)
 	return ioctl_device(fd, PLOOP_IOC_MAX_DELTA_SIZE, &size);
 }
 
-int get_pctl_type(struct conf_data *conf, const char *image, __u32 *out)
+int get_pctl_type(struct conf_data *conf, const char *image, pctl_type_t *type)
 {
 	struct statfs s;
 
-	*out = PLOOP_IO_AUTO;
+	*type = PCTL_AUTO;
 	if (conf->use_kio == -1)
 		return 0;
-
 	if (access("/sys/module/ploop/parameters/kaio_backed_ext4", F_OK))
 		return 0;
 
@@ -2001,13 +2008,88 @@ int get_pctl_type(struct conf_data *conf, const char *image, __u32 *out)
 		return SYSEXIT_FSTAT;
 	}
 
+	if (s.f_type == FUSE_SUPER_MAGIC) {
+		*type = PCTL_FUSE_KAIO;
+		return 0;
+	}
 	if (s.f_type != EXT4_SUPER_MAGIC)
 		return 0;
-
 	if (!conf->use_kio)
 		return 0;
 
-	*out = PLOOP_IO_KAIO;
+	*type = PCTL_EXT4_KAIO;
+	return 0;
+}
+
+static int get_discard_granularity(const char *image, const char *dev,
+		struct conf_data *conf, pctl_type_t type,
+		unsigned long *out)
+{
+	char f[64];
+	struct stat st;
+
+i	*out = 0;
+	switch (type) {
+	case PCTL_AUTO:
+		return 0;
+	case PCTL_FUSE_KAIO:
+		*out = conf->fuse_discard_granularity;
+		if (*out == 0)
+			return 0;
+		break;
+	case PCTL_EXT4_KAIO:
+		*out = conf->ext4_discard_granularity;
+		if (*out)
+			break;
+		if (stat(image, &st)) {
+			ploop_err(errno, "Can't stat %s", image);
+			return SYSEXIT_FSTAT;
+		}
+
+		snprintf(f, sizeof(f), "/sys/dev/block/%d:%d/queue/rotational",
+				major(st.st_dev), minor(st.st_dev));
+		if (access(f, F_OK))
+			return 0;
+		if (read_line(f, f, sizeof(f)))
+			return SYSEXIT_READ;
+		*out = strcmp(f, "0") == 0 ?  4096: 1048576;
+		break;
+	}
+
+	return 0;
+}
+
+static int set_discard_granularity(const char *image, const char *dev,
+		struct conf_data *conf, pctl_type_t type)
+{
+	char f[64];
+	FILE *fp;
+	int ret;
+	unsigned long g;
+
+	ret = get_discard_granularity(image, dev, conf, type, &g);
+	if (ret)
+		return ret;
+	if (g == 0)
+		return 0;
+
+	snprintf(f, sizeof(f), "/sys/block/%s/ptune/discard_granularity",
+			get_basename(dev));
+	fp = fopen(f, "w");
+	if (fp == NULL) {
+		if (errno == EACCES)
+			return 0;
+		ploop_err(errno, "Can't open %s", f);
+		return SYSEXIT_OPEN;
+	}
+
+	ploop_log(3, "Set discard granularity: %lu bytes", g);
+	if (fprintf(fp, "%lu", g) == -1) {
+		ploop_err(errno, "Unable to write %lu at %s", g, f);
+		fclose(fp);
+		return SYSEXIT_WRITE;	
+	}
+	fclose(fp);
 
 	return 0;
 }
@@ -2025,6 +2107,7 @@ static int add_deltas(struct ploop_disk_images_data *di,
 	int format_extension_loaded = 0;
 	struct ext_context *ctx = NULL;
 	struct conf_data conf = {};
+	pctl_type_t type;
 
 	if (read_conf(&conf))
 		return SYSEXIT_PARAM;
@@ -2067,10 +2150,11 @@ static int add_deltas(struct ploop_disk_images_data *di,
 				(di && di->vol && di->vol->ro)) ? 1: 0;
 		char *image = images[i];
 
-		ret = get_pctl_type(&conf, image, &req.f.pctl_type);
+		ret = get_pctl_type(&conf, image, &type);
 		if (ret)
 			goto err1;
 
+		req.f.pctl_type = type == PCTL_AUTO ? PLOOP_IO_AUTO : PLOOP_IO_KAIO;
 		req.c.pctl_format = PLOOP_FMT_PLOOP1;
 		if (raw && i == 0)
 			req.c.pctl_format = PLOOP_FMT_RAW;
@@ -2100,7 +2184,6 @@ static int add_deltas(struct ploop_disk_images_data *di,
 				format_extension_loaded = 1;
 		}
 
-
 		ploop_log(0, "Adding delta dev=%s img=%s (%s) type=%u",
 				device, image, ro ? "ro" : "rw", req.f.pctl_type);
 		ret = add_delta(*lfd_p, image, &req);
@@ -2112,12 +2195,15 @@ static int add_deltas(struct ploop_disk_images_data *di,
 			(ret = set_max_delta_size(*lfd_p, di->max_delta_size)))
 		goto err1;
 
+	ret = set_discard_granularity(images[i-1], device, &conf, type);
+	if (ret)
+		goto err1;
+
 	if (ioctl(*lfd_p, PLOOP_IOC_START, 0) < 0) {
 		ploop_err(errno, "PLOOP_IOC_START");
 		ret = SYSEXIT_DEVIOC;
 		goto err1;
 	}
-
 	if (format_extension_loaded)
 		send_dirty_bitmap_to_kernel(ctx, *lfd_p, images[i-1]);
 

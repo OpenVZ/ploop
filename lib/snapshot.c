@@ -190,6 +190,7 @@ static int create_image_snapshot(int fd, const char *device, const char *delta,
 	__u32 blocksize;
 	int version;
 	struct conf_data conf = {};
+	pctl_type_t type;
 
 	if (read_conf(&conf))
 		return SYSEXIT_PARAM;
@@ -204,10 +205,11 @@ static int create_image_snapshot(int fd, const char *device, const char *delta,
 		return SYSEXIT_OPEN;
 
 	memset(&req, 0, sizeof(req));
-	ret = get_pctl_type(&conf, delta, &req.f.pctl_type);
+	ret = get_pctl_type(&conf, delta, &type);
 	if (ret)
 		return ret;
 
+	req.f.pctl_type = type == PCTL_AUTO ? PLOOP_IO_AUTO : PLOOP_IO_KAIO;
 	req.c.pctl_format = PLOOP_FMT_PLOOP1;
 	req.c.pctl_flags = syncfs ? PLOOP_FLAG_FS_SYNC : 0;
 	req.c.pctl_cluster_log = ffs(blocksize) - 1;
