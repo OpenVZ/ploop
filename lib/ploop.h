@@ -573,4 +573,5 @@ PL_EXT int ploop_check_bat(struct ploop_disk_images_data *di, const char *device
 		int flags);
 int get_pctl_type(struct conf_data *conf, const char *image, pctl_type_t *out);
 int read_conf(struct conf_data *conf);
+int repair_sparse(const char *image, int *fd, __u64 cluster, int flags);
 #endif

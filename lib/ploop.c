@@ -2154,6 +2154,13 @@ static int add_deltas(struct ploop_disk_images_data *di,
 		if (ret)
 			goto err1;
 
+		if (type == PCTL_AUTO) {
+			int flags = CHECK_REPAIR_SPARSE | (raw ? CHECK_RAW : 0);
+			ret = repair_sparse(image, blocksize, flags);
+			if (ret)
+				goto err1;
+		}
+
 		req.f.pctl_type = type == PCTL_AUTO ? PLOOP_IO_AUTO : PLOOP_IO_KAIO;
 		req.c.pctl_format = PLOOP_FMT_PLOOP1;
 		if (raw && i == 0)

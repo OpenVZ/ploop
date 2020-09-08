@@ -310,7 +310,7 @@ static int restore_hole(const char *image, int *fd, off_t start,
 	return 0;
 }
 
-static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags)
+int repair_sparse(const char *image, int *fd, __u64 cluster, int flags)
 {
 	int last;
 	int i, ret;
@@ -328,6 +328,9 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 	struct delta *delta_p = NULL;
 	__u32 *rmap = NULL, rmap_size = 0;
 
+	if (!repair)
+		return 0;
+
 	ret = fstatfs(*fd, &sfs);
 	if (ret < 0) {
 		ploop_err(errno, "Unable to statfs delta file %s", image);
@@ -342,11 +345,6 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 
 		if (open_delta(&delta, image, O_RDWR, OD_ALLOW_DIRTY))
 			return SYSEXIT_OPEN;
-
-		if (flags & CHECK_DEFRAG) {
-			ret = image_defrag(&delta);
-			goto out;
-		}
 
 		rmap_size = delta.l2_size + delta.l1_size;
 		if (delta.alloc_head > rmap_size) {
@@ -381,9 +379,6 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 		}
 		end = st.st_size;
 	}
-
-	if (!repair)
-		goto out;
 
 	prev_end = 0;
 	last = 0;
@@ -708,9 +703,18 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 	if (!ret)
 		ret = fsync_safe(fd);
 done:
-	if (ret == 0)
-		ret = check_and_repair(img, &fd, cluster, flags);
+	if (ret == 0) {
+		if (!(flags & CHECK_RAW) && (flags & CHECK_DEFRAG)) {
+			ret = ploop_image_defrag(img, 0);
+			if (ret)
+				goto err;
+		}
 
+		ret = repair_sparse(img, &fd, cluster, flags);
+		if (ret)
+			goto err;
+	}
+err:
 	ret2 = close_safe(fd);
 	if (ret2 && !ret)
 		ret = ret2;
@@ -730,8 +734,7 @@ int check_deltas(struct ploop_disk_images_data *di, char **images,
 	if (cbt_allowed != NULL)
 		*cbt_allowed = 1;
 
-	f = flags | CHECK_DETAILED | CHECK_REPAIR_SPARSE |
-		(di ? CHECK_DROPINUSE : 0);
+	f = flags | CHECK_DETAILED | (di ? CHECK_DROPINUSE : 0);
 
 	for (i = 0; images[i] != NULL; i++) {
 		int raw_delta = (raw && i == 0);
