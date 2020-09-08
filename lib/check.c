@@ -382,6 +382,9 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 		end = st.st_size;
 	}
 
+	if (!repair)
+		goto out;
+
 	prev_end = 0;
 	last = 0;
 	while (!last && prev_end < end) {
@@ -727,8 +730,8 @@ int check_deltas(struct ploop_disk_images_data *di, char **images,
 	if (cbt_allowed != NULL)
 		*cbt_allowed = 1;
 
-	f = flags | CHECK_DETAILED |
-		(di ? (CHECK_DROPINUSE | CHECK_REPAIR_SPARSE) : 0);
+	f = flags | CHECK_DETAILED | CHECK_REPAIR_SPARSE |
+		(di ? CHECK_DROPINUSE : 0);
 
 	for (i = 0; images[i] != NULL; i++) {
 		int raw_delta = (raw && i == 0);
