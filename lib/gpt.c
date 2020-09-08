@@ -299,6 +299,7 @@ static int update_gpt_partition(int fd, const char *devname, __u64 new_size512,
 		hdr.partition_entry_lba = 2;
 		hdr.first_usable_lba = (sector_size + gpt_size_bytes) / sector_size;
 		pe->starting_lba = (pe->starting_lba * image_sector_size) / sector_size;
+		pe->ending_lba = hdr.last_usable_lba;
 
 		/*TODO:
 		 * Store GPT is not atomic, it needed to implement
