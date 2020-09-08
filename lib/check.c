@@ -215,7 +215,7 @@ static int reopen_rw(const char *image, int *fd)
 }
 
 static int fill_hole(const char *image, int *fd, off_t start, off_t end,
-		struct delta *delta, __u32 *rmap, __u32 rmap_size, int *log, int repair)
+		struct delta *delta, __u32 *rmap, __u32 rmap_size, int *log)
 {
 	int ret;
 	static const char buf[0x100000];
@@ -236,8 +236,7 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end,
 		}
 
 		if (!*log) {
-			ploop_err(0, "%s: ploop image '%s' is sparse",
-					repair ? "Warning" : "Error", image);
+			ploop_err(0, "Warning: ploop image '%s' is sparse", image);
 			*log = 1;
 			print_output(0, "filefrag -vs", image);
 			ploop_log(0, "Reallocating sparse blocks back");
@@ -252,9 +251,6 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end,
 		else
 			ploop_log(0, "Filling hole at start=%lu len=%lu",
 				(long unsigned)offset, (long unsigned)len);
-
-		if (!repair)
-			return SYSEXIT_PLOOPFMT;
 
 		n = pwrite(*fd, buf, len, offset);
 		if (n != len) {
@@ -271,8 +267,7 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end,
 
 static int restore_hole(const char *image, int *fd, off_t start,
 		off_t end, struct delta *delta,
-		__u32 *rmap, __u32 rmap_size,
-		 int *log, int repair)
+		__u32 *rmap, __u32 rmap_size, int *log)
 {
 	int ret;
 	off_t offset, len;
@@ -296,8 +291,6 @@ static int restore_hole(const char *image, int *fd, off_t start,
 				if (ret)
 					return ret;
 			}
-			if (!repair)
-				return SYSEXIT_PLOOPFMT;
 
 			if (fallocate(*fd, FALLOC_FL_PUNCH_HOLE|FALLOC_FL_KEEP_SIZE, offset, len) == -1 ) {
 				ploop_err(errno, "Failed to fallocate offset=%lu len=%lu",
@@ -323,12 +316,11 @@ int repair_sparse(const char *image, int *fd, __u64 cluster, int flags)
 	int log = 0;
 	int count = (sizeof(buf) - sizeof(*fiemap)) /
 		    sizeof(struct fiemap_extent);
-	int repair = flags & CHECK_REPAIR_SPARSE;
 	struct delta delta = {.fd = -1};
 	struct delta *delta_p = NULL;
 	__u32 *rmap = NULL, rmap_size = 0;
 
-	if (!repair)
+	if (!(flags & CHECK_REPAIR_SPARSE))
 		return 0;
 
 	ret = fstatfs(*fd, &sfs);
@@ -414,7 +406,7 @@ int repair_sparse(const char *image, int *fd, __u64 cluster, int flags)
 
 				ret = fill_hole(image, fd, fm_ext[i].fe_logical,
 						fm_ext[i].fe_logical + fm_ext[i].fe_length,
-						delta_p, rmap, rmap_size, &log, repair);
+						delta_p, rmap, rmap_size, &log);
 				if (ret)
 					goto out;
 			}
@@ -425,12 +417,12 @@ int repair_sparse(const char *image, int *fd, __u64 cluster, int flags)
 									fm_ext[i].fe_flags);
 			if (prev_end != fm_ext[i].fe_logical &&
 					(ret = fill_hole(image, fd, prev_end, fm_ext[i].fe_logical,
-							 delta_p, rmap, rmap_size, &log, repair)))
+							 delta_p, rmap, rmap_size, &log)))
 				goto out;
 
 			if (!(flags & CHECK_READONLY) && rmap != NULL) {
 				ret = restore_hole(image, fd, fm_ext[i].fe_logical, fm_ext[i].fe_logical + fm_ext[i].fe_length,
-					delta_p, rmap, rmap_size, &log, repair);
+					delta_p, rmap, rmap_size, &log);
 				if (ret)
 					goto out;
 			}
@@ -440,7 +432,7 @@ int repair_sparse(const char *image, int *fd, __u64 cluster, int flags)
 	}
 
 	if (prev_end < end &&
-			(ret = fill_hole(image, fd, prev_end, end, delta_p, rmap, rmap_size,  &log, repair)))
+			(ret = fill_hole(image, fd, prev_end, end, delta_p, rmap, rmap_size,  &log)))
 		goto out;
 
 	if (log)
