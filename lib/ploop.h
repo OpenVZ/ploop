@@ -572,5 +572,6 @@ PL_EXT int ploop_image_shuffle(const char *image, int nr, int flags);
 PL_EXT int ploop_check_bat(struct ploop_disk_images_data *di, const char *device,
 		int flags);
 int get_pctl_type(struct conf_data *conf, const char *image, pctl_type_t *out);
+int get_pctl_type_by_dev(const char *dev, pctl_type_t *type);
 int read_conf(struct conf_data *conf);
 #endif

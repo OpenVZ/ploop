@@ -1993,6 +1993,36 @@ static int set_max_delta_size(int fd, unsigned long long size)
 	return ioctl_device(fd, PLOOP_IOC_MAX_DELTA_SIZE, &size);
 }
 
+int get_pctl_type_by_dev(const char *dev, pctl_type_t *type)
+{
+	char f[64];
+	struct statfs s;
+
+	snprintf(f, sizeof(f), "/sys/block/%s/pdelta/0/io", get_basename(dev));
+	if (read_line(f, f, sizeof(f)))
+		return SYSEXIT_READ;
+
+	*type = PCTL_AUTO;
+	if (strcmp(f, "kaio"))
+		return 0;
+
+	snprintf(f, sizeof(f), "/sys/block/%s/pdelta/0/image", get_basename(dev));
+	if (read_line(f, f, sizeof(f)))
+		return SYSEXIT_READ;
+
+	if (statfs(f, &s) != 0) {
+		ploop_err(errno, "statfs %s", f);
+		return SYSEXIT_FSTAT;
+	}
+
+	if (s.f_type == FUSE_SUPER_MAGIC)
+		*type = PCTL_FUSE_KAIO;
+	else if (s.f_type == EXT4_SUPER_MAGIC)
+		*type = PCTL_EXT4_KAIO;
+
+	return 0;
+}
+
 int get_pctl_type(struct conf_data *conf, const char *image, pctl_type_t *type)
 {
 	struct statfs s;
