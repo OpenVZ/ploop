@@ -214,10 +214,9 @@ static int reopen_rw(const char *image, int *fd)
 	return 0;
 }
 
-static int fill_hole(const char *image, int *fd, off_t start, off_t end,
-		struct delta *delta, __u32 *rmap, __u32 rmap_size, int *log, int repair)
+static int fill_hole(const char *image, int fd, off_t start, off_t end,
+		struct delta *delta, __u32 *rmap, __u32 rmap_size, int *log)
 {
-	int ret;
 	static const char buf[0x100000];
 	off_t offset, len, n;
 	__u32 cluster = delta ? S2B(delta->blocksize) : sizeof(buf);
@@ -236,14 +235,10 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end,
 		}
 
 		if (!*log) {
-			ploop_err(0, "%s: ploop image '%s' is sparse",
-					repair ? "Warning" : "Error", image);
+			ploop_err(0, "Warning: ploop image '%s' is sparse", image);
 			*log = 1;
 			print_output(0, "filefrag -vs", image);
 			ploop_log(0, "Reallocating sparse blocks back");
-			ret = reopen_rw(image, fd);
-			if (ret)
-				return ret;
 		}
 
 		if (rmap)
@@ -253,10 +248,7 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end,
 			ploop_log(0, "Filling hole at start=%lu len=%lu",
 				(long unsigned)offset, (long unsigned)len);
 
-		if (!repair)
-			return SYSEXIT_PLOOPFMT;
-
-		n = pwrite(*fd, buf, len, offset);
+		n = pwrite(fd, buf, len, offset);
 		if (n != len) {
 			if (n >= 0)
 				errno = EIO;
@@ -269,12 +261,10 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end,
 	return 0;
 }
 
-static int restore_hole(const char *image, int *fd, off_t start,
+static int restore_hole(const char *image, int fd, off_t start,
 		off_t end, struct delta *delta,
-		__u32 *rmap, __u32 rmap_size,
-		 int *log, int repair)
+		__u32 *rmap, __u32 rmap_size, int *log)
 {
-	int ret;
 	off_t offset, len;
 	uint64_t cluster = S2B(delta->blocksize);
 	off_t data_offset = delta->l1_size * cluster;
@@ -292,14 +282,9 @@ static int restore_hole(const char *image, int *fd, off_t start,
 			if (*log == 0) {
 				*log = 1;
 				print_output(0, "filefrag -vs", image);
-				ret = reopen_rw(image, fd);
-				if (ret)
-					return ret;
 			}
-			if (!repair)
-				return SYSEXIT_PLOOPFMT;
 
-			if (fallocate(*fd, FALLOC_FL_PUNCH_HOLE|FALLOC_FL_KEEP_SIZE, offset, len) == -1 ) {
+			if (fallocate(fd, FALLOC_FL_PUNCH_HOLE|FALLOC_FL_KEEP_SIZE, offset, len) == -1 ) {
 				ploop_err(errno, "Failed to fallocate offset=%lu len=%lu",
 						offset, len);
 				return SYSEXIT_WRITE;
@@ -310,7 +295,7 @@ static int restore_hole(const char *image, int *fd, off_t start,
 	return 0;
 }
 
-static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags)
+int repair_sparse(const char *image, __u64 cluster, int flags)
 {
 	int last;
 	int i, ret;
@@ -323,30 +308,33 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 	int log = 0;
 	int count = (sizeof(buf) - sizeof(*fiemap)) /
 		    sizeof(struct fiemap_extent);
-	int repair = flags & CHECK_REPAIR_SPARSE;
 	struct delta delta = {.fd = -1};
 	struct delta *delta_p = NULL;
 	__u32 *rmap = NULL, rmap_size = 0;
 
-	ret = fstatfs(*fd, &sfs);
+	if (!(flags & CHECK_REPAIR_SPARSE))
+		return 0;
+
+	ret = (flags & CHECK_RAW) ?
+		open_delta_simple(&delta, image, O_RDWR, OD_ALLOW_DIRTY) :
+		open_delta(&delta, image, O_RDWR, OD_ALLOW_DIRTY);
+	if (ret)
+		return SYSEXIT_OPEN;
+
+	ret = fstatfs(delta.fd, &sfs);
 	if (ret < 0) {
 		ploop_err(errno, "Unable to statfs delta file %s", image);
+		close_delta(&delta);
 		return SYSEXIT_FSTAT;
 	}
 
-	if (sfs.f_type != EXT4_SUPER_MAGIC)
+	if (sfs.f_type != EXT4_SUPER_MAGIC) {
+		close_delta(&delta);
 		return 0;
+	}
 
 	if (!(flags & CHECK_RAW)) {
 		__u32 max = 0;
-
-		if (open_delta(&delta, image, O_RDWR, OD_ALLOW_DIRTY))
-			return SYSEXIT_OPEN;
-
-		if (flags & CHECK_DEFRAG) {
-			ret = image_defrag(&delta);
-			goto out;
-		}
 
 		rmap_size = delta.l2_size + delta.l1_size;
 		if (delta.alloc_head > rmap_size) {
@@ -375,15 +363,12 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 	} else {
 		struct stat st;
 
-		if (fstat(*fd, &st)) {
+		if (fstat(delta.fd, &st)) {
 			ploop_err(errno, "Can not stat %s", image);
-			return SYSEXIT_FSTAT;
+			goto out;
 		}
 		end = st.st_size;
 	}
-
-	if (!repair)
-		goto out;
 
 	prev_end = 0;
 	last = 0;
@@ -393,9 +378,9 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 		fiemap->fm_flags	= FIEMAP_FLAG_SYNC;
 		fiemap->fm_extent_count = count;
 
-		ret = ioctl_device(*fd, FS_IOC_FIEMAP, (unsigned long) fiemap);
+		ret = ioctl_device(delta.fd, FS_IOC_FIEMAP, (unsigned long) fiemap);
 		if (ret)
-			return ret;
+			goto out;
 
 		if (fiemap->fm_mapped_extents == 0)
 			break;
@@ -417,9 +402,9 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 						" which are not aligned to cluster size",
 						image, (uint64_t)fm_ext[i].fe_logical, (uint64_t)fm_ext[i].fe_length);
 
-				ret = fill_hole(image, fd, fm_ext[i].fe_logical,
+				ret = fill_hole(image, delta.fd, fm_ext[i].fe_logical,
 						fm_ext[i].fe_logical + fm_ext[i].fe_length,
-						delta_p, rmap, rmap_size, &log, repair);
+						delta_p, rmap, rmap_size, &log);
 				if (ret)
 					goto out;
 			}
@@ -429,13 +414,13 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 				ploop_log(1, "Warning: extent with unexpected flags 0x%x",
 									fm_ext[i].fe_flags);
 			if (prev_end != fm_ext[i].fe_logical &&
-					(ret = fill_hole(image, fd, prev_end, fm_ext[i].fe_logical,
-							 delta_p, rmap, rmap_size, &log, repair)))
+					(ret = fill_hole(image, delta.fd, prev_end, fm_ext[i].fe_logical,
+							 delta_p, rmap, rmap_size, &log)))
 				goto out;
 
 			if (!(flags & CHECK_READONLY) && rmap != NULL) {
-				ret = restore_hole(image, fd, fm_ext[i].fe_logical, fm_ext[i].fe_logical + fm_ext[i].fe_length,
-					delta_p, rmap, rmap_size, &log, repair);
+				ret = restore_hole(image, delta.fd, fm_ext[i].fe_logical, fm_ext[i].fe_logical + fm_ext[i].fe_length,
+					delta_p, rmap, rmap_size, &log);
 				if (ret)
 					goto out;
 			}
@@ -445,7 +430,7 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 	}
 
 	if (prev_end < end &&
-			(ret = fill_hole(image, fd, prev_end, end, delta_p, rmap, rmap_size,  &log, repair)))
+			(ret = fill_hole(image, delta.fd, prev_end, end, delta_p, rmap, rmap_size,  &log)))
 		goto out;
 
 	if (log)
@@ -708,9 +693,18 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 	if (!ret)
 		ret = fsync_safe(fd);
 done:
-	if (ret == 0)
-		ret = check_and_repair(img, &fd, cluster, flags);
+	if (ret == 0) {
+		if (!(flags & CHECK_RAW) && (flags & CHECK_DEFRAG)) {
+			ret = ploop_image_defrag(img, 0);
+			if (ret)
+				goto err;
+		}
 
+		ret = repair_sparse(img, cluster, flags);
+		if (ret)
+			goto err;
+	}
+err:
 	ret2 = close_safe(fd);
 	if (ret2 && !ret)
 		ret = ret2;
@@ -730,8 +724,7 @@ int check_deltas(struct ploop_disk_images_data *di, char **images,
 	if (cbt_allowed != NULL)
 		*cbt_allowed = 1;
 
-	f = flags | CHECK_DETAILED | CHECK_REPAIR_SPARSE |
-		(di ? CHECK_DROPINUSE : 0);
+	f = flags | CHECK_DETAILED | (di ? CHECK_DROPINUSE : 0);
 
 	for (i = 0; images[i] != NULL; i++) {
 		int raw_delta = (raw && i == 0);
