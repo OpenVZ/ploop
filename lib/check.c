@@ -214,9 +214,10 @@ static int reopen_rw(const char *image, int *fd)
 	return 0;
 }
 
-static int fill_hole(const char *image, int fd, off_t start, off_t end,
+static int fill_hole(const char *image, off_t start, off_t end,
 		struct delta *delta, __u32 *rmap, __u32 rmap_size, int *log)
 {
+	int ret;
 	static const char buf[0x100000];
 	off_t offset, len, n;
 	__u32 cluster = delta ? S2B(delta->blocksize) : sizeof(buf);
@@ -248,7 +249,10 @@ static int fill_hole(const char *image, int fd, off_t start, off_t end,
 			ploop_log(0, "Filling hole at start=%lu len=%lu",
 				(long unsigned)offset, (long unsigned)len);
 
-		n = pwrite(fd, buf, len, offset);
+		ret = reopen_rw(image, &delta->fd);
+		if (ret)
+			return ret;
+		n = pwrite(delta->fd, buf, len, offset);
 		if (n != len) {
 			if (n >= 0)
 				errno = EIO;
@@ -261,10 +265,11 @@ static int fill_hole(const char *image, int fd, off_t start, off_t end,
 	return 0;
 }
 
-static int restore_hole(const char *image, int fd, off_t start,
+static int restore_hole(const char *image, off_t start,
 		off_t end, struct delta *delta,
 		__u32 *rmap, __u32 rmap_size, int *log)
 {
+	int ret;
 	off_t offset, len;
 	uint64_t cluster = S2B(delta->blocksize);
 	off_t data_offset = delta->l1_size * cluster;
@@ -284,7 +289,11 @@ static int restore_hole(const char *image, int fd, off_t start,
 				print_output(0, "filefrag -vs", image);
 			}
 
-			if (fallocate(fd, FALLOC_FL_PUNCH_HOLE|FALLOC_FL_KEEP_SIZE, offset, len) == -1 ) {
+			ret = reopen_rw(image, &delta->fd);
+			if (ret)
+				return ret;
+
+			if (fallocate(delta->fd, FALLOC_FL_PUNCH_HOLE|FALLOC_FL_KEEP_SIZE, offset, len) == -1 ) {
 				ploop_err(errno, "Failed to fallocate offset=%lu len=%lu",
 						offset, len);
 				return SYSEXIT_WRITE;
@@ -309,15 +318,14 @@ int repair_sparse(const char *image, __u64 cluster, int flags)
 	int count = (sizeof(buf) - sizeof(*fiemap)) /
 		    sizeof(struct fiemap_extent);
 	struct delta delta = {.fd = -1};
-	struct delta *delta_p = NULL;
 	__u32 *rmap = NULL, rmap_size = 0;
 
 	if (!(flags & CHECK_REPAIR_SPARSE))
 		return 0;
 
 	ret = (flags & CHECK_RAW) ?
-		open_delta_simple(&delta, image, O_RDWR, OD_ALLOW_DIRTY) :
-		open_delta(&delta, image, O_RDWR, OD_ALLOW_DIRTY);
+		open_delta_simple(&delta, image, O_RDONLY, OD_ALLOW_DIRTY) :
+		open_delta(&delta, image, O_RDONLY, OD_ALLOW_DIRTY);
 	if (ret)
 		return SYSEXIT_OPEN;
 
@@ -358,7 +366,6 @@ int repair_sparse(const char *image, __u64 cluster, int flags)
 			goto out;
 		rmap_size = max + 1;
 		cluster = S2B(delta.blocksize);
-		delta_p = &delta;
 		end = cluster * (max + 1);
 	} else {
 		struct stat st;
@@ -402,9 +409,9 @@ int repair_sparse(const char *image, __u64 cluster, int flags)
 						" which are not aligned to cluster size",
 						image, (uint64_t)fm_ext[i].fe_logical, (uint64_t)fm_ext[i].fe_length);
 
-				ret = fill_hole(image, delta.fd, fm_ext[i].fe_logical,
+				ret = fill_hole(image, fm_ext[i].fe_logical,
 						fm_ext[i].fe_logical + fm_ext[i].fe_length,
-						delta_p, rmap, rmap_size, &log);
+						&delta, rmap, rmap_size, &log);
 				if (ret)
 					goto out;
 			}
@@ -414,13 +421,13 @@ int repair_sparse(const char *image, __u64 cluster, int flags)
 				ploop_log(1, "Warning: extent with unexpected flags 0x%x",
 									fm_ext[i].fe_flags);
 			if (prev_end != fm_ext[i].fe_logical &&
-					(ret = fill_hole(image, delta.fd, prev_end, fm_ext[i].fe_logical,
-							 delta_p, rmap, rmap_size, &log)))
+					(ret = fill_hole(image, prev_end, fm_ext[i].fe_logical,
+							 &delta, rmap, rmap_size, &log)))
 				goto out;
 
 			if (!(flags & CHECK_READONLY) && rmap != NULL) {
-				ret = restore_hole(image, delta.fd, fm_ext[i].fe_logical, fm_ext[i].fe_logical + fm_ext[i].fe_length,
-					delta_p, rmap, rmap_size, &log);
+				ret = restore_hole(image, fm_ext[i].fe_logical, fm_ext[i].fe_logical + fm_ext[i].fe_length,
+					&delta, rmap, rmap_size, &log);
 				if (ret)
 					goto out;
 			}
@@ -430,7 +437,7 @@ int repair_sparse(const char *image, __u64 cluster, int flags)
 	}
 
 	if (prev_end < end &&
-			(ret = fill_hole(image, delta.fd, prev_end, end, delta_p, rmap, rmap_size,  &log)))
+			(ret = fill_hole(image, prev_end, end, &delta, rmap, rmap_size,  &log)))
 		goto out;
 
 	if (log)
