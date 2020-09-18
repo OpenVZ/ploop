@@ -220,7 +220,7 @@ static int fill_hole(const char *image, off_t start, off_t end,
 	int ret;
 	static const char buf[0x100000];
 	off_t offset, len, n;
-	__u32 cluster = delta ? S2B(delta->blocksize) : sizeof(buf);
+	__u32 cluster = delta && delta->blocksize ? S2B(delta->blocksize) : sizeof(buf);
 	off_t data_offset = delta ? delta->l1_size * cluster : 0;
 
 	for (len = 0, offset = start; offset < end; offset += len) {
