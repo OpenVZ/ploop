@@ -2431,7 +2431,8 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 	if (di && (ret = check_and_restore_fmt_version(di)))
 		goto err;
 
-	ret = check_deltas(di, images, raw, &blocksize, &load_cbt, 0);
+	ret = check_deltas(di, images, raw, &blocksize, &load_cbt,
+			di ? CHECK_DROPINUSE : 0);
 	if (ret)
 		goto err;
 
@@ -2734,7 +2735,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 			rmdir(mnt);
 	}
 
-	return ret;
+	return check_deltas_live(di);
 }
 
 int ploop_umount_image(struct ploop_disk_images_data *di)
@@ -3079,7 +3080,7 @@ static int shrink_device(struct ploop_disk_images_data *di,
 
 int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_param *param)
 {
-	int ret;
+	int ret, rc;
 	char buf[PATH_MAX];
 	char partname[64];
 	char dev[64];
@@ -3105,6 +3106,13 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			buf, sizeof(buf), &mounted);
 	if (ret)
 		goto err;
+
+	if (!mounted) {
+		ret = check_deltas_live(di);
+		if (ret)
+			goto err;
+	}
+
 	target = strdup(buf);
 
 	//FIXME: Deny resize image if there are childs
@@ -3313,7 +3321,13 @@ err:
 	if (balloonfd != -1)
 		close(balloonfd);
 
-	umnt(di, dev, target, mounted);
+
+	if (!mounted) {
+		rc = check_deltas_live(di);
+		if (ret == 0)
+			ret = rc;
+	} else
+		umnt(di, dev, target, mounted);
 
 	ploop_unlock_dd(di);
 	free(target);

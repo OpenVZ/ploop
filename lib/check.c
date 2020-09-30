@@ -459,15 +459,13 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 	int fd;
 	int ret = 0;
 	int ret2;
-	const int ro = (flags & CHECK_READONLY);
+	const int ro = flags & (CHECK_READONLY|CHECK_LIVE);
 	const int verbose = (flags & CHECK_TALKATIVE);
 	off_t bd_size;
 	struct stat stb;
 	void *buf = NULL;
 	__u32 *l2_ptr = NULL;
-
-	struct ploop_pvd_header vh_buf;
-	struct ploop_pvd_header *vh = &vh_buf;
+	struct ploop_pvd_header *vh;
 
 	__u32 alloc_head;
 	__u32 l1_slots;
@@ -481,13 +479,14 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 	int clean = 1;	    /* image is clean */
 	__u64 cluster;
 
-	int force = (flags & CHECK_FORCE);
+	int force = flags & (CHECK_FORCE|CHECK_LIVE);
 	int hard_force = (flags & CHECK_HARDFORCE);
-	int check = (flags & CHECK_DETAILED);
+	int check = flags & (CHECK_DETAILED|CHECK_LIVE);
+	int live = (flags & CHECK_LIVE);
 	int version;
 	int disk_in_use;
 
-	fd = open(img, O_RDONLY);
+	fd = open(img, O_RDONLY|O_DIRECT|O_CLOEXEC);
 	if (fd < 0) {
 		ploop_err(errno, "ploop_check: can't open %s", img);
 		return SYSEXIT_OPEN;
@@ -511,7 +510,12 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 		goto done;
 	}
 
-	ret = read_safe(fd, vh, sizeof(*vh), 0, "read PVD header");
+	if (p_memalign((void *)&vh, 4096, 4096)) {
+		ret = SYSEXIT_MALLOC;
+		goto done;
+	}
+
+	ret = read_safe(fd, vh, 4096, 0, "read PVD header");
 	if (ret)
 		goto done;
 
@@ -614,13 +618,6 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 		if (ret)
 			goto done;
 
-		if (!ro && disk_in_use) {
-			ret = write_safe(fd, buf, cluster, i * cluster,
-				    "re-write index table");
-			if (ret)
-				goto done;
-		}
-
 		for (j = skip; j < cluster/4; j++, l2_slot++) {
 			if (l2_ptr[j] == 0)
 				continue;
@@ -640,6 +637,9 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 		ret = SYSEXIT_PLOOPFMT;
 		goto done;
 	}
+
+	if (live)
+		goto done;
 
 	if ((off_t)alloc_head * cluster < stb.st_size) {
 		if (!ro) {
@@ -718,6 +718,7 @@ err:
 
 	free(bmap);
 	free(buf);
+	free(vh);
 
 	return ret;
 }
@@ -731,7 +732,7 @@ int check_deltas(struct ploop_disk_images_data *di, char **images,
 	if (cbt_allowed != NULL)
 		*cbt_allowed = 1;
 
-	f = flags | CHECK_DETAILED | (di ? CHECK_DROPINUSE : 0);
+	f = flags | CHECK_DETAILED;
 
 	for (i = 0; images[i] != NULL; i++) {
 		int raw_delta = (raw && i == 0);
@@ -770,6 +771,29 @@ int check_deltas(struct ploop_disk_images_data *di, char **images,
 			break;
 		}
 	}
+
+	return ret;
+}
+
+int check_deltas_live(struct ploop_disk_images_data *di)
+{
+	char **images;
+	__u32 blocksize;
+	int raw, ret;
+
+	if (di == NULL)
+		return 0;
+
+	images = make_images_list(di, di->top_guid, 0);
+	if (!images)
+		return SYSEXIT_DISKDESCR;
+
+	blocksize = di->blocksize;
+	raw = (di->mode == PLOOP_RAW_MODE);
+
+	ret = check_deltas(di, images, raw, &blocksize, NULL, CHECK_LIVE);
+
+	ploop_free_array(images);
 
 	return ret;
 }
