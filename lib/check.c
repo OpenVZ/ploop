@@ -480,7 +480,6 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 	__u32 alloc_head;
 	__u32 l1_slots;
 	__u32 l2_slot = 0;
-	__u32 m_Flags;
 
 	__u32 *bmap = NULL;
 	unsigned int bmap_size = 0;
@@ -651,7 +650,7 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 	if (live)
 		goto done;
 
-	if ((off_t)alloc_head * cluster < stb.st_size) {
+	if (disk_in_use && (off_t)alloc_head * cluster < stb.st_size) {
 		if (!ro) {
 			ploop_log(0, "Max cluster: %d (image size %lu) trimming tail",
 					alloc_head, stb.st_size);
@@ -662,14 +661,8 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 			}
 		} else {
 			ploop_err(0, "Want to trim tail");
-			alloc_head = (stb.st_size + cluster - 1)/(cluster);
 		}
 	}
-
-	if (alloc_head > l1_slots)
-		m_Flags = vh->m_Flags & ~CIF_Empty;
-	else
-		m_Flags = vh->m_Flags | CIF_Empty;
 
 	if (disk_in_use != 0) {
 		ploop_err(0, "Dirty flag is set");
@@ -678,8 +671,6 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 			goto done;
 		}
 	}
-	if (vh->m_Flags != m_Flags)
-		ploop_err(0, "CIF_Empty flag is incorrect");
 
 	/* useless to repair header if content was not fixed */
 	if (!clean) {
@@ -688,7 +679,7 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 	}
 
 	/* the content is clean, only header checks remained */
-	if (disk_in_use == 0 && vh->m_Flags == m_Flags)
+	if (disk_in_use == 0)
 		goto done;
 
 	/* header needs fix but we can't */
@@ -704,7 +695,8 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 	}
 
 	vh->m_DiskInUse = 0;
-	vh->m_Flags = m_Flags;
+	vh->m_Flags = 0;
+	vh->m_FormatExtensionOffset = 0;
 
 	ret = write_safe(fd, vh, sizeof(*vh), 0, "write PVD header");
 	if (!ret)
