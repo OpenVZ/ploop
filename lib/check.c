@@ -475,7 +475,7 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 	struct stat stb;
 	void *buf = NULL;
 	__u32 *l2_ptr = NULL;
-	struct ploop_pvd_header *vh;
+	struct ploop_pvd_header *vh = NULL;
 
 	__u32 alloc_head;
 	__u32 l1_slots;
