@@ -567,6 +567,26 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 	if (cbt_allowed != NULL)
 		*cbt_allowed = !disk_in_use;
 
+	if (stb.st_size % cluster) {
+		off_t size = ROUNDUP(stb.st_size, cluster);
+
+		ploop_err(0, "Image size %lu is not alligned to cluster %llu",
+				stb.st_size, cluster);
+		if (!force || ro)
+			goto done;
+
+		ret = reopen_rw(img, &fd);
+		if (ret)
+			goto done;
+
+		ploop_log(0, "Truncate image %s up to %lu", img, size);
+		if (ftruncate(fd, size)) {
+			ploop_err(errno, "ftruncate");
+			ret = SYSEXIT_FTRUNCATE;
+			goto done;
+		}
+	}
+
 	if (!disk_in_use && !force) {
 		if (verbose)
 			ploop_log(0, "Image is clean, check is skipped");
