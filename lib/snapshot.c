@@ -31,6 +31,12 @@
 #include "ploop.h"
 #include "cbt.h"
 
+struct ploop_ctl_snapshot {
+	struct ploop_ctl c;
+	struct ploop_ctl_chunk f;
+	struct ploop_ctl_chunk g;
+};
+
 /* lock temporary snapshot by mount */
 #define TSNAPSHOT_MOUNT_LOCK_MARK	"~"
 
@@ -169,24 +175,14 @@ int ploop_delete_snapshot(struct ploop_disk_images_data *di, const char *guid)
 	return ret;
 }
 
-static int create_snapshot_ioctl(int lfd, int fd, struct ploop_ctl_delta *req)
-{
-	req->f.pctl_fd = fd;
-
-	if (ioctl(lfd, PLOOP_IOC_SNAPSHOT, req) < 0) {
-		ploop_err(errno, "PLOOP_IOC_SNAPSHOT");
-		return SYSEXIT_DEVIOC;
-	}
-
-	return 0;
-}
-
 static int create_image_snapshot(int fd, const char *device, const char *delta,
 		int syncfs)
 {
-	int ret, f;
+	int ret, rc, f;
 	off_t bdsize;
-	struct ploop_ctl_delta req;
+	char dev[64];
+	char part[64];
+	struct ploop_ctl_snapshot req = {};
 	__u32 blocksize;
 	int version;
 	struct conf_data conf = {};
@@ -194,6 +190,10 @@ static int create_image_snapshot(int fd, const char *device, const char *delta,
 
 	if (read_conf(&conf))
 		return SYSEXIT_PARAM;
+
+	ret = get_part_devname(NULL, device, dev, sizeof(dev), part, sizeof(part));
+	if (ret)
+		return ret;
 
 	ret = get_image_param_online(device, &bdsize,
 			&blocksize, &version);
@@ -204,22 +204,40 @@ static int create_image_snapshot(int fd, const char *device, const char *delta,
 	if (f < 0)
 		return SYSEXIT_OPEN;
 
-	memset(&req, 0, sizeof(req));
+	req.g.pctl_fd = open(part, O_RDONLY|O_CLOEXEC);
+	if (ret) {
+		ploop_err(errno, "Cannot open %s", part);
+		goto err;
+	}
+
 	ret = get_pctl_type(&conf, delta, &type);
 	if (ret)
-		return ret;
+		goto err;
 
 	req.f.pctl_type = type == PCTL_AUTO ? PLOOP_IO_AUTO : PLOOP_IO_KAIO;
+	req.f.pctl_fd = f;
 	req.c.pctl_format = PLOOP_FMT_PLOOP1;
 	req.c.pctl_flags = syncfs ? PLOOP_FLAG_FS_SYNC : 0;
 	req.c.pctl_cluster_log = ffs(blocksize) - 1;
 	req.c.pctl_size = 0;
-	req.c.pctl_chunks = 1;
+	req.c.pctl_chunks = 2;
 
 	ploop_log(0, "Creating snapshot dev=%s img=%s", device, delta);
-	ret = create_snapshot_ioctl(fd, f, &req);
-
+	rc = ioctl(fd, PLOOP_IOC_SNAPSHOT, &req);
+	if (rc < 0) {
+		req.c.pctl_chunks = 1;
+		if (errno == EINVAL)
+			rc = ioctl(fd, PLOOP_IOC_SNAPSHOT, &req);
+	
+		if (rc) {
+			ploop_err(errno, "PLOOP_IOC_SNAPSHOT");
+			ret = SYSEXIT_DEVIOC;
+			goto err;
+		}
+	}
+err:
 	close(f);
+	close(req.g.pctl_fd);
 
 	return ret;
 }
