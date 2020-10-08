@@ -242,14 +242,58 @@ err:
 	return ret;
 }
 
+
+static int _do(const char *part, int suspend)
+{
+	int rc;
+	struct stat st;
+
+	ploop_log(0, "%s %s", suspend ? "freeze" : "unfreeze", part);
+	if (stat(part, &st)) {
+		ploop_err(errno, "stat %s", part);
+		return SYSEXIT_FSTAT;
+	}
+
+	if (major(st.st_rdev) == PLOOP_DEV_MAJOR) {
+		int fd = open(part, O_RDONLY|O_CLOEXEC);
+
+		if (fd == -1) {
+			ploop_err(errno, "open %s", part);
+			return SYSEXIT_OPEN;
+		}
+
+		rc = ioctl_device(fd, suspend ? PLOOP_IOC_FREEZE : PLOOP_IOC_FREEZE, 0);
+		close(fd);
+	} else {
+		rc =  suspend ? dm_suspend_device(part) :
+				dm_resume_device(part);
+	}
+
+	return rc;
+} 
+
+int ploop_suspend_device(const char *part)
+{
+	return _do(part, 1);
+} 
+
+int ploop_resume_device(const char *part)
+{
+	return _do(part, 0);
+}
+
 static int create_cbt_snapshot(int fd, const char *device, const char *delta,
 		 const __u8 *cbt_u, const char *prev_delta)
 {
 	int ret;
+	char dev[64], part[64];
 	void *or_data = NULL;
 
-	ploop_log(0, "freeze %s", device);
-	ret = ioctl_device(fd, PLOOP_IOC_FREEZE, 0);
+	ret = ploop_get_devname(NULL, device, dev, sizeof(dev), part, sizeof(part));
+	if (ret)
+		return ret;
+
+	ret = ploop_suspend_device(part);
 	if (ret)
 		return ret;
 
@@ -264,8 +308,7 @@ static int create_cbt_snapshot(int fd, const char *device, const char *delta,
 	ret = cbt_snapshot(fd, cbt_u, prev_delta, or_data);
 
 err:
-	ploop_log(0, "unfreeze %s", device);
-	ioctl_device(fd, PLOOP_IOC_THAW, 0);
+	ploop_resume_device(part);
 
 	free(or_data);
 
