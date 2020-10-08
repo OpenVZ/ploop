@@ -253,9 +253,6 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end,
 			ploop_log(0, "Filling hole at start=%lu len=%lu",
 				(long unsigned)offset, (long unsigned)len);
 
-		if (!repair)
-			return SYSEXIT_PLOOPFMT;
-
 		n = pwrite(*fd, buf, len, offset);
 		if (n != len) {
 			if (n >= 0)
@@ -296,8 +293,6 @@ static int restore_hole(const char *image, int *fd, off_t start,
 				if (ret)
 					return ret;
 			}
-			if (!repair)
-				return SYSEXIT_PLOOPFMT;
 
 			if (fallocate(*fd, FALLOC_FL_PUNCH_HOLE|FALLOC_FL_KEEP_SIZE, offset, len) == -1 ) {
 				ploop_err(errno, "Failed to fallocate offset=%lu len=%lu",
