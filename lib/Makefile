@@ -16,6 +16,7 @@ PCDIR=$(LIBDIR)/pkgconfig
 LIBOBJS=uuid.o \
 	delta_read.o \
 	delta_sysfs.o \
+	dm.o \
 	balloon_util.o \
 	check.o \
 	crypt.o \
@@ -45,7 +46,7 @@ GENERATED=symbols.c
 
 CFLAGS += $(shell pkg-config libxml-2.0 --cflags) -fPIC -fvisibility=hidden
 LDFLAGS+= -shared -Wl,-soname,$(LIBPLOOP_SO_X)
-LDLIBS += $(shell pkg-config libxml-2.0 openssl uuid --libs) -lpthread -lrt
+LDLIBS += $(shell pkg-config libxml-2.0 openssl uuid --libs) -ldevmapper -lpthread -lrt
 
 all: $(LIBPLOOP) $(LIBPLOOP_SO) $(PC)
 .PHONY: all
