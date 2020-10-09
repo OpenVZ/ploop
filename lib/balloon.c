@@ -42,7 +42,8 @@
 
 #define EXT4_IOC_OPEN_BALLOON		_IO('f', 42)
 
-#define BIN_E4DEFRAG	"/usr/sbin/e4defrag2"
+#define BIN_E4DEFRAG2	"/usr/sbin/e4defrag2"
+#define BIN_E4DEFRAG	"/usr/sbin/e4defrag"
 
 
 char *mntn2str(int mntn_type)
@@ -1372,7 +1373,7 @@ static void defrag_complete(const char *dev)
 	}
 	fclose(fp);
 
-	if (strcmp(BIN_E4DEFRAG, cmd) != 0) {
+	if (strncmp(BIN_E4DEFRAG, cmd, sizeof(BIN_E4DEFRAG) -1) != 0) {
 		// some other process that happen to reuse our pid
 		free(cmd);
 		goto stale;
@@ -1407,7 +1408,44 @@ static int create_pidfile(const char *fname, pid_t pid)
 	return 0;
 }
 
-static int ploop_defrag(struct ploop_disk_images_data *di,
+static int do_kaio_ext4_defrag(const char *dev, const int *stop)
+{
+	int ret;
+	pid_t pid;
+	char file[PATH_MAX];
+	char *arg[] = {BIN_E4DEFRAG, file, NULL};
+
+	if (access(arg[0], F_OK))
+		return 0;
+
+	snprintf(file, sizeof(file), "/sys/block/%s/pdelta/0/image", get_basename(dev));
+	if (read_line(file, file, sizeof(file)))
+		return SYSEXIT_READ;
+
+	ploop_log(0, "Start %s %s", arg[0], arg[1]);
+
+	pid = fork();
+	if (pid < 0) {
+		ploop_err(errno, "Can't fork");
+		return -1;
+	} else if (pid == 0) {
+		execv(arg[0], arg);
+
+		ploop_err(errno, "Can't exec %s", arg[0]);
+		_exit(1);
+	}
+
+	defrag_pidfile(dev, file, sizeof(file));
+	create_pidfile(file, pid);
+
+	ret = wait_pid(pid, arg[0], stop);
+
+	unlink(file);
+
+	return ret;
+}
+
+static int do_defrag(struct ploop_disk_images_data *di,
 		const char *dev, const char *mnt, const int *stop)
 {
 	int ret;
@@ -1416,7 +1454,7 @@ static int ploop_defrag(struct ploop_disk_images_data *di,
 	char pidfile[PATH_MAX];
 	char block_size[16];
 	char part[64];
-	char *arg[] = {BIN_E4DEFRAG, "-c", block_size, part, (char*)mnt, NULL};
+	char *arg[] = {BIN_E4DEFRAG2, "-c", block_size, part, (char*)mnt, NULL};
 
 	if (access(arg[0], F_OK))
 		return 0;
@@ -1464,6 +1502,7 @@ int ploop_discard(struct ploop_disk_images_data *di,
 	char dev[PATH_MAX];
 	char mnt[PATH_MAX];
 	int mounted = 0;
+	pctl_type_t io_type = PCTL_AUTO;
 
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
@@ -1488,9 +1527,16 @@ int ploop_discard(struct ploop_disk_images_data *di,
 	if (param->defrag) {
 		struct ploop_discard_stat pds, pds_after;
 
+		ret = get_pctl_type_by_dev(dev, &io_type);
+		if (ret)
+			goto out;
+
+		if (io_type == PCTL_EXT4_KAIO) 
+			goto discard;
+
 		ret = ploop_discard_get_stat_by_dev(dev, mnt, &pds);
 
-		if (ploop_defrag(di, dev, mnt, param->stop))
+		if (do_defrag(di, dev, mnt, param->stop))
 			ploop_log(0, BIN_E4DEFRAG" exited with error");
 		if (param->defrag == 2)
 			goto out;
@@ -1507,8 +1553,14 @@ int ploop_discard(struct ploop_disk_images_data *di,
 			param->to_free += pds_after.image_size - pds.image_size;
 	}
 
+discard:
 	ret = do_ploop_discard(di, dev, mnt, param->minlen_b,
 			param->to_free, param->stop);
+	if (ret)
+		goto out;
+
+	if (param->defrag && io_type == PCTL_EXT4_KAIO)
+		do_kaio_ext4_defrag(dev, param->stop);
 
 out:
 	if (ploop_lock_dd(di) == 0) {
