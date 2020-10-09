@@ -566,8 +566,10 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 
 		ploop_err(0, "Image size %lu is not alligned to cluster %llu",
 				stb.st_size, cluster);
-		if (!force || ro)
+		if (!force || ro) {
+			ret = SYSEXIT_PLOOPFMT;
 			goto done;
+		}
 
 		ret = reopen_rw(img, &fd);
 		if (ret)
