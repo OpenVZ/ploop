@@ -1995,7 +1995,7 @@ static int set_max_delta_size(int fd, unsigned long long size)
 
 int get_pctl_type_by_dev(const char *dev, pctl_type_t *type)
 {
-	char f[64];
+	char f[PATH_MAX];
 	struct statfs s;
 
 	snprintf(f, sizeof(f), "/sys/block/%s/pdelta/0/io", get_basename(dev));
