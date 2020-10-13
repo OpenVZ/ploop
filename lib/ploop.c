@@ -45,7 +45,7 @@
 #define FUSE_SUPER_MAGIC	0x65735546
 #endif
 
-static int ploop_stop_device(const char *device,
+static int ploop_stop_device(const char *device, const char *part,
 		struct ploop_disk_images_data *di);
 static int ploop_mount_fs(struct ploop_disk_images_data *di,
 		const char *partname,	struct ploop_mount_param *param,
@@ -2665,7 +2665,7 @@ int ploop_mount_snapshot(struct ploop_disk_images_data *di, struct ploop_mount_p
 	return ploop_mount_image(di, param);
 }
 
-static int ploop_stop_device(const char *device,
+static int ploop_stop_device(const char *device, const char *part,
 		struct ploop_disk_images_data *di)
 {
 	int lfd, ret;
@@ -2676,8 +2676,7 @@ static int ploop_stop_device(const char *device,
 		ploop_err(errno, "Can't open dev %s", device);
 		return SYSEXIT_DEVICE;
 	}
-
-	ioctl(lfd, PLOOP_IOC_THAW);
+	ploop_resume_device(part);
 	ret = ploop_stop(lfd, device, di);
 	close(lfd);
 
@@ -2735,7 +2734,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 		return ret;
 	}
 
-	ret = ploop_stop_device(device, di);
+	ret = ploop_stop_device(device, partname, di);
 	if (ret)
 		return ret;
 
@@ -3041,7 +3040,7 @@ static int ploop_raw_discard(struct ploop_disk_images_data *di, const char *devi
 			return ret;
 	}
 
-	ret = ploop_stop_device(device, di);
+	ret = ploop_stop_device(device, partname, di);
 	if (ret)
 		return ret;
 

@@ -262,7 +262,7 @@ static int _do(const char *part, int suspend)
 			return SYSEXIT_OPEN;
 		}
 
-		rc = ioctl_device(fd, suspend ? PLOOP_IOC_FREEZE : PLOOP_IOC_FREEZE, 0);
+		rc = ioctl_device(fd, suspend ? PLOOP_IOC_FREEZE : PLOOP_IOC_THAW, 0);
 		close(fd);
 	} else {
 		rc =  suspend ? dm_suspend_device(part) :
