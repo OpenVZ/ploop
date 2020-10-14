@@ -843,10 +843,9 @@ static void cancel_discard(void *data)
 }
 
 /* The fragmentation of such blocks doesn't affect the speed of w/r */
-#define MAX_DISCARD_CLU 32
+#define MAX_DISCARD_CLU 32 * 1024*1024
 
-static int ploop_trim(const char *mount_point, __u64 minlen_b, __u64 cluster,
-		__u64 discard_granularity)
+static int ploop_trim(const char *mount_point, __u64 minlen_b, __u64 cluster)
 {
 	struct fstrim_range range = {};
 	int fd, ret = -1, last = 0;
@@ -875,9 +874,7 @@ static int ploop_trim(const char *mount_point, __u64 minlen_b, __u64 cluster,
 	else
 		minlen_b = (minlen_b + cluster - 1) / cluster * cluster;
 
-	if (minlen_b < discard_granularity)
-		minlen_b = discard_granularity;
-	range.minlen = MAX(MAX_DISCARD_CLU * cluster, minlen_b);
+	range.minlen = MAX(MAX_DISCARD_CLU, minlen_b);
 
 	for (; range.minlen >= minlen_b; range.minlen /= 2) {
 		ploop_log(1, "Call FITRIM, for minlen=%" PRIu64, (uint64_t)range.minlen);
@@ -887,7 +884,7 @@ static int ploop_trim(const char *mount_point, __u64 minlen_b, __u64 cluster,
 		trim_minlen = range.minlen;
 		ret = ioctl(fd, FITRIM, &range);
 		if (ret < 0) {
-			if (trim_stop)
+			if (trim_stop || errno == EINVAL)
 				ret = 0;
 			else
 				ploop_err(errno, "Can't trim file system");
@@ -975,80 +972,6 @@ static int wait_pid(pid_t pid, const char *mes, const int *stop)
 	return err;
 }
 
-static int get_discard_granularity(struct ploop_disk_images_data *di,
-		__u32 cluster, __u64 *granularity)
-{
-	int rc = 0;
-	FILE *fp;
-	struct stat st;
-	char buf[128];
-	const char *fname;
-
-	if (di == NULL) {
-		*granularity = cluster;
-		return 0;
-	}
-		
-	fname = find_image_by_guid(di, get_top_delta_guid(di));
-
-	if (stat(fname, &st)) {
-		ploop_err(errno, "Unable to stat %s", fname);
-		return SYSEXIT_SYS;
-	}
-
-	snprintf(buf, sizeof(buf), "/sys/dev/block/%u:%u",
-			major(st.st_dev), minor(st.st_dev));
-	if (access(buf, F_OK)) {
-		*granularity = cluster;
-		return 0;
-	}
-
-	snprintf(buf, sizeof(buf), "/sys/dev/block/%u:%u/partition",
-			major(st.st_dev), minor(st.st_dev));
-	if (access(buf, F_OK) == 0) {
-		char target[PATH_MAX];
-		ssize_t n;
-
-		snprintf(buf, sizeof(buf), "/sys/dev/block/%u:%u",
-			major(st.st_dev), minor(st.st_dev));
-		n = readlink(buf, target, sizeof(target) -1);
-		if (n == -1) {
-			ploop_err(errno, "Unable to readlink %s", buf);
-			return SYSEXIT_OPEN;
-		}
-		target[n] = '\0';
-
-		char *p = strrchr(target, '/');
-		if (p == NULL) {
-			ploop_err(errno, "Unable to get device name from %s", target);
-			return SYSEXIT_OPEN;
-		}
-		*p = '\0';
-		p = strrchr(target, '/');
-		if (p == NULL)
-			p = target;
-		snprintf(buf, sizeof(buf), "/sys/block/%s/queue/discard_granularity",
-				p);
-	} else
-		snprintf(buf, sizeof(buf), "/sys/dev/block/%u:%u/queue/discard_granularity",
-				major(st.st_dev), minor(st.st_dev));
-	fp = fopen(buf, "r");
-	if (fp == NULL) {
-		ploop_err(errno, "Unable to open %s", buf);
-		return SYSEXIT_OPEN;
-	}
-
-	if (fscanf(fp, "%llu", granularity) != 1) {
-		ploop_err(0, "Unable to parse %s", buf);
-		rc = SYSEXIT_SYS;
-	}
-
-	fclose(fp);
-	if (*granularity == 0)
-		*granularity = cluster;
-	return rc;
-}
-
 static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 			const char *device, const char *mount_point,
 			__u64 minlen_b, __u32 cluster, __u32 to_free,
@@ -1060,9 +983,11 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 	struct ploop_cleanup_hook *h;
 	__u64 discard_granularity;
 
-	ret = get_discard_granularity(di, cluster, &discard_granularity);
+	ret = get_discard_granularity(device, &discard_granularity);
 	if (ret)
 		return ret;
+	if (discard_granularity == 0)
+		discard_granularity = cluster;
 
 	if (blk_discard_range != NULL)
 		ploop_log(0, "Discard %s start=%" PRIu64 " length=%" PRIu64 " granularity=%" PRIu64,
@@ -1074,7 +999,7 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 	if (is_native_discard(device)) {
 		if (blk_discard_range != NULL)
 			return blk_discard(fd, cluster, blk_discard_range[0], blk_discard_range[1]);
-		return ploop_trim(mount_point, minlen_b, cluster, discard_granularity);
+		return ploop_trim(mount_point, minlen_b, discard_granularity);
 	}
 
 	if (ploop_lock_di(di))
@@ -1102,7 +1027,7 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 		if (blk_discard_range != NULL)
 			ret = blk_discard(fd, cluster, blk_discard_range[0], blk_discard_range[1]);
 		else
-			ret = ploop_trim(mount_point, minlen_b, cluster, discard_granularity);
+			ret = ploop_trim(mount_point, minlen_b, discard_granularity);
 		if (ioctl_device(fd, PLOOP_IOC_DISCARD_FINI, NULL))
 			ploop_err(errno, "Can't finalize discard mode");
 
