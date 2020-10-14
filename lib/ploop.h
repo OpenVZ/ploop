@@ -580,5 +580,5 @@ int read_conf(struct conf_data *conf);
 int repair_sparse(const char *image, __u64 cluster, int flags);
 int dm_suspend_device(const char *devname);
 int dm_resume_device(const char *devname);
-
+int dm_remove(const char *devname);
 #endif

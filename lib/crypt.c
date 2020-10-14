@@ -152,8 +152,7 @@ static int crypt_close_v1(const char *devname)
 
 static int crypt_close_v2(const char *devname, const char *partname)
 {
-	char *a[] = {"/usr/sbin/dmsetup", "remove", "--retry", (char *)partname, NULL};
-	int ret = run_prg(a);
+	int ret = dm_remove(partname);
 	if (ret)
 		return ret;
 

@@ -124,3 +124,8 @@ int dm_resume_device(const char *devname)
 {
 	return cmd(devname, DM_DEVICE_RESUME);
 }
+
+int dm_remove(const char *devname)
+{
+	return cmd(devname, DM_DEVICE_REMOVE);
+}
