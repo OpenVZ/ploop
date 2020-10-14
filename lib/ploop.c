@@ -2051,7 +2051,7 @@ int get_pctl_type(struct conf_data *conf, const char *image, pctl_type_t *type)
 	return 0;
 }
 
-static int get_discard_granularity(const char *image, const char *dev,
+static int detect_discard_granularity(const char *image, const char *dev,
 		struct conf_data *conf, pctl_type_t type,
 		unsigned long *out)
 {
@@ -2097,7 +2097,7 @@ static int set_discard_granularity(const char *image, const char *dev,
 	int ret;
 	unsigned long g;
 
-	ret = get_discard_granularity(image, dev, conf, type, &g);
+	ret = detect_discard_granularity(image, dev, conf, type, &g);
 	if (ret)
 		return ret;
 	if (g == 0)
@@ -2120,6 +2120,24 @@ static int set_discard_granularity(const char *image, const char *dev,
 		return SYSEXIT_WRITE;	
 	}
 	fclose(fp);
+
+	return 0;
+}
+
+int get_discard_granularity(const char *dev, __u64 *granularity)
+{
+	char f[64], buf[64];
+
+	snprintf(f, sizeof(f), "/sys/block/%s/ptune/discard_granularity",
+			get_basename(dev));
+
+	if (read_line(f, buf, sizeof(buf)))
+		return -1;
+
+	if (sscanf(buf, "%llu", granularity) != 1) {
+		ploop_err(0, "Unexpected format in %s: %s", f, buf);
+		return -1;
+	}
 
 	return 0;
 }
