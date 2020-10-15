@@ -981,11 +981,13 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 	int ret;
 	__u32 size = 0;
 	struct ploop_cleanup_hook *h;
-	__u64 discard_granularity;
+	__u64 discard_granularity = 0;
 
-	ret = get_discard_granularity(device, &discard_granularity);
-	if (ret)
-		return ret;
+	if (blk_discard_range == NULL) {
+		ret = get_discard_granularity(device, &discard_granularity);
+		if (ret)
+			return ret;
+	}
 	if (discard_granularity == 0)
 		discard_granularity = cluster;
 
