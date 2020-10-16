@@ -414,7 +414,7 @@ PL_EXT int ploop_discard_get_stat_by_dev(const char *device, const char *mount_p
 		struct ploop_discard_stat *pd_stat);
 PL_EXT int ploop_discard_by_dev(const char *device, const char *mount_point,
 		__u64 minlen_b, __u64 to_free, const int *stop);
-int ploop_blk_discard(const char* device, __u32 blocksize, off_t start, off_t end);
+int ploop_blk_discard(const char* device, const char *part, __u32 blocksize, off_t start, off_t end);
 
 /* lock */
 int ploop_lock_dd(struct ploop_disk_images_data *di);
@@ -564,8 +564,9 @@ int get_mount_dir(const char *device, int pid, char *out, int size);
 int auto_mount_fs(struct ploop_disk_images_data *di, pid_t pid,
 		const char *partname, struct ploop_mount_param *param);
 int get_dev_and_mnt(struct ploop_disk_images_data *di, pid_t pid,
-		int automount, char *dev, int dev_len, char *mnt,
-		int mnt_len, int *mounted);
+		int automount, char *dev, int dev_len,
+		char *part, int part_len, 
+		char *mnt, int mnt_len, int *mounted);
 int umnt(struct ploop_disk_images_data *di, const char *dev,
 		const char *mnt, int mounted);
 
