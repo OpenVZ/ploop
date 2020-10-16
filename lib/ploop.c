@@ -3121,7 +3121,7 @@ static int shrink_device(struct ploop_disk_images_data *di,
 	if (raw)
 		ret = ploop_raw_discard(di, device, part_device, blocksize, start, end);
 	else
-		ret = ploop_blk_discard(part_device, blocksize, start, end);
+		ret = ploop_blk_discard(device, part_device, blocksize, start, end);
 
 	return ret;
 }
@@ -3151,6 +3151,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		return SYSEXIT_LOCK;
 
 	ret = get_dev_and_mnt(di, param->mntns_pid, 1, dev, sizeof(dev),
+			partname, sizeof(partname),
 			buf, sizeof(buf), &mounted);
 	if (ret)
 		goto err;
@@ -3166,11 +3167,6 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 	//FIXME: Deny resize image if there are childs
 	ret = get_image_param_online(dev, &dev_size,
 			&blocksize, &version);
-	if (ret)
-		goto err;
-
-	ret = get_part_devname(di, dev, devname, sizeof(devname),
-			partname, sizeof(partname));
 	if (ret)
 		goto err;
 

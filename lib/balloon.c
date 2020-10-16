@@ -926,7 +926,7 @@ static int blk_discard(int fd, __u32 cluster, __u64 start, __u64 len)
 		ploop_log(1, "Call BLKDISCARD start=%" PRIu64 " length=%" PRIu64, (uint64_t)range[0], (uint64_t)range[1]);
 		ret = ioctl_device(fd, BLKDISCARD, range);
 		if (ret)
-			return ret;
+			return errno == ENOTSUP ? 0 : ret;
 
 		start += range[1];
 		len -= range[1];
@@ -972,7 +972,7 @@ static int wait_pid(pid_t pid, const char *mes, const int *stop)
 	return err;
 }
 
-static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
+static int __ploop_discard(struct ploop_disk_images_data *di, int fd, int partfd,
 			const char *device, const char *mount_point,
 			__u64 minlen_b, __u32 cluster, __u32 to_free,
 			__u64 blk_discard_range[2], const int *stop)
@@ -1000,7 +1000,7 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 
 	if (is_native_discard(device)) {
 		if (blk_discard_range != NULL)
-			return blk_discard(fd, cluster, blk_discard_range[0], blk_discard_range[1]);
+			return blk_discard(partfd, cluster, blk_discard_range[0], blk_discard_range[1]);
 		return ploop_trim(mount_point, minlen_b, discard_granularity);
 	}
 
@@ -1027,7 +1027,7 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 
 	if (tpid == 0) {
 		if (blk_discard_range != NULL)
-			ret = blk_discard(fd, cluster, blk_discard_range[0], blk_discard_range[1]);
+			ret = blk_discard(partfd, cluster, blk_discard_range[0], blk_discard_range[1]);
 		else
 			ret = ploop_trim(mount_point, minlen_b, discard_granularity);
 		if (ioctl_device(fd, PLOOP_IOC_DISCARD_FINI, NULL))
@@ -1122,10 +1122,10 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd,
 }
 
 static int do_ploop_discard(struct ploop_disk_images_data *di,
-		const char *device, const char *mount_point,
+		const char *device, const char *part, const char *mount_point,
 		__u64 minlen_b, __u64 to_free, const int *stop)
 {
-	int fd, ret;
+	int fd, partfd, ret;
 	int blocksize;
 	__u32 cluster;
 
@@ -1147,18 +1147,25 @@ static int do_ploop_discard(struct ploop_disk_images_data *di,
 	fd = open_device(device);
 	if (fd == -1)
 		return SYSEXIT_OPEN;
+	partfd = open(part, O_RDWR|O_CLOEXEC);
+	if (partfd < 0) {
+		ploop_err(errno, "Can't open ploop device %s", part);
+		close(fd);
+		return SYSEXIT_OPEN;
+	}
 
-	ret = __ploop_discard(di, fd, device, mount_point,
+	ret = __ploop_discard(di, fd, partfd, device, mount_point,
 					minlen_b, cluster, to_free, NULL, stop);
-
 	close(fd);
+	close(partfd);
 
 	return ret;
 }
 
-int ploop_blk_discard(const char* device, __u32 blocksize, off_t start, off_t end)
+int ploop_blk_discard(const char* device, const char *part, __u32 blocksize,
+		off_t start, off_t end)
 {
-	int ret, fd;
+	int ret, fd, partfd;
 	__u64 range[2];
 
 	start = S2B(start);
@@ -1172,14 +1179,21 @@ int ploop_blk_discard(const char* device, __u32 blocksize, off_t start, off_t en
 
 	fd = open(device, O_RDWR|O_CLOEXEC);
 	if (fd < 0) {
-		ploop_err(errno, "Can't open ploop device %s",
-				device);
+		ploop_err(errno, "Can't open ploop device %s", device);
 		return SYSEXIT_OPEN;
 	}
 
-	ret = __ploop_discard(NULL, fd, device, NULL, 0, S2B(blocksize), ~0U, range, NULL);
+	partfd = open(part, O_RDWR|O_CLOEXEC);
+	if (partfd < 0) {
+		ploop_err(errno, "Can't open ploop device %s", part);
+		close(fd);
+		return SYSEXIT_OPEN;
+	}
+
+	ret = __ploop_discard(NULL, fd, partfd, device, NULL, 0, S2B(blocksize), ~0U, range, NULL);
 
 	close(fd);
+	close(partfd);
 
 	return ret;
 }
@@ -1195,12 +1209,12 @@ int umnt(struct ploop_disk_images_data *di, const char *dev,
 }
 
 int get_dev_and_mnt(struct ploop_disk_images_data *di, pid_t pid,
-		int automount, char *dev, int dev_len, char *mnt,
-		int mnt_len, int *mounted)
+		int automount, char *dev, int dev_len,
+		char *part, int part_len, char *mnt, int mnt_len,
+		int *mounted)
 {
 	int ret, r;        
 	struct ploop_mount_param m = {};
-	char partname[64]; 
 	char devname[64]; 
 
 	r = ploop_find_dev_by_dd(di, dev, dev_len);
@@ -1209,11 +1223,11 @@ int get_dev_and_mnt(struct ploop_disk_images_data *di, pid_t pid,
 
 	if (r == 0) {
 		ret = get_part_devname(di, dev, devname, sizeof(devname),
-				partname, sizeof(partname));
+				part, part_len);
 		if (ret)
 			return ret;
 
-		ret = get_mount_dir(partname, 0, mnt, mnt_len);
+		ret = get_mount_dir(part, 0, mnt, mnt_len);
 		if (ret < 0)
 			return SYSEXIT_SYS;
 		else if (ret == 0)
@@ -1226,7 +1240,7 @@ int get_dev_and_mnt(struct ploop_disk_images_data *di, pid_t pid,
 	}
 
 	if (r == 0) {
-		ret = auto_mount_fs(di, pid, partname, &m);
+		ret = auto_mount_fs(di, pid, part, &m);
 		if (ret)
 			return ret;
 		*mounted = 1;
@@ -1234,7 +1248,13 @@ int get_dev_and_mnt(struct ploop_disk_images_data *di, pid_t pid,
 		ret = auto_mount_image(di, &m);
 		if (ret)
 			return ret;
+
 		snprintf(dev, dev_len, "%s", m.device);
+		ret = get_part_devname(di, dev, devname, sizeof(devname),
+				part, part_len);
+		if (ret)
+			return ret;
+
 		*mounted = 2;
 	}
 	if (ret)
@@ -1246,12 +1266,17 @@ int get_dev_and_mnt(struct ploop_disk_images_data *di, pid_t pid,
 	return 0;
 }
 
-
-
 int ploop_discard_by_dev(const char *device, const char *mount_point,
 		__u64 minlen_b, __u64 to_free, const int *stop)
 {
-	return do_ploop_discard(NULL, device, mount_point, minlen_b, to_free, stop);
+	int ret;
+	char dev[64], part[64];
+
+	ret = get_part_devname(NULL, device, dev, sizeof(dev), part, sizeof(part));
+	if (ret)
+		return ret;
+
+	return do_ploop_discard(NULL, device, part, mount_point, minlen_b, to_free, stop);
 }
 
 static void defrag_pidfile(const char *dev, char *out, int size)
@@ -1426,7 +1451,7 @@ int ploop_discard(struct ploop_disk_images_data *di,
 		struct ploop_discard_param *param)
 {
 	int ret;
-	char dev[PATH_MAX];
+	char dev[64], part[64];
 	char mnt[PATH_MAX];
 	int mounted = 0;
 	pctl_type_t io_type = PCTL_AUTO;
@@ -1435,7 +1460,7 @@ int ploop_discard(struct ploop_disk_images_data *di,
 		return SYSEXIT_LOCK;
 
 	ret = get_dev_and_mnt(di, 0, param->automount, dev, sizeof(dev),
-			mnt, sizeof(mnt), &mounted);
+			part, sizeof(part), mnt, sizeof(mnt), &mounted);
 	if (ret) {
 		ploop_unlock_dd(di);
 		return ret;
@@ -1481,7 +1506,7 @@ int ploop_discard(struct ploop_disk_images_data *di,
 	}
 
 discard:
-	ret = do_ploop_discard(di, dev, mnt, param->minlen_b,
+	ret = do_ploop_discard(di, dev, part, mnt, param->minlen_b,
 			param->to_free, param->stop);
 	if (ret)
 		goto out;
@@ -1687,14 +1712,14 @@ int ploop_discard_get_stat(struct ploop_disk_images_data *di,
 		struct ploop_discard_stat *pd_stat)
 {
 	int ret;
-	char dev[PATH_MAX];
+	char dev[64], part[64];
 	char mnt[PATH_MAX];
 	int mounted = 0;
 
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	ret = get_dev_and_mnt(di, 0, 1, dev, sizeof(dev),
+	ret = get_dev_and_mnt(di, 0, 1, dev, sizeof(dev), part, sizeof(part),
 			mnt, sizeof(mnt), &mounted);
 	if (ret)
 		goto err;
