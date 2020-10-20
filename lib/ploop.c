@@ -3132,6 +3132,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 	char buf[PATH_MAX];
 	char partname[64];
 	char dev[64];
+	char devname[64];
 	char *target = NULL;
 	int mounted = 0;
 	int balloonfd = -1;
@@ -3166,6 +3167,11 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 	//FIXME: Deny resize image if there are childs
 	ret = get_image_param_online(dev, &dev_size,
 			&blocksize, &version);
+	if (ret)
+		goto err;
+
+	ret = get_part_devname(di, dev, devname, sizeof(devname),
+			partname, sizeof(partname));
 	if (ret)
 		goto err;
 
@@ -3261,7 +3267,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 			goto err;
 		}
 
-		ret = resize_gpt_partition(dev, partname, 0, blocksize);
+		ret = resize_gpt_partition(devname, partname, 0, blocksize);
 		if (ret)
 			goto err;
 
@@ -3273,7 +3279,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		/* Grow or shrink fs but do not change block device size */
 		if (part_dev_size < new_fs_size) {
 			/* sync gpt with new_size */
-			ret = resize_gpt_partition(dev, partname, new_size, blocksize);
+			ret = resize_gpt_partition(devname, partname, new_size, blocksize);
 			if (ret)
 				goto err;
 		}
