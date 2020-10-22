@@ -34,11 +34,26 @@
 #include "bit_ops.h"
 #include "ploop.h"
 
-static ssize_t copy_file_range(int fd_in, loff_t *off_in, int fd_out,
-		loff_t *off_out, size_t len, unsigned int flags)
+static ssize_t copy_range(int fd_in, loff_t off_in, int fd_out,
+		loff_t off_out, size_t len, void *buf)
 {
-	return syscall(__NR_copy_file_range, fd_in, off_in, fd_out,
-			off_out, len, flags);
+	size_t rc;
+
+	rc = TEMP_FAILURE_RETRY(pread(fd_in, buf, len, off_in));
+	if (rc != len) {
+		ploop_err(rc == -1 ? errno:EIO, "pread off=%lu size=%lu",
+			off_in, len);
+		return SYSEXIT_READ;
+	}
+
+	rc = TEMP_FAILURE_RETRY(pwrite(fd_out, buf, len, off_out));
+	if (rc != len) {
+		ploop_err(rc == -1 ? errno : EIO, "pwrite off=%lu size=%lu",
+				off_out, len);
+		return SYSEXIT_WRITE;
+	}
+
+	return 0;
 }
 
 static int update_bat(struct delta *delta, __u32 clu, __u32 old, __u32 new)
@@ -58,24 +73,20 @@ static int reallocate_cluster(struct delta *delta, __u32 clu,
 	int rc;
 	off_t s, d;
 	__u32 cluster = S2B(delta->blocksize);
-	int len = cluster;
+	void *buf;
+
+	if (p_memalign(&buf, 4096, cluster))
+		return SYSEXIT_MALLOC;
 
 	s = (off_t)src * cluster;
 	d = (off_t)dst * cluster;
 
 	ploop_log(0, "Reallocate cluster #%d data from %u/off: %lu to %u/off: %lu",
 			clu, src, s, dst, d);
-	while (len) {
-		int r = copy_file_range(delta->fd, &s, delta->fd, &d, len, 0);
-		if (r <= 0) {
-			ploop_err(errno, "copy_file_range");
-			return -1;
-		}
-		len -= r;
-		s += r;
-		d += r;
-	}
-
+	rc = copy_range(delta->fd, s, delta->fd, d, cluster, buf);
+	free(buf);
+	if (rc)
+		return rc;
 	rc = update_bat(delta, clu, src, dst);
 	if (rc)
 		return rc;
