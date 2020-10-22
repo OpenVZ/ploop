@@ -807,13 +807,19 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 	else if (param->ofd == STDERR_FILENO)
 		ploop_set_verbose_level(PLOOP_LOG_NOCONSOLE);
 
-	if (ploop_lock_dd(di))
-		return SYSEXIT_LOCK;
+	if (di) {
+		if (ploop_lock_dd(di))
+			return SYSEXIT_LOCK;
 
-	if (ploop_find_dev_by_dd(di, device, sizeof(device))) {
-		ploop_err(0, "Can't find running ploop device");
-		ret = SYSEXIT_SYS;
-		goto err;
+		if (ploop_find_dev_by_dd(di, device, sizeof(device))) {
+			ploop_err(0, "Can't find running ploop device");
+			ret = SYSEXIT_SYS;
+			goto err;
+		}
+	} else if (param->device) {
+		snprintf(device, sizeof(device), "%s", param->device);
+	} else {
+		return SYSEXIT_PARAM;
 	}
 
 	ret = get_top_delta_name(device, &image, &format, &blocksize);
@@ -1135,4 +1141,22 @@ void ploop_copy_deinit(struct ploop_copy_handle *h)
 	free_ploop_copy_handle(h);
 
 	ploop_dbg(3, "pcopy deinit done");
+}
+
+/* Deprecated */
+int ploop_copy_receive(struct ploop_copy_receive_param *arg)
+{
+	return SYSEXIT_PARAM;
+}
+
+int ploop_send(const char *device, int ofd, const char *flush_cmd,
+                int is_pipe)
+{
+	return SYSEXIT_PARAM;
+}
+
+int ploop_receive(const char *dst) 
+{
+
+	return SYSEXIT_PARAM;
 }
