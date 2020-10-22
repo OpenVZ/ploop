@@ -25,17 +25,16 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include "libploop.h"
+#include "ploop.h"
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: ploop copy -s DEVICE [-F STOPCMD] { [-d FILE] | [-o OFD] [-f FFD]}\n"
-			"       ploop copy -d FILE [-i IFD] [-f FFD]\n"
+	fprintf(stderr, "Usage: ploop copy -s DEVICE { [-d FILE] | [-o OFD] [-f FFD]}\n"
+			"       ploop copy -d FILE [-i IFD]\n"
 			"       DEVICE  := source ploop device, e.g. /dev/ploop0\n"
-			"       STOPCMD := a command to stop disk activity, e.g. \"vzctl chkpnt\"\n"
 			"       FILE    := destination file name\n"
 			"       OFD     := output file descriptor\n"
 			"       IFD     := input file descriptor\n"
-			"       FFD     := feedback file descriptor\n"
 			"Action: effectively copy top ploop delta with write tracker\n"
 			);
 }
@@ -43,16 +42,18 @@ static void usage(void)
 int plooptool_copy(int argc, char **argv)
 {
 	int i, ret;
-	struct ploop_copy_send_param s = {
+	int niter = 3;
+	struct ploop_copy_handle *h = NULL;
+ 	struct ploop_copy_stat stat;
+ 	struct ploop_copy_param s = {
 		.ofd		=  1,	/* write to stdout by default */
-		.feedback_fd	= -1,	/* no feedback */
 	};
 	struct ploop_copy_receive_param r = {
 		.ifd		=  0,	/* read from stdin by default */
 		.feedback_fd	= -1,	/* no feedback */
 	};
 
-	while ((i = getopt(argc, argv, "F:s:d:o:i:f:")) != EOF) {
+	while ((i = getopt(argc, argv, "s:d:o:i:")) != EOF) {
 		switch (i) {
 		case 'd':
 			r.file = optarg;
@@ -60,17 +61,11 @@ int plooptool_copy(int argc, char **argv)
 		case 's':
 			s.device = optarg;
 			break;
-		case 'F':
-			s.flush_cmd = optarg;
-			break;
 		case 'o':
 			s.ofd = atoi(optarg);
 			break;
 		case 'i':
 			r.ifd = atoi(optarg);
-			break;
-		case 'f':
-			s.feedback_fd = r.feedback_fd = atoi(optarg);
 			break;
 		default:
 			usage();
@@ -95,7 +90,7 @@ int plooptool_copy(int argc, char **argv)
 	signal(SIGPIPE, SIG_IGN);
 
 	if (!s.device)
-		return ploop_copy_receive(&r);
+		return ploop_copy_receiver(&r);
 
 	if (r.file) {
 		/* Write to a file, not pipe */
@@ -106,8 +101,28 @@ int plooptool_copy(int argc, char **argv)
 		}
 	}
 
-	ret = ploop_copy_send(&s);
+	if (s.ofd == 1)
+		ploop_set_verbose_level(PLOOP_LOG_NOCONSOLE);
 
+	ret = ploop_copy_init(NULL, &s, &h);
+	if (ret)
+		return ret;
+	ret = ploop_copy_start(h, &stat);
+	if (ret)
+		goto err;
+	
+	for (i = 0; i < niter; i++) {
+		ret = ploop_copy_next_iteration(h, &stat);
+		if (ret)
+			goto err;
+	}
+
+	ret = ploop_copy_stop(h, &stat);
+	if (ret)
+		goto err;
+	
+err:
+	ploop_copy_deinit(h);
 	if (r.file) {
 		close(s.ofd);
 		if (ret)

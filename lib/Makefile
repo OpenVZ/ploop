@@ -31,7 +31,6 @@ LIBOBJS=uuid.o \
 	crc32.o \
 	merge.o \
 	util.o \
-	pcopy.o \
 	ploop-copy.o \
 	di.o \
 	cleanup.o \

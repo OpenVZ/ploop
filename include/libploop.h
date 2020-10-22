@@ -254,6 +254,7 @@ struct ploop_copy_receive_param {
 struct ploop_copy_param {
 	int ofd;
 	int async;
+	const char *device;
 	char dummy[32];
 };
 
@@ -354,10 +355,6 @@ void ploop_set_verbose_level(int level);
 
 /* Cancelation API */
 void ploop_cancel_operation(void);
-/* pcopy routines */
-int ploop_copy_send(struct ploop_copy_send_param *arg);
-int ploop_copy_receive(struct ploop_copy_receive_param *arg);
-
 int ploop_discard_get_stat(struct ploop_disk_images_data *di,
 		struct ploop_discard_stat *pd_stat);
 int ploop_discard(struct ploop_disk_images_data *di,
@@ -383,6 +380,8 @@ int ploop_suspend_device(const char *part);
 int ploop_resume_device(const char *part);
 /* deprecated */
 PLOOP_DEPRECATED char *ploop_get_base_delta_uuid(struct ploop_disk_images_data *di);
+PLOOP_DEPRECATED int ploop_copy_receive(struct ploop_copy_receive_param *arg);
+PLOOP_DEPRECATED int ploop_copy_send(struct ploop_copy_send_param *arg);
 PLOOP_DEPRECATED int ploop_send(const char *device, int ofd, const char *flush_cmd, int is_pipe);
 PLOOP_DEPRECATED int ploop_receive(const char *dst);
 PLOOP_DEPRECATED int ploop_complete_running_operation(const char *device);
