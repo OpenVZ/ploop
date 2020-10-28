@@ -227,7 +227,7 @@ int merge_image(const char *device, int start_level, int end_level, int raw,
 	int last_delta = 0;
 	char **names = NULL;
 	struct delta_array da = {};
-	struct delta odelta = {};
+	struct delta odelta = {.fd = -1};
 	int i, i_end, ret = 0;
 	__u32 k;
 	__u32 allocated = 0;
@@ -361,17 +361,12 @@ rm_delta:
 	}
 
 	if (!raw) {
-		int nr_clusters;
 		if (open_delta(&odelta, merged_image, O_RDWR,
 			       device ? OD_NOFLAGS : OD_OFFLINE)) {
 			ploop_err(errno, "open_delta");
 			ret = SYSEXIT_OPEN;
 			goto merge_done2;
 		}
-
-		ret = build_hole_bitmap(&odelta, &hb, &hb_size, &nr_clusters);
-		if (ret)
-			goto merge_done2;
 
 		if (dirty_delta(&odelta)) {
 			ploop_err(errno, "dirty_delta");
@@ -413,6 +408,14 @@ rm_delta:
 					goto merge_done;
 			}
 		}
+	}
+
+	if (!raw) {
+		int nr_clusters;
+
+		ret = build_hole_bitmap(&odelta, &hb, &hb_size, &nr_clusters);
+		if (ret)
+			goto merge_done;
 	}
 
 	i_end = (da.delta_arr[0].l2_size + PLOOP_MAP_OFFSET + cluster/4 - 1) /
@@ -571,7 +574,6 @@ rm_delta:
 	}
 
 merge_done:
-	close_delta(&odelta);
 
 	if (device && !ret) {
 		if (new_image) {
@@ -600,6 +602,8 @@ merge_done2:
 	free(data_cache);
 	free(hb);
 	deinit_delta_array(&da);
+	close_delta(&odelta);
+
 	return ret;
 }
 
