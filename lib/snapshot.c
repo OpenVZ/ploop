@@ -341,6 +341,8 @@ int do_create_snapshot(struct ploop_disk_images_data *di,
 	} else
 		strcpy(top_guid, TOPDELTA_UUID);
 
+	merge_temporary_snapshots(di);
+
 	if (guid != NULL) {
 		if (find_snapshot_by_guid(di, guid) != -1) {
 			ploop_err(0, "The snapshot %s already exist",
@@ -395,10 +397,6 @@ int do_create_snapshot(struct ploop_disk_images_data *di,
 		if (ret)
 			return ret;
 	}
-
-	ret = merge_temporary_snapshots(di);
-	if (ret)
-		return ret;
 
 	ret = get_new_delta_fname(di, file_guid, snap_dir, fname, sizeof(fname));
 	if (ret)
