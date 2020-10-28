@@ -2972,12 +2972,9 @@ err:
 
 int ploop_resize_blkdev(const char *device, off_t new_size)
 {
-	int ret;
-	int part_num;
-	unsigned long long part_start = 0;
-	unsigned long long part_end = 0;
-	unsigned long long new_end = 0;
-	char partname[PATH_MAX];
+	int ret, part_num;
+	unsigned long long part_start, part_end;
+	char partname[64];
 
 	ret = get_last_partition_num(device, &part_num);
 	if (ret)
@@ -2987,22 +2984,10 @@ int ploop_resize_blkdev(const char *device, off_t new_size)
 	if (ret)
 		return ret;
 
-	ret = sgdisk_move_gpt_header(device);
+	ret = sgdisk_resize_gpt(device, part_num, part_start);
 	if (ret)
 		return ret;
 
-	ret = sgdisk_rmpart(device, part_num);
-	if (ret)
-		return ret;
-
-	if (new_size != 0)
-		new_end = part_start + new_size;
-
-	ret = sgdisk_mkpart(device, part_num, part_start, new_end);
-	if (ret) {
-		sgdisk_mkpart(device, part_num, part_start, part_end);
-		return ret;
-	}
 	reread_part(device);
 
 	ret = get_partition_device_name_by_num(device, part_num, partname, sizeof(partname));
