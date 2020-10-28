@@ -4011,6 +4011,7 @@ int check_snapshot_mount(struct ploop_disk_images_data *di,
 			/* print current device and remaining ones */
 			ploop_err(0, "Snapshot %s is busy by device(s): %s", guid,
 					get_devs_str(p, buf, sizeof(buf)));
+			print_output(-1, "lsof", *p);
 			goto out;
 		}
 	}
