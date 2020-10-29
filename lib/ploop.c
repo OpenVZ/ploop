@@ -2091,8 +2091,8 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 	int ret = 0;
 	__u32 blocksize = 0;
 	int load_cbt;
-	char devname[64];
-	char partname[64];
+	char devname[64] = "";
+	char partname[64] = "";
 
 	if (images == NULL || images[0] == NULL) {
 		ploop_err(0, "ploop_mount: no deltas to mount");
@@ -2158,7 +2158,7 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 
 err_stop:
 	if (ret) {
-		if (di && di->enc) {
+		if (di && di->enc && devname[0] != '\0') {
 			crypt_close(devname, partname);
 		}
 		ploop_stop(param->device, di);
