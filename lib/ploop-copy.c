@@ -242,10 +242,18 @@ static int nwrite(int fd, const void *buf, int len)
 	return -1;
 }
 
+static const char *md52str(__u8 *m, char *buf)
+{
+	sprintf(buf, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+			m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9], m[10], m[11], m[12], m[13], m[14], m[15]);
+	return buf;
+}
+
 static int remote_write(struct ploop_copy_handle *h, pcopy_pkt_type_t type,
 		const void *data, int len, off_t pos)
 {
 	int rc;
+	char s[34];
 	struct pcopy_pkt_desc desc = {
 		.marker = PCOPY_MARKER,
 		.type = type,
@@ -253,7 +261,9 @@ static int remote_write(struct ploop_copy_handle *h, pcopy_pkt_type_t type,
 		.pos= pos,
 	};
 
-	ploop_log(0, "SEND type: %d size=%d pos: %lu", type, len, pos);
+	MD5(data, len, desc.md5);
+	ploop_log(0, "SEND type: %d size=%d pos: %lu md5: %s",
+			type, len, pos, md52str(desc.md5, s));
 	/* Header */
 	if (nwrite(h->ofd, &desc, sizeof(desc)))
 		return SYSEXIT_WRITE;
@@ -337,6 +347,21 @@ static int nread(int fd, void *buf, int len)
 	return -1;
 }
 
+static int check_data(void *buf, struct pcopy_pkt_desc *desc)
+{
+	__u8 m[16];
+	char s[34];
+	char d[34];
+
+	MD5(buf, desc->size, m);
+	if (memcmp(desc->md5, m, sizeof(m))) {
+		ploop_err(0, "MD5 mismatch pos: %llu src: %s dst: %s",
+				desc->pos, md52str(desc->md5, s), md52str(m, d));
+		return SYSEXIT_WRITE;
+	}
+	return 0;
+}
+
 int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 {
 	int ofd, ret;
@@ -401,6 +426,9 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 		switch (desc.type) {
 		case PCOPY_PKT_DATA:
 		case PCOPY_PKT_DATA_ASYNC: {
+			ret = check_data(iobuf, &desc);
+			if (ret)
+				goto out;
 			n = TEMP_FAILURE_RETRY(pwrite(ofd, iobuf, desc.size, desc.pos));
 			if (n != desc.size) {
 				if (n < 0)
@@ -1024,6 +1052,8 @@ void ploop_copy_deinit(struct ploop_copy_handle *h)
 		return;
 
 	ploop_dbg(4, "pcopy deinit");
+	while ((c = q_get_first(&h->sd)))
+		dequeue(&h->sd, c);
 
 	if (h->send_th) {
 		pthread_cancel(h->send_th);
@@ -1033,9 +1063,6 @@ void ploop_copy_deinit(struct ploop_copy_handle *h)
 
 	ploop_copy_release(h);
 	free_ploop_copy_handle(h);
-
-	while ((c = q_get_first(&h->sd)))
-		dequeue(&h->sd, c);
 
 	ploop_dbg(3, "pcopy deinit done");
 }
