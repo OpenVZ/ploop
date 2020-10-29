@@ -353,7 +353,7 @@ return 0;
 		goto err;
 	}
 
-	if (dev_num2dev_start(st.st_dev, &dev_start, NULL)) {
+	if (dev_num2dev_start(st.st_dev, &dev_start)) {
 
 		ploop_err(0, "Can't find out offset from start of ploop "
 			"device (%s) to start of partition",
@@ -682,7 +682,7 @@ int ploop_balloon_check_and_repair(const char *device, const char *mount_point, 
 		goto err;
 	}
 
-	if (dev_num2dev_start(st.st_dev, &dev_start, NULL)) {
+	if (dev_num2dev_start(st.st_dev, &dev_start)) {
 		ploop_err(0, "Can't find out offset from start of ploop "
 			"device (%s) to start of partition where fs (%s) "
 			"resides", device, mount_point);
