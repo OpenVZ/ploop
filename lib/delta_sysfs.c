@@ -597,15 +597,29 @@ void ploop_free_array(char *array[])
 	free(array);
 }
 
-int get_part_devname_from_sys(const char *device, char *out, int size)
+const char *get_dm_name(const char *devname, char *out, int size)
+{
+	char b[512];
+
+	snprintf(out, size, "/dev/%s", devname);
+
+	snprintf(b, sizeof(b), "/sys/class/block/%s/dm/name", devname);
+	if (access(b, F_OK) == 0 && read_line(b, b, sizeof(b)) == 0)
+		snprintf(out, size, "/dev/mapper/%s", b);
+
+	return out;
+}
+
+int get_part_devname_from_sys(const char *device, char *devname, int dsize,
+		char *out, int psize)
 {
 	int rc;
 
-	rc = get_dev_from_sys(device, "holders", out, size);
+	rc = get_dev_from_sys(device, "holders", out, psize);
 	if (rc == -1)
 		return rc;
 	else if (rc)
-		snprintf(out, size, "%s", device);
+		snprintf(out, psize, "%s", device);
 
 	return 0;
 }

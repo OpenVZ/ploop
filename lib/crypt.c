@@ -31,6 +31,7 @@
 #include "ploop.h"
 
 #define CRYPT_BIN	"/usr/libexec/ploop/crypthelper"
+#define CRYPT_PREFIX	"CRYPT-"
 
 const char *get_basename(const char *path)
 {
@@ -41,9 +42,18 @@ const char *get_basename(const char *path)
 
 const char *crypt_get_device_name(const char *part, char *out, int len)
 {
-	snprintf(out, len, "/dev/mapper/CRYPT-%s", get_basename(part));
+	snprintf(out, len, "/dev/mapper/"CRYPT_PREFIX"%s", get_basename(part));
 
 	return out;
+}
+
+int get_crypt_layout(const char *devname, const char *partname)
+{
+	if (strstr(devname, CRYPT_PREFIX))
+		return CRYPT_V2;
+	if (strstr(partname, CRYPT_PREFIX))
+		return CRYPT_V1;
+	return CRYPT_NONE;
 }
 
 static char **get_param(const char *devname, const char *partname,
@@ -102,14 +112,60 @@ int crypt_init(const char *device, const char *keyid)
 	return do_crypt("init", device, NULL, keyid);
 }
 
-int crypt_open(const char *device, const char *part, const char *keyid)
+int crypt_open(const char *device, const char *keyid)
 {
-	return do_crypt("open", device, get_basename(part), keyid);
+	int rc, luks;
+	char cryptdev[64];
+	char name[64];
+
+	rc = is_luks(device, &luks);
+	if (rc)
+		return rc;
+
+	snprintf(cryptdev, sizeof(cryptdev), "%s", device);
+	if (!luks) {
+		int gpt;
+
+		rc = has_partition(device, &gpt);
+		if (rc)
+			return rc;
+
+		if (gpt)
+			snprintf(cryptdev, sizeof(cryptdev), "%sp1", device);
+	}
+
+	crypt_get_device_name(cryptdev, name, sizeof(name));
+	rc = do_crypt("open", cryptdev, get_basename(name), keyid);
+	if (rc)
+		return rc;
+
+	if (luks)
+		reread_part(name);
+
+	return 0;
 }
 
-int crypt_close(const char *part)
+static int crypt_close_v1(const char *devname)
 {
-	return do_crypt("close", NULL, part, NULL);
+	return do_crypt("close", NULL, devname, NULL);
+}
+
+static int crypt_close_v2(const char *devname, const char *partname)
+{
+	char *a[] = {"/usr/sbin/dmsetup", "remove", "--retry", (char *)partname, NULL};
+	int ret = run_prg(a);
+	if (ret)
+		return ret;
+
+	return do_crypt("close", NULL, devname, NULL);
+}
+
+int crypt_close(const char *devname, const char *partname)
+{
+	if (get_crypt_layout(devname, partname) == CRYPT_V2)
+		return crypt_close_v2(devname, partname);
+
+	return crypt_close_v1(partname);
 }
 
 int crypt_resize(const char *part)
