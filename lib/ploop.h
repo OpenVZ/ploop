@@ -65,6 +65,7 @@
 #define CHECK_TALKATIVE		0x40	/* be verbose, produce more output */
 #define CHECK_RAW		0x80	/* delta is in raw format */
 #define CHECK_DEFRAG		0x100
+#define CHECK_LIVE		0x400
 
 /* load/remove dirty bitmap flags */
 #define DIRTY_BITMAP_REMOVE	0x01
@@ -304,6 +305,7 @@ PL_EXT int ploop_check(const char *img, int flags, __u32 *blocksize_p,
 		int *cbt_allowed);
 int check_deltas(struct ploop_disk_images_data *di, char **images,
 		int raw, __u32 *blocksize, int *cbt_allowed, int flags);
+int check_deltas_live(struct ploop_disk_images_data *di);
 PL_EXT int check_dd(struct ploop_disk_images_data *di, const char *uuid,
 		int flags);
 /* Logging */
