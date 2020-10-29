@@ -210,6 +210,7 @@ int create_snapshot(struct ploop_disk_images_data *di,
 	__u32 blocksize;
 	int version;
 	void *or_data = NULL;
+	int frozen = 0;
 
 	ret = get_image_param_online(device, &bdsize,
 			&blocksize, &version);
@@ -222,9 +223,17 @@ int create_snapshot(struct ploop_disk_images_data *di,
 		return SYSEXIT_DEVICE;
 	}
 
-	if (cbt_u != NULL &&
-	    (ret = cbt_snapshot_prepare(lfd, cbt_u, &or_data)))
-		goto err;
+	if (cbt_u != NULL) {
+		ploop_log(0, "freeze %s", device);
+		ret = ioctl_device(lfd, PLOOP_IOC_FREEZE, 0);
+		if (ret)
+			goto err;
+		frozen = 1;
+
+		ret = cbt_snapshot_prepare(lfd, cbt_u, &or_data);
+		if (ret)
+			goto err;
+	}
 
 	ploop_log(0, "Creating snapshot dev=%s img=%s", device, delta);
 	ret = create_snapshot_online(di, device, bdsize);
@@ -239,6 +248,11 @@ int create_snapshot(struct ploop_disk_images_data *di,
 	}
 
 err:
+	if (frozen) {
+		ploop_log(0, "unfreeze %s", device);
+		ioctl_device(lfd, PLOOP_IOC_THAW, 0);
+	}
+
 	free(or_data);
 
 	if (lfd != -1)
