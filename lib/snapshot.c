@@ -200,63 +200,79 @@ err:
 	return rc;
 }
 
-int create_snapshot(struct ploop_disk_images_data *di,
-		const char *device, const __u8 *cbt_u,
-		const char *delta, const char *prev_delta)
+static int create_image_snapshot(struct ploop_disk_images_data *di,
+		const char *device, const char *delta)
 {
 	int ret;
-	int lfd;
 	off_t bdsize;
 	__u32 blocksize;
 	int version;
-	void *or_data = NULL;
-	int frozen = 0;
 
 	ret = get_image_param_online(device, &bdsize,
 			&blocksize, &version);
 	if (ret)
 		return ret;
 
-	lfd = open(device, O_RDONLY|O_CLOEXEC);
-	if (lfd < 0) {
+	ploop_log(0, "Creating snapshot dev=%s img=%s", device, delta);
+	return create_snapshot_online(di, device, bdsize);
+}
+
+static int create_cbt_snapshot(struct ploop_disk_images_data *di, int fd,
+		const char *device, const char *delta,
+		 const __u8 *cbt_u, const char *prev_delta)
+{
+	int ret;
+	char dev[64], part[64];
+	void *or_data = NULL;
+
+	ret = ploop_get_devname(NULL, device, dev, sizeof(dev), part, sizeof(part));
+	if (ret)
+		return ret;
+
+	ploop_log(1, "freeze %s", device);
+	ploop_suspend_device(part);
+	if (ret)
+		return ret;
+
+	ret = cbt_snapshot_prepare(fd, cbt_u, &or_data);
+	if (ret)
+		goto err;
+
+	ret = create_image_snapshot(di, device, delta);
+	if (ret)
+		goto err;
+
+	ret = cbt_snapshot(fd, cbt_u, prev_delta, or_data);
+
+err:
+	ploop_log(0, "unfreeze %s", device);
+	ploop_resume_device(part);
+
+	free(or_data);
+
+	return ret;
+}
+
+int create_snapshot(struct ploop_disk_images_data *di,
+		const char *device, const __u8 *cbt_u,
+		const char *delta, const char *prev_delta)
+{
+	int ret, fd;
+
+	fd = open(device, O_RDONLY|O_CLOEXEC);
+	if (fd < 0) {
 		ploop_err(errno, "Can't open device %s", device);
 		return SYSEXIT_DEVICE;
 	}
 
-	if (cbt_u != NULL) {
-		ploop_log(0, "freeze %s", device);
-		ret = ioctl_device(lfd, PLOOP_IOC_FREEZE, 0);
-		if (ret)
-			goto err;
-		frozen = 1;
+	if (cbt_u == NULL)
+		ret = create_image_snapshot(di, device, delta);
+	else
+		ret = create_cbt_snapshot(di, fd, device, delta, cbt_u, prev_delta);
 
-		ret = cbt_snapshot_prepare(lfd, cbt_u, &or_data);
-		if (ret)
-			goto err;
-	}
-
-	ploop_log(0, "Creating snapshot dev=%s img=%s", device, delta);
-	ret = create_snapshot_online(di, device, bdsize);
 	if (ret)
-		goto err;
-
-	if (cbt_u != NULL) {
-		if ((ret = cbt_snapshot(lfd, cbt_u, prev_delta, or_data))) {
-			unlink(delta);
-			goto err;
-		}
-	}
-
-err:
-	if (frozen) {
-		ploop_log(0, "unfreeze %s", device);
-		ioctl_device(lfd, PLOOP_IOC_THAW, 0);
-	}
-
-	free(or_data);
-
-	if (lfd != -1)
-		close(lfd);
+		unlink(delta);
+	close(fd);
 
 	return ret;
 }
