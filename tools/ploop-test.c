@@ -29,7 +29,7 @@
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: ploop MODE IMAGE\n");
+	fprintf(stderr, "Usage: ploop shuffle [-n <num>] IMAGE\n");
 }
 
 int main(int argc, char **argv)

@@ -63,35 +63,32 @@ int get_part_devname(struct ploop_disk_images_data *di,
 		const char *device, char *devname, int dlen,
 		char *partname, int plen)
 {
-	int ret;
+	int ret, luks, gpt;
 
-	ret = get_partition_device_name(device, devname, dlen);
+	ret = is_luks(device, &luks);
 	if (ret)
 		return ret;
 
+	if (luks) {
+		crypt_get_device_name(device, devname, dlen);
+		ret = has_partition(devname, &gpt);
+		if (ret)
+			return ret;
+		if (gpt)
+			snprintf(partname, plen, "%sp1", devname);
+		else
+			snprintf(partname, plen, "%s", devname);
+		return 0;
+	}
+	/* old dm-crypt schema */
 	if (di && di->enc && di->enc->keyid) {
+		snprintf(devname, dlen, "%sp1", device);
 		crypt_get_device_name(devname, partname, plen);
-	} else {
-		snprintf(partname, plen, "%s", devname);
-		snprintf(devname, dlen, "%s", device);
+		return 0;
 	}
 
-	return 0;
-}
-
-/* set cancel flag
- * Note: this function also clear the flag
- */
-static int is_operation_cancelled(void)
-{
-	struct ploop_cancel_handle *cancel_data;
-
-	cancel_data = ploop_get_cancel_handle();
-	if (cancel_data->flags) {
-		cancel_data->flags = 0;
-		return 1;
-	}
-	return 0;
+	snprintf(devname, dlen, "%s", device);
+	return get_partition_device_name(device, partname, plen);
 }
 
 void free_mount_param(struct ploop_mount_param *param)
@@ -624,7 +621,6 @@ int create_balloon_file(struct ploop_disk_images_data *di,
 	ret = get_temp_mountpoint(di->images[0]->file, 1, mnt, sizeof(mnt));
 	if (ret)
 		return ret;
-	strcpy(mount_param.device, device);
 	mount_param.target = mnt;
 	ret = ploop_mount_fs(di, partname, &mount_param, 0);
 	if (ret)
@@ -704,22 +700,24 @@ int ploop_init_image(struct ploop_disk_images_data *di,
 	if (ret)
 		goto err;
 
-	ret = get_part_devname(di, mount_param.device, devname, sizeof(devname),
-			partname, sizeof(partname));
 
-	if (param->keyid != NULL) {
+	snprintf(devname, sizeof(devname), "%s", mount_param.device);
+	if (param->keyid) {
+		ret = crypt_init(mount_param.device, param->keyid);
+		if (ret)
+			goto err;
+		ret = crypt_open(mount_param.device, param->keyid);
+		if (ret)
+			goto err;
 		ret = store_encryption_keyid(di, param->keyid);
 		if (ret)
 			goto err;
-		ret = crypt_init(devname, param->keyid);
-		if (ret)
-			goto err;
-		crypt_get_device_name(mount_param.device, partname,
-				sizeof(partname));
-		ret = crypt_open(devname, partname, param->keyid);
-		if (ret)
-			goto err;
 	}
+
+	ret = get_part_devname(di, mount_param.device, devname, sizeof(devname),
+			partname, sizeof(partname));
+	if (ret)
+		goto err;
 
 	ret = make_fs(partname, param->fstype ?: DEFAULT_FSTYPE,
 			param->fsblocksize, param->flags, param->fslabel);
@@ -935,7 +933,7 @@ int ploop_create_image(struct ploop_create_param *param)
  * kernel returns EBUSY and we need to retry ioctl() after some delay.
  * Start with a small delay, increasing it exponentially.
  */
-static int do_ioctl_tm(int fd, int req, const char *dev, int tm_sec)
+int do_ioctl_tm(int fd, int req, const char *dev, int tm_sec)
 {
 	useconds_t total = 0;
 	useconds_t wait = 10000; // initial wait time 0.01s
@@ -956,11 +954,6 @@ static int do_ioctl_tm(int fd, int req, const char *dev, int tm_sec)
 		if (wait > maxwait)
 			wait = maxwait;
 	} while (1);
-}
-
-static int do_ioctl(int fd, int req, const char *dev)
-{
-	return do_ioctl_tm(fd, req, dev, PLOOP_UMOUNT_TIMEOUT);
 }
 
 int print_output(int level, const char *cmd, const char *arg)
@@ -1361,24 +1354,7 @@ int ploop_is_mounted(struct ploop_disk_images_data *di)
 
 int reread_part(const char *device)
 {
-	int fd;
-	int ret;
-
-	ret = is_device_from_devmapper(device);
-	if (ret < 0)
-		return ret;
-	if (ret)
-		return partprobe(device);
-	fd = open(device, O_RDONLY);
-	if (fd == -1) {
-		ploop_err(errno, "Can't open %s", device);
-		return -1;
-	}
-	if (do_ioctl(fd, BLKRRPART, device) < 0)
-		ploop_err(errno, "BLKRRPART %s", device);
-	close(fd);
-
-	return 0;
+	return partprobe(device);
 }
 
 static int ploop_mount_fs(struct ploop_disk_images_data *di,
@@ -2083,8 +2059,8 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 	int ret = 0;
 	__u32 blocksize = 0;
 	int load_cbt;
-	char devname[64];
-	char partname[64];
+	char devname[64] = "";
+	char partname[64] = "";
 
 	if (images == NULL || images[0] == NULL) {
 		ploop_err(0, "ploop_mount: no deltas to mount");
@@ -2120,7 +2096,8 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 	if (di && (ret = check_and_restore_fmt_version(di)))
 		goto err;
 
-	ret = check_deltas(di, images, raw, &blocksize, &load_cbt, 0);
+	ret = check_deltas(di, images, raw, &blocksize, &load_cbt,
+			di ? CHECK_DROPINUSE : 0);
 	if (ret)
 		goto err;
 
@@ -2128,19 +2105,19 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 	if (ret)
 		goto err;
 
-	reread_part(param->device);
+	if (di && di->enc) {
+		ret = crypt_open(param->device, di->enc->keyid);
+		if (ret)
+			goto err_stop;
+	} else {
+		/* Dummy call to recreate devices */
+		reread_part(param->device);
+	}
 
 	ret = get_part_devname(di, param->device, devname, sizeof(devname),
 			partname, sizeof(partname));
 	if (ret)
 		goto err_stop;
-
-
-	if (di && di->enc) {
-		ret = crypt_open(devname, partname, di->enc->keyid);
-		if (ret)
-			goto err_stop;
-	}
 
 	if (param->target != NULL || param->fsck) {
 		ret = ploop_mount_fs(di, partname, param, 1);
@@ -2150,8 +2127,8 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 
 err_stop:
 	if (ret) {
-		if (di && di->enc) {
-			crypt_close(partname);
+		if (di && di->enc && devname[0] != '\0') {
+			crypt_close(devname, partname);
 		}
 		ploop_stop(param->device, di);
 	}
@@ -2351,6 +2328,7 @@ static int ploop_umount_fs(const char *mnt, struct ploop_disk_images_data *di)
 int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 {
 	int ret;
+	char devname[64];
 	char partname[64];
 	char mnt[PATH_MAX] = "";
 	char *top;
@@ -2364,7 +2342,8 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	}
 
 	ploop_log(0, "Umount %s", device);
-	ret = get_part_devname_from_sys(device, partname, sizeof(partname));
+	ret = get_part_devname_from_sys(device, devname, sizeof(devname),
+			partname, sizeof(partname));
 	if (ret)
 		return ret;
 
@@ -2374,8 +2353,8 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 			return ret;
 	}
 
-	if (di && di->enc && di->enc->keyid)
-		crypt_close(partname);
+	if (get_crypt_layout(devname, partname))
+		crypt_close(devname, partname);
 
 	ret = get_top_delta_name(device, &top, &fmt, NULL);
 	if (ret)
@@ -2423,7 +2402,7 @@ err:
 	close_delta(&d);
 	free(top);
 
-	return ret;
+	return check_deltas_live(di);
 }
 
 int ploop_umount_image(struct ploop_disk_images_data *di)
@@ -2643,9 +2622,9 @@ err:
 }
 
 static int ploop_raw_discard(struct ploop_disk_images_data *di, const char *device,
-		__u32 blocksize, off_t start, off_t end)
+		const char *partname, __u32 blocksize, off_t start, off_t end)
 {
-	int ret;
+	int ret, part;
 	char conf[PATH_MAX];
 	off_t new_end;
 
@@ -2654,9 +2633,15 @@ static int ploop_raw_discard(struct ploop_disk_images_data *di, const char *devi
 	if (new_end >= end)
 		return 0;
 
-	ret = resize_gpt_partition(device, new_end, blocksize);
+	ret = has_partition(device, &part);
 	if (ret)
 		return ret;
+
+	if (part) {
+		ret = resize_gpt_partition(device, partname, new_end, blocksize);
+		if (ret)
+			return ret;
+	}
 
 	ret = ploop_stop_device(device, di);
 	if (ret)
@@ -2671,11 +2656,7 @@ static int ploop_raw_discard(struct ploop_disk_images_data *di, const char *devi
 
 	di->size = new_end;
 	get_disk_descriptor_fname(di, conf, sizeof(conf));
-	ret = ploop_store_diskdescriptor(conf, di);
-	if (ret)
-		return ret;
-
-	return 0;
+	return ploop_store_diskdescriptor(conf, di);
 }
 
 /* The code below works correctly only if
@@ -2684,23 +2665,27 @@ static int ploop_raw_discard(struct ploop_disk_images_data *di, const char *devi
  */
 static int shrink_device(struct ploop_disk_images_data *di,
 		const char *device, const char *part_device,
-		off_t part_dev_size, off_t fs_size, __u32 blocksize)
+		off_t new_size, __u32 blocksize)
 {
 	struct dump2fs_data data;
 	int ret;
-	int raw;
-	off_t start, end;
+	int top, raw;
+	off_t start, end, part_dev_size;
 
-	raw = (di->mode == PLOOP_RAW_MODE && di->nimages == 1);
-	ploop_log(0, "Offline shrink %s dev=%s size=%lu new_size=%lu",
-			(raw) ? "raw" : "",
-			part_device, (long)part_dev_size, (long)fs_size);
+	ret = ploop_get_size(part_device, &part_dev_size);
+	if (ret)
+		return ret;
+
+	ret = ploop_get_attr(device, "top", &top);
+	if (ret)
+		return SYSEXIT_SYSFS;
+
 	ret = e2fsck(part_device, E2FSCK_FORCE | E2FSCK_PREEN, NULL);
 	if (ret)
 		return ret;
 
 	/* offline resize */
-	ret = resize_fs(part_device, fs_size);
+	ret = resize_fs(part_device, new_size);
 	if (ret)
 		return ret;
 
@@ -2708,23 +2693,26 @@ static int shrink_device(struct ploop_disk_images_data *di,
 	if (ret)
 		return ret;
 
+	raw = (di->mode == PLOOP_RAW_MODE && top == 0);
 	start = B2S(data.block_count * data.block_size);
 	end = part_dev_size;
+
+	ploop_log(0, "Offline shrink %s dev=%s size=%lu new_size=%lu, start=%lu:%lu",
+			(raw) ? "raw" : "",
+			part_device, (long)part_dev_size, (long)new_size, start, end);
+
 	if (raw)
-		ret = ploop_raw_discard(di, device, blocksize, start, end);
+		ret = ploop_raw_discard(di, device, part_device, blocksize, start, end);
 	else
-		ret = ploop_blk_discard(device, blocksize, start, end);
+		ret = ploop_blk_discard(part_device, blocksize, start, end);
 
-	if (ret)
-		return ret;
-
-	return 0;
+	return ret;
 }
 
 int ploop_resize_image(struct ploop_disk_images_data *di,
 		struct ploop_resize_param *param)
 {
-	int ret;
+	int ret, rc;
 	char buf[PATH_MAX];
 	char partname[64];
 	char dev[64];
@@ -2746,10 +2734,15 @@ int ploop_resize_image(struct ploop_disk_images_data *di,
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	ret = get_dev_and_mnt(di, param->mntns_pid, 1, dev, sizeof(dev),
+	ret = get_dev_and_mnt(di, param->mntns_pid,  1, dev, sizeof(dev),
 			buf, sizeof(buf), &mounted);
-	if (ret)
-		goto err;
+
+	if (!mounted) {
+		ret = check_deltas_live(di);
+		if (ret)
+			goto err;
+	}
+
 	target = strdup(buf);
 
 	//FIXME: Deny resize image if there are childs
@@ -2828,6 +2821,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di,
 			ret = ploop_umount_fs(target, di);
 			if (ret)
 				goto err;
+
 			ret = e2fsck(partname, E2FSCK_FORCE | E2FSCK_PREEN, NULL);
 			if (ret)
 				goto err;
@@ -2854,15 +2848,9 @@ int ploop_resize_image(struct ploop_disk_images_data *di,
 			goto err;
 		}
 
-		ret = resize_gpt_partition(dev, 0, blocksize);
+		ret = resize_gpt_partition(devname, partname, 0, blocksize);
 		if (ret)
 			goto err;
-
-		if (di->enc) {
-			ret = crypt_resize(partname);
-			if (ret)
-				goto err;
-		}
 
 		/* resize up to the end of device */
 		ret = resize_fs(partname, 0);
@@ -2872,7 +2860,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di,
 		/* Grow or shrink fs but do not change block device size */
 		if (part_dev_size < new_fs_size) {
 			/* sync gpt with new_size */
-			ret = resize_gpt_partition(dev, new_size, blocksize);
+			ret = resize_gpt_partition(devname, partname, new_size, blocksize);
 			if (ret)
 				goto err;
 		}
@@ -2894,8 +2882,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di,
 
 			drop_statfs_info(di->images[0]->file);
 
-			ret = shrink_device(di, dev, partname,
-					part_dev_size, new_fs_size, blocksize);
+			ret = shrink_device(di, dev, partname, new_fs_size, blocksize);
 			if (ret)
 				goto err;
 		} else {
@@ -2964,7 +2951,13 @@ err:
 	if (balloonfd != -1)
 		close(balloonfd);
 
-	umnt(di, dev, target, mounted);
+
+	if (!mounted) {
+		rc = check_deltas_live(di);
+		if (ret == 0)
+			ret = rc;
+	} else
+		umnt(di, dev, target, mounted);
 
 	ploop_unlock_dd(di);
 	free(target);
@@ -2974,12 +2967,9 @@ err:
 
 int ploop_resize_blkdev(const char *device, off_t new_size)
 {
-	int ret;
-	int part_num;
-	unsigned long long part_start = 0;
-	unsigned long long part_end = 0;
-	unsigned long long new_end = 0;
-	char partname[PATH_MAX];
+	int ret, part_num;
+	unsigned long long part_start, part_end;
+	char partname[64];
 
 	ret = get_last_partition_num(device, &part_num);
 	if (ret)
@@ -2989,22 +2979,10 @@ int ploop_resize_blkdev(const char *device, off_t new_size)
 	if (ret)
 		return ret;
 
-	ret = sgdisk_move_gpt_header(device);
+	ret = sgdisk_resize_gpt(device, part_num, part_start);
 	if (ret)
 		return ret;
 
-	ret = sgdisk_rmpart(device, part_num);
-	if (ret)
-		return ret;
-
-	if (new_size != 0)
-		new_end = part_start + new_size;
-
-	ret = sgdisk_mkpart(device, part_num, part_start, new_end);
-	if (ret) {
-		sgdisk_mkpart(device, part_num, part_start, part_end);
-		return ret;
-	}
 	reread_part(device);
 
 	ret = get_partition_device_name_by_num(device, part_num, partname, sizeof(partname));
@@ -4004,12 +3982,20 @@ int check_snapshot_mount(struct ploop_disk_images_data *di,
 
 	/* Try to unmount temp snapshot(s) */
 	for (p = devs; *p != NULL; p++) {
+		int retry = 0;
+retry:
 		if (!is_device_inuse(*p))
 			ret = ploop_umount(*p, NULL);
-		else
+		else {
 			ret = SYSEXIT_EBUSY;
+			if (retry++ < 3) {
+				sleep(1);
+				goto retry;
+			}
+		}
 
 		if (ret) {
+			print_output(0, "lsof", *p);
 			/* print current device and remaining ones */
 			ploop_err(0, "Snapshot %s is busy by device(s): %s", guid,
 					get_devs_str(p, buf, sizeof(buf)));

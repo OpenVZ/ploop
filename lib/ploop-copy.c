@@ -31,6 +31,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <openssl/md5.h>
+#include <sys/queue.h>
 
 #include "ploop.h"
 #include "cleanup.h"
@@ -46,7 +47,11 @@ typedef enum {
 
 typedef enum {
 	PCOPY_CMD_SYNC,
+	PCOPY_CMD_FINISH,
 } pcopy_cmd_t;
+
+#define PCOPY_FEATURE_MD5SUM	0x01
+#define PCOPY_SUP_FLAGS		PCOPY_FEATURE_MD5SUM
 
 struct pcopy_pkt_desc
 {
@@ -57,22 +62,34 @@ struct pcopy_pkt_desc
         __u64		pos;
 };
 
-struct sender_data {
-	void *buf;
-	int len;
+struct pcopy_pkt_desc_md5
+{
+	__u8            md5[16];
+};
+
+struct chunk {
+	TAILQ_ENTRY(chunk) list;
+	size_t size;
+	void *data;
 	off_t pos;
+};
+
+struct sender_data {
+	TAILQ_HEAD(, chunk) queue;
+	int queue_size;
 	int ret;
 	int err_no;
+	pthread_mutex_t queue_mutex;
 	pthread_mutex_t mutex;
 	pthread_cond_t cond;
 	pthread_mutex_t wait_mutex;
 	pthread_cond_t wait_cond;
-	pthread_barrier_t barrier;
 };
 
 enum {
 	PLOOP_COPY_START,
 	PLOOP_COPY_ITER,
+	PLOOP_COPY_FINISH,
 };
 
 struct ploop_copy_handle {
@@ -84,8 +101,6 @@ struct ploop_copy_handle {
 	int ofd;
 	int is_remote;
 	int mntfd;
-	void *iobuf[2];
-	int cur_iobuf;
 	int niter;
 	int cluster;
 	__u64 trackpos;
@@ -100,7 +115,85 @@ struct ploop_copy_handle {
 	off_t eof_offset;
 	int async;
 	int stage;
+	int remote_flags;
 };
+
+static struct chunk *alloc_chunk(size_t size, off_t pos)
+{
+	struct chunk *c;
+
+	c = calloc(1, sizeof(struct chunk));
+	if (c == NULL)
+		return NULL;
+
+	if (size != 0 && p_memalign(&c->data, 4096, size))
+		goto err;
+
+	c->pos = pos;
+	c->size = size;
+
+	return c;
+err:
+	ploop_err(ENOMEM, "Can not create chunk");
+	free(c);
+	return NULL;
+}
+
+static void free_chunk(struct chunk *chunk)
+{
+	if (chunk == NULL)
+		return;
+	free(chunk->data);
+	free(chunk);
+}
+
+static struct chunk *q_get_first(struct sender_data *sd)
+{
+	struct chunk *c;
+
+	pthread_mutex_lock(&sd->queue_mutex);
+	if (TAILQ_EMPTY(&sd->queue)) {
+		pthread_mutex_unlock(&sd->queue_mutex);
+		return NULL;
+	}
+	c = TAILQ_FIRST(&sd->queue);
+	pthread_mutex_unlock(&sd->queue_mutex);
+
+	return c;
+}
+
+static void enqueue(struct sender_data *sd, struct chunk *chunk)
+{
+	pthread_mutex_lock(&sd->queue_mutex);
+	TAILQ_INSERT_TAIL(&sd->queue, chunk, list);
+	sd->queue_size++;
+	pthread_mutex_unlock(&sd->queue_mutex);
+}
+
+static void dequeue(struct sender_data *sd, struct chunk *c)
+{
+	pthread_mutex_lock(&sd->queue_mutex);
+	TAILQ_REMOVE(&sd->queue, c, list);
+	sd->queue_size--;
+	pthread_mutex_unlock(&sd->queue_mutex);
+	free_chunk(c);
+}
+
+static int q_get_size(struct sender_data *sd)
+{
+	return sd->queue_size;
+}
+
+static int wait_sender(struct ploop_copy_handle *h)
+{
+	pthread_mutex_lock(&h->sd.wait_mutex);
+	while ((q_get_size(&h->sd) > 0 && h->sd.ret == 0)) {
+		pthread_cond_wait(&h->sd.wait_cond, &h->sd.wait_mutex);
+	}
+	pthread_mutex_unlock(&h->sd.wait_mutex);
+
+	return h->sd.ret;
+}
 
 /* Check what a file descriptor refers to.
  * Return:
@@ -142,6 +235,7 @@ static int nwrite(int fd, const void *buf, int len)
 		if (n < 0) {
 			if (errno == EINTR)
 				continue;
+			ploop_err(errno, "Cannot write");
 			return -1;
 		}
 		if (n == 0)
@@ -157,28 +251,46 @@ static int nwrite(int fd, const void *buf, int len)
 	return -1;
 }
 
-static int remote_write(int fd, pcopy_pkt_type_t type,
+static const char *md52str(__u8 *m, char *buf)
+{
+	sprintf(buf, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+			m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9], m[10], m[11], m[12], m[13], m[14], m[15]);
+	return buf;
+}
+
+static int remote_write(struct ploop_copy_handle *h, pcopy_pkt_type_t type,
 		const void *data, int len, off_t pos)
 {
 	int rc;
 	struct pcopy_pkt_desc desc = {
 		.marker = PCOPY_MARKER,
 		.type = type,
+		.size = len,
+		.pos = pos,
 	};
 
 	/* Header */
-	desc.size = len;
-	desc.pos = pos;
-	if (nwrite(fd, &desc, sizeof(desc)))
+	if (nwrite(h->ofd, &desc, sizeof(desc)))
 		return SYSEXIT_WRITE;
 
+	if (h->remote_flags & PCOPY_FEATURE_MD5SUM) {
+		char s[34];
+		struct pcopy_pkt_desc_md5 m;
+
+		MD5(data, len, m.md5);
+		ploop_log(3, "SEND type: %d size=%d pos: %lu md5: %s",
+				desc.type, len, pos, md52str(m.md5, s));
+		if (nwrite(h->ofd, &m, sizeof(m)))
+			return SYSEXIT_WRITE;
+	}
+
 	/* Data */
-	if (len && nwrite(fd, data, len))
+	if (len && nwrite(h->ofd, data, len))
 		return SYSEXIT_WRITE;
 
 	/* get reply */
 	if (type != PCOPY_PKT_DATA_ASYNC) {
-		rc = TEMP_FAILURE_RETRY(read(fd, &rc, sizeof(rc)));
+		rc = TEMP_FAILURE_RETRY(read(h->ofd, &rc, sizeof(rc)));
 		if (rc != sizeof(rc))
 			return SYSEXIT_PROTOCOL;
 	}
@@ -211,8 +323,15 @@ static int local_write(int ofd, const void *iobuf, int len, off_t pos)
 
 static int send_cmd(struct ploop_copy_handle *h, pcopy_cmd_t cmd)
 {
+	int ret;
+	size_t size = cmd == PCOPY_CMD_FINISH ? 0 : sizeof(cmd);
+
+	ret = wait_sender(h);
+	if (ret)
+		return ret;
+
 	if (h->is_remote)
-		return remote_write(h->ofd, PCOPY_PKT_CMD, &cmd, sizeof(cmd), 0);
+		return remote_write(h, PCOPY_PKT_CMD, &cmd, size, 0);
 	else
 		if (cmd == PCOPY_CMD_SYNC)
 			return data_sync(h->ofd);
@@ -244,6 +363,22 @@ static int nread(int fd, void *buf, int len)
 	return -1;
 }
 
+static int check_data(void *buf, struct pcopy_pkt_desc *desc,
+		struct pcopy_pkt_desc_md5 *md5)
+{
+	__u8 m[16];
+	char s[34];
+	char d[34];
+
+	MD5(buf, desc->size, m);
+	if (memcmp(md5->md5, m, sizeof(m))) {
+		ploop_err(0, "MD5 mismatch pos: %llu src: %s dst: %s",
+				desc->pos, md52str(md5->md5, s), md52str(m, d));
+		return SYSEXIT_WRITE;
+	}
+	return 0;
+}
+
 int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 {
 	int ofd, ret;
@@ -251,6 +386,8 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 	void *iobuf = NULL;
 	int n;
 	struct pcopy_pkt_desc desc;
+	struct pcopy_pkt_desc_md5 md5;
+	int remote_flags = 0;
 
 	if (!arg)
 		return SYSEXIT_PARAM;
@@ -276,9 +413,18 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 		}
 
 		if (desc.marker != PCOPY_MARKER) {
-			ploop_err(0, "Stream corrupted");
+			ploop_err(0, "Stream corrupted: marker: %x type: %d size: %d pos: %llu",
+				desc.marker, desc.type, desc.size, desc.pos);
 			ret = SYSEXIT_PROTOCOL;
 			goto out;
+		}
+
+		if (remote_flags & PCOPY_FEATURE_MD5SUM) {
+			if (nread(arg->ifd, &md5, sizeof(md5))) {
+				ploop_err(errno, "Error in nread(md5)");
+				ret = SYSEXIT_READ;
+				goto out;
+			}
 		}
 
 		if (desc.size > cluster) {
@@ -306,6 +452,11 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 		switch (desc.type) {
 		case PCOPY_PKT_DATA:
 		case PCOPY_PKT_DATA_ASYNC: {
+			if (remote_flags & PCOPY_FEATURE_MD5SUM) {
+				ret = check_data(iobuf, &desc, &md5);
+				if (ret)
+					goto out;
+			}
 			n = TEMP_FAILURE_RETRY(pwrite(ofd, iobuf, desc.size, desc.pos));
 			if (n != desc.size) {
 				if (n < 0)
@@ -321,9 +472,15 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 			unsigned int cmd = ((unsigned int *) iobuf)[0];
 			switch(cmd) {
 			case PCOPY_CMD_SYNC:
-				ret = data_sync(ofd);
-				if (ret)
-					goto out;
+				if (desc.pos != 0) {
+					remote_flags = desc.pos;
+					ploop_log(0, "handshake remote flags %x", remote_flags);
+					ret = -PCOPY_SUP_FLAGS;
+				} else {
+					ret = fsync_safe(ofd);
+					if (ret)
+						goto out;
+				}
 				break;
 			default:
 				ploop_err(0, "ploop_copy_receiver: unsupported command %d",
@@ -348,7 +505,7 @@ int ploop_copy_receiver(struct ploop_copy_receive_param *arg)
 		}
 	}
 
-	ret = data_sync(ofd);
+	ret = fsync_safe(ofd);
 	if (ret)
 		goto out;
 
@@ -371,6 +528,7 @@ out:
 		unlink(arg->file);
 	free(iobuf);
 
+	ploop_dbg(3, "ploop_copy_receiver rc: %d", ret);
 	return ret;
 }
 
@@ -379,12 +537,6 @@ static void cancel_sender(void *data)
 	struct ploop_copy_handle *h = (struct ploop_copy_handle *)data;
 
 	h->cancelled = 1;
-}
-
-static void wait_sender(struct ploop_copy_handle *h)
-{
-	pthread_mutex_lock(&h->sd.mutex);
-	pthread_mutex_unlock(&h->sd.mutex);
 }
 
 static void wakeup(pthread_mutex_t *m, pthread_cond_t *c)
@@ -400,8 +552,7 @@ static int send_buf(struct ploop_copy_handle *h, const void *iobuf, int len, off
 		return SYSEXIT_WRITE;
 
 	if (h->is_remote)
-		return remote_write(h->ofd,
-			h->async ? PCOPY_PKT_DATA_ASYNC : PCOPY_PKT_DATA, iobuf, len, pos);
+		return remote_write(h, h->async ? PCOPY_PKT_DATA_ASYNC : PCOPY_PKT_DATA, iobuf, len, pos);
 	else
 		return local_write(h->ofd, iobuf, len, pos);
 }
@@ -410,58 +561,53 @@ static void *sender_thread(void *data)
 {
 	struct ploop_copy_handle *h = data;
 	struct sender_data *sd = &h->sd;
-	int done;
+	struct chunk *c;
+	int ret;
 
-	pthread_mutex_lock(&sd->mutex);
 	ploop_dbg(3, "start sender_thread");
-	pthread_barrier_wait(&sd->barrier);
 	do {
-		pthread_cond_wait(&sd->cond, &sd->mutex);
+		pthread_mutex_lock(&sd->mutex);
+		c = q_get_first(sd);
+		if (c == NULL) {
+			pthread_cond_wait(&sd->cond, &sd->mutex);
+			pthread_mutex_unlock(&sd->mutex);
+			continue;
+		}
+		pthread_mutex_unlock(&sd->mutex);
 
-		wakeup(&sd->wait_mutex, &sd->wait_cond);
-
-		sd->ret = send_buf(h, sd->buf, sd->len, sd->pos);
-		if (sd->ret)
+		ret = send_buf(h, c->data, c->size, c->pos);
+		if (ret) {
+			sd->ret = ret;
 			sd->err_no = errno;
-		done = (sd->len == 0 && sd->pos == 0);
-	} while (!done);
+		}
+		dequeue(sd, c);
+		wakeup(&sd->wait_mutex, &sd->wait_cond);
+	} while (h->stage != PLOOP_COPY_FINISH);
 
-	pthread_mutex_unlock(&sd->mutex);
-
+	wakeup(&sd->wait_mutex, &sd->wait_cond);
 	ploop_log(3, "send_thread exited ret=%d", sd->ret);
 	return NULL;
 }
 
-static int send_async(struct ploop_copy_handle *h, void *data,
-		__u64 size, __u64 pos)
+static int send_async(struct ploop_copy_handle *h, struct chunk *chunk)
 {
 	struct sender_data *sd = &h->sd;
 
-	pthread_mutex_lock(&sd->mutex);
-
 	if (sd->ret) {
 		ploop_err(sd->err_no, "write error");
-		pthread_mutex_unlock(&sd->mutex);
+		free_chunk(chunk);
 		return sd->ret;
 	}
 
-	sd->buf = data;
-	sd->len = size;
-	sd->pos = pos;
+	if (q_get_size(sd) > 2)
+		wait_sender(h);
 
+	pthread_mutex_lock(&sd->mutex);
+	enqueue(sd, chunk);
 	pthread_cond_signal(&sd->cond);
 	pthread_mutex_unlock(&sd->mutex);
 
-	/* wait till sender start processing */
-	pthread_cond_wait(&sd->wait_cond, &sd->wait_mutex);
-
 	return 0;
-}
-
-static void *get_free_iobuf(struct ploop_copy_handle *h)
-{
-	h->cur_iobuf = !h->cur_iobuf;
-	return h->iobuf[h->cur_iobuf];
 }
 
 static int is_zero_block(void *buf, __u64 size)
@@ -470,32 +616,47 @@ static int is_zero_block(void *buf, __u64 size)
 		!memcmp(buf, buf + sizeof(__u64), size - sizeof(__u64));
 }
 
-
 static int send_image_block(struct ploop_copy_handle *h, __u64 size, __u64 pos)
 {
+	int ret = 0;
+	size_t nread;
 	struct delta *idelta = &h->idelta;
-	void *iobuf = get_free_iobuf(h);
-	off_t n;
+	struct chunk *c;
 
-	ploop_dbg(4, "READ pos=%llu size=%llu", pos, size);
-	n = TEMP_FAILURE_RETRY(pread(idelta->fd, iobuf, size, pos));
-	if (n == 0)
-		return 0;
-	if (n < 0) {
+	if (h->sd.ret) {
+		ploop_err(h->sd.err_no, "write error");
+		return h->sd.ret;
+	}
+
+	c = alloc_chunk(size, pos);
+	if (c == NULL) {
+		return SYSEXIT_MALLOC;
+	}
+
+	ploop_dbg(4, "READ size=%llu pos=%llu", size, pos);
+	nread = TEMP_FAILURE_RETRY(pread(idelta->fd, c->data, c->size, c->pos));
+	if (nread == 0)
+		goto out;
+	if (nread < 0) {
 		ploop_err(errno, "Error from pread() size=%llu pos=%llu",
 				 size, pos);
-		return SYSEXIT_READ;
+		ret = SYSEXIT_READ;
+		goto out;
 	}
+	c->size = nread;
 
 	if (h->stage == PLOOP_COPY_START &&
-			(pos % (__u64)h->cluster) == 0 && (n % (size_t)h->cluster) == 0 &&
-			is_zero_block(iobuf, n)) {
+			(pos % (__u64)h->cluster) == 0 && (c->size % (size_t)h->cluster) == 0 &&
+			is_zero_block(c->data, c->size)) {
 		ploop_dbg(4, "Skip zero cluster block at offset %llu size %lu",
-				pos, n);
-		return 0;
+				pos, c->size);
+		goto out;
 	}
 
-	return send_async(h, iobuf, n, pos);
+	return send_async(h, c);
+out:
+	free_chunk(c);
+	return ret;
 }
 
 void ploop_copy_release(struct ploop_copy_handle *h)
@@ -544,16 +705,13 @@ void free_ploop_copy_handle(struct ploop_copy_handle *h)
 	if (h == NULL)
 		return;
 
+	pthread_mutex_destroy(&h->sd.queue_mutex);
 	pthread_mutex_destroy(&h->sd.mutex);
 	pthread_cond_destroy(&h->sd.cond);
 	pthread_mutex_destroy(&h->sd.wait_mutex);
 	pthread_cond_destroy(&h->sd.wait_cond);
-	pthread_barrier_destroy(&h->sd.barrier);
 
 	unregister_cleanup_hook(h->cl);
-
-	free(h->iobuf[0]);
-	free(h->iobuf[1]);
 
 	free(h);
 }
@@ -566,26 +724,62 @@ static struct ploop_copy_handle *alloc_ploop_copy_handle(int cluster)
 	if (h == NULL)
 		return NULL;
 
+	TAILQ_INIT(&h->sd.queue);
+	pthread_mutex_init(&h->sd.queue_mutex, NULL);
 	pthread_mutex_init(&h->sd.mutex, NULL);
 	pthread_cond_init(&h->sd.cond, NULL);
 	pthread_mutex_init(&h->sd.wait_mutex, NULL);
 	pthread_cond_init(&h->sd.wait_cond, NULL);
-	pthread_barrier_init(&h->sd.barrier, NULL, 2);
 
 	h->devfd = h->ofd = h->mntfd = h->idelta.fd = -1;
 	h->cluster = cluster;
 
-	if (p_memalign(&h->iobuf[0], 4096, cluster))
-		goto err;
-
-	if (p_memalign(&h->iobuf[1], 4096, cluster))
-		goto err;
-
 	return h;
-err:
-	free_ploop_copy_handle(h);
-	return NULL;
 }
+
+static int handshake(struct ploop_copy_handle *h)
+{
+       int rc, f;
+       int cmd = PCOPY_CMD_SYNC;
+       struct pcopy_pkt_desc desc = {
+               .marker = PCOPY_MARKER,
+               .type = PCOPY_PKT_CMD,
+               .size = sizeof(cmd),
+               .pos = PCOPY_SUP_FLAGS,
+       };
+
+       ploop_log(0, "handshake");
+       if (!h->is_remote) {
+	       h->remote_flags = PCOPY_SUP_FLAGS;
+	       return 0;
+       }
+
+       /* Header */
+       if (nwrite(h->ofd, &desc, sizeof(desc)))
+	       return SYSEXIT_WRITE;
+       if (nwrite(h->ofd, &cmd, sizeof(cmd)))
+	       return SYSEXIT_WRITE;
+
+       /* get reply */
+       rc = TEMP_FAILURE_RETRY(read(h->ofd, &f, sizeof(f)));
+       if (rc != sizeof(rc)) {
+	       ploop_err(errno, "handshake read()");
+	       return SYSEXIT_PROTOCOL;
+       }
+
+       if (f > 0) {
+	       ploop_err(0, "handshake failed: rc=%d", f);
+	       return SYSEXIT_PROTOCOL;
+       }
+
+       h->remote_flags = -f;
+       ploop_log(0, "remote proto ver: %x", h->remote_flags);
+
+       return 0;
+}
+
+
+
 
 int ploop_copy_init(struct ploop_disk_images_data *di,
 		struct ploop_copy_param *param,
@@ -613,13 +807,19 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 	else if (param->ofd == STDERR_FILENO)
 		ploop_set_verbose_level(PLOOP_LOG_NOCONSOLE);
 
-	if (ploop_lock_dd(di))
-		return SYSEXIT_LOCK;
+	if (di) {
+		if (ploop_lock_dd(di))
+			return SYSEXIT_LOCK;
 
-	if (ploop_find_dev_by_dd(di, device, sizeof(device))) {
-		ploop_err(0, "Can't find running ploop device");
-		ret = SYSEXIT_SYS;
-		goto err;
+		if (ploop_find_dev_by_dd(di, device, sizeof(device))) {
+			ploop_err(0, "Can't find running ploop device");
+			ret = SYSEXIT_SYS;
+			goto err;
+		}
+	} else if (param->device) {
+		snprintf(device, sizeof(device), "%s", param->device);
+	} else {
+		return SYSEXIT_PARAM;
 	}
 
 	ret = get_top_delta_name(device, &image, &format, &blocksize);
@@ -682,7 +882,6 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 
 	_h->cl = register_cleanup_hook(cancel_sender, _h);
 
-	pthread_mutex_lock(&_h->sd.wait_mutex);
 err:
 	if (ret) {
 		ploop_copy_release(_h);
@@ -734,14 +933,16 @@ int ploop_copy_start(struct ploop_copy_handle *h,
 {
 	int ret;
 
+	ret = handshake(h);
+	if (ret)
+		goto err;
+
 	h->stage = PLOOP_COPY_START;
 	if (pthread_create(&h->send_th, NULL, sender_thread, h)) {
 		ploop_err(errno, "Can't create send thread");
 		ret = SYSEXIT_SYS;
 		goto err;
 	}
-
-	pthread_barrier_wait(&h->sd.barrier);
 
 	ploop_dbg(3, "pcopy track init");
 	ret = dm_tracking_start(h->devname);
@@ -848,6 +1049,7 @@ int ploop_copy_stop(struct ploop_copy_handle *h,
 {
 	int ret;
 	int iter;
+	void *buf = NULL;
 
 	ploop_log(3, "pcopy last");
 
@@ -871,13 +1073,19 @@ int ploop_copy_stop(struct ploop_copy_handle *h,
 
 	if (!h->raw) {
 		/* Must clear dirty flag on ploop1 image. */
-		struct ploop_pvd_header *vh = get_free_iobuf(h);
+		struct ploop_pvd_header *vh;
 
-		if (PREAD(&h->idelta, vh, 4096, 0)) {
+		if (p_memalign(&buf, 4096, 4096)) {
+			ret = SYSEXIT_MALLOC;
+	               	goto err;
+		}
+
+		if (PREAD(&h->idelta, buf, 4096, 0)) {
 			ret = SYSEXIT_READ;
 			goto err;
 		}
 
+		vh = (struct ploop_pvd_header *)buf;
 		vh->m_DiskInUse = 0;
 
 		ploop_dbg(3, "Update header");
@@ -896,8 +1104,9 @@ int ploop_copy_stop(struct ploop_copy_handle *h,
 
 	h->tracker_on = 0;
 
-	ploop_dbg(3, "SEND 0 0 (close)");
-	send_async(h, NULL, 0, 0);
+	send_cmd(h, PCOPY_CMD_FINISH);
+	h->stage = PLOOP_COPY_FINISH;
+	wakeup(&h->sd.mutex, &h->sd.cond);
 
 	pthread_join(h->send_th, NULL);
 	h->send_th = 0;
@@ -905,20 +1114,22 @@ int ploop_copy_stop(struct ploop_copy_handle *h,
 	ploop_dbg(3, "pcopy stop done");
 
 err:
+	free(buf);
 	ploop_copy_release(h);
 
 	return ret;
 }
 
-
 void ploop_copy_deinit(struct ploop_copy_handle *h)
 {
+	struct chunk *c;
+
 	if (h == NULL)
 		return;
 
 	ploop_dbg(4, "pcopy deinit");
-
-	pthread_mutex_unlock(&h->sd.wait_mutex);
+	while ((c = q_get_first(&h->sd)))
+		dequeue(&h->sd, c);
 
 	if (h->send_th) {
 		pthread_cancel(h->send_th);
@@ -930,4 +1141,22 @@ void ploop_copy_deinit(struct ploop_copy_handle *h)
 	free_ploop_copy_handle(h);
 
 	ploop_dbg(3, "pcopy deinit done");
+}
+
+/* Deprecated */
+int ploop_copy_receive(struct ploop_copy_receive_param *arg)
+{
+	return SYSEXIT_PARAM;
+}
+
+int ploop_send(const char *device, int ofd, const char *flush_cmd,
+                int is_pipe)
+{
+	return SYSEXIT_PARAM;
+}
+
+int ploop_receive(const char *dst) 
+{
+
+	return SYSEXIT_PARAM;
 }

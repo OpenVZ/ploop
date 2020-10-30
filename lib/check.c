@@ -34,6 +34,8 @@
 
 #include "ploop.h"
 
+#define EXT4_IOC_CLEAR_ES_CACHE	_IO('f', 40)
+
 enum {
 	ZEROFIX = 0,
 	IGNORE
@@ -225,10 +227,10 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end,
 
 	for (len = 0, offset = start; offset < end; offset += len) {
 		ssize_t e = (offset + cluster) / cluster * cluster;
+		__u32 id = offset / cluster ;
 
 		len = MIN(e - offset, end - offset);
 		if (rmap) {
-			__u32 id = offset / cluster ;
 			if (id >= rmap_size)
 				continue;
 			if (offset > data_offset && rmap[id] == PLOOP_ZERO_INDEX)
@@ -238,8 +240,6 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end,
 		if (!*log) {
 			ploop_err(0, "%s: ploop image '%s' is sparse",
 					repair ? "Warning" : "Error", image);
-			if (!repair)
-				return SYSEXIT_PLOOPFMT;
 			*log = 1;
 			print_output(0, "filefrag -vs", image);
 			ploop_log(0, "Reallocating sparse blocks back");
@@ -248,8 +248,15 @@ static int fill_hole(const char *image, int *fd, off_t start, off_t end,
 				return ret;
 		}
 
-		ploop_log(0, "Filling hole at start=%lu len=%lu",
+		if (rmap)
+			ploop_log(0, "Filling hole at start=%lu len=%lu rmap[%u]=%u",
+				(long unsigned)offset, (long unsigned)len, id, rmap[id]);
+		else
+			ploop_log(0, "Filling hole at start=%lu len=%lu",
 				(long unsigned)offset, (long unsigned)len);
+
+		if (!repair)
+			return SYSEXIT_PLOOPFMT;
 
 		n = pwrite(*fd, buf, len, offset);
 		if (n != len) {
@@ -291,6 +298,8 @@ static int restore_hole(const char *image, int *fd, off_t start,
 				if (ret)
 					return ret;
 			}
+			if (!repair)
+				return SYSEXIT_PLOOPFMT;
 
 			if (fallocate(*fd, FALLOC_FL_PUNCH_HOLE|FALLOC_FL_KEEP_SIZE, offset, len) == -1 ) {
 				ploop_err(errno, "Failed to fallocate offset=%lu len=%lu",
@@ -377,8 +386,13 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 		end = st.st_size;
 	}
 
+	if (!repair)
+		goto out;
+
 	prev_end = 0;
 	last = 0;
+	ioctl_device(delta.fd, EXT4_IOC_CLEAR_ES_CACHE, 0);
+
 	while (!last && prev_end < end) {
 		fiemap->fm_start	= prev_end;
 		fiemap->fm_length	= end;
@@ -425,7 +439,7 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 							 delta_p, rmap, rmap_size, &log, repair)))
 				goto out;
 
-			if (repair && !(flags & CHECK_READONLY) && rmap != NULL) {
+			if (!(flags & CHECK_READONLY) && rmap != NULL) {
 				ret = restore_hole(image, fd, fm_ext[i].fe_logical, fm_ext[i].fe_logical + fm_ext[i].fe_length,
 					delta_p, rmap, rmap_size, &log, repair);
 				if (ret)
@@ -459,20 +473,17 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 	int fd;
 	int ret = 0;
 	int ret2;
-	const int ro = (flags & CHECK_READONLY);
+	const int ro = flags & (CHECK_READONLY|CHECK_LIVE);
 	const int verbose = (flags & CHECK_TALKATIVE);
 	off_t bd_size;
 	struct stat stb;
 	void *buf = NULL;
 	__u32 *l2_ptr = NULL;
-
-	struct ploop_pvd_header vh_buf;
-	struct ploop_pvd_header *vh = &vh_buf;
+	struct ploop_pvd_header *vh = NULL;
 
 	__u32 alloc_head;
 	__u32 l1_slots;
 	__u32 l2_slot = 0;
-	__u32 m_Flags;
 
 	__u32 *bmap = NULL;
 	unsigned int bmap_size = 0;
@@ -481,13 +492,14 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 	int clean = 1;	    /* image is clean */
 	__u64 cluster;
 
-	int force = (flags & CHECK_FORCE);
+	int force = flags & (CHECK_FORCE|CHECK_LIVE);
 	int hard_force = (flags & CHECK_HARDFORCE);
-	int check = (flags & CHECK_DETAILED);
+	int check = flags & (CHECK_DETAILED|CHECK_LIVE);
+	int live = (flags & CHECK_LIVE);
 	int version;
 	int disk_in_use;
 
-	fd = open(img, O_RDONLY);
+	fd = open(img, O_RDONLY|O_DIRECT|O_CLOEXEC);
 	if (fd < 0) {
 		ploop_err(errno, "ploop_check: can't open %s", img);
 		return SYSEXIT_OPEN;
@@ -511,7 +523,12 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 		goto done;
 	}
 
-	ret = read_safe(fd, vh, sizeof(*vh), 0, "read PVD header");
+	if (p_memalign((void *)&vh, 4096, 4096)) {
+		ret = SYSEXIT_MALLOC;
+		goto done;
+	}
+
+	ret = read_safe(fd, vh, 4096, 0, "read PVD header");
 	if (ret)
 		goto done;
 
@@ -553,6 +570,26 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 	disk_in_use = vh->m_DiskInUse == SIGNATURE_DISK_IN_USE;
 	if (cbt_allowed != NULL)
 		*cbt_allowed = !disk_in_use;
+
+	if (stb.st_size % cluster) {
+		off_t size = ROUNDUP(stb.st_size, cluster);
+
+		ploop_err(0, "Image size %lu is not alligned to cluster %llu",
+				stb.st_size, cluster);
+		if (!force || ro)
+			goto done;
+
+		ret = reopen_rw(img, &fd);
+		if (ret)
+			goto done;
+
+		ploop_log(0, "Truncate image %s up to %lu", img, size);
+		if (ftruncate(fd, size)) {
+			ploop_err(errno, "ftruncate");
+			ret = SYSEXIT_FTRUNCATE;
+			goto done;
+		}
+	}
 
 	if (!disk_in_use && !force) {
 		if (verbose)
@@ -614,13 +651,6 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 		if (ret)
 			goto done;
 
-		if (!ro && disk_in_use) {
-			ret = write_safe(fd, buf, cluster, i * cluster,
-				    "re-write index table");
-			if (ret)
-				goto done;
-		}
-
 		for (j = skip; j < cluster/4; j++, l2_slot++) {
 			if (l2_ptr[j] == 0)
 				continue;
@@ -641,25 +671,8 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 		goto done;
 	}
 
-	if ((off_t)alloc_head * cluster < stb.st_size) {
-		if (!ro) {
-			ploop_log(0, "Max cluster: %d (image size %lu) trimming tail",
-					alloc_head, stb.st_size);
-			if (ftruncate(fd, (off_t)alloc_head * cluster)) {
-				ploop_err(errno, "ftruncate");
-				ret = SYSEXIT_FTRUNCATE;
-				goto done;
-			}
-		} else {
-			ploop_err(0, "Want to trim tail");
-			alloc_head = (stb.st_size + cluster - 1)/(cluster);
-		}
-	}
-
-	if (alloc_head > l1_slots)
-		m_Flags = vh->m_Flags & ~CIF_Empty;
-	else
-		m_Flags = vh->m_Flags | CIF_Empty;
+	if (live)
+		goto done;
 
 	if (disk_in_use != 0) {
 		ploop_err(0, "Dirty flag is set");
@@ -668,8 +681,6 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 			goto done;
 		}
 	}
-	if (vh->m_Flags != m_Flags)
-		ploop_err(0, "CIF_Empty flag is incorrect");
 
 	/* useless to repair header if content was not fixed */
 	if (!clean) {
@@ -678,7 +689,7 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 	}
 
 	/* the content is clean, only header checks remained */
-	if (disk_in_use == 0 && vh->m_Flags == m_Flags)
+	if (disk_in_use == 0)
 		goto done;
 
 	/* header needs fix but we can't */
@@ -694,7 +705,8 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 	}
 
 	vh->m_DiskInUse = 0;
-	vh->m_Flags = m_Flags;
+	vh->m_Flags = 0;
+	vh->m_FormatExtensionOffset = 0;
 
 	ret = write_safe(fd, vh, sizeof(*vh), 0, "write PVD header");
 	if (!ret)
@@ -709,6 +721,7 @@ done:
 
 	free(bmap);
 	free(buf);
+	free(vh);
 
 	return ret;
 }
@@ -722,8 +735,8 @@ int check_deltas(struct ploop_disk_images_data *di, char **images,
 	if (cbt_allowed != NULL)
 		*cbt_allowed = 1;
 
-	f = flags | CHECK_DETAILED |
-		(di ? (CHECK_DROPINUSE | CHECK_REPAIR_SPARSE) : 0);
+	f = flags | CHECK_DETAILED | CHECK_REPAIR_SPARSE |
+		(di ? CHECK_DROPINUSE : 0);
 
 	for (i = 0; images[i] != NULL; i++) {
 		int raw_delta = (raw && i == 0);
@@ -762,6 +775,29 @@ int check_deltas(struct ploop_disk_images_data *di, char **images,
 			break;
 		}
 	}
+
+	return ret;
+}
+
+int check_deltas_live(struct ploop_disk_images_data *di)
+{
+	char **images;
+	__u32 blocksize;
+	int raw, ret;
+
+	if (di == NULL)
+		return 0;
+
+	images = make_images_list(di, di->top_guid, 0);
+	if (!images)
+		return SYSEXIT_DISKDESCR;
+
+	blocksize = di->blocksize;
+	raw = (di->mode == PLOOP_RAW_MODE);
+
+	ret = check_deltas(di, images, raw, &blocksize, NULL, CHECK_LIVE);
+
+	ploop_free_array(images);
 
 	return ret;
 }

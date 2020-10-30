@@ -242,6 +242,7 @@ struct ploop_copy_receive_param {
 struct ploop_copy_param {
 	int ofd;
 	int async;
+	const char *device;
 	char dummy[32];
 };
 

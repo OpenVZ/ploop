@@ -34,6 +34,7 @@
 #include "ploop.h"
 #include "cbt.h"
 #include "common.h"
+#include "bit_ops.h"
 
 static void usage_summary(void)
 {
@@ -152,6 +153,178 @@ static int show(int argc, char **argv)
 	return ret;
 }
 
+static void usage_diff(void)
+{
+	fprintf(stderr, "Usage: ploop-cbt diff [-b BLOCKSIZE] [-o OUT] file1 file2\n");
+}
+
+static int diff(int argc, char **argv)
+{
+	int ret = 0, i, f1, f2;
+	unsigned long n, r, off, bits, bytes;
+	unsigned long *map;
+	void *b1, *b2;
+	struct stat st;
+	int bsize = 64 * 1024;
+	const char *out = NULL;
+
+	while ((i = getopt(argc, argv, "b:o:")) != EOF) {
+		switch (i) {
+		case 'b':
+			bsize = atoi(optarg);
+			break;
+		case 'o':
+			out = optarg;
+			break;
+		default:
+			usage_diff();
+			return SYSEXIT_PARAM;
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc != 2) {
+		usage_diff();
+		return SYSEXIT_PARAM;
+	}
+
+	f1 = open(argv[0], O_RDONLY);
+	if (f1 == -1) {
+		fprintf(stderr, "Error: Cannot open %s: %m\n", argv[0]);
+		return 1;
+	}
+	if (fstat(f1, &st)) {
+		fprintf(stderr, "Error: Cannot fstat %s: %m", argv[0]);
+		close(f1);
+		return 1;
+	}
+
+	f2 = open(argv[1], O_RDONLY);
+	if (f2 == -1) {
+		fprintf(stderr, "Error: Cannot open %s: %m\n", argv[1]);
+		close(f1);
+		return 1;
+	}
+
+	printf("Create diff %s %s\n", argv[0], argv[1]);
+	b1 = malloc(bsize);
+	b2 = malloc(bsize);
+
+	bits = st.st_size / bsize;
+	bytes = (bits + 7) / 8;
+	map = (unsigned long *)calloc(1, bytes);
+	for (off = 0, n = 0; n < bits; n++, off += bsize) {
+		if (read_safe(f1, b1, bsize, off, "")) {
+			fprintf(stderr, "Error: failed read %s off %lu: %m\n", argv[0], off);
+			ret = 1;
+			break;
+		}
+		if (read_safe(f2, b2, bsize, off, "")) {
+			fprintf(stderr, "Error: failed read %s off %lu: %m\n", argv[1], off);
+			ret = 1;
+			break;
+		}
+		if (memcmp(b1, b2, bsize)) {
+			BMAP_SET(map, n);
+		}
+	}
+
+	if (ret == 0 && out) {
+		int o;
+
+		printf("Store CBT %s\n", out);
+		o = open(out, O_WRONLY|O_TRUNC|O_CREAT, 0600);
+		if (o == -1) {
+			fprintf(stderr, "Error: Cannot open %s: %m\n", out);
+			return 1;
+		}
+
+		r = write(o, map, bytes);
+		if (r != bytes) {
+			fprintf(stderr, "Error: failed read %s off %lu: %m\n", argv[1], off);
+			ret = 1;
+		}
+		close(o);
+	}
+	close(f1);
+	close(f2);
+	free(map);
+	free(b1);
+	free(b2);
+
+	return ret;
+}
+
+static void usage_cmp(void)
+{
+	fprintf(stderr, "Usage: ploop-cbt cmp file1 file2\n");
+}
+
+static int cmp(int argc, char **argv)
+{
+	int ret = 0, f1, f2;
+	unsigned long n, r, i;
+	struct stat st;
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc != 2) {
+		usage_cmp();
+		return SYSEXIT_PARAM;
+	}
+
+	f1 = open(argv[0], O_RDONLY);
+	if (f1 == -1) {
+		fprintf(stderr, "Error: Cannot open %s: %m\n", argv[0]);
+		return 1;
+	}
+	if (fstat(f1, &st)) {
+		fprintf(stderr, "Error: Cannot fstat %s: %m", argv[0]);
+		close(f1);
+		return 1;
+	}
+
+	f2 = open(argv[1], O_RDONLY);
+	if (f2 == -1) {
+		fprintf(stderr, "Error: Cannot open %s: %m\n", argv[1]);
+		close(f1);
+		return 1;
+	}
+
+	n = st.st_size / sizeof(unsigned long);
+	for (i = 0; i < n; i++) {
+		unsigned long b1, b2;
+		r = read(f1, &b1, sizeof(b1));
+		if (r != sizeof(b1)) {
+			fprintf(stderr, "Error: failed read %s off %lu: %m\n", argv[0], i * sizeof(unsigned long));
+			ret = 1;
+			break;
+		}
+		r = read(f2, &b2, sizeof(b2));
+		if (r != sizeof(b2)) {
+			fprintf(stderr, "Error: failed read %s off %lu: %m\n", argv[1], i * sizeof(unsigned long));
+			ret = 1;
+			break;
+		}
+		if (b1 != b2) {
+			printf("differ off %lu %lx %lx\n", i * sizeof(unsigned long), b1, b2);
+			if (~b1 & b2) {
+				fprintf(stderr, "Failed");
+				ret = 1;
+				break;
+			}
+		}
+	}
+
+	close(f1);
+	close(f2);
+
+	return ret;
+}
+
 int main(int argc, char **argv)
 {
 	char *cmd;
@@ -174,6 +347,10 @@ int main(int argc, char **argv)
 		return drop(argc, argv);
 	if (strcmp(cmd, "show") == 0)
 		return show(argc, argv);
+	if (strcmp(cmd, "diff") == 0)
+		return diff(argc, argv);
+	if (strcmp(cmd, "cmp") == 0)
+		return cmp(argc, argv);
 
 	usage_summary();
 
