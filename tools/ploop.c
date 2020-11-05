@@ -880,7 +880,7 @@ static int plooptool_snapshot_merge(int argc, char ** argv)
 		if (ret)
 			return ret;
 
-//		ret = ploop_delete_snapshot(di, &param);
+		ret = ploop_merge_snapshot(di, &param);
 
 		ploop_close_dd(di);
 	} else {

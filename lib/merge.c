@@ -1125,6 +1125,22 @@ err:
 
 int ploop_merge_snapshot(struct ploop_disk_images_data *di, struct ploop_merge_param *param)
 {
-	return 0;
-}
+	int ret, idx;
 
+	if (ploop_lock_dd(di))
+		return SYSEXIT_LOCK;
+
+	idx = find_snapshot_by_guid(di, param->guid ? param->guid : di->top_guid);
+	if (idx == -1) {
+		ploop_err(0, "Cannot find snapshot by uuid %s", param->guid);
+		ret = SYSEXIT_PARAM;
+		goto err;
+	}
+
+	ret = ploop_delete_snapshot_by_guid(di, di->snapshots[idx]->parent_guid,
+					param->new_delta);
+err:
+	ploop_unlock_dd(di);
+
+	return ret;
+}
