@@ -125,7 +125,20 @@ int dm_resume_device(const char *devname)
 	return cmd(devname, DM_DEVICE_RESUME);
 }
 
+/* hardcodec in LVM2.2.02.186/libdm/ioctl/libdm-iface.c
+#define DM_IOCTL_RETRIES 25
+#define DM_RETRY_USLEEP_DELAY 200000
+*/
+#define DM_RETRY_TIMEOUT       5
 int dm_remove(const char *devname)
 {
-	return cmd(devname, DM_DEVICE_REMOVE);
+	int rc, i;
+
+	for (i = 0; i < PLOOP_UMOUNT_TIMEOUT / DM_RETRY_TIMEOUT; i++) {
+		rc = cmd(devname, DM_DEVICE_REMOVE);
+		if (errno != EBUSY)
+			break;
+	}
+
+	return rc;
 }
