@@ -531,7 +531,7 @@ int is_device_from_devmapper(const char *device)
 int grow_loop_image(const char *delta, const char *ldev,
 		int blocksize, __u64 size)
 {
-	int rc;
+	int rc, fd;
 	char fname[PATH_MAX];
 	__u64 s, upb, l1_size;
 
@@ -546,12 +546,24 @@ int grow_loop_image(const char *delta, const char *ldev,
 		delta = fname;
 	}
 
+	fd = open(delta, O_RDWR|O_CLOEXEC);
+	if (fd == -1) {
+		ploop_err(errno, "Cannot open %s", delta);
+		return SYSEXIT_OPEN;
+	}
+
 	ploop_log(0, "Grow %s up to %llusec", delta, s);
-	if (truncate(delta, S2B(s))) {
+	if (ftruncate(fd, S2B(s))) {
 		ploop_err(errno, "Can not tuncate %s to %llusec",
 				delta, s);
+		close(fd);
 		return SYSEXIT_SYS;
 	}
+
+	rc = fsync_safe(fd);
+	close(fd);
+	if (rc)
+		return rc;
 
 	if (ldev)
 		return loop_set_capacity(ldev);
