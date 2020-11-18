@@ -3279,7 +3279,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		/* Grow or shrink fs but do not change block device size */
 		if (part_dev_size < new_fs_size) {
 			/* sync gpt with new_size */
-			ret = resize_gpt_partition(devname, partname, new_size, blocksize);
+			ret = resize_gpt_partition(devname, partname, 0, blocksize);
 			if (ret)
 				goto err;
 		}
