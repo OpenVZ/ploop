@@ -1,4 +1,4 @@
-import libploopapi
+from libploop import libploopapi
 import threading
 
 class ploopcopy():

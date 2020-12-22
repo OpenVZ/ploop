@@ -373,7 +373,7 @@ static struct PyModuleDef moduledef = {
 	NULL,                /* m_free */
 };
 
-PyMODINIT_FUNC libploopapi(void)
+PyMODINIT_FUNC PyInit_libploopapi(void)
 {
 	return PyModule_Create(&moduledef);
 }
