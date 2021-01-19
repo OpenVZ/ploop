@@ -62,6 +62,7 @@ struct ploop_check_desc {
 	int   *clean;
 	int   *fatality;
 	__u32 *alloc_head;
+	int ndup;
 };
 
 int read_safe(int fd, void * buf, unsigned int size, off_t pos, char *msg)
@@ -178,7 +179,7 @@ static int check_one_slot(struct ploop_check_desc *d, __u32 clu, off_t isec,
 		if (d->bmap[iblk / 32] & (1 << (iblk % 32))) {
 			ploop_log(0, "Block %u is used more than once, vsec=%u... ",
 				iblk, clu);
-			zero_index_fix(d, clu, HARD_FIX, IGNORE, FATAL);
+			d->ndup++;
 		}
 		d->bmap[iblk / 32] |= (1 << (iblk % 32));
 	}
@@ -634,6 +635,7 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 	d.clean	     = &clean;
 	d.fatality   = &fatality;
 	d.alloc_head = &alloc_head;
+	d.ndup	     = 0;
 
 	for (i = 0; i < l1_slots; i++) {
 		int skip = (i == 0) ? sizeof(*vh) / sizeof(__u32) : 0;
@@ -655,6 +657,17 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 		}
 	}
 
+	free(bmap); bmap = NULL;
+	d.bmap = NULL;
+
+	if (d.ndup != 0) {
+		if (hard_force) {
+			ret = ploop_image_dedup(img, &alloc_head);
+			if (ret)
+				goto done;
+		} else
+			fatality = 1;
+	}
 	alloc_head++;
 
 	if (fatality) {

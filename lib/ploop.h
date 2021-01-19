@@ -277,7 +277,7 @@ void init_delta_array(struct delta_array *);
 void deinit_delta_array(struct delta_array * p);
 int extend_delta_array(struct delta_array * p, char * path, int rw, int od_flags);
 void close_delta(struct delta *delta);
-int open_delta(struct delta * delta, const char * path, int rw, int od_flags);
+PL_EXT int open_delta(struct delta * delta, const char * path, int rw, int od_flags);
 int open_delta_simple(struct delta * delta, const char * path, int rw, int od_flags);
 int change_delta_version(struct delta *delta, int version);
 int change_delta_flags(struct delta * delta, __u32 flags);
@@ -556,6 +556,7 @@ int fsync_safe(int fd);
 int build_hole_bitmap(struct delta *delta, __u64 **hole_bitmap,
 		__u32 *hole_bitmap_size, int *nr_clusters);
 int image_defrag(struct delta *delta);
+int ploop_image_dedup(const char *image, __u32 *alloc_head);
 int do_umount(const char *mnt, int tmo_sec);
 int get_part_devname(struct ploop_disk_images_data *di,
 		const char *device, char *devname, int dlen,
