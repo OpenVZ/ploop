@@ -81,7 +81,7 @@ static int reallocate_cluster(struct delta *delta, __u32 clu,
 	s = (off_t)src * cluster;
 	d = (off_t)dst * cluster;
 
-	ploop_log(0, "Reallocate cluster #%d data from %u/off: %lu to %u/off: %lu",
+	ploop_log(0, "Copying the data of cluster #%d from %u/off: %lu to %u/off: %lu",
 			clu, src, s, dst, d);
 	rc = copy_range(delta->fd, s, delta->fd, d, cluster, buf);
 	free(buf);
@@ -262,6 +262,90 @@ int ploop_image_shuffle(const char *image, int nr, int flags)
 			break;
 	}
 
+err:
+	free(hole_bitmap);
+	close_delta(&d);
+
+	return rc;
+}
+
+static int do_dedup(struct delta *delta, __u64 *hole_bitmap,
+		int size, __u32 *alloc_head)
+{
+	unsigned int i, rc, dst = 0, n = 0, log;
+	__u32 cluster, iblk, nblk;
+	__u32 *bmap = NULL;
+
+	log = ploop_fmt_log(delta->version);
+	cluster = S2B(delta->blocksize);
+	nblk = delta->l1_size + delta->l2_size;
+	bmap = calloc(1, (nblk + 31) / 8);
+	if (bmap == NULL) {
+		ploop_err(ENOMEM, "malloc");
+		return SYSEXIT_MALLOC;
+	}
+
+	for (i = 0; i < delta->l1_size  ; i++)
+		bmap[i / 32] |= 1 << (i % 32);
+
+	for (i = 0; i < delta->l2_size; i++) {
+		int l2_cluster = (i + PLOOP_MAP_OFFSET) / (cluster / sizeof(__u32));
+		__u32 l2_slot  = (i + PLOOP_MAP_OFFSET) % (cluster / sizeof(__u32));
+		if (delta->l2_cache != l2_cluster) {
+			if (PREAD(delta, delta->l2, cluster, (off_t)l2_cluster * cluster))
+				return -1;
+			delta->l2_cache = l2_cluster;
+		}
+
+		if (delta->l2[l2_slot] == 0)
+			continue;
+
+		iblk = delta->l2[l2_slot] >> log;
+		if (iblk > nblk)
+			continue;
+
+		if (!(bmap[iblk / 32] & (1 << ( iblk% 32)))) {
+			bmap[iblk / 32] |= (1 << (iblk % 32));
+			continue;
+		}
+		bmap[iblk / 32] |= (1 << (iblk % 32));
+
+		dst = BitFindNextSet64(hole_bitmap, size, dst);
+		if (dst == -1)
+			dst++;
+
+		rc = reallocate_cluster(delta, i, iblk, dst);
+		if (rc)
+			goto err;
+		if (alloc_head && *alloc_head < dst)
+			*alloc_head = dst;
+		dst++;
+		n++;
+	}
+
+	ploop_log(0, "%d clusters were deduplicated", n);
+err:
+	free(bmap);
+	return rc;
+}
+
+
+int ploop_image_dedup(const char *image, __u32 *alloc_head)
+{
+	int rc, nr_clusters;
+	__u32 size;
+	__u64 *hole_bitmap;
+	struct delta d = {};
+
+	rc = open_delta(&d, image, O_RDWR, OD_ALLOW_DIRTY);
+	if (rc)
+		return rc;
+
+	rc = build_hole_bitmap(&d, &hole_bitmap, &size, &nr_clusters);
+	if (rc)
+		goto err;
+
+	rc = do_dedup(&d, hole_bitmap, size, alloc_head);
 err:
 	free(hole_bitmap);
 	close_delta(&d);
