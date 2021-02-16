@@ -73,7 +73,7 @@ struct ploop_pvd_header
 	__u32 m_DiskInUse;        /* Disk in use */
 	__u32 m_FirstBlockOffset; /* First data block offset (in sectors) */
 	__u32 m_Flags;            /* Misc flags */
-	__u64 m_FormatExtensionOffset; /* Optional header offset in bytes */
+	__u64 m_FormatExtensionOffset; /* Optional header offset in sectors */
 };
 
 /*
