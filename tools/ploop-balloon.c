@@ -74,6 +74,8 @@ static int fill_opts(void)
 		}
 
 		device = _device;
+		if (device && mount_point)
+			return 0;
 	}
 
 	if (!device && mount_point) {
@@ -191,6 +193,7 @@ static int pb_status(int argc, char **argv)
 
 	if (device == NULL) {
 		GET_DD(argc, argv);
+		mount_point = "";
 		if (argc != 0 || fill_opts()) {
 			usage_status();
 			return SYSEXIT_PARAM;
