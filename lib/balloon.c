@@ -43,7 +43,7 @@
 #define EXT4_IOC_OPEN_BALLOON		_IO('f', 42)
 
 #define BIN_E4DEFRAG2	"/usr/sbin/e4defrag2"
-#define BIN_E4DEFRAG	"/usr/sbin/e4defrag"
+#define BIN_E4DEFRAG	"/usr/sbin/ploop-e4defrag"
 
 
 char *mntn2str(int mntn_type)
