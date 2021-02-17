@@ -3,6 +3,7 @@ PLOOPROOT = ..
 include $(PLOOPROOT)/Makefile.inc
 
 PROGS =	ploop \
+	ploop-e4defrag \
 	ploop-balloon \
 	ploop-cbt \
 	ploop-test \
