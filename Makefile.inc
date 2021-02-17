@@ -38,7 +38,7 @@ CFLAGS := $(if $(DEBUG),-g -O0 -DDEBUG,-O2) $(CFLAGS)
 CFLAGS += -I. -I../include -fno-strict-aliasing \
 	-Wall -Wstrict-prototypes -Werror -Wformat-security \
 	-D_GNU_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 \
-	-DPRODUCT_NAME_SHORT=\"$(PRODUCT_NAME_SHORT)\"
+	-DPRODUCT_NAME_SHORT=\"$(PRODUCT_NAME_SHORT)\" -Werror=maybe-uninitialized
 CFLAGS += $(RPM_OPT_FLAGS) $(CPPFLAGS)
 CFLAGS += $(if $(PLOOP_LOG_FILE), -DPLOOP_LOG_FILE=\"$(PLOOP_LOG_FILE)\")
 #CFLAGS += -DDEBUG_TIMES
