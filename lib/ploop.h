@@ -67,10 +67,12 @@
 #define CHECK_DEFRAG		0x100
 #define CHECK_SYNC_BAT		0x200
 #define CHECK_LIVE		0x400
+#define CHECK_EXT		0x800
 
 /* load/remove dirty bitmap flags */
 #define DIRTY_BITMAP_REMOVE	0x01
 #define DIRTY_BITMAP_TRUNCATE	0x02
+#define DIRTY_BITMAP_CHECK	0x04
 
 #define S2B(sec) ((off_t)(sec) << PLOOP1_SECTOR_LOG)
 #define B2S(sec) ((sec) >> PLOOP1_SECTOR_LOG)

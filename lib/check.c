@@ -33,6 +33,7 @@
 #include <linux/fiemap.h>
 
 #include "ploop.h"
+#include "cbt.h"
 
 #define EXT4_IOC_CLEAR_ES_CACHE	_IO('f', 40)
 
@@ -678,6 +679,12 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 
 	if (live)
 		goto done;
+
+	ret = check_ext(img, flags);
+	if (ret) {
+		ploop_err(0, "Fatal errors were found, image %s is not repaired", img);
+		goto done;
+	}
 
 	if (disk_in_use && (off_t)alloc_head * cluster < stb.st_size) {
 		if (!ro) {

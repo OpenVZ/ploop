@@ -53,7 +53,7 @@ static void usage(void)
 int plooptool_check(int argc, char ** argv)
 {
 	int i, idx, ret;
-	int flags = CHECK_TALKATIVE;
+	int flags = CHECK_TALKATIVE | CHECK_EXT;
 	unsigned int blocksize = 0;
 	char *endptr;
 	const char *uuid = NULL;
