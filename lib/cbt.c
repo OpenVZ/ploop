@@ -768,7 +768,7 @@ static int check_ext_blocks_from_raw(struct ext_context *ctx,
 		struct ploop_pvd_dirty_bitmap_raw *raw,
 		struct ploop_pvd_header *vh)
 {
-	__u64 *p, start_sec;
+	__u64 *p, start_sec, size;
 	int ret = 0;
 
 	if (raw == NULL)
@@ -787,6 +787,12 @@ static int check_ext_blocks_from_raw(struct ext_context *ctx,
 				*p, start_sec, vh->m_FormatExtensionOffset);
 			ret = SYSEXIT_PLOOPFMT;
 		}
+	}
+
+	size = (vh->m_Sectors * SECTOR_SIZE) - (raw->m_L1Size * sizeof(__u64));
+	if (!is_zero_block(p, size)) {
+		ploop_err(0, "L1 extension table is not zeroed beyond end of the virtual image size");
+		ret = SYSEXIT_PLOOPFMT;
 	}
 
 	return ret;
