@@ -669,7 +669,6 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 		} else
 			fatality = 1;
 	}
-	alloc_head++;
 
 	if (fatality) {
 		ploop_err(0, "Fatal errors were found, image %s is not repaired", img);
@@ -680,16 +679,17 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 	if (live)
 		goto done;
 
-	ret = check_ext(img, flags);
+	ret = check_ext(img, alloc_head, flags);
 	if (ret) {
 		ploop_err(0, "Fatal errors were found, image %s is not repaired", img);
 		goto done;
 	}
 
+	alloc_head++;
 	if (disk_in_use && (off_t)alloc_head * cluster < stb.st_size) {
 		if (!ro) {
 			ploop_log(0, "Max cluster: %d (image size %lu) trimming tail",
-					alloc_head, stb.st_size);
+					alloc_head-1, stb.st_size);
 			if (ftruncate(fd, (off_t)alloc_head * cluster)) {
 				ploop_err(errno, "ftruncate");
 				ret = SYSEXIT_FTRUNCATE;

@@ -98,6 +98,7 @@ struct ext_context
 	list_head_t ext_blocks_head;
 	struct ploop_pvd_dirty_bitmap_raw *raw;
 	int release_raw_L1;
+	__u64 num_data_cluster;
 };
 
 static const char *uuid2str(const __u8 *u, char *buf)
@@ -121,12 +122,11 @@ static int add_ext_block(struct ext_context *ctx, __u64 offset)
 
 struct ext_context *create_ext_context(void)
 {
-	struct ext_context *ctx = (struct ext_context *)malloc(sizeof(*ctx));
+	struct ext_context *ctx = (struct ext_context *)calloc(1, sizeof(*ctx));
 	if (ctx == NULL)
 		return NULL;
 
 	list_head_init(&ctx->ext_blocks_head);
-	ctx->raw = NULL;
 	return ctx;
 }
 
@@ -193,7 +193,6 @@ static int truncate_ext_blocks(struct ext_context *ctx, struct delta *delta,
 	list_head_init(&ctx->ext_blocks_head);
 
 	if (size < stat.st_size) {
-		ploop_log(0, "truncate_ext_blocks: ftruncate(%llu)", size);
 		if (ftruncate(delta->fd, size)) {
 			ploop_err(errno, "ftruncate to %llu", size);
 			return SYSEXIT_FTRUNCATE;
@@ -765,6 +764,34 @@ err:
 	return ret;
 }
 
+static int check_ext_blocks_from_raw(struct ext_context *ctx,
+		struct ploop_pvd_dirty_bitmap_raw *raw,
+		struct ploop_pvd_header *vh)
+{
+	__u64 *p, start_sec;
+	int ret = 0;
+
+	if (raw == NULL)
+		return 0;
+
+	start_sec = (ctx->num_data_cluster + 1) * vh->m_Sectors;
+	for (p = raw->m_L1; p < raw->m_L1 + raw->m_L1Size; ++p) {
+		if (*p <= 1)
+			continue;
+		if (*p % vh->m_Sectors) {
+			ploop_err(0, "L1 extension table pointer %llu is not alligned to cluster", *p);
+			ret = SYSEXIT_PLOOPFMT;
+		}
+		if (*p > vh->m_FormatExtensionOffset || *p < start_sec) {
+			ploop_err(0, "L1 extension table pointer %llu corrupted, start: %llu end: %llu",
+				*p, start_sec, vh->m_FormatExtensionOffset);
+			ret = SYSEXIT_PLOOPFMT;
+		}
+	}
+
+	return ret;
+}
+
 static int add_ext_blocks_from_raw(struct ext_context *ctx,
 		struct ploop_pvd_dirty_bitmap_raw *raw)
 {
@@ -815,16 +842,16 @@ static int load_dirty_bitmap(struct ext_context *ctx, struct delta *delta,
 
 	if (raw->m_Size != vh->m_SizeInSectors_v2) {
 		ploop_err(0, "Image size is not equal to dirty_bitmap size");
-		return SYSEXIT_PROTOCOL;
+		return SYSEXIT_PLOOPFMT;
 	}
 
 	if (size < sizeof(*raw) + sizeof(raw->m_L1[0]) * raw->m_L1Size) {
 		ploop_err(0, "Spoiled bitmap extension data");
-		return SYSEXIT_PROTOCOL;
+		return SYSEXIT_PLOOPFMT;
 	}
 
 	if (flags & DIRTY_BITMAP_CHECK)
-		return 0;
+		return check_ext_blocks_from_raw(ctx, raw, vh);;
 
 	if (flags & DIRTY_BITMAP_REMOVE)
 		return add_ext_blocks_from_raw(ctx, ctx->raw ?: raw);
@@ -1031,7 +1058,7 @@ int read_optional_header_from_image(struct ext_context *ctx,
 	return ret;
 }
 
-int check_ext(const char *image, int flags)
+int check_ext(const char *image, __u32 nclusters, int flags)
 {
 	int ret;
 	struct ext_context *ctx;
@@ -1043,7 +1070,7 @@ int check_ext(const char *image, int flags)
 	ctx = create_ext_context();
 	if (ctx == NULL)
 		return SYSEXIT_MALLOC;
-
+	ctx->num_data_cluster = nclusters;
 	ret = read_optional_header_from_image(ctx, image,
 			 DIRTY_BITMAP_CHECK | (drop ? DIRTY_BITMAP_TRUNCATE : 0));
 	free_ext_context(ctx);
