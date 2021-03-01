@@ -189,12 +189,10 @@ static int pb_status(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if (device == NULL) {
-		GET_DD(argc, argv);
-		if (argc != 0 || fill_opts()) {
-			usage_status();
-			return SYSEXIT_PARAM;
-		}
+	GET_DD(argc, argv);
+	if (argc != 0 || fill_opts()) {
+		usage_status();
+		return SYSEXIT_PARAM;
 	}
 
 	ret = ploop_balloon_get_state(device, &state);
