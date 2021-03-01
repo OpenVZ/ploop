@@ -603,6 +603,7 @@ err:
 int ploop_balloon_complete(const char *device)
 {
 	int fd, err;
+	int retry = -1;
 	struct ploop_balloon_ctl b_ctl;
 
 	fd = open_device(device);
@@ -615,7 +616,8 @@ int ploop_balloon_complete(const char *device)
 		err = SYSEXIT_DEVIOC;
 		goto out;
 	}
-
+retry:
+	retry++;
 	memset(&b_ctl, 0, sizeof(b_ctl));
 	b_ctl.keep_intact = 2;
 	err = ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
@@ -631,8 +633,18 @@ int ploop_balloon_complete(const char *device)
 		ploop_log(0, "Nothing to complete: kernel is in \"%s\" state",
 			mntn2str(b_ctl.mntn_type));
 		goto out;
+	case PLOOP_MNTN_DISCARD:
+		err = ioctl(fd, PLOOP_IOC_DISCARD_FINI);
+		if (err && errno != EBUSY)
+			ploop_err(errno, "Can't finalize discard mode");
+		break;
 	case PLOOP_MNTN_RELOC:
+		err = ploop_balloon_relocation(fd, &b_ctl, device);
+		break;
 	case PLOOP_MNTN_FBLOADED:
+		err = ioctl_device(fd, PLOOP_IOC_FBDROP, 0);
+		if (err == 0 && retry == 0)
+			goto retry;
 		break;
 	default:
 		ploop_err(0, "Error: unknown mntn_type (%u)",
@@ -641,7 +653,6 @@ int ploop_balloon_complete(const char *device)
 		goto out;
 	}
 
-	err = ploop_balloon_relocation(fd, &b_ctl, device);
 out:
 	close(fd);
 	return err;
