@@ -3724,12 +3724,12 @@ int ploop_change_fmt_version(struct ploop_disk_images_data *di, int new_version,
 	struct ploop_pvd_header *vh;
 
 	init_delta_array(&da);
-	if (new_version != PLOOP_FMT_V1 && new_version != PLOOP_FMT_V2) {
+	if (new_version != PLOOP_FMT_V2) {
 		ploop_err(0, "Incorrect version is specified");
 		return SYSEXIT_PARAM;
 	}
 
-	if (new_version == PLOOP_FMT_V2 && !ploop_is_large_disk_supported()) {
+	if (!ploop_is_large_disk_supported()) {
 		ploop_err(0, "The PLOOP_FMT_V2 is not supported by kernel");
 		return SYSEXIT_PARAM;
 	}
@@ -3758,14 +3758,6 @@ int ploop_change_fmt_version(struct ploop_disk_images_data *di, int new_version,
 		if (extend_delta_array(&da, di->images[i]->file,
 					O_RDWR, OD_OFFLINE)) {
 			ret = SYSEXIT_OPEN;
-			goto err;
-		}
-		if (new_version == PLOOP_FMT_V1 &&
-		    ((off_t)da.delta_arr[i].l2_size * da.delta_arr[i].blocksize) > 0xffffffff)
-		{
-			ret = SYSEXIT_PARAM;
-			ploop_err(0, "Unable to convert image to PLOOP_FMT_V1:"
-					" the image size is not compatible");
 			goto err;
 		}
 	}
