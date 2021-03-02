@@ -779,11 +779,11 @@ static int check_ext_blocks_from_raw(struct ext_context *ctx,
 		if (*p <= 1)
 			continue;
 		if (*p % vh->m_Sectors) {
-			ploop_err(0, "L1 extension table pointer %llu is not alligned to cluster", *p);
+			ploop_err(0, "The L1 extension table pointer %llu is not aligned to the cluster", *p);
 			ret = SYSEXIT_PLOOPFMT;
 		}
 		if (*p > vh->m_FormatExtensionOffset || *p < start_sec) {
-			ploop_err(0, "L1 extension table pointer %llu corrupted, start: %llu end: %llu",
+			ploop_err(0, "The L1 extension table pointer %llu corrupted, start: %llu end: %llu",
 				*p, start_sec, vh->m_FormatExtensionOffset);
 			ret = SYSEXIT_PLOOPFMT;
 		}
@@ -791,7 +791,7 @@ static int check_ext_blocks_from_raw(struct ext_context *ctx,
 
 	size = (vh->m_Sectors * SECTOR_SIZE) - (raw->m_L1Size * sizeof(__u64));
 	if (!is_zero_block(p, size)) {
-		ploop_err(0, "L1 extension table is not zeroed beyond end of the virtual image size");
+		ploop_err(0, "The L1 extension table is not zeroed beyond the end of the virtual image size");
 		ret = SYSEXIT_PLOOPFMT;
 	}
 
@@ -948,7 +948,7 @@ static int delta_load_optional_header(struct ext_context *ctx,
 	}
 
 	if (vh->m_FormatExtensionOffset % vh->m_Sectors) {
-		ploop_err(0, "FormatExtensionOffset %llu s not alligned to cluster %u",
+		ploop_err(0, "FormatExtensionOffset %llu is not aligned to cluster %u",
 				vh->m_FormatExtensionOffset, vh->m_Sectors);
 		goto drop_optional_hdr;
 	}

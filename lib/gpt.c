@@ -260,7 +260,7 @@ static int update_gpt_partition(int fd, const char *devname, __u64 new_size512,
 	 * use blocksize == 1Mbytes if not specified
 	 */
 	blocksize = (blocksize512 ?: DEF_CLUSTER) * SECTOR_SIZE / sector_size;
-	/* GPT header (1sec) + partition entries (16K) alligned to sector size */
+	/* GPT header (1sec) + partition entries (16K) aligned to sector size */
 	gpt_size_bytes = sector_size + ROUNDUP(GPT_PT_ENTRY_SIZE, sector_size);
 
 	ploop_log(1, "Update GPT partition to %ldsec (%d)",

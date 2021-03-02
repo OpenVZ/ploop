@@ -159,7 +159,7 @@ static int check_one_slot(struct ploop_check_desc *d, __u32 clu, off_t isec,
 	__u32 iblk = isec >> cluster_log;
 
 	if ((clu << cluster_log) > d->bd_size) {
-		ploop_log(0, "Data cluster (%u) beyond block device size... ",
+		ploop_log(0, "Data cluster (%u) is beyond block device size... ",
 				clu);
 		return zero_index_fix(d, clu, SOFT_FIX, ZEROFIX, NONFATAL);
 	}
@@ -171,7 +171,7 @@ static int check_one_slot(struct ploop_check_desc *d, __u32 clu, off_t isec,
 	}
 
 	if ((off_t)iblk * cluster + cluster > d->size) {
-		ploop_log(0, "Data cluster %u beyond EOF, vsec=%u... ",
+		ploop_log(0, "Data cluster %u is beyond EOF, vsec=%u... ",
 			iblk, clu);
 		return zero_index_fix(d, clu, HARD_FIX, ZEROFIX, FATAL);
 	}
@@ -566,7 +566,7 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 	if (stb.st_size % cluster) {
 		off_t size = ROUNDUP(stb.st_size, cluster);
 
-		ploop_err(0, "Image size %lu is not alligned to cluster %llu",
+		ploop_err(0, "Image size %lu is not aligned to cluster %llu",
 				stb.st_size, cluster);
 		if (!disk_in_use && (!force || ro)) {
 			ret = SYSEXIT_PLOOPFMT;
@@ -671,7 +671,7 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 	}
 
 	if (fatality) {
-		ploop_err(0, "Fatal errors were found, image %s is not repaired", img);
+		ploop_err(0, "Fatal errors were found, image %s was not repaired", img);
 		ret = SYSEXIT_PLOOPFMT;
 		goto done;
 	}
@@ -681,7 +681,7 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 
 	ret = check_ext(img, alloc_head, flags);
 	if (ret) {
-		ploop_err(0, "Fatal errors were found, image %s is not repaired", img);
+		ploop_err(0, "Fatal errors were found, image %s was not repaired", img);
 		goto done;
 	}
 
