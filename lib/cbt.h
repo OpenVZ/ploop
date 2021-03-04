@@ -31,6 +31,7 @@ struct ext_context;
 
 void free_ext_context(struct ext_context *ctx);
 struct ext_context *create_ext_context(void);
+int check_ext(const char *image, __u32 nclusters, int flags);
 int read_optional_header_from_image(struct ext_context *ctx,
 		const char *img_name, int flags);
 int write_empty_cbt_to_image(const char *fname, const char *prev_fname,

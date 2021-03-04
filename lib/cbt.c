@@ -38,7 +38,6 @@
 #include "ploop.h"
 #include "cbt.h"
 
-
 static __u64 MIN(__u64 a, __u64 b)
 {
 	return a < b ? a : b;
@@ -99,6 +98,7 @@ struct ext_context
 	list_head_t ext_blocks_head;
 	struct ploop_pvd_dirty_bitmap_raw *raw;
 	int release_raw_L1;
+	__u64 num_data_cluster;
 };
 
 static const char *uuid2str(const __u8 *u, char *buf)
@@ -122,12 +122,11 @@ static int add_ext_block(struct ext_context *ctx, __u64 offset)
 
 struct ext_context *create_ext_context(void)
 {
-	struct ext_context *ctx = (struct ext_context *)malloc(sizeof(*ctx));
+	struct ext_context *ctx = (struct ext_context *)calloc(1, sizeof(*ctx));
 	if (ctx == NULL)
 		return NULL;
 
 	list_head_init(&ctx->ext_blocks_head);
-	ctx->raw = NULL;
 	return ctx;
 }
 
@@ -765,6 +764,40 @@ err:
 	return ret;
 }
 
+static int check_ext_blocks_from_raw(struct ext_context *ctx,
+		struct ploop_pvd_dirty_bitmap_raw *raw,
+		struct ploop_pvd_header *vh)
+{
+	__u64 *p, start_sec, size;
+	int ret = 0;
+
+	if (raw == NULL)
+		return 0;
+
+	start_sec = (ctx->num_data_cluster + 1) * vh->m_Sectors;
+	for (p = raw->m_L1; p < raw->m_L1 + raw->m_L1Size; ++p) {
+		if (*p <= 1)
+			continue;
+		if (*p % vh->m_Sectors) {
+			ploop_err(0, "The L1 extension table pointer %llu is not aligned to the cluster", *p);
+			ret = SYSEXIT_PLOOPFMT;
+		}
+		if (*p > vh->m_FormatExtensionOffset || *p < start_sec) {
+			ploop_err(0, "The L1 extension table pointer %llu corrupted, start: %llu end: %llu",
+				*p, start_sec, vh->m_FormatExtensionOffset);
+			ret = SYSEXIT_PLOOPFMT;
+		}
+	}
+
+	size = (vh->m_Sectors * SECTOR_SIZE) - (raw->m_L1Size * sizeof(__u64));
+	if (!is_zero_block(p, size)) {
+		ploop_err(0, "The L1 extension table is not zeroed beyond the end of the virtual image size");
+		ret = SYSEXIT_PLOOPFMT;
+	}
+
+	return ret;
+}
+
 static int add_ext_blocks_from_raw(struct ext_context *ctx,
 		struct ploop_pvd_dirty_bitmap_raw *raw)
 {
@@ -803,7 +836,7 @@ static int read_size_in_sectors_from_image(const char *img_name, __u64 *size)
 }
 
 static int load_dirty_bitmap(struct ext_context *ctx, struct delta *delta,
-		void *buf, __u32 size, int only_truncate)
+		void *buf, __u32 size, int flags)
 {
 	struct ploop_pvd_header *vh;
 	struct ploop_pvd_dirty_bitmap_raw *raw = (struct ploop_pvd_dirty_bitmap_raw *)buf;
@@ -815,15 +848,18 @@ static int load_dirty_bitmap(struct ext_context *ctx, struct delta *delta,
 
 	if (raw->m_Size != vh->m_SizeInSectors_v2) {
 		ploop_err(0, "Image size is not equal to dirty_bitmap size");
-		return SYSEXIT_PROTOCOL;
+		return SYSEXIT_PLOOPFMT;
 	}
 
 	if (size < sizeof(*raw) + sizeof(raw->m_L1[0]) * raw->m_L1Size) {
 		ploop_err(0, "Spoiled bitmap extension data");
-		return SYSEXIT_PROTOCOL;
+		return SYSEXIT_PLOOPFMT;
 	}
 
-	if (only_truncate)
+	if (flags & DIRTY_BITMAP_CHECK)
+		return check_ext_blocks_from_raw(ctx, raw, vh);;
+
+	if (flags & DIRTY_BITMAP_REMOVE)
 		return add_ext_blocks_from_raw(ctx, ctx->raw ?: raw);
 
 	if (p_memalign((void **)&ctx->raw, 4096, size))
@@ -897,7 +933,8 @@ static int delta_load_optional_header(struct ext_context *ctx,
 	struct ploop_pvd_ext_block_check *hc;
 	struct ploop_pvd_ext_block_element_header *h;
 	unsigned char hash[16];
-	__u8 *block, *end;
+	struct stat st;
+	__u8 *block = NULL, *end;
 
 	vh = (struct ploop_pvd_header *)delta->hdr0;
 
@@ -905,10 +942,27 @@ static int delta_load_optional_header(struct ext_context *ctx,
 			vh->m_DiskInUse == SIGNATURE_DISK_CLOSED_V20)
 		return 0;
 
+	if (fstat(delta->fd, &st)) {
+		ploop_err(errno, "Can not fstat");
+		return SYSEXIT_FSTAT;
+	}
+
+	if (vh->m_FormatExtensionOffset % vh->m_Sectors) {
+		ploop_err(0, "FormatExtensionOffset %llu is not aligned to cluster %u",
+				vh->m_FormatExtensionOffset, vh->m_Sectors);
+		goto drop_optional_hdr;
+	}
+
+	if (S2B(vh->m_FormatExtensionOffset) > st.st_size) {
+		ploop_err(0, "FormatExtensionOffset %ld beyond EOF (%ld)",
+			S2B(vh->m_FormatExtensionOffset), st.st_size);
+		goto drop_optional_hdr;
+	}
+
 	if (vh->m_DiskInUse != SIGNATURE_DISK_CLOSED_V21) {
 		ploop_err(0, "Can't load dirty_bitmap, "
 				  "because image was not successfully closed");
-		return SYSEXIT_PROTOCOL;
+		goto drop_optional_hdr;
 	}
 
 	block_size = vh->m_Sectors * SECTOR_SIZE;
@@ -927,14 +981,12 @@ static int delta_load_optional_header(struct ext_context *ctx,
 	hc = (struct ploop_pvd_ext_block_check *)block;
 	if (hc->m_Magic != FORMAT_EXTENSION_MAGIC) {
 		ploop_err(0, "Wrong optional header magic");
-		ret = SYSEXIT_PROTOCOL;
 		goto drop_optional_hdr;
 	}
 
 	MD5((const unsigned char *)(hc + 1), block_size - sizeof(*hc), hash);
 	if (memcmp(hash, hc->m_Md5, 16) != 0) {
 		ploop_err(0, "Wrong optional header checksum");
-		ret = SYSEXIT_PROTOCOL;
 		goto drop_optional_hdr;
 	}
 
@@ -949,20 +1001,21 @@ static int delta_load_optional_header(struct ext_context *ctx,
 		__u8 *data = (__u8 *)(h + 1);
 		if ((__u8 *)(h + 1) > end || (data + h->size) > end) {
 			ploop_err(0, "Spoiled optional header");
-			ret = SYSEXIT_PROTOCOL;
-			goto out;
+			goto drop_optional_hdr;
 		}
 
 		if (h->magic == 0)
 			break;
 
 		if (h->magic == EXT_MAGIC_DIRTY_BITMAP)
-			if ((ret = load_dirty_bitmap(ctx, delta, data, h->size,
-					 flags & DIRTY_BITMAP_REMOVE)))
-				goto out;
+			if ((ret = load_dirty_bitmap(ctx, delta, data, h->size, flags)))
+				goto drop_optional_hdr;
 
 		h = (struct ploop_pvd_ext_block_element_header *)(data + h->size);
 	}
+
+	if (flags & DIRTY_BITMAP_CHECK)
+		goto out;
 
 	if (flags & (DIRTY_BITMAP_REMOVE | DIRTY_BITMAP_TRUNCATE)) {
 		ret = truncate_ext_blocks(ctx, delta, block_size);
@@ -976,13 +1029,17 @@ out:
 	return ret;
 
 drop_optional_hdr:
+
+	ret = SYSEXIT_PLOOPFMT;
 	if (flags & DIRTY_BITMAP_TRUNCATE) {
 		ploop_err(0, "Drop optional header");
 		vh->m_FormatExtensionOffset = 0;
 		if (vh->m_DiskInUse == SIGNATURE_DISK_CLOSED_V21)
 			vh->m_DiskInUse = SIGNATURE_DISK_CLOSED_V20;
-		if (PWRITE(delta, vh, sizeof(*vh), 0))
+		if (PWRITE(delta, vh, sizeof(*vh), 0)) {
 			ploop_err(errno, "Can't write header");
+			ret = SYSEXIT_WRITE;
+		}
 	}
 
 	goto out;
@@ -1003,6 +1060,28 @@ int read_optional_header_from_image(struct ext_context *ctx,
 
 	ret = delta_load_optional_header(ctx, &delta, flags);
 	close_delta(&delta);
+
+	return ret;
+}
+
+int check_ext(const char *image, __u32 nclusters, int flags)
+{
+	int ret;
+	struct ext_context *ctx;
+	int drop = (flags & CHECK_HARDFORCE);
+
+	if (!(flags & CHECK_EXT))
+		return 0;
+
+	ctx = create_ext_context();
+	if (ctx == NULL)
+		return SYSEXIT_MALLOC;
+	ctx->num_data_cluster = nclusters;
+	ret = read_optional_header_from_image(ctx, image,
+			 DIRTY_BITMAP_CHECK | (drop ? DIRTY_BITMAP_TRUNCATE : 0));
+	free_ext_context(ctx);
+	if (drop && ret == SYSEXIT_PLOOPFMT)
+		return 0;
 
 	return ret;
 }

@@ -67,10 +67,12 @@
 #define CHECK_DEFRAG		0x100
 #define CHECK_SYNC_BAT		0x200
 #define CHECK_LIVE		0x400
+#define CHECK_EXT		0x800
 
 /* load/remove dirty bitmap flags */
 #define DIRTY_BITMAP_REMOVE	0x01
 #define DIRTY_BITMAP_TRUNCATE	0x02
+#define DIRTY_BITMAP_CHECK	0x04
 
 #define S2B(sec) ((off_t)(sec) << PLOOP1_SECTOR_LOG)
 #define B2S(sec) ((sec) >> PLOOP1_SECTOR_LOG)
@@ -580,6 +582,7 @@ int get_pctl_type_by_dev(const char *dev, pctl_type_t *type);
 int get_discard_granularity(const char *dev, __u64 *granularity);
 int read_conf(struct conf_data *conf);
 int repair_sparse(const char *image, __u64 cluster, int flags);
+int is_zero_block(void *buf, __u64 size);
 int dm_suspend_device(const char *devname);
 int dm_resume_device(const char *devname);
 int dm_remove(const char *devname);

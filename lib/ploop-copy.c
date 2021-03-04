@@ -633,7 +633,7 @@ static int send_async(struct ploop_copy_handle *h, struct chunk *chunk)
 	return 0;
 }
 
-static int is_zero_block(void *buf, __u64 size)
+int is_zero_block(void *buf, __u64 size)
 {
 	return *(__u64 *)buf == 0 &&
 		!memcmp(buf, buf + sizeof(__u64), size - sizeof(__u64));
