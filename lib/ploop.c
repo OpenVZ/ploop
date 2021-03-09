@@ -51,6 +51,7 @@ static int ploop_mount_fs(struct ploop_disk_images_data *di,
 		const char *partname,	struct ploop_mount_param *param,
 		int need_balloon);
 static int ploop_umount_fs(const char *mnt, struct ploop_disk_images_data *di);
+static int do_change_fmt_version(struct ploop_disk_images_data *di, int new_version);
 
 static off_t round_bdsize(off_t size, __u32 blocksize, int version)
 {
@@ -2484,6 +2485,10 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 	if (ret)
 		goto err;
 
+	ret = do_change_fmt_version(di, PLOOP_FMT_V2);
+	if (ret)
+		goto err;
+
 	ret = add_deltas(di, images, param, raw, blocksize, &lfd, &load_cbt);
 	if (ret)
 		goto err;
@@ -3716,32 +3721,15 @@ err:
 	return ret;
 }
 
-int ploop_change_fmt_version(struct ploop_disk_images_data *di, int new_version, int flags)
+int do_change_fmt_version(struct ploop_disk_images_data *di, int new_version)
 {
 	char fname[PATH_MAX];
 	struct delta_array da = {};
 	int ret = 0, rc, i;
 	struct ploop_pvd_header *vh;
+	int convert = 0;
 
 	init_delta_array(&da);
-	if (new_version != PLOOP_FMT_V1 && new_version != PLOOP_FMT_V2) {
-		ploop_err(0, "Incorrect version is specified");
-		return SYSEXIT_PARAM;
-	}
-
-	if (new_version == PLOOP_FMT_V2 && !ploop_is_large_disk_supported()) {
-		ploop_err(0, "The PLOOP_FMT_V2 is not supported by kernel");
-		return SYSEXIT_PARAM;
-	}
-
-	if (ploop_lock_dd(di))
-		return SYSEXIT_LOCK;
-
-	if (di->mode == PLOOP_RAW_MODE) {
-		ploop_err(0, "Changing image version format"
-				" on raw image is not supported");
-		goto err;
-	}
 
 	rc = ploop_find_dev_by_dd(di, fname, sizeof(fname));
 	if (rc == -1) {
@@ -3760,15 +3748,15 @@ int ploop_change_fmt_version(struct ploop_disk_images_data *di, int new_version,
 			ret = SYSEXIT_OPEN;
 			goto err;
 		}
-		if (new_version == PLOOP_FMT_V1 &&
-		    ((off_t)da.delta_arr[i].l2_size * da.delta_arr[i].blocksize) > 0xffffffff)
-		{
-			ret = SYSEXIT_PARAM;
-			ploop_err(0, "Unable to convert image to PLOOP_FMT_V1:"
-					" the image size is not compatible");
-			goto err;
-		}
+		if (da.delta_arr[i].version < new_version)
+			convert = 1;
 	}
+
+	if (!convert) {
+		ret = 0;
+		goto err;
+	}
+
 	/* 1. Backup index table */
 	for (i = 0; i < di->nimages; i++) {
 		ret = backup_idx_table(&da.delta_arr[i], di->images[i]->file);
@@ -3833,10 +3821,33 @@ err_rm:
 
 err:
 	deinit_delta_array(&da);
-	ploop_unlock_dd(di);
 
 	if (ret == 0)
 		ploop_log(0, "ploop image has been successfully converted");
+
+	return ret;
+}
+
+int ploop_change_fmt_version(struct ploop_disk_images_data *di, int new_version, int flags)
+{
+	int ret;
+
+	if (new_version != PLOOP_FMT_V2) {
+		ploop_err(0, "Incorrect version is specified");
+		return SYSEXIT_PARAM;
+	}
+
+	if (!ploop_is_large_disk_supported()) {
+		ploop_err(0, "The PLOOP_FMT_V2 is not supported by kernel");
+		return SYSEXIT_PARAM;
+	}
+
+	if (ploop_lock_dd(di))
+		return SYSEXIT_LOCK;
+
+	ret = do_change_fmt_version(di, new_version);
+
+	ploop_unlock_dd(di);
 
 	return ret;
 }
