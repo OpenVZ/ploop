@@ -51,7 +51,7 @@ static int ploop_mount_fs(struct ploop_disk_images_data *di,
 		const char *partname,	struct ploop_mount_param *param,
 		int need_balloon);
 static int ploop_umount_fs(const char *mnt, struct ploop_disk_images_data *di);
-static int do_change_fmt_version(struct ploop_disk_images_data *di, int new_version);
+static int do_change_fmt_version(char **images, int new_version);
 
 static off_t round_bdsize(off_t size, __u32 blocksize, int version)
 {
@@ -2485,7 +2485,7 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 	if (ret)
 		goto err;
 
-	do_change_fmt_version(di, PLOOP_FMT_V2);
+	do_change_fmt_version(images, PLOOP_FMT_V2);
 
 	ret = add_deltas(di, images, param, raw, blocksize, &lfd, &load_cbt);
 	if (ret)
@@ -3719,30 +3719,19 @@ err:
 	return ret;
 }
 
-int do_change_fmt_version(struct ploop_disk_images_data *di, int new_version)
+int do_change_fmt_version(char **images, int new_version)
 {
 	char fname[PATH_MAX];
 	struct delta_array da = {};
-	int ret = 0, rc, i;
+	int ret = 0, i;
 	struct ploop_pvd_header *vh;
 	int convert = 0;
 
 	init_delta_array(&da);
 
-	rc = ploop_find_dev_by_dd(di, fname, sizeof(fname));
-	if (rc == -1) {
-		ret = SYSEXIT_SYS;
-		goto err;
-	} else if (rc == 0) {
-		ret = SYSEXIT_PARAM;
-		ploop_err(0, "Image is mounted: changing image version "
-				" online is not supported");
-		goto err;
-	}
 	/* 0. Validate */
-	for (i = 0; i < di->nimages; i++) {
-		if (extend_delta_array(&da, di->images[i]->file,
-					O_RDWR, OD_OFFLINE)) {
+	for (i = 0; images[i] != NULL; i++) {
+		if (extend_delta_array(&da, images[i], O_RDONLY, OD_OFFLINE)) {
 			ret = SYSEXIT_OPEN;
 			goto err;
 		}
@@ -3755,14 +3744,25 @@ int do_change_fmt_version(struct ploop_disk_images_data *di, int new_version)
 		goto err;
 	}
 
+	deinit_delta_array(&da);
+	init_delta_array(&da);
+	for (i = 0; images[i] != NULL; i++) {
+		if (extend_delta_array(&da, images[i], O_RDWR, OD_OFFLINE)) {
+			ret = SYSEXIT_OPEN;
+			goto err;
+		}
+		if (da.delta_arr[i].version < new_version)
+			convert = 1;
+	}
+
 	/* 1. Backup index table */
-	for (i = 0; i < di->nimages; i++) {
-		ret = backup_idx_table(&da.delta_arr[i], di->images[i]->file);
+	for (i = 0; i < da.delta_max; i++) {
+		ret = backup_idx_table(&da.delta_arr[i], images[i]);
 		if (ret)
 			goto err_rm;
 	}
 	/* 2. Lock deltas */
-	for (i = 0; i < di->nimages; i++) {
+	for (i = 0; i < da.delta_max; i++) {
 		if (dirty_delta(&da.delta_arr[i])) {
 			ret = SYSEXIT_WRITE;
 			goto err;
@@ -3774,29 +3774,17 @@ int do_change_fmt_version(struct ploop_disk_images_data *di, int new_version)
 			goto err;
 	}
 
-	/* Recheck ploop state after locking */
-	rc = ploop_find_dev_by_dd(di, fname, sizeof(fname));
-	if (rc == -1) {
-		ret = SYSEXIT_SYS;
-		goto err;
-	} else if (rc == 0) {
-		ret = SYSEXIT_PARAM;
-		ploop_err(0, "Image is mounted: changing image version "
-				" online is not supported");
-		goto err;
-	}
-
 	/* 3. Convert */
-	for (i = 0; i < di->nimages; i++) {
+	for (i = 0; i < da.delta_max; i++) {
 		ploop_log(0, "Converting %s to version %d",
-				di->images[i]->file, new_version);
+				images[i], new_version);
 		ret = change_fmt_version(&da.delta_arr[i], new_version);
 		if (ret)
 			goto err;
 	}
 
 	/* 4. Unlock */
-	for (i = 0; i < di->nimages; i++) {
+	for (i = 0; i < da.delta_max; i++) {
 		vh = (struct ploop_pvd_header *) da.delta_arr[i].hdr0;
 		ret = change_delta_flags(&da.delta_arr[i],
 				(vh->m_Flags & ~CIF_FmtVersionConvert));
@@ -3811,8 +3799,8 @@ int do_change_fmt_version(struct ploop_disk_images_data *di, int new_version)
 
 err_rm:
 	/* 5. Drop index table backup */
-	for (i = 0; i < di->nimages; i++) {
-		BACKUP_IDX_FNAME(fname, di->images[i]->file);
+	for (i = 0; i < da.delta_max; i++) {
+		BACKUP_IDX_FNAME(fname, images[i]);
 		if (unlink(fname) && errno != ENOENT)
 			ploop_err(errno, "Failed to unlink %s", fname);
 	}
@@ -3828,6 +3816,9 @@ err:
 
 int ploop_change_fmt_version(struct ploop_disk_images_data *di, int new_version, int flags)
 {
+
+	char fname[64];
+	char **images = NULL;
 	int ret;
 
 	if (new_version != PLOOP_FMT_V2) {
@@ -3843,8 +3834,26 @@ int ploop_change_fmt_version(struct ploop_disk_images_data *di, int new_version,
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	ret = do_change_fmt_version(di, new_version);
+	ret = ploop_find_dev_by_dd(di, fname, sizeof(fname));
+	if (ret == -1) {
+		ret = SYSEXIT_SYS;
+		goto err;
+	} else if (ret == 0) {
+		ret = SYSEXIT_PARAM;
+		ploop_err(0, "Image is mounted: changing image version "
+				" online is not supported");
+		goto err;
+	}
 
+	images = make_images_list(di, di->top_guid, 0);
+	if (images == NULL) {
+		ret =  SYSEXIT_MALLOC;
+		goto err;
+	}
+
+	ret = do_change_fmt_version(images, new_version);
+err:
+	ploop_free_array(images);
 	ploop_unlock_dd(di);
 
 	return ret;
