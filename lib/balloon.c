@@ -1494,7 +1494,8 @@ int ploop_discard(struct ploop_disk_images_data *di,
 		if (ret)
 			goto out;
 
-		if (io_type == PCTL_EXT4_KAIO) 
+		if (io_type == PCTL_EXT4_KAIO ||
+				(io_type == PCTL_FUSE_KAIO && is_native_discard(dev)))
 			goto discard;
 
 		ret = ploop_discard_get_stat_by_dev(dev, mnt, &pds);
