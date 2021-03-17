@@ -1371,21 +1371,99 @@ static int create_pidfile(const char *fname, pid_t pid)
 	return 0;
 }
 
+static int get_num_clusters(const char *dev, char *img, int size, __u32 *out)
+{
+	int ret = 0;
+	__u32 clu, cluster;
+	struct ploop_pvd_header *hdr = NULL;
+	struct delta d = {};
+
+	ret = ploop_find_top_delta_name_and_format(dev, img, size, NULL, 0);
+	if (ret)
+		return ret;
+
+	ret = open_delta(&d, img, O_RDONLY|O_DIRECT, OD_ALLOW_DIRTY);
+	if (ret)
+		return ret;
+
+	hdr = (struct ploop_pvd_header *) d.hdr0;
+	cluster = S2B(d.blocksize);
+
+	for (clu = 0; clu < hdr->m_Size; clu++) {
+		int l2_cluster = (clu + PLOOP_MAP_OFFSET) / (cluster / sizeof(__u32));
+		__u32 l2_slot  = (clu + PLOOP_MAP_OFFSET) % (cluster / sizeof(__u32));
+		if (d.l2_cache != l2_cluster) {
+			if (PREAD(&d, d.l2, cluster, (off_t)l2_cluster * cluster)) {
+				ret = SYSEXIT_READ;
+				goto err;
+			}
+			d.l2_cache = l2_cluster;
+		}
+
+		if (d.l2[l2_slot])
+			(*out)++;
+	}
+
+err:
+	close_delta(&d);
+
+	return ret;
+}
+
+static int get_num_extents(const char *img, __u32 *out)
+{
+	char cmd[PATH_MAX];
+	FILE *fp;
+	int ret;
+	char *p;
+
+	snprintf(cmd, sizeof(cmd), "LANG=C /usr/sbin/filefrag %s", img);
+	fp = popen(cmd, "r");
+	if (fp == NULL) {
+		ploop_err(0, "Failed %s", cmd);
+		return SYSEXIT_SYS;
+	}
+
+	while (fgets(cmd, sizeof(cmd), fp) != NULL);
+
+	p = strrchr(cmd, ':');
+	if (p == NULL || sscanf(p + 1, "%d extent found", out) != 1) {
+		ploop_err(0, "Can not parse the filefrag output: %s", cmd);
+		ret = SYSEXIT_SYS;
+	}
+
+	if (pclose(fp)) {
+		ploop_err(0, "Error in pclose() for %s", cmd);
+		ret = SYSEXIT_SYS;
+	}
+
+	return ret;
+}
+
 static int do_kaio_ext4_defrag(const char *dev, const int *stop)
 {
 	int ret;
 	pid_t pid;
 	char file[PATH_MAX];
 	char *arg[] = {BIN_E4DEFRAG, file, NULL};
+	__u32 num_clusters = 0, num_extents = 0, threshold;
 
 	if (access(arg[0], F_OK))
 		return 0;
 
-	snprintf(file, sizeof(file), "/sys/block/%s/pdelta/0/image", get_basename(dev));
-	if (read_line(file, file, sizeof(file)))
-		return SYSEXIT_READ;
+	ret = get_num_clusters(dev, file, sizeof(file), &num_clusters);
+	if (ret)
+		return ret;
 
-	ploop_log(0, "Start %s %s", arg[0], arg[1]);
+	ret = get_num_extents(file, &num_extents);
+	if (ret)
+		return ret;
+	threshold = num_extents / num_clusters;
+	if (threshold < 10)
+		return 0;
+
+	ploop_log(0, "Start defrag threshold=%d %s %s",
+			threshold, arg[0], arg[1]);
 
 	pid = fork();
 	if (pid < 0) {
