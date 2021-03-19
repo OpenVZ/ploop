@@ -646,7 +646,7 @@ int ploop_get_dev_by_delta(const char *delta, const char *topdelta,
 err:
 	if (dp)
 		closedir(dp);
-	close(lckfd);
+	ploop_unlock(&lckfd);
 
 	if (ret) {
 		ploop_free_array(*out);
