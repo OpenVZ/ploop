@@ -3797,6 +3797,7 @@ int do_change_fmt_version(char **images, int new_version)
 		}
 	}
 
+	ploop_log(0, "ploop image has been successfully converted");
 err_rm:
 	/* 5. Drop index table backup */
 	for (i = 0; i < da.delta_max; i++) {
@@ -3807,9 +3808,6 @@ err_rm:
 
 err:
 	deinit_delta_array(&da);
-
-	if (ret == 0)
-		ploop_log(0, "ploop image has been successfully converted");
 
 	return ret;
 }
