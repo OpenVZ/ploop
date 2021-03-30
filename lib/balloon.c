@@ -1440,13 +1440,13 @@ static int get_num_extents(const char *img, __u32 *out)
 	return ret;
 }
 
-static int do_kaio_ext4_defrag(const char *dev, const int *stop)
+static int do_kaio_ext4_defrag(const char *dev, struct ploop_discard_param *param)
 {
 	int ret;
 	pid_t pid;
 	char file[PATH_MAX];
 	char *arg[] = {BIN_E4DEFRAG, file, NULL};
-	__u32 num_clusters = 0, num_extents = 0, threshold;
+	__u32 num_clusters = 0, num_extents = 0, threshold = 0;
 
 	if (access(arg[0], F_OK))
 		return 0;
@@ -1458,8 +1458,9 @@ static int do_kaio_ext4_defrag(const char *dev, const int *stop)
 	ret = get_num_extents(file, &num_extents);
 	if (ret)
 		return ret;
-	threshold = num_extents / num_clusters;
-	if (threshold < 10)
+	if (num_clusters)
+		threshold = num_extents / num_clusters;
+	if (threshold <= param->image_defrag_threshold)
 		return 0;
 
 	ploop_log(0, "Start defrag threshold=%d %s %s",
@@ -1479,7 +1480,7 @@ static int do_kaio_ext4_defrag(const char *dev, const int *stop)
 	defrag_pidfile(dev, file, sizeof(file));
 	create_pidfile(file, pid);
 
-	ret = wait_pid(pid, arg[0], stop);
+	ret = wait_pid(pid, arg[0], param->stop);
 
 	unlink(file);
 
@@ -1602,7 +1603,7 @@ discard:
 		goto out;
 
 	if (param->defrag && io_type == PCTL_EXT4_KAIO)
-		do_kaio_ext4_defrag(dev, param->stop);
+		do_kaio_ext4_defrag(dev, param);
 
 out:
 	if (ploop_lock_dd(di) == 0) {
