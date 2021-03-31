@@ -724,6 +724,10 @@ int ploop_init_image(struct ploop_disk_images_data *di,
 	if (ret)
 		goto err;
 
+	ret = create_balloon_file(di, mount_param.device, partname);
+	if (ret)
+		goto err;
+
 err:
 	if (ploop_umount(mount_param.device, di)) {
 		if (ret == 0)
@@ -1364,8 +1368,12 @@ static int ploop_mount_fs(struct ploop_disk_images_data *di,
 	unsigned long flags =
 		(param->flags & MS_NOATIME) |
 		(param->ro | (di && di->vol && di->vol->ro) ? MS_RDONLY : 0);
+	char buf[PATH_MAX + sizeof(BALLOON_FNAME)];
+	struct stat st;
 	char *fstype = param->fstype == NULL ? DEFAULT_FSTYPE : param->fstype;
 	char data[1024];
+	int len;
+	int mounted = 0;
 
 	if (param->fsck_flags && (strncmp(fstype, "ext", 3) == 0))
 		if (e2fsck(partname, param->fsck_flags, &param->fsck_rc))
@@ -1383,7 +1391,26 @@ static int ploop_mount_fs(struct ploop_disk_images_data *di,
 			param->mount_data ? param->mount_data : "");
 	if (mount(partname, param->target, fstype, flags, data))
 		goto mnt_err;
+	mounted = 1;
 
+	if (!need_balloon)
+		goto done;
+
+	snprintf(buf, sizeof(buf), "%s/" BALLOON_FNAME, param->target);
+	if (stat(buf, &st) < 0) {
+		ploop_err(errno, "Can't stat balloon file %s", buf);
+		goto mnt_err;
+	}
+
+	len = strlen(data);
+	snprintf(data + len, sizeof(data) - len, ",balloon_ino=%llu",
+			(unsigned long long) st.st_ino);
+
+	flags |= MS_REMOUNT;
+	if (mount(partname, param->target, fstype, flags, data))
+		goto mnt_err;
+
+done:
 	ploop_log(0, "Mounted %s at %s fstype=%s data='%s' %s",
 			partname, param->target, fstype,
 			data, param->ro  ? "ro":"");
@@ -1393,6 +1420,8 @@ mnt_err:
 	ploop_err(errno, "Can't mount file system "
 			"(dev=%s target=%s fstype=%s flags=%lx data=%s)",
 			partname, param->target, fstype, flags, data);
+	if (mounted)
+		umount(param->target);
 
 	return SYSEXIT_MOUNT;
 }
