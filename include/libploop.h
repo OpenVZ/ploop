@@ -200,6 +200,7 @@ struct ploop_discard_param {
 	int automount;
 	const int *stop;
 	int defrag;	/* 0-compact only, 1-defrag&compact, 2-defrag only */
+	int image_defrag_threshold;
 	char dummy[32];
 };
 
