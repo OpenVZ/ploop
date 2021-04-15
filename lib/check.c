@@ -383,7 +383,8 @@ int repair_sparse(const char *image, __u64 cluster, int flags)
 
 	prev_end = 0;
 	last = 0;
-	ioctl_device(delta.fd, EXT4_IOC_CLEAR_ES_CACHE, 0);
+	if (ioctl(delta.fd, EXT4_IOC_CLEAR_ES_CACHE) && errno != ENOTTY)
+		ploop_err(errno, "Warning: ioctl(EXT4_IOC_CLEAR_ES_CACHE)"); 
 
 	while (!last && prev_end < end) {
 		fiemap->fm_start	= prev_end;
