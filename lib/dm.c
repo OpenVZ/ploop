@@ -230,15 +230,16 @@ err:
 #define DM_RETRY_TIMEOUT	5
 int dm_remove(const char *devname)
 {
-	int rc, i;
+	int i;
 
 	for (i = 0; i < PLOOP_UMOUNT_TIMEOUT / DM_RETRY_TIMEOUT; i++) {
-		rc = cmd(devname, DM_DEVICE_REMOVE);
-		if (errno != EBUSY)
-			break;
+		if (cmd(devname, DM_DEVICE_REMOVE) == 0)
+			return 0;
+		else if (errno != EBUSY)
+			return SYSEXIT_DEVIOC;
 	}
 
-	return rc;
+	return SYSEXIT_UMOUNT_BUSY;
 }
 
 int dm_resize(const char *devname, off_t size)
