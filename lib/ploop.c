@@ -2360,7 +2360,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	char devname[64];
 	char partname[64];
 	char mnt[PATH_MAX] = "";
-	char *top;
+	char *top = NULL;
 	const char *fmt;
 	struct delta d = {.fd = -1};
 	struct ploop_pvd_header *vh;
@@ -2389,8 +2389,10 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	if (ret)
 		return ret;
 
-	if (open_delta(&d, top, O_RDWR, OD_ALLOW_DIRTY))
+	if (open_delta(&d, top, O_RDWR, OD_ALLOW_DIRTY)) {
+		free(top);
 		return SYSEXIT_OPEN;
+	}
 
 	if (strcmp(fmt, "ploop1") == 0) {
 		int lfd = open(device, O_RDONLY|O_CLOEXEC);
@@ -2398,7 +2400,8 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 
 		if (lfd < 0) {
 			ploop_err(errno, "Can't open dev %s", device);
-			return SYSEXIT_DEVICE;
+			ret = SYSEXIT_DEVICE;
+			goto err;
 		}
 
 		rc = delta_save_optional_header(lfd, &d, NULL, NULL);
@@ -2423,15 +2426,19 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	}
 
 	vh = (struct ploop_pvd_header *) d.hdr0;
-	if (vh->m_DiskInUse == SIGNATURE_DISK_IN_USE)
+	if (vh->m_DiskInUse == SIGNATURE_DISK_IN_USE) {
 		ret = clear_delta(&d);
+		if (ret)
+			goto err;
+	}
 
+	ret = check_deltas_live(di);
 err:
 
 	close_delta(&d);
 	free(top);
 
-	return check_deltas_live(di);
+	return ret;
 }
 
 int ploop_umount_image(struct ploop_disk_images_data *di)
