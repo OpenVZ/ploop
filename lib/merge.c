@@ -360,26 +360,6 @@ rm_delta:
 			goto merge_done2;
 	}
 
-	if (!raw) {
-		if (open_delta(&odelta, merged_image, O_RDWR,
-			       device ? OD_NOFLAGS : OD_OFFLINE)) {
-			ploop_err(errno, "open_delta");
-			ret = SYSEXIT_OPEN;
-			goto merge_done2;
-		}
-
-		if (dirty_delta(&odelta)) {
-			ploop_err(errno, "dirty_delta");
-			ret = SYSEXIT_WRITE;
-			goto merge_done2;
-		}
-	} else {
-		if (open_delta_simple(&odelta, merged_image, O_RDWR,
-				      device ? 0 : OD_OFFLINE)) {
-			ret = SYSEXIT_WRITE;
-			goto merge_done2;
-		}
-	}
 	if (p_memalign(&data_cache, 4096, cluster)) {
 		ret = SYSEXIT_MALLOC;
 		goto merge_done2;
