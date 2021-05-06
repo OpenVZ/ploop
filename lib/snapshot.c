@@ -164,7 +164,7 @@ int ploop_delete_snapshot(struct ploop_disk_images_data *di, const char *guid)
 }
 
 static int create_snapshot_online(struct ploop_disk_images_data *di,
-		const char *device, off_t size)
+		const char *device, off_t size, __u32 blocksize)
 {
 	int rc, lfd;
 	char ldev[64];
@@ -181,6 +181,10 @@ static int create_snapshot_online(struct ploop_disk_images_data *di,
 	if (rc)
 		return rc;
 
+	rc = update_delta_inuse(top_delta, SIGNATURE_DISK_IN_USE);
+	if (rc)
+		return rc;
+
 	lfd = loop_create(top_delta, ldev, sizeof(ldev));
 	if (lfd < 0) {
 		rc = SYSEXIT_OPEN;
@@ -192,7 +196,7 @@ static int create_snapshot_online(struct ploop_disk_images_data *di,
 		loop_release(ldev);
 		goto err;
 	}
-	rc = dm_snapshot(device, delta, ldev);
+	rc = dm_reload(di, device, ldev, size, blocksize);
 err:
 	free(delta);
 	close(lfd);
@@ -214,7 +218,7 @@ static int create_image_snapshot(struct ploop_disk_images_data *di,
 		return ret;
 
 	ploop_log(0, "Creating snapshot dev=%s img=%s", device, delta);
-	return create_snapshot_online(di, device, bdsize);
+	return create_snapshot_online(di, device, bdsize, blocksize);
 }
 
 static int create_cbt_snapshot(struct ploop_disk_images_data *di, int fd,
