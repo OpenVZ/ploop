@@ -255,27 +255,6 @@ int dm_resize(const char *devname, off_t size)
 	return rc;
 }
 
-int dm_snapshot(const char *devname, const char *top,  const char *ldevname)
-{
-	int rc, fd;
-	char m[64];
-
-        fd = open(top, O_DIRECT|O_RDONLY|O_CLOEXEC);
-        if (fd == -1) {
-                ploop_err(errno, "Can't open file %s", top);
-                return SYSEXIT_OPEN;
-        }
-
-	snprintf(m, sizeof(m), "snapshot %d %s", fd, ldevname);
-	rc = ploop_dm_message(devname, m, NULL);
-	if (rc)
-		ploop_err(errno, "Failed %s %s", devname, m);
-
-	close(fd);
-
-	return rc;
-}
-
 int dm_tracking_start(const char *devname)
 {
 	int rc;

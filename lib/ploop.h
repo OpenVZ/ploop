@@ -543,7 +543,6 @@ int dm_create(const char *devname, __u64 start, __u64 size, int ro,
 		const char *args);
 int dm_remove(const char *devname);
 int dm_resize(const char *devname, off_t size);
-int dm_snapshot(const char *devname, const char *top,  const char *ldevname);
 int dm_setnoresume(const char *devname, int on);
 int dm_tracking_start(const char *devname);
 int dm_tracking_stop(const char *devname);
