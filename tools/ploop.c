@@ -1150,7 +1150,8 @@ static int plooptool_info(int argc, char **argv)
 		}
 
 		if (device) {
-			char dev[PATH_MAX] = {};
+			char dev[64] = {};
+			char part[64] = {};
 
 			if (ploop_get_dev(di, dev, sizeof(dev)) == -1) {
 				ret = SYSEXIT_SYS;
@@ -1158,12 +1159,12 @@ static int plooptool_info(int argc, char **argv)
 			}
 
 			printf("device:\t\t%s\n", dev);
-			if (ploop_get_part(di, dev, dev, sizeof(dev)) == -1) {
+			if (ploop_get_part(di, dev, part, sizeof(part)) == -1) {
 				ret = SYSEXIT_SYS;
 				goto exit;
 			}
 
-			printf("partition:\t%s\n", dev);
+			printf("partition:\t%s\n", part);
 		}
 
 exit:
