@@ -2485,8 +2485,6 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 	if (ret)
 		goto err;
 
-	do_change_fmt_version(images, PLOOP_FMT_V2);
-
 	ret = add_deltas(di, images, param, raw, blocksize, &lfd, &load_cbt);
 	if (ret)
 		goto err;
