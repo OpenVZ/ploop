@@ -2484,9 +2484,7 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 			di ? CHECK_DROPINUSE : 0);
 	if (ret)
 		goto err;
-
-	do_change_fmt_version(images, PLOOP_FMT_V2);
-
+	
 	ret = add_deltas(di, images, param, raw, blocksize, &lfd, &load_cbt);
 	if (ret)
 		goto err;
@@ -2559,6 +2557,9 @@ int mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *par
 	images = make_images_list(di, guid, 0);
 	if (images == NULL)
 		return SYSEXIT_MALLOC;
+
+	if (!param->ro && param->guid == NULL && di->runtime->component_name == NULL)
+		do_change_fmt_version(images, PLOOP_FMT_V2);
 
 	ret = ploop_mount(di, images, param, (di->mode == PLOOP_RAW_MODE));
 
