@@ -383,7 +383,7 @@ static int do_create_delta(const char *path, __u32 blocksize, off_t bdsize, int 
 				goto out_close;
 	}
 
-	if (grow_loop_image(path, NULL, blocksize, bdsize))
+	if (grow_image(path, blocksize, bdsize))
 		goto out_close;
 
 	if (fsync(fd)) {
@@ -1046,7 +1046,6 @@ static int ploop_stop(const char *devname,
 {
 	int rc;
 	char partname[64];
-	char *top;
 
 	rc = get_dev_from_sys(devname, "holders", partname, sizeof(partname));
 	if (rc == -1) {
@@ -1058,17 +1057,7 @@ static int ploop_stop(const char *devname,
 			return rc;
 	}
 
-	if (get_top_delta_name(devname, &top, NULL, NULL))
-		return SYSEXIT_OPEN;
-
-	rc = dm_remove(devname);
-	if (rc) {
-		free(top);
-		return rc;
-	}
-	free(top);
-
-	return 0;
+	return dm_remove(devname);
 }
 
 /* Convert escape sequences used in /proc/mounts, /etc/mtab
@@ -1453,41 +1442,52 @@ static int add_delta(char **images, int blocksize, int raw, int ro,
 {
 	int rc, i, n = 0;
 	int *fds = NULL;
-	char t[1024], ldev[64];
+	char t[1024];
 	char *p = t, *e = t + sizeof(t);
 	struct delta d;
 	off_t sz;
-	int lfd = -1;
 
 	for (n = 0; images[n] != NULL; ++n);
-	if (open_delta(&d, images[n-1], O_RDWR, OD_OFFLINE|OD_ALLOW_DIRTY))
-		return SYSEXIT_OPEN;
+	if (raw) {
+		struct stat st;
 
-	lfd = loop_create(images[n-1], ldev, sizeof(ldev));
-	if (lfd == -1) {
-		rc =  SYSEXIT_OPEN;
-		goto err;
-	}
-
-	fds = alloca(n * sizeof(int));
-	p += snprintf(p, e-p, "%d %s", ffs(blocksize) - 1, ldev);
-	for (i = 0; i < n-1; i++) {
-		ploop_log(0, "Adding delta dev=%s img=%s (ro)", ldev, images[i]);
-		fds[i] = open(images[i], O_DIRECT | O_RDONLY);
-		if (fds[i] < 0) {
-			ploop_err(errno, "Can't open file %s", images[i]);
-			return SYSEXIT_OPEN;
+		if (stat(images[n-1], &st)) {
+			ploop_err(errno, "Can't stat %s", images[n-1]); 
+			return SYSEXIT_FSTAT;
 		}
-		p += snprintf(p, e-p, " %s%d", raw && i == 0 ? "raw@" : "", fds[i]);
+		sz = st.st_size;
+	} else {
+		if (open_delta(&d, images[n-1], O_RDWR, OD_OFFLINE|OD_ALLOW_DIRTY))
+			return SYSEXIT_OPEN;
+		sz = d.l2_size * d.blocksize;
 	}
 
 	if (devname[0] == '\0')
 		get_dev_name(devname, size);
 
-	ploop_log(0, "Adding delta dev=%s [%s] img=%s (%s)",
-			devname, ldev, images[n-1], ro ? "ro" : "rw");
+	fds = alloca(n * sizeof(int));
+	p += snprintf(p, e-p, "%d", ffs(blocksize) - 1);
+	for (i = 0; i < n; i++) {
+		int r = ro || i < n-1;
 
-	sz = d.l2_size * d.blocksize;
+		ploop_log(0, "Adding delta dev=%s img=%s (%s)",
+				devname, images[i], r ? "ro":"rw");
+		fds[i] = open(images[i], O_DIRECT | (r?O_RDONLY:O_RDWR));
+		if (fds[i] < 0) {
+			ploop_err(errno, "Can't open file %s", images[i]);
+			n = i;
+			rc = SYSEXIT_OPEN;
+			goto err;
+		}
+		p += snprintf(p, e-p, " %s%d", raw && i == 0 ? "raw@" : "", fds[i]);
+	}
+
+	if (!raw) {
+		rc = update_delta_inuse(images[n-1], SIGNATURE_DISK_IN_USE);
+		if (rc)
+			goto err;
+	}
+
 	rc = dm_create(devname, 0, sz, ro, t);
 	if (rc)
 		goto err;
@@ -1496,8 +1496,6 @@ err:
 	close_delta(&d);
 	for (i = 1; i < n; i++)
 		close(fds[i]);
-
-	close(lfd);
 
 	return rc;
 }
@@ -1894,7 +1892,7 @@ static int add_deltas(struct ploop_disk_images_data *di,
 	 * add_delta
 	 * for now, if load_cbt == 0 no extensions will be loaded.
 	 * because we have only dirty bitmap (cbt) extension */
-	if (!ro && load_cbt && (!raw || n > 0)) {
+	if (!ro && load_cbt && !raw) {
 		int rc;
 
 		ctx = create_ext_context();
@@ -1910,11 +1908,6 @@ static int add_deltas(struct ploop_disk_images_data *di,
 			format_extension_loaded = 1;
 	}
 
-	if (!ro) {
-		ret = update_delta_inuse(images[n-1], SIGNATURE_DISK_IN_USE);
-		if (ret)
-			goto err;
-	}
 
 	ret = add_delta(images, blocksize, raw, ro, param->device, sizeof(param->device));
 	if (ret)
@@ -2361,7 +2354,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	char partname[64];
 	char mnt[PATH_MAX] = "";
 	char *top = NULL;
-	const char *fmt;
+	int fmt;
 	struct delta d = {.fd = -1};
 	struct ploop_pvd_header *vh;
 
@@ -2385,7 +2378,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	if (get_crypt_layout(devname, partname))
 		crypt_close(devname, partname);
 
-	ret = get_top_delta_name(device, &top, &fmt, NULL);
+	ret = get_image_param_online(device, &top, NULL, NULL, &fmt);
 	if (ret)
 		return ret;
 
@@ -2394,7 +2387,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 		return SYSEXIT_OPEN;
 	}
 
-	if (strcmp(fmt, "ploop1") == 0) {
+	if (fmt == PLOOP_FMT_V2) {
 		int lfd = open(device, O_RDONLY|O_CLOEXEC);
 		int rc;
 
@@ -2529,7 +2522,7 @@ int get_image_param(struct ploop_disk_images_data *di, const char *guid,
 		if (ret == -1)
 			return SYSEXIT_SYS;
 		if (ret == 0)
-			return get_image_param_online(dev, size, blocksize, version);
+			return get_image_param_online(dev, NULL, size, blocksize, version);
 	}
 	return get_image_param_offline(di, guid, size, blocksize, version);
 }
@@ -2539,43 +2532,32 @@ int ploop_grow_device(struct ploop_disk_images_data *di,
 {
 	int rc, version;
 	off_t size;
-	char ldev[64];
+	char *top = NULL;
 	__u32 blocksize;
 
-	rc = get_image_param_online(device, &size, &blocksize, &version);
+	rc = get_image_param_online(device, &top, &size, &blocksize, &version);
 	if (rc)
 		return rc;
 	rc = ploop_get_size(device, &size);
 	if (rc)
-		return rc;
-
+		goto err;
 	ploop_log(0, "Growing dev=%s size=%llu sectors (new size=%llu)",
 			device, (unsigned long long)size,
 			(unsigned long long)new_size);
-	rc = get_dev_from_sys(device, "slaves", ldev, sizeof(ldev));
-	if (rc)
-		return rc;
 
-	rc = grow_loop_image(NULL, ldev, 2048, new_size);
+	rc = grow_image(top, blocksize, new_size);
 	if (rc)
-		return rc;
+		goto err;
 
 	rc = dm_resize(device, new_size);
 	if (rc)
-		return rc;
+		goto err;
 
-	rc = dm_reload(di, device, ldev, new_size, blocksize);
-	if (rc)
-		return rc;
-#if 0
-	rc = get_dev_from_sys(device, "holders", dev, sizeof(dev));
-	if (rc == -1)
-		return rc;
-	if (rc == 0)
-		return dm_reload(di, dev, device, new_size - 2048);
-#endif
+	rc = dm_reload2(device, new_size, 0);
+err:
+	free(top);
 
-	return 0;
+	return rc;
 }
 
 int ploop_grow_image(struct ploop_disk_images_data *di, off_t size, int sparse)
@@ -2782,7 +2764,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di,
 	target = strdup(buf);
 
 	//FIXME: Deny resize image if there are childs
-	ret = get_image_param_online(dev, &dev_size,
+	ret = get_image_param_online(dev, NULL, &dev_size,
 			&blocksize, &version);
 	if (ret)
 		goto err;

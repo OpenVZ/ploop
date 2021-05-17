@@ -325,117 +325,74 @@ int ploop_resume_device(const char *devname)
 	return cmd(devname, DM_DEVICE_RESUME);
 }
 
-int dm_flip_upper_deltas(const char *devname, const char *ldevname,
-		const char *top_delta)
+int dm_flip_upper_deltas(const char *devname)
 {
-	int rc, fd;
-	char m[64];
-
-
-	ploop_log(0, "FLip upper delta %s %s %s",
-			devname, ldevname, top_delta);
-	fd = open(top_delta, O_RDONLY|O_CLOEXEC);
-	if (fd == -1) {
-		ploop_err(errno, "Can not open top delta %s",
-				top_delta);
-		return SYSEXIT_OPEN;
-	}
-	snprintf(m, sizeof(m), "flip_upper_deltas %s %d",
-			ldevname, fd);
-	rc = ploop_dm_message(devname, m, NULL);
-	if (rc)
-		ploop_err(errno, "Failed %s %s", devname, m);
-
-	close(fd);
-
-	return rc;
+	ploop_log(0, "Flip upper delta %s", devname);
+	return ploop_dm_message(devname, "flip_upper_deltas", NULL);
 }
 
 struct table_data {
-	dev_t loopdev;
 	const char *params;
 	char devname[64];
 	const char *base;
 	const char *top;
 	__u32 blocksize;
+	__u32 ndelta;
+	char **devs;
+	int ndevs;
+	int flags;
 };
 
 /* return:
  *	-1 - error
- *	1 - no error stop processing
- *	0 - success
+ *	1 - not found
+ *	0 - found
  */
 typedef int (*table_fn)(struct dm_task *task, struct table_data *data);
-
-static int cmp_dev(struct dm_task *task, struct table_data *data)
-{
-	struct dm_info i;
-	int major, minor;
-
-	if (!dm_task_get_info(task, &i)) {
-		ploop_err(0, "dm_task_get_info()");
-		return -1;
-	}
-
-	if (sscanf(data->params, "%d:%d ", &major, &minor) != 2) {
-		ploop_err(0, "cmp_dev %s", data->params);
-		return -1;
-	}
-
-	if (makedev(major, minor) == data->loopdev) {
-		snprintf(data->devname, sizeof(data->devname), "%s",
-				dm_task_get_name(task));
-		return 1;
-	}
-
-	return 0;
-}
 
 static int cmp_delta(struct dm_task *task, struct table_data *data)
 {
 	int rc;
 	struct dm_info i = {};
-	int major, minor;
-	char ldev[64];
-	char top[PATH_MAX];
+	const char *devname;
+	char *base = NULL;
 
 	if (!dm_task_get_info(task, &i)) {
 		ploop_err(0, "dm_task_get_info()");
 		return -1;
 	}
 
-	if (sscanf(data->params, "%d:%d ", &major, &minor) != 2) {
-		ploop_err(0, "cmp_delta: malformed %s", data->params);
-		return -1;
-	}
-	get_loop_name(minor, 0, ldev, sizeof(ldev));
-	rc = get_top_delta(ldev, top, sizeof(top));
+	devname = dm_task_get_name(task);
+	rc = dm_get_delta_name(devname, 0, &base);
 	if (rc == -1)	
 		return -1;
 	else if (rc)
 		return 0;
 
-	if (strcmp(data->top, top) == 0) {
-		snprintf(data->devname, sizeof(data->devname), "%s",
-				dm_task_get_name(task));
-		return 1;
+	if (strcmp(data->base, base) == 0) {
+		snprintf(data->devname, sizeof(data->devname), "/dev/mapper/%s", devname);
+		data->ndevs = append_array_entry(data->devname, &data->devs, data->ndevs);
+		if (data->ndevs == -1)
+			return -1;
+		return 0;
 	}
-
-	return 0;
+	return 1;
 }
 
 static int display_entry(struct dm_task *task, struct table_data *data)
 {
-	char *i = NULL;
-	const char *devname = dm_task_get_name(task);
+	int i, n = data->flags == 0 ? 1: 0xffff;
+	char *img = NULL;
 
-	if (dm_get_delta_name(devname, 0, &i))
-		get_top_delta_name(devname, &i, NULL, NULL);
-	if (i == NULL)	
-		i = strdup("-");
-	printf("%s %s\n", devname, i);
-
-	free(i);
+	for (i = 0; i < n; i++) {
+		if (dm_get_delta_name(dm_task_get_name(task), i, &img))
+			break;
+		if (i == 0)
+			printf("%s\t%s\n", dm_task_get_name(task), img);
+		else
+			printf("\t\t%s\n", img);
+		free(img);
+	}
 
 	return 0;
 }
@@ -475,8 +432,6 @@ static int dm_table(const char *devname, table_fn f, struct table_data *data)
 			rc = f(d, data);
 			if (rc == -1)
 				goto err;
-			else if (rc == 1)
-				break;
 		}
 	} while (next);
 
@@ -525,25 +480,26 @@ err:
 	return rc;
 }
 
-int ploop_list(void)
+int ploop_list(int flags)
 {
-	return dm_list(display_entry, NULL);
+	struct table_data d = {.flags = flags};
+
+	return dm_list(display_entry, &d);
 }
 
 static int get_params(struct dm_task *task, struct table_data *data)
 {
 	if (data->params == NULL)
-		return 0;
-	if (sscanf(data->params, "%*d:%*d %*d %*s %d", &data->blocksize) != 1) {
+		return 1;
+	if (sscanf(data->params, "%d %*s %d", &data->ndelta, &data->blocksize) != 2) {
 		ploop_err(0, "malformed params '%s'", data->params);
 		return -1;
 	}
-	return 1;
+	return 0;
 }
 
-int get_image_param_online(const char *devname, off_t *size,
-                __u32 *blocksize, int *version)
-
+int get_image_param_online(const char *devname, char **top, off_t *size,
+		__u32 *blocksize, int *version)
 {
 	int rc;
 	struct table_data d = {};
@@ -551,33 +507,22 @@ int get_image_param_online(const char *devname, off_t *size,
 	rc = dm_table(devname, get_params, &d);
 	if (rc)
 		return rc;
-
-	*blocksize = d.blocksize;
-	*version = PLOOP_FMT_V2;
-	return ploop_get_size(devname, size);
-}
-
-static int dm_find_dev_by_loop(const char *ldevname,
-		struct table_data *data)
-{
-	struct stat st;
-
-	if (stat(ldevname, &st)) {
-		ploop_err(errno, "Can not stat %s", ldevname);
-		return SYSEXIT_PARAM;
+	if (blocksize)
+		*blocksize = d.blocksize;
+	if (version)
+		*version = PLOOP_FMT_V2;
+	if (size) {
+		rc = ploop_get_size(devname, size);
+		if (rc)
+			return rc;
 	}
-	data->loopdev = st.st_rdev;
+	if (top && d.ndelta &&  dm_get_delta_name(devname, d.ndelta-1, top)) {
+		ploop_err(0, "dm_get_delta_name");
+		return SYSEXIT_SYS;
+	}
 
-	return dm_list(cmp_dev, data);
+	return 0;
 }
-
-int dm_find_dev_by_delta(const char *base, const char *top)
-{
-	struct table_data data = {};
-
-	return dm_list(cmp_delta, &data);
-}
-
 
 /* Find device(s) by top delta and return name(s)
 * in a NULL-terminated array pointed to by 'out'.
@@ -589,77 +534,41 @@ int dm_find_dev_by_delta(const char *base, const char *top)
 *   0 found
 *   1 not found
 */
-static int dm_find_devs(struct ploop_disk_images_data *di,
-		const char *delta, char ***out)
+static int dm_find_devs(const char *base, const char *top, char ***out)
 {
-	int lfd, rc;
-	int n = 0;
-	char **d, **devs = NULL;
+	struct table_data data = {.base = base, .top = top};
 
-	if (delta == NULL) {
-		delta = find_image_by_guid(di, get_top_delta_guid(di));
-		if (delta == NULL) {
-                	ploop_err(0, "No top delta found found in %s",
-					di->runtime->xml_fname);
-	                return -1;
-		}
+	if (dm_list(cmp_delta, &data))
+		return -1;
+	if (data.devs != NULL) {
+		*out = data.devs;
+		return 0;
 	}
-
-        lfd = ploop_global_lock();
-        if (lfd == -1)
-                return -1;
-
-	rc = get_loop_by_delta(delta, &devs);
-	if (rc == -1)
-		goto err;
-	if (devs == NULL) {
-		rc = 1;
-		goto err;
-	}
-
-	for (d = devs; *d != NULL; d++) {
-		struct table_data data = {};
-
-		rc = dm_find_dev_by_loop(*d, &data);
-		if (rc == -1)
-			goto err;
-
-		if (data.devname[0] != '\0') {
-			char dev[64];
-
-			snprintf(dev, sizeof(dev), "/dev/mapper/%s",
-					data.devname);
-			n = append_array_entry(dev, out, n);
-			if (n == -1) {
-				rc = -1;
-				goto err;
-			}
-		}
-	}
-err:
-	close(lfd);
-	ploop_free_array(devs);
-	if (rc && n) {
-		ploop_free_array(*out);
-		*out = NULL;
-	}
-	if (rc == 0 && n == 0)
-		return 1;
-
-	return rc;
+	return 1;
 }
 
 int find_devs(struct ploop_disk_images_data *di, char ***out)
 {
-	return dm_find_devs(di, NULL, out);
+	const char *base = NULL, *top = NULL;
+
+	base = find_image_by_guid(di, get_base_delta_uuid(di));
+	if (di->vol != NULL)
+		top = find_image_by_guid(di, get_top_delta_guid(di));
+
+	return dm_find_devs(base, top, out);
 }
 
 int find_dev(struct ploop_disk_images_data *di, char *out, int len)
 {
 	int rc;
 	char **devs = NULL;
+	const char *base = NULL, *top = NULL;
 
-	rc = dm_find_devs(di, NULL,  &devs);
+	base = find_image_by_guid(di, get_base_delta_uuid(di));
+	if (di->vol != NULL)
+		top = find_image_by_guid(di, get_top_delta_guid(di));
+
+	rc = dm_find_devs(base, top, &devs);
 	if (rc == 0) {
 		snprintf(out, len, "%s", devs[0]);
 		ploop_free_array(devs);
@@ -670,7 +579,7 @@ int find_dev(struct ploop_disk_images_data *di, char *out, int len)
 
 int find_devs_by_delta(const char *delta, char ***out)
 {
-	return dm_find_devs(NULL, delta, out);
+	return dm_find_devs(delta, NULL, out);
 }
 
 int find_dev_by_delta(const char *delta, char *out, int len)
@@ -678,7 +587,7 @@ int find_dev_by_delta(const char *delta, char *out, int len)
 	int rc;
 	char **devs = NULL;
 
-	rc = dm_find_devs(NULL, delta,  &devs);
+	rc = dm_find_devs(delta, NULL, &devs);
 	if (rc == 0) {
 		snprintf(out, len, "%s", devs[0]);
 		ploop_free_array(devs);
@@ -687,34 +596,25 @@ int find_dev_by_delta(const char *delta, char *out, int len)
 	return rc;
 }
 
-int dm_reload(struct ploop_disk_images_data *di, const char *device,
-	 	const char *ldev, off_t new_size, __u32 blocksize)
+static int do_reload(const char *device, char **images, off_t new_size, 
+		__u32 blocksize, int rw2)
 {
-	int rc, *fds, i, n = 0;
+	int rc, *fds, i, j, n = 0;
 	char t[PATH_MAX];
 	char *a[7];
 	char *p, *e;
-	char **images;
-
-	rc = ploop_suspend_device(device);
-	if (rc)
-		return rc;
-
-	images = make_images_list(di, di->top_guid, 0);
-	if (images == NULL) {
-		rc = SYSEXIT_MALLOC;
-		goto err;
-	}
 
 	for (n = 0; images[n] != NULL; ++n);
 	fds = alloca(n * sizeof(int));
 	p = t;
 	e = p + sizeof(t);
-	p += snprintf(p, e-p, "0 %lu ploop %d %s",
-			new_size, ffs(blocksize)-1, ldev);
-	for (i = 0; i < n-1; i++) {
-		ploop_log(0, "Add delta %s (ro)", images[i]);
-		fds[i] = open(images[i], O_DIRECT | O_RDONLY);
+	p += snprintf(p, e-p, "0 %lu ploop %d",
+			new_size, ffs(blocksize)-1);
+	for (i = 0; i < n; i++) {
+		int r = i < n - (rw2?2:1);
+		ploop_log(0, "Adding delta dev=%s img=%s (%s)",
+				device, images[i], r ? "ro":"rw");
+		fds[i] = open(images[i], O_DIRECT | (r?O_RDONLY:O_RDWR));
 		if (fds[i] < 0) {
 			ploop_err(errno, "Can't open file %s", images[i]);
 			rc = SYSEXIT_OPEN;
@@ -730,14 +630,60 @@ int dm_reload(struct ploop_disk_images_data *di, const char *device,
 	a[4] = t;
 	a[5] = NULL;
 	rc = run_prg(a);
+err:
+	for (j = 0; j < i; j++)
+		close(fds[j]);
+
+	return rc;
+}
+
+int dm_reload2(const char *device, off_t new_size, int rw2)
+{
+	int rc, rc1;
+	__u32 blocksize;
+	const char *fmt;
+	char **images = NULL;
+
+	if (new_size == 0) {
+		rc = ploop_get_size(device, &new_size);
+		if (rc)
+			return rc;
+	}
+
+	rc = ploop_suspend_device(device);
+	if (rc)
+		return rc;
+	rc = ploop_get_names(device, &images, &fmt, (int*)&blocksize);
 	if (rc)
 		goto err;
-err:
-	for (i = 1; i < n; i++)
-		close(fds[i]);
-	ploop_free_array(images);
+	rc = do_reload(device, images, new_size, blocksize, rw2);
 
-	int rc1 = ploop_resume_device(device);
+	ploop_free_array(images);
+err:
+	rc1 = ploop_resume_device(device);
+
+	return rc ? rc : rc1;
+}
+
+int dm_reload(struct ploop_disk_images_data *di, const char *device,
+		off_t new_size, __u32 blocksize)
+{
+	int rc, rc1;
+	char **images = NULL;
+	       
+	images = make_images_list(di, di->top_guid, 0);
+	if (images == NULL)
+		return SYSEXIT_MALLOC;
+
+	rc = ploop_suspend_device(device);
+	if (rc)
+		goto err;
+
+	rc = do_reload(device, images, new_size, blocksize, 0);
+
+	rc1 = ploop_resume_device(device);
+err:
+	ploop_free_array(images);
 
 	return rc ? rc : rc1;
 }

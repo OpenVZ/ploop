@@ -26,7 +26,6 @@ LIBOBJS=uuid.o \
 	logger.o \
 	balloon.o \
 	lock.o \
-	loop.c \
 	fsutils.o \
 	gpt.o \
 	crc32.o \

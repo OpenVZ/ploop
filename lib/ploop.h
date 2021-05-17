@@ -336,8 +336,6 @@ void __ploop_err(int err_no, const char *format, ...)
 	 })
 
 char *make_sysfs_dev_name(int minor, char *buf, int len);
-char *get_loop_name(int minor, int full, char *buf, int len);
-char *get_loop_by_dev(const char *devname, char *out, int len);
 int mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *param);
 PL_EXT int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		struct ploop_mount_param *param, int raw);
@@ -359,7 +357,7 @@ int sys_fallocate(int fd, int mode, off_t offset, off_t len);
 int sys_syncfs(int fd);
 int create_snapshot_delta(const char *path, __u32 blocksize, off_t bdsize,
 		int version);
-int get_image_param_online(const char *device, off_t *size,
+int get_image_param_online(const char *device, char **top, off_t *size,
 		__u32 *blocksize, int *version);
 int get_image_param(struct ploop_disk_images_data *di, const char *guid,
 		off_t *size, __u32 *blocksize, int *version);
@@ -512,7 +510,6 @@ const char *get_base_delta_uuid(struct ploop_disk_images_data *di);
 int do_delete_snapshot(struct ploop_disk_images_data *di, const char *guid);
 const char *get_basename(const char *path);
 const char *get_top_delta_guid(struct ploop_disk_images_data *di);
-int find_loop_dev_by_dd(struct ploop_disk_images_data *di, char *out, int len);
 int read_dd(struct ploop_disk_images_data *di);
 void normalize_path(const char *path, char *out);
 int get_snap_file_name(struct ploop_disk_images_data *di, const char *snap_dir,
@@ -528,12 +525,9 @@ __u32 *alloc_reverse_map(__u32 len);
 int range_build_rmap(__u32 iblk_start, __u32 iblk_end,
 		__u32 *rmap, __u32 rlen, struct delta *delta,
 		__u32 *out, __u32 *max);
-int get_loop_by_delta(const char *delta, char **out[]);
 int get_dev_by_loop(char **devs, char **out[]);
 int get_dev_from_sys(const char *devname, const char *type,char *out, int len);
 int get_top_delta(const char*ldev, char *out, int size);
-int get_top_delta_name(const char *device, char **fname, const char **format,
-                int *blocksize);
 PL_EXT int dm_get_delta_name(const char *devname, int idx, char **out);
 int append_array_entry(const char *entry, char **ar[], int nelem);
 int merge_top_delta(const char *devname);
@@ -547,10 +541,10 @@ int dm_setnoresume(const char *devname, int on);
 int dm_tracking_start(const char *devname);
 int dm_tracking_stop(const char *devname);
 int dm_tracking_get_next(const char *devname, __u64 *pos);
-int dm_flip_upper_deltas(const char *devname, const char *ldevname,
-		const char *top_delta);
+int dm_flip_upper_deltas(const char *devname);
+int dm_reload2(const char *device, off_t new_size, int rw2);
 int dm_reload(struct ploop_disk_images_data *di, const char *device,
-		const char *ldev, off_t new_size, __u32 blocksize);
+		off_t new_size, __u32 blocksize);
 int find_devs(struct ploop_disk_images_data *di, char ***out);
 int find_dev(struct ploop_disk_images_data *di, char *out, int len);
 int find_devs_by_delta(const char *delta, char ***out);
@@ -558,9 +552,8 @@ int find_dev_by_delta(const char *delta, char *out, int len);
 int loop_set_capacity(const char *ldev);
 int loop_release(const char *ldev);
 int loop_create(const char *delta, char *ldev, int size);
-int grow_loop_image(const char *devname, const char *delta,
-		int blocksize, __u64 size);
-PL_EXT int ploop_list(void);
+int grow_image(const char *delta, __u32 blocksize, __u64 size);
+PL_EXT int ploop_list(int flags);
 int fsync_safe(int fd);
 int build_hole_bitmap(struct delta *delta, __u64 **hole_bitmap,
 		__u32 *hole_bitmap_size, int *nr_clusters);

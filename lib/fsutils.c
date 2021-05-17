@@ -528,23 +528,15 @@ int is_device_from_devmapper(const char *device)
 	return 0;
 }
 
-int grow_loop_image(const char *delta, const char *ldev,
-		int blocksize, __u64 size)
+int grow_image(const char *delta, __u32 blocksize, __u64 size)
 {
 	int rc, fd;
-	char fname[PATH_MAX];
 	__u64 s, upb, l1_size;
 
 	upb = S2B(blocksize)  / sizeof(__u32);
 
 	l1_size = ((size / blocksize) + upb -1) / upb;
 	s = l1_size * blocksize + size;
-	if (ldev) {
-		rc = get_top_delta(ldev, fname, sizeof(fname));
-		if (rc)
-			return rc; 
-		delta = fname;
-	}
 
 	fd = open(delta, O_RDWR|O_CLOEXEC);
 	if (fd == -1) {
@@ -565,8 +557,5 @@ int grow_loop_image(const char *delta, const char *ldev,
 	if (rc)
 		return rc;
 
-	if (ldev)
-		return loop_set_capacity(ldev);
-		
 	return 0;
 }

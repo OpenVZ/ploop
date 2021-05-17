@@ -146,14 +146,15 @@ return 0;
 
 static int open_top_delta(const char *device, struct delta *delta, int *lvl)
 {
-	int ret = 0;
+	int ret;
 	char *image = NULL;
-	const char *fmt;
+	int fmt;
 
-	if (get_top_delta_name(device, &image, &fmt, NULL))
-		return(SYSEXIT_SYSFS);
+	ret = get_image_param_online(device, &image, NULL, NULL, &fmt);
+	if (ret)
+		return ret;
 
-	if (strcmp(fmt, "raw") == 0) {
+	if (fmt == PLOOP_FMT_UNDEFINED) {
 		ploop_err(0, "Ballooning for raw format is not supported");
 		ret = SYSEXIT_PARAM;
 		goto err;
@@ -858,7 +859,7 @@ static int ploop_trim(struct ploop_disk_images_data *di,
 		const char *devname, const char *mount_point, __u64 minlen_b)
 {
 	struct fstrim_range range = {};
-	int fd, x, ret = -1, last = 0;
+	int fd, ret = -1, last = 0;
 	off_t size;
 	__u64 trim_minlen;
 	__u64 discard_granularity;
@@ -868,7 +869,7 @@ static int ploop_trim(struct ploop_disk_images_data *di,
 	};
 	sigemptyset(&sa.sa_mask);
 
-	ret = get_image_param_online(devname, &size, &cluster, &x);
+	ret = get_image_param_online(devname, NULL, &size, &cluster, NULL);
 	if (ret)
 		return ret;
 	cluster = S2B(cluster);

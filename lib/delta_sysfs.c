@@ -34,11 +34,6 @@
 
 #include "ploop.h"
 
-char *get_loop_name(int minor, int full, char *buf, int len)
-{
-	snprintf(buf, len, "%sloop%d", full ? "/dev/" : "", minor);
-	return buf;
-}
 
 int get_dev_from_sys(const char *devname, const char *type, char *out,
 		int len)
@@ -86,64 +81,16 @@ int ploop_find_top_delta_name_and_format(const char *device, char *image,
 		size_t image_size, char *format, size_t format_size)
 {
 	char *i = NULL;
-	const char *f;
+	int f;
 	int rc;
 
-	rc = get_top_delta_name(device, &i, &f, NULL);
+	rc = get_image_param_online(device, &i, NULL, NULL, &f);
 	if (rc)
 		return rc;
 
 	snprintf(image, image_size, "%s", i);
 	free(i);
-	snprintf(format, format_size, "%s", f);
-
-	return 0;
-}
-
-int get_top_delta(const char*ldev, char *out, int size)
-{
-	int err;
-	char f[PATH_MAX];
-
-	snprintf(f, sizeof(f), "/sys/block/%s/loop/backing_file",
-			get_basename(ldev));
-	err = read_line_quiet(f, out, size);
-	if (err) {
-		if (err == ENOENT || err == ENODEV)
-			return 1;
-
-		ploop_err(err, "Can't open or read %s", f);
-		return -1;
-	}
-	return 0;
-}
-
-int get_top_delta_name(const char *device, char **fname, const char **format,
-		int *blocksize)
-{
-	int rc;
-	char ldev[64];
-	char buf[PATH_MAX];
-
-	rc = get_dev_from_sys(device, "slaves", ldev, sizeof(ldev));
-	if (rc) {
-		if (rc == 1)
-			ploop_err(0, "Can not find top delta fname by dev %s", device);
-		return rc;
-	}
-
-	rc = get_top_delta(ldev, buf, sizeof(buf));
-	if (rc)
-		return rc;
-
-	*fname = strdup(buf);
-	if (fname == NULL)
-		return SYSEXIT_MALLOC;
-
-	if (format)
-		*format = "ploop1";
-	if (blocksize)
-		*blocksize = 2048;
+	snprintf(format, format_size, "%d", f);
 
 	return 0;
 }
@@ -163,18 +110,18 @@ int ploop_get_names(const char *device, char **names[], const char **format,
 			n = t;
 		}
 		rc = dm_get_delta_name(device, i, &n[i]);
-		if (rc == -1) 
+		if (rc == -1) {
+			rc = SYSEXIT_SYS;
 			goto err;
-		else if (rc)
+		} else if (rc == 1)
 			break;
 
 		n[i + 1] = NULL;
 	}
 
-	rc = get_top_delta_name(device, &n[i++], format, blocksize);
+	rc = get_image_param_online(device, NULL, NULL, (__u32*)blocksize, NULL);
 	if (rc)
 		goto err;
-	n[i] = NULL;
 
 	if (names)
 		*names = n;
@@ -517,66 +464,6 @@ int dev_num2dev_start(dev_t dev_num, __u32 *dev_start)
 
 	*dev_start += offset;
 	return ret;
-}
-
-static int check_dev_by_name(const char *ldev, const char *delta)
-{
-	int rc;
-	char f[PATH_MAX];
-
-	rc = get_top_delta(ldev, f, sizeof(f));
-	if (rc)
-		return rc;
-	return strcmp(f, delta) == 0  ? 0 : 1;
-}
-
-int get_loop_by_delta(const char *delta, char **out[])
-{
-	char delta_r[PATH_MAX];
-	char dev[64];
-	DIR *dp;
-	struct dirent *de;
-	int err;
-	int n = 0;
-
-	*out = NULL;
-
-	if (access(delta, F_OK ))
-		return 1;
-
-	if (realpath(delta, delta_r) == NULL) {
-		ploop_err(errno, "Warning: can't resolve %s", delta);
-		snprintf(delta_r, sizeof(delta_r), "%s", delta);
-	}
-	dp = opendir("/sys/block/");
-	if (dp == NULL) {
-		ploop_err(errno, "Can't opendir /sys/block");
-		goto err;
-	}
-	while ((de = readdir(dp)) != NULL) {
-		if (strncmp("loop", de->d_name, 4))
-			continue;
-
-		err = check_dev_by_name(de->d_name, delta_r);
-		if (err == -1)
-			goto err;
-		else if (err == 1)
-			continue;
-
-		snprintf(dev, sizeof(dev), "/dev/%s", de->d_name);
-		n = append_array_entry(dev, out, n);
-		if (n == -1)
-			goto err;
-	}
-
-	closedir(dp);
-	return (n == 0);
-err:
-	if (dp)
-		closedir(dp);
-	ploop_free_array(*out);
-	*out = NULL;
-	return -1;
 }
 
 int ploop_find_dev(const char *component_name, const char *delta,

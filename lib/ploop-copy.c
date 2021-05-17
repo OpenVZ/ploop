@@ -786,9 +786,9 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 		struct ploop_copy_handle **h)
 {
 	int ret, err;
-	int blocksize;
+	__u32 blocksize;
 	char *image = NULL;
-	const char *format;
+	int fmt;
 	char device[64];
 	char partdev[64];
 	struct ploop_copy_handle  *_h = NULL;
@@ -822,7 +822,7 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 		return SYSEXIT_PARAM;
 	}
 
-	ret = get_top_delta_name(device, &image, &format, &blocksize);
+	ret = get_image_param_online(device, &image, NULL, &blocksize, &fmt);
 	if (ret)
 		goto err;
 
@@ -833,7 +833,7 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 		goto err;
 	}
 
-	_h->raw = strcmp(format, "raw") == 0;
+	_h->raw = fmt == PLOOP_FMT_UNDEFINED;
 	_h->ofd = param->ofd;
 	_h->is_remote = is_remote;
 	_h->async = param->async;
@@ -868,8 +868,8 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 		}
 	}
 
-	ploop_log(0, "Send image %s dev=%s mnt=%s fmt=%s blocksize=%d local=%d",
-			image, device, mnt, format, blocksize, !is_remote);
+	ploop_log(0, "Send image %s dev=%s mnt=%s fmt=%d blocksize=%d local=%d",
+			image, device, mnt, fmt, blocksize, !is_remote);
 
 	if (open_delta(&_h->idelta, image, O_RDONLY|O_DIRECT, OD_ALLOW_DIRTY)) {
 		ret = SYSEXIT_OPEN;

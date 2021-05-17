@@ -1144,7 +1144,6 @@ static int read_optional_header_from_kernel(struct ext_context *ctx,
 	__u64 block_size;
 	__u64 *p, x, bits, bytes;
 	__u32 blocksize, byte_granularity;
-	int version;
 	off_t dev_size;
 	void *block = NULL;
 	struct ploop_pvd_dirty_bitmap_raw *raw;
@@ -1155,7 +1154,7 @@ static int read_optional_header_from_kernel(struct ext_context *ctx,
 		return -1;
 	}
 
-	ret = get_image_param_online(dev, &dev_size, &blocksize, &version);
+	ret = get_image_param_online(dev, NULL, &dev_size, &blocksize, NULL);
 	if (ret)
 		goto out;
 

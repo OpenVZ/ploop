@@ -110,13 +110,13 @@ static int grow_lower_delta(const char *device, int top,
 	int i;
 	struct ploop_pvd_header *vh;
 	struct grow_maps grow_maps;
-	const char *fmt;
+	int fmt;
 	int dst_is_raw = 0;
 	void *buf = NULL;
 	struct delta odelta = {.fd = -1};
-	int ret, blocksize;
+	int ret;
+       	__u32 blocksize;
 	__u64 cluster;
-	char **names = NULL;
 
 	if (top)
 		ret = ploop_get_size(device, &src_size);
@@ -125,14 +125,11 @@ static int grow_lower_delta(const char *device, int top,
 	if (ret)
 		return ret;
 
-	if (ploop_get_names(device, &names, &fmt, &blocksize)) {
-		ploop_err(errno, "find_delta_names");
-		ret = SYSEXIT_SYSFS;
+	ret = get_image_param_online(device, NULL, NULL, &blocksize, &fmt);
+	if (ret)
 		goto done;
-	}
-	ploop_free_array(names);
 
-	if (strcmp(fmt, "raw") == 0)
+	if (fmt == PLOOP_FMT_UNDEFINED)
 		dst_is_raw = 1;
 
 	if ((ret = read_size_from_image(dst_image, dst_is_raw, &dst_size)))
@@ -167,7 +164,7 @@ static int grow_lower_delta(const char *device, int top,
 		goto done;
 	}
 
-	if (grow_loop_image(dst_image, NULL, odelta.blocksize, src_size)) {
+	if (grow_image(dst_image, odelta.blocksize, src_size)) {
 		ret = SYSEXIT_WRITE;
 		goto done;
 	}
@@ -708,10 +705,9 @@ static int reverse_merge_online(struct ploop_disk_images_data *di,
 		const char *devname, const char *base, const char *top,
 		int start_level, int end_level)
 {
-	char ldev[64];
 	char cfg[PATH_MAX];
 	char *t, *cfg1, *rm_fname;
-	int rc, lfd =  -1;
+	int rc;
 	int top_idx, base_idx;
 
 	ploop_log(0, "Online reverse merge %s -> %s [%d]", base, top,
@@ -753,15 +749,14 @@ static int reverse_merge_online(struct ploop_disk_images_data *di,
 	rc = ploop_store_diskdescriptor(cfg1, di);
 	if (rc)
 		return rc;
-	// 1) get new loop device
-	lfd = loop_create(base, ldev, sizeof(ldev));
-        if (rc)
-		goto err1;
-	// 4) deny to resume
+	rc = dm_reload2(devname, 0, 1);
+	if (rc)
+		goto err;
+	// 3) deny to resume
 	rc = dm_setnoresume(devname, 1);
 	if (rc && errno != EBUSY)
 		goto err1;
-	// 3) suspend
+	// 4) suspend
 	rc = ploop_suspend_device(devname);
 	if (rc)
 		goto err1;
@@ -787,7 +782,7 @@ static int reverse_merge_online(struct ploop_disk_images_data *di,
 swap:
 	// 8) swap deltas
 	ploop_log(0, "Swap top '%s' delta with lower '%s'", top, base);
-	rc = dm_flip_upper_deltas(devname, ldev, top);
+	rc = dm_flip_upper_deltas(devname);
 	if (rc)
 		goto err;
 	rc = dm_setnoresume(devname, 0);
@@ -827,7 +822,6 @@ err:
 	}
 err1:
 	unlink(cfg1);
-	close(lfd);
 
 	return rc;
 }

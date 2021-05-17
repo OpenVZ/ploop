@@ -42,7 +42,7 @@ static char *get_buffer(void)
 {
 	return _g_log_buf;
 }
-
+#define PLOOP_LOG_FILE	"/var/log/ploop.log"
 #ifdef PLOOP_LOG_FILE
 static FILE *_s_ploop_log_file = NULL;
 __attribute__((constructor)) void __ploop_init (void)

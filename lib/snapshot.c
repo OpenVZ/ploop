@@ -164,61 +164,34 @@ int ploop_delete_snapshot(struct ploop_disk_images_data *di, const char *guid)
 }
 
 static int create_snapshot_online(struct ploop_disk_images_data *di,
-		const char *device, off_t size, __u32 blocksize)
+		const char *device, const char *new_top)
 {
-	int rc, lfd;
-	char ldev[64];
-	const char *top_delta;
-	char *delta;
+	int rc;
+	off_t size;
+	__u32 blocksize;
+	char *top;
 
-	top_delta = find_image_by_guid(di, di->top_guid);
-	if (top_delta == NULL) {
-		ploop_err(0, "Can't find image by top guid %s", di->top_guid);
+	ploop_log(0, "Creating snapshot dev=%s img=%s", device, new_top);
+	if (new_top == NULL)
 		return SYSEXIT_PARAM;
-	}
 
-	rc = get_top_delta_name(device, &delta, NULL, NULL);
+	rc = get_image_param_online(device, &top, &size, &blocksize, NULL);
 	if (rc)
 		return rc;
 
-	rc = update_delta_inuse(top_delta, SIGNATURE_DISK_IN_USE);
+	rc = update_delta_inuse(new_top, SIGNATURE_DISK_IN_USE);
 	if (rc)
-		return rc;
-
-	lfd = loop_create(top_delta, ldev, sizeof(ldev));
-	if (lfd < 0) {
-		rc = SYSEXIT_OPEN;
 		goto err;
-	}
 
-	rc = update_delta_inuse(delta, 0);
-	if (rc) {
-		loop_release(ldev);
+	rc = update_delta_inuse(top, 0);
+	if (rc)
 		goto err;
-	}
-	rc = dm_reload(di, device, ldev, size, blocksize);
+
+	rc = dm_reload(di, device, size, blocksize);
 err:
-	free(delta);
-	close(lfd);
+	free(top);
 
 	return rc;
-}
-
-static int create_image_snapshot(struct ploop_disk_images_data *di,
-		const char *device, const char *delta)
-{
-	int ret;
-	off_t bdsize;
-	__u32 blocksize;
-	int version;
-
-	ret = get_image_param_online(device, &bdsize,
-			&blocksize, &version);
-	if (ret)
-		return ret;
-
-	ploop_log(0, "Creating snapshot dev=%s img=%s", device, delta);
-	return create_snapshot_online(di, device, bdsize, blocksize);
 }
 
 static int create_cbt_snapshot(struct ploop_disk_images_data *di, int fd,
@@ -242,7 +215,7 @@ static int create_cbt_snapshot(struct ploop_disk_images_data *di, int fd,
 	if (ret)
 		goto err;
 
-	ret = create_image_snapshot(di, device, delta);
+	ret = create_snapshot_online(di, device, delta);
 	if (ret)
 		goto err;
 
@@ -270,7 +243,7 @@ int create_snapshot(struct ploop_disk_images_data *di,
 	}
 
 	if (cbt_u == NULL)
-		ret = create_image_snapshot(di, device, delta);
+		ret = create_snapshot_online(di, device, delta);
 	else
 		ret = create_cbt_snapshot(di, fd, device, delta, cbt_u, prev_delta);
 
@@ -409,7 +382,7 @@ int do_create_snapshot(struct ploop_disk_images_data *di,
 			if (ret)
 				return ret;
 		}
-		ret = get_image_param_online(dev, &size,
+		ret = get_image_param_online(dev, NULL, &size,
 				&blocksize, &version);
 		if (ret)
 			return ret;

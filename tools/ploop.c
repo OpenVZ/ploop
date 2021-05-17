@@ -1151,11 +1151,14 @@ static void usage_list(void)
 
 static int plooptool_list(int argc, char **argv)
 {
-	int i;
+	int i, f = 0;
 
-	while ((i = getopt(argc, argv, "a")) != EOF) {
+	while ((i = getopt(argc, argv, "af")) != EOF) {
 		switch (i) {
 		case 'a':
+			break;
+		case 'f':
+			f = 1;
 			break;
 		default:
 			usage_list();
@@ -1172,7 +1175,7 @@ static int plooptool_list(int argc, char **argv)
 	}
 
 	ploop_set_verbose_level(PLOOP_LOG_NOCONSOLE);
-	return ploop_list();
+	return ploop_list(f);
 }
 
 static void usage_replace(void)
