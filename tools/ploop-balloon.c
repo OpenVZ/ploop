@@ -100,7 +100,7 @@ static int fill_opts(void)
 
 static void usage_summary(void)
 {
-	fprintf(stderr, "Usage: ploop-balloon { show | status | clear | change | complete | check | repair | discard } ...\n"
+	fprintf(stderr, "Usage: ploop-balloon { change discard | show } ...\n"
 			"Use \"ploop-balloon cmd\" to get more info about cmd\n"
 		);
 }
@@ -151,104 +151,6 @@ static int pb_show(int argc, char **argv)
 		return ret;
 	fprintf(stdout, "Current size of hidden balloon is %llu bytes\n",
 		(unsigned long long) st.st_size);
-	return 0;
-}
-
-static void usage_status(void)
-{
-	fprintf(stderr, "Usage: ploop-balloon status [-f] {-d DEVICE | -m MOUNT_POINT | DiskDescriptor.xml}\n"
-			"	DEVICE	    := ploop device, e.g. /dev/ploop0\n"
-			"	MOUNT_POINT := path where fs living on ploop device mounted to\n"
-			"	-f	    - do not flock hidden balloon\n"
-			"Action: inquire current in-kernel status of maintenance\n"
-		);
-}
-
-static int pb_status(int argc, char **argv)
-{
-	int i, ret;
-	__u32 state;
-
-	while ((i = getopt(argc, argv, "fd:m:")) != EOF) {
-		switch (i) {
-		case 'f':
-			force = 1;
-			break;
-		case 'd':
-			device = optarg;
-			break;
-		case 'm':
-			mount_point = optarg;
-			break;
-		default:
-			usage_status();
-			return SYSEXIT_PARAM;
-		}
-	}
-
-	argc -= optind;
-	argv += optind;
-
-	GET_DD(argc, argv);
-	if (argc != 0 || fill_opts()) {
-		usage_status();
-		return SYSEXIT_PARAM;
-	}
-
-	ret = ploop_balloon_get_state(device, &state);
-	if (ret)
-		return ret;
-
-	fprintf(stdout, "Current state of in-kernel maintenance: %s\n",
-			mntn2str(state));
-	return 0;
-}
-
-static void usage_clear(void)
-{
-	fprintf(stderr, "Usage: ploop-balloon clear {-d DEVICE | -m MOUNT_POINT | DiskDescriptor.xml}\n"
-			"	DEVICE	    := ploop device, e.g. /dev/ploop0\n"
-			"	MOUNT_POINT := path where fs living on ploop device mounted to\n"
-			"Action: clear stale in-kernel \"BALLOON\" state of maintenance\n"
-		);
-}
-
-static int pb_clear(int argc, char **argv)
-{
-	int i, ret;
-	int fd2;
-
-	while ((i = getopt(argc, argv, "d:m:")) != EOF) {
-		switch (i) {
-		case 'd':
-			device = optarg;
-			break;
-		case 'm':
-			mount_point = optarg;
-			break;
-		default:
-			usage_clear();
-			return SYSEXIT_PARAM;
-		}
-	}
-
-	argc -= optind;
-	argv += optind;
-
-	GET_DD(argc, argv);
-	if (argc != 0 || fill_opts()) {
-		usage_clear();
-		return SYSEXIT_PARAM;
-	}
-
-	ret = get_balloon(mount_point, NULL, &fd2);
-	if (ret)
-		return ret;
-
-	ret = ploop_balloon_clear_state(device);
-	if (ret)
-		return ret;
-	fprintf(stdout, "Current state of in-kernel maintenance is OFF now\n");
 	return 0;
 }
 
@@ -304,110 +206,6 @@ static int pb_change(int argc, char **argv)
 		return ret;
 
 	return ploop_balloon_change_size(device, fd, new_size);
-}
-
-static void usage_complete(void)
-{
-	fprintf(stderr, "Usage: ploop-balloon complete {-d DEVICE | -m MOUNT_POINT | DiskDescriptor.xml}\n"
-			"	DEVICE	    := ploop device, e.g. /dev/ploop0\n"
-			"	MOUNT_POINT := path where fs living on ploop device mounted to\n"
-			"Action: complete previously interrupted balloon operation\n"
-			"	 (sensible only if kernel is in \"FBLOAD\" or \"RELOC\"\n"
-			"	  state of maintenance)\n"
-		);
-}
-
-static int pb_complete(int argc, char **argv)
-{
-	int i, ret, fd;
-
-	while ((i = getopt(argc, argv, "d:m:")) != EOF) {
-		switch (i) {
-		case 'd':
-			device = optarg;
-			break;
-		case 'm':
-			mount_point = optarg;
-			break;
-		default:
-			usage_complete();
-			return SYSEXIT_PARAM;
-		}
-	}
-
-	argc -= optind;
-	argv += optind;
-
-	GET_DD(argc, argv);
-	if (argc != 0 || fill_opts()) {
-		usage_complete();
-		return SYSEXIT_PARAM;
-	}
-
-	ret = get_balloon(mount_point, NULL, &fd);
-	if (ret)
-		return ret;
-
-	return ploop_balloon_complete(device);
-}
-
-static void usage_check(void)
-{
-	fprintf(stderr, "Usage: ploop-balloon check {-d DEVICE | -m MOUNT_POINT | DiskDescriptor.xml}\n"
-			"	DEVICE	    := ploop device, e.g. /dev/ploop0\n"
-			"	MOUNT_POINT := path where fs living on ploop device mounted to\n"
-			"Action: check whether hidden balloon has free blocks\n"
-		);
-}
-
-static void usage_repair(void)
-{
-	fprintf(stderr, "Usage: ploop-balloon repair {-d DEVICE | -m MOUNT_POINT | DiskDescriptor.xml}\n"
-			"	DEVICE	    := ploop device, e.g. /dev/ploop0\n"
-			"	MOUNT_POINT := path where fs living on ploop device mounted to\n"
-			"Action: repair hidden balloon (i.e. relocate all free blocks\n"
-			"	 present in hidden balloon (w/o inflate))\n"
-		);
-}
-
-static int pb_check_and_repair(int argc, char **argv, int repair)
-{
-	int i;
-
-	while ((i = getopt(argc, argv, "fd:m:")) != EOF) {
-		switch (i) {
-		case 'f':
-			force = 1;
-			break;
-		case 'd':
-			device = optarg;
-			break;
-		case 'm':
-			mount_point = optarg;
-			break;
-		default:
-			if (repair)
-				usage_repair();
-			else
-				usage_check();
-			return SYSEXIT_PARAM;
-		}
-	}
-
-	argc -= optind;
-	argv += optind;
-
-	GET_DD(argc, argv);
-	if (argc != 0 || fill_opts()) {
-		if (repair)
-			usage_repair();
-		else
-			usage_check();
-		return SYSEXIT_PARAM;
-	}
-
-	return ploop_balloon_check_and_repair(device, mount_point, repair);
-
 }
 
 static void usage_discard(void)
@@ -557,18 +355,8 @@ int main(int argc, char **argv)
 
 	if (strcmp(cmd, "show") == 0)
 		return pb_show(argc, argv);
-	if (strcmp(cmd, "status") == 0)
-		return pb_status(argc, argv);
-	if (strcmp(cmd, "clear") == 0)
-		return pb_clear(argc, argv);
 	if (strcmp(cmd, "change") == 0)
 		return pb_change(argc, argv);
-	if (strcmp(cmd, "complete") == 0)
-		return pb_complete(argc, argv);
-	if (strcmp(cmd, "check") == 0)
-		return pb_check_and_repair(argc, argv, 0); /* check only */
-	if (strcmp(cmd, "repair") == 0)
-		return pb_check_and_repair(argc, argv, 1); /* check and repair */
 	if (strcmp(cmd, "discard") == 0)
 		return pb_discard(argc, argv);
 

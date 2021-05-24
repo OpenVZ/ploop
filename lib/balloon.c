@@ -72,17 +72,6 @@ char *mntn2str(int mntn_type)
 	return "UNKNOWN";
 }
 
-static int open_device(const char *device)
-{
-	int fd = open(device, O_RDONLY|O_CLOEXEC);
-	if (fd < 0) {
-		ploop_err(errno, "Can't open ploop device %s",
-			device);
-		return -1;
-	}
-	return fd;
-}
-
 static int fsync_balloon(int fd)
 {
 	if (fsync(fd)) {
@@ -101,7 +90,6 @@ int get_balloon(const char *mount_point, struct stat *st, int *outfd)
 {
 	int fd, fd2;
 
-return 0;
 	if (mount_point == NULL)
 		return SYSEXIT_PARAM;
 
@@ -144,31 +132,6 @@ return 0;
 	return 0;
 }
 
-static int open_top_delta(const char *device, struct delta *delta, int *lvl)
-{
-	int ret;
-	char *image = NULL;
-	int fmt;
-
-	ret = get_image_param_online(device, &image, NULL, NULL, &fmt);
-	if (ret)
-		return ret;
-
-	if (fmt == PLOOP_FMT_UNDEFINED) {
-		ploop_err(0, "Ballooning for raw format is not supported");
-		ret = SYSEXIT_PARAM;
-		goto err;
-	}
-
-	if (open_delta(delta, image, O_RDONLY|O_DIRECT, OD_ALLOW_DIRTY)) {
-		ploop_err(errno, "open_delta");
-		ret = SYSEXIT_OPEN;
-	}
-err:
-	free(image);
-	return ret;
-}
-
 __u32 *alloc_reverse_map(__u32 len)
 {
 	__u32 *reverse_map;
@@ -181,30 +144,9 @@ __u32 *alloc_reverse_map(__u32 len)
 	return reverse_map;
 }
 
-static int do_truncate(int fd, int mntn_type, off_t old_size, off_t new_size)
+static int do_truncate(int fd, off_t old_size, off_t new_size)
 {
 	int ret;
-
-	switch (mntn_type) {
-	case PLOOP_MNTN_OFF:
-	case PLOOP_MNTN_MERGE:
-	case PLOOP_MNTN_GROW:
-	case PLOOP_MNTN_TRACK:
-		break;
-	case PLOOP_MNTN_BALLOON:
-		ploop_err(0, "Error: mntn_type is PLOOP_MNTN_BALLOON "
-			"after IOC_BALLOON");
-		return(SYSEXIT_PROTOCOL);
-	case PLOOP_MNTN_FBLOADED:
-	case PLOOP_MNTN_RELOC:
-		ploop_err(0, "Can't truncate hidden balloon before previous "
-		       "balloon operation (%s) is completed. Use \"ploop-balloon "
-		       "complete\".", mntn2str(mntn_type));
-		return(SYSEXIT_EBUSY);
-	default:
-		ploop_err(0, "Error: unknown mntn_type (%u)", mntn_type);
-		return(SYSEXIT_PROTOCOL);
-	}
 
 	if (new_size == old_size) {
 		ploop_log(0, "Nothing to do: new_size == old_size");
@@ -222,36 +164,11 @@ static int do_truncate(int fd, int mntn_type, off_t old_size, off_t new_size)
 	return 0;
 }
 
-static int do_inflate(int fd, int mntn_type, off_t old_size, off_t *new_size, int *drop_state)
+static int do_inflate(int fd, off_t old_size, off_t *new_size)
 {
 	struct stat st;
 	int err;
 
-	*drop_state = 0;
-	switch (mntn_type) {
-	case PLOOP_MNTN_BALLOON:
-		break;
-	case PLOOP_MNTN_MERGE:
-	case PLOOP_MNTN_GROW:
-	case PLOOP_MNTN_TRACK:
-		ploop_err(0, "Can't inflate hidden balloon while another "
-			"maintenance operation is in progress (%s)",
-			mntn2str(mntn_type));
-		return(SYSEXIT_EBUSY);
-	case PLOOP_MNTN_FBLOADED:
-	case PLOOP_MNTN_RELOC:
-		ploop_err(0, "Can't inflate hidden balloon before previous "
-			"balloon operation (%s) is completed. Use "
-			"\"ploop-balloon complete\".", mntn2str(mntn_type));
-		return(SYSEXIT_EBUSY);
-	case PLOOP_MNTN_OFF:
-		ploop_err(0, "Error: mntn_type is PLOOP_MNTN_OFF after "
-			"IOC_BALLOON");
-		return(SYSEXIT_PROTOCOL);
-	default:
-		ploop_err(0, "Error: unknown mntn_type (%u)", mntn_type);
-		return(SYSEXIT_PROTOCOL);
-	}
 	err = sys_fallocate(fd, 0, 0, *new_size);
 	if (err)
 		ploop_err(errno, "Can't fallocate balloon");
@@ -267,8 +184,6 @@ static int do_inflate(int fd, int mntn_type, off_t old_size, off_t *new_size, in
 		if (st.st_size != old_size) {
 			if (ftruncate(fd, old_size))
 				ploop_err(errno, "Can't revert old_size back (2)");
-			else
-				*drop_state = 1;
 		}
 		return(SYSEXIT_FALLOCATE);
 	}
@@ -279,8 +194,6 @@ static int do_inflate(int fd, int mntn_type, off_t old_size, off_t *new_size, in
 				(unsigned long long)*new_size, (unsigned long long)st.st_size);
 		if (ftruncate(fd, old_size))
 			ploop_err(errno, "Can't revert old_size back (3)");
-		else
-			*drop_state = 1;
 		return(SYSEXIT_FALLOCATE);
 	}
 	*new_size = st.st_size;
@@ -296,24 +209,9 @@ static int do_inflate(int fd, int mntn_type, off_t old_size, off_t *new_size, in
 
 int ploop_balloon_change_size(const char *device, int balloonfd, off_t new_size)
 {
-	int    fd = -1;
 	int    ret;
 	off_t  old_size;
-	__u32  dev_start;  /* /sys/block/ploop0/ploop0p1/start */
-	struct ploop_balloon_ctl    b_ctl;
-	struct stat		    st;
-	struct pfiemap		   *pfiemap = NULL;
-	struct freemap		   *freemap = NULL;
-	struct freemap		   *rangemap = NULL;
-	struct relocmap		   *relocmap = NULL;
-	struct ploop_freeblks_ctl  *freeblks = NULL;
-	struct ploop_relocblks_ctl *relocblks = NULL;
-	__u32 *reverse_map = NULL;
-	int top_level;
-	struct delta delta = { .fd = -1 };
-	int drop_state = 0;
-
-return 0;
+	struct stat st;
 
 	if (fstat(balloonfd, &st)) {
 		ploop_err(errno, "Can't get balloon file size");
@@ -326,450 +224,14 @@ return 0;
 	ploop_log(0, "Changing balloon size old_size=%ld new_size=%ld",
 			(long)old_size, (long)new_size);
 
-	pfiemap = fiemap_alloc(128);
-	freemap = freemap_alloc(128);
-	rangemap = freemap_alloc(128);
-	relocmap = relocmap_alloc(128);
-	if (!pfiemap || !freemap || !rangemap || !relocmap) {
-		ret = SYSEXIT_MALLOC;
-		goto err;
-	}
-
-	fd = open_device(device);
-	if (fd == -1) {
-		ret = SYSEXIT_OPEN;
-		goto err;
-	}
-
-	memset(&b_ctl, 0, sizeof(b_ctl));
-	if (old_size < new_size)
-		b_ctl.inflate = 1;
-	ret = ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
-	if (ret)
-		goto err;
-
-	drop_state = 1;
-	if (old_size >= new_size) {
-		ret = do_truncate(balloonfd, b_ctl.mntn_type, old_size, new_size);
-		goto err;
-	}
-
-	if (dev_num2dev_start(st.st_dev, &dev_start)) {
-
-		ploop_err(0, "Can't find out offset from start of ploop "
-			"device (%s) to start of partition",
-			device);
-		ret = SYSEXIT_SYSFS;
-		goto err;
-	}
-
-	ret = open_top_delta(device, &delta, &top_level);
-	if (ret)
-		goto err;
-
-	ret = do_inflate(balloonfd, b_ctl.mntn_type, old_size, &new_size, &drop_state);
-	if (ret)
-		goto err;
-	drop_state = 1;
-	ret = 0;
-err:
-	if (drop_state) {
-		memset(&b_ctl, 0, sizeof(b_ctl));
-		(void)ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
-	}
-	if (fd != -1)
-		close(fd);
-	free(pfiemap);
-	free(freemap);
-	free(rangemap);
-	free(relocmap);
-	free(reverse_map);
-	free(freeblks);
-	free(relocblks);
-	if (delta.fd != -1)
-		close_delta(&delta);
+	if (old_size >= new_size)
+		ret = do_truncate(balloonfd, old_size, new_size);
+	else
+		ret = do_inflate(balloonfd, old_size, &new_size);
 
 	return ret;
 }
 
-int ploop_balloon_get_state(const char *device, __u32 *state)
-{
-	int fd, ret;
-	struct ploop_balloon_ctl b_ctl;
-
-	fd = open_device(device);
-	if (fd == -1)
-		return SYSEXIT_OPEN;
-
-	bzero(&b_ctl, sizeof(b_ctl));
-	b_ctl.keep_intact = 2;
-	ret = ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
-	if (ret)
-		goto err;
-
-	*state = b_ctl.mntn_type;
-
-err:
-	close(fd);
-
-	return ret;
-}
-
-int ploop_balloon_clear_state(const char *device)
-{
-	int fd, ret;
-	struct ploop_balloon_ctl b_ctl;
-
-	fd = open_device(device);
-	if (fd == -1)
-		return SYSEXIT_OPEN;
-
-	bzero(&b_ctl, sizeof(b_ctl));
-	ret = ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
-	if (ret)
-		goto err;
-
-	if (b_ctl.mntn_type != PLOOP_MNTN_OFF) {
-		ploop_err(0, "Can't clear stale in-kernel \"BALLOON\" "
-				"maintenance state because kernel is in \"%s\" "
-				"state now", mntn2str(b_ctl.mntn_type));
-		ret = SYSEXIT_EBUSY;
-	}
-err:
-	close(fd);
-	return ret;
-}
-
-static int ploop_balloon_relocation(int fd, struct ploop_balloon_ctl *b_ctl, const char *device)
-{
-	int    ret = -1;
-	__u32  n_free_blocks = 0;
-	__u32  freezed_a_h;
-	struct freemap		   *freemap = NULL;
-	struct freemap		   *rangemap = NULL;
-	struct relocmap		   *relocmap = NULL;
-	struct ploop_freeblks_ctl  *freeblks = NULL;
-	struct ploop_relocblks_ctl *relocblks = NULL;;
-	__u32 *reverse_map = NULL;
-	__u32  reverse_map_len;
-	int top_level;
-	struct delta delta = {};
-
-	freemap  = freemap_alloc(128);
-	rangemap = freemap_alloc(128);
-	relocmap = relocmap_alloc(128);
-	if (freemap == NULL || rangemap == NULL || relocmap == NULL) {
-		ret = SYSEXIT_MALLOC;
-		goto err;
-	}
-
-	top_level   = b_ctl->level;
-	freezed_a_h = b_ctl->alloc_head;
-
-	if (b_ctl->mntn_type == PLOOP_MNTN_RELOC)
-		goto reloc;
-
-	if (b_ctl->mntn_type != PLOOP_MNTN_FBLOADED) {
-		ploop_err(0, "Error: non-suitable mntn_type (%u)",
-			b_ctl->mntn_type);
-		ret = SYSEXIT_PROTOCOL;
-		goto err;
-	}
-
-	ret = freeblks_alloc(&freeblks, 0);
-	if (ret)
-		goto err;
-	ret = ioctl_device(fd, PLOOP_IOC_FBGET, freeblks);
-	if (ret)
-		goto err;
-
-	if (freeblks->n_extents == 0)
-		goto reloc;
-
-	ret = freeblks_alloc(&freeblks, freeblks->n_extents);
-	if (ret)
-		goto err;
-	ret = ioctl_device(fd, PLOOP_IOC_FBGET, freeblks);
-	if (ret)
-		goto err;
-
-	ret = freeblks2freemap(freeblks, &freemap, &n_free_blocks);
-	if (ret)
-		goto err;
-
-	ret = open_top_delta(device, &delta, &top_level);
-	if (ret)
-		goto err;
-	reverse_map_len = delta.l2_size + delta.l2_size;
-	reverse_map = alloc_reverse_map(reverse_map_len);
-	if (reverse_map == NULL) {
-		close_delta(&delta);
-		ret = SYSEXIT_MALLOC;
-		goto err;
-	}
-
-	ret = range_build(freezed_a_h, n_free_blocks, reverse_map, reverse_map_len,
-		    &delta, freemap, &rangemap, &relocmap);
-	close_delta(&delta);
-	if (ret)
-		goto err;
-reloc:
-	ret = relocmap2relocblks(relocmap, top_level, freezed_a_h, n_free_blocks,
-			   &relocblks);
-	if (ret)
-		goto err;
-	while (ioctl_device(fd, PLOOP_IOC_RELOCBLKS, relocblks)) {
-		ploop_err(errno, "Error in ioctl(PLOOP_IOC_RELOCBLKS)");
-		ret = SYSEXIT_DEVIOC;
-		if (errno != EINTR)
-			goto err;
-	}
-
-	ploop_log(0, "TRUNCATED: %u cluster-blocks (%llu bytes)",
-			relocblks->alloc_head,
-			(unsigned long long)(relocblks->alloc_head * S2B(delta.blocksize)));
-err:
-
-	free(freemap);
-	free(rangemap);
-	free(relocmap);
-	free(reverse_map);
-	free(freeblks);
-	free(relocblks);
-
-	return ret;
-}
-
-int ploop_balloon_complete(const char *device)
-{
-	int fd, err;
-	struct ploop_balloon_ctl b_ctl;
-
-	fd = open_device(device);
-	if (fd == -1)
-		return SYSEXIT_OPEN;
-
-	err = ioctl(fd, PLOOP_IOC_DISCARD_FINI);
-	if (err && errno != EBUSY) {
-		ploop_err(errno, "Can't finalize discard mode");
-		err = SYSEXIT_DEVIOC;
-		goto out;
-	}
-
-	memset(&b_ctl, 0, sizeof(b_ctl));
-	b_ctl.keep_intact = 2;
-	err = ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
-	if (err)
-		goto out;
-
-	switch (b_ctl.mntn_type) {
-	case PLOOP_MNTN_BALLOON:
-	case PLOOP_MNTN_MERGE:
-	case PLOOP_MNTN_GROW:
-	case PLOOP_MNTN_TRACK:
-	case PLOOP_MNTN_OFF:
-		ploop_log(0, "Nothing to complete: kernel is in \"%s\" state",
-			mntn2str(b_ctl.mntn_type));
-		goto out;
-	case PLOOP_MNTN_RELOC:
-	case PLOOP_MNTN_FBLOADED:
-		break;
-	default:
-		ploop_err(0, "Error: unknown mntn_type (%u)",
-			b_ctl.mntn_type);
-		err = SYSEXIT_PROTOCOL;
-		goto out;
-	}
-
-	err = ploop_balloon_relocation(fd, &b_ctl, device);
-out:
-	close(fd);
-	return err;
-}
-
-int ploop_balloon_check_and_repair(const char *device, const char *mount_point, int repair)
-{
-	int   ret, fd = -1;
-	int   balloonfd = -1;
-	__u32 n_free_blocks;
-	__u32 freezed_a_h;
-	__u32 dev_start;  /* /sys/block/ploop0/ploop0p1/start */
-	struct ploop_balloon_ctl    b_ctl;
-	struct stat		    st;
-	struct pfiemap		   *pfiemap  = NULL;
-	struct freemap		   *freemap  = NULL;
-	struct freemap		   *rangemap = NULL;
-	struct relocmap		   *relocmap = NULL;
-	struct ploop_freeblks_ctl  *freeblks = NULL;
-	struct ploop_relocblks_ctl *relocblks= NULL;
-	char *msg = repair ? "repair" : "check";
-	__u32 *reverse_map = NULL;
-	__u32  reverse_map_len;
-	int top_level = 0;
-	int entries_used;
-	struct delta delta = {};
-	int drop_state = 0;
-
-	ret = get_balloon(mount_point, &st, &balloonfd);
-	if (ret)
-		return ret;
-
-	if (st.st_size == 0) {
-		ploop_log(0, "Nothing to do: hidden balloon is empty");
-		close(balloonfd);
-		return 0;
-	}
-
-	pfiemap = fiemap_alloc(128);
-	freemap = freemap_alloc(128);
-	rangemap = freemap_alloc(128);
-	relocmap = relocmap_alloc(128);
-	if (!pfiemap || !freemap || !rangemap || !relocmap) {
-		ret = SYSEXIT_MALLOC;
-		goto err;
-	}
-
-	fd = open_device(device);
-	if (fd == -1) {
-		ret = SYSEXIT_OPEN;
-		goto err;
-	}
-
-	memset(&b_ctl, 0, sizeof(b_ctl));
-	/* block other maintenance ops even if we only check balloon */
-	b_ctl.inflate = 1;
-	ret = ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
-	if (ret)
-		goto err;
-
-	switch (b_ctl.mntn_type) {
-	case PLOOP_MNTN_BALLOON:
-		drop_state = 1;
-		ret = open_top_delta(device, &delta, &top_level);
-		if (ret)
-			goto err;
-		reverse_map_len = delta.l2_size + delta.l2_size;
-		reverse_map = alloc_reverse_map(reverse_map_len);
-		if (reverse_map == NULL) {
-			ret = SYSEXIT_MALLOC;
-			goto err;
-		}
-		break;
-	case PLOOP_MNTN_MERGE:
-	case PLOOP_MNTN_GROW:
-	case PLOOP_MNTN_TRACK:
-		ploop_err(0, "Can't %s hidden balloon while another "
-		       "maintenance operation is in progress (%s)",
-			msg, mntn2str(b_ctl.mntn_type));
-		ret = SYSEXIT_EBUSY;
-		goto err;
-	case PLOOP_MNTN_FBLOADED:
-	case PLOOP_MNTN_RELOC:
-		ploop_err(0, "Can't %s hidden balloon before previous "
-			"balloon operation (%s) is completed. Use "
-			"\"ploop-balloon complete\".",
-			msg, mntn2str(b_ctl.mntn_type));
-		ret = SYSEXIT_EBUSY;
-		goto err;
-	case PLOOP_MNTN_OFF:
-		ploop_err(0, "Error: mntn_type is PLOOP_MNTN_OFF after "
-			"IOC_BALLOON");
-		ret = SYSEXIT_PROTOCOL;
-		goto err;
-	default:
-		ploop_err(0, "Error: unknown mntn_type (%u)",
-			b_ctl.mntn_type);
-		ret = SYSEXIT_PROTOCOL;
-		goto err;
-	}
-
-	if (dev_num2dev_start(st.st_dev, &dev_start)) {
-		ploop_err(0, "Can't find out offset from start of ploop "
-			"device (%s) to start of partition where fs (%s) "
-			"resides", device, mount_point);
-		ret = SYSEXIT_SYSFS;
-		goto err;
-	}
-
-	ret = fiemap_get(balloonfd, S2B(dev_start), 0, st.st_size, &pfiemap);
-	if (ret)
-		goto err;
-	fiemap_adjust(pfiemap, delta.blocksize);
-
-	ret = fiemap_build_rmap(pfiemap, reverse_map, reverse_map_len, &delta);
-	if (ret)
-		goto err;
-
-	ret = rmap2freemap(reverse_map, 0, reverse_map_len, &freemap, &entries_used);
-	if (ret)
-		goto err;
-	if (entries_used == 0) {
-		ploop_log(0, "No free blocks found");
-		goto err;
-	}
-
-	ret = freemap2freeblks(freemap, top_level, &freeblks, &n_free_blocks);
-	if (ret)
-		goto err;
-	if (!repair) {
-		ploop_log(0, "Found %u free blocks. Consider using "
-		       "\"ploop-balloon repair\"", n_free_blocks);
-		ret = 0;
-		goto err;
-	} else {
-		ploop_log(0, "Found %u free blocks", n_free_blocks);
-	}
-
-	ret = ioctl_device(fd, PLOOP_IOC_FREEBLKS, freeblks);
-	if (ret)
-		goto err;
-	drop_state = 0;
-	freezed_a_h = freeblks->alloc_head;
-	if (freezed_a_h > reverse_map_len) {
-		ploop_err(0, "Image corrupted: a_h=%u > rlen=%u",
-			freezed_a_h, reverse_map_len);
-		ret = SYSEXIT_PLOOPFMT;
-		goto err;
-	}
-
-	ret = range_build(freezed_a_h, n_free_blocks, reverse_map, reverse_map_len,
-		    &delta, freemap, &rangemap, &relocmap);
-	if (ret)
-		goto err;
-
-	ret = relocmap2relocblks(relocmap, top_level, freezed_a_h, n_free_blocks,
-			   &relocblks);
-	if (ret)
-		goto err;
-	ret = ioctl_device(fd, PLOOP_IOC_RELOCBLKS, relocblks);
-	if (ret)
-		goto err;
-
-	ploop_log(0, "TRUNCATED: %u cluster-blocks (%llu bytes)",
-			relocblks->alloc_head,
-			(unsigned long long)(relocblks->alloc_head * S2B(delta.blocksize)));
-
-err:
-	if (drop_state) {
-		memset(&b_ctl, 0, sizeof(b_ctl));
-		(void)ioctl_device(fd, PLOOP_IOC_BALLOON, &b_ctl);
-	}
-
-	// FIXME: close_delta()
-	if (balloonfd >= 0)
-		close(balloonfd);
-	if (fd >= 0)
-		close(fd);
-	free(pfiemap);
-	free(freemap);
-	free(rangemap);
-	free(relocmap);
-	free(reverse_map);
-	free(freeblks);
-	free(relocblks);
-
-	return ret;
-}
 
 static int trim_stop = 0;
 static void stop_trim_handler(int sig)
@@ -1277,72 +739,6 @@ int ploop_complete_running_operation(const char *device)
 	return 0;
 }
 
-static int do_mntn_merge(struct ploop_disk_images_data *di, const char *device,
-		int fd)
-{
-	int ret;
-	char x[PATH_MAX];
-	char conf[PATH_MAX];
-	char *top_delta = NULL;
-	struct stat st;
-
-	if (di == NULL) {
-		ploop_err(0, "Unable to complete on-going merge operation:"
-			" DiskDescriptor.xml is not provided");
-		return SYSEXIT_PARAM;
-	}
-
-	get_disk_descriptor_fname(di, conf, sizeof(conf));
-	ploop_log(0, "Process PLOOP_MNTN_MERGE state on '%s'", conf);
-
-	ret = ploop_find_top_delta_name_and_format(device, x, sizeof(x), NULL, 0);
-	if (ret)
-		return ret;
-
-	/* make validation before real merge */
-	ret = ploop_di_delete_snapshot(di, di->top_guid, 1, &top_delta);
-	if (ret)
-		return ret;
-
-	if (stat(top_delta, &st)) {
-		ploop_err(errno, "Can't stat %s", top_delta);
-		return SYSEXIT_FSTAT;
-	}
-
-	ploop_log(0, "Repair %s: merge top delta %s", conf, top_delta);
-	if (fname_cmp(x, &st)) {
-		ploop_err(0, "Config %s inconsistent with device state: "
-				"top delta file differs "
-				"(device='%s' config='%s')\n",
-				conf, x, top_delta);
-		ret = SYSEXIT_DISKDESCR;
-		goto err;
-	}
-
-	snprintf(x, sizeof(x), "%s.tmp", conf);
-	ret = ploop_store_diskdescriptor(x, di);
-	if (ret)
-		goto err;
-
-	ret = ioctl_device(fd, PLOOP_IOC_MERGE, 0);
-	if (ret)
-		goto err;
-
-	if (rename(x, conf)) {
-		ploop_err(errno, "Can't rename %s %s", x, conf);
-		ret = SYSEXIT_RENAME;
-		goto err;
-	}
-
-	if (unlink(top_delta))
-		 ploop_err(errno, "Can't unlink %s", top_delta);
-
-err:
-	free(top_delta);
-
-	return ret;
-}
-
 int ploop_get_mntn_state(int fd, int *state)
 {
 	int ret;
@@ -1364,52 +760,9 @@ int ploop_get_mntn_state(int fd, int *state)
 int complete_running_operation(struct ploop_disk_images_data *di,
 		const char *device)
 {
-	int fd, ret, state;
-
 	defrag_complete(device);
 
 	return 0;
-
-	fd = open_device(device);
-	if (fd == -1)
-		return SYSEXIT_OPEN;
-
-	ret = ploop_get_mntn_state(fd, &state);
-	if (ret)
-		goto err;
-
-	if (state == PLOOP_MNTN_OFF)
-		goto err;
-
-	ploop_log(0, "Completing an on-going operation %s for device %s",
-		mntn2str(state), device);
-
-	switch (state) {
-	case PLOOP_MNTN_MERGE:
-		ret = do_mntn_merge(di, device, fd);
-		break;
-	case PLOOP_MNTN_GROW:
-		ret = ioctl_device(fd, PLOOP_IOC_GROW, 0);
-		break;
-	case PLOOP_MNTN_RELOC:
-	case PLOOP_MNTN_FBLOADED:
-		ret = ploop_balloon_complete(device);
-		break;
-	case PLOOP_MNTN_TRACK:
-		ret = ioctl_device(fd, PLOOP_IOC_TRACK_ABORT, 0);
-		break;
-	case PLOOP_MNTN_DISCARD:
-		ret = ploop_balloon_complete(device);
-		break;
-	case PLOOP_MNTN_BALLOON:
-		/*  FIXME : ploop_balloon_check_and_repair(device, mount_point, 1; */
-		ret = 0;
-		break;
-	}
-
-err:
-	close(fd);
-	return ret;
 }
 
 int ploop_discard_get_stat_by_dev(const char *device, const char *mount_point,
