@@ -384,10 +384,6 @@ int ploop_add_snapshot_entry(struct ploop_disk_images_data *di, const char *guid
 PL_EXT char *mntn2str(int mntn_type);
 PL_EXT int get_balloon(const char *mount_point, struct stat *st, int *outfd);
 PL_EXT int ploop_balloon_change_size(const char *device, int balloonfd, off_t new_size);
-PL_EXT int ploop_balloon_get_state(const char *device, __u32 *state);
-PL_EXT int ploop_balloon_clear_state(const char *device);
-PL_EXT int ploop_balloon_complete(const char *device);
-PL_EXT int ploop_balloon_check_and_repair(const char *device, const char *mount_point, int repair);
 PL_EXT int ploop_discard_get_stat_by_dev(const char *device, const char *mount_point,
 		struct ploop_discard_stat *pd_stat);
 PL_EXT int ploop_discard_by_dev(const char *device, const char *mount_point,
