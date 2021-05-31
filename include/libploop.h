@@ -231,6 +231,7 @@ struct ploop_discard_stat {
 	off_t ploop_size;
 	off_t image_size;
 	off_t balloon_size;
+	int native_discard;
 };
 
 struct ploop_copy_receive_param {

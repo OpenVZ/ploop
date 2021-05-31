@@ -864,6 +864,7 @@ int ploop_discard_get_stat_by_dev(const char *device, const char *mount_point,
 	pd_stat->image_size = st.st_blocks * 512;
 	pd_stat->data_size = pd_stat->ploop_size - stfs.f_bfree * stfs.f_bsize;
 	pd_stat->balloon_size = balloon_stat.st_size;
+	pd_stat->native_discard = 1;
 
 	return 0;
 }
