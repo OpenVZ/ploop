@@ -2388,11 +2388,22 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	}
 
 	if (fmt == PLOOP_FMT_V2) {
-		int lfd = open(device, O_RDONLY|O_CLOEXEC);
-		int rc;
+		int lfd, rc;
 
+		ret = ploop_suspend_device(device);
+		if (ret)
+			goto err;
+
+		ret = wait_for_open_count(device);
+		if (ret) {
+			ploop_resume_device(device);
+			goto err;
+		}
+
+		lfd = open(device, O_RDONLY|O_CLOEXEC);
 		if (lfd < 0) {
 			ploop_err(errno, "Can't open dev %s", device);
+			ploop_resume_device(device);
 			ret = SYSEXIT_DEVICE;
 			goto err;
 		}
@@ -2404,6 +2415,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 		rc = cbt_stop(lfd);
 		if (rc && rc != SYSEXIT_NOCBT)
 			ploop_err(errno, "Warning: stopping cbt failed: %d", rc);
+		ploop_resume_device(device);
 
 		close(lfd);
 	}

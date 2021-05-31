@@ -198,6 +198,11 @@ enum {
 	snap_temporary_zero_swap= 3,
 };
 
+struct dm_image_info {
+	int open_count;
+	int ro;
+};
+
 /* Mark lib functions used by ploop tools */
 #define PL_EXT __attribute__ ((visibility("default")))
 
@@ -566,6 +571,7 @@ int get_dev_and_mnt(struct ploop_disk_images_data *di, pid_t pid,
 		int mnt_len, int *mounted);
 int umnt(struct ploop_disk_images_data *di, const char *dev,
 		const char *mnt, int mounted);
+int wait_for_open_count(const char *devname);
 
 PL_EXT int dump_bat(const char *image);
 PL_EXT int ploop_image_shuffle(const char *image, int nr, int flags);
