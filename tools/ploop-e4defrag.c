@@ -447,7 +447,7 @@ static int defrag_file(int fd, int donor_fd)
 						   .prev = &ext_list_head};
 	struct fiemap_extent_list *ext;
 	__u64 cluster = 0, batch_from = UINT_MAX, batch_to;
-	int physical_gap, ret;
+	int physical_gap, ret = 0;
 	__u64 pos = 0;
 
 	do {
