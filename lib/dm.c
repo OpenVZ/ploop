@@ -341,6 +341,8 @@ struct table_data {
 	char **devs;
 	int ndevs;
 	int flags;
+	int open_count;
+	int ro;
 };
 
 /* return:
@@ -383,13 +385,18 @@ static int display_entry(struct dm_task *task, struct table_data *data)
 {
 	int i, n = data->flags == 0 ? 1: 0xffff;
 	char *img = NULL;
+	const char *devname = dm_task_get_name(task);
+	char c[PATH_MAX];
 
 	for (i = 0; i < n; i++) {
-		if (dm_get_delta_name(dm_task_get_name(task), i, &img))
+		if (dm_get_delta_name(devname, i, &img))
 			break;
-		if (i == 0)
-			printf("%s\t%s\n", dm_task_get_name(task), img);
-		else
+		if (i == 0) {
+			printf("%s\t%s", devname, img);
+			if (cn_find_name(devname, c, sizeof(c), 0) == 0)
+				printf("\t%s", c);
+			printf("\n");
+		} else
 			printf("\t\t%s\n", img);
 		free(img);
 	}
@@ -489,13 +496,64 @@ int ploop_list(int flags)
 
 static int get_params(struct dm_task *task, struct table_data *data)
 {
+	struct dm_info i = {};
+
 	if (data->params == NULL)
 		return 1;
+
+	if (!dm_task_get_info(task, &i)) {
+		ploop_err(0, "dm_task_get_info()");
+		return -1;
+	}
+	data->open_count = i.open_count;
+	data->ro = i.read_only;
+
 	if (sscanf(data->params, "%d %*s %d", &data->ndelta, &data->blocksize) != 2) {
 		ploop_err(0, "malformed params '%s'", data->params);
 		return -1;
 	}
 	return 0;
+}
+
+static int dm_get_info(const char *devname, struct dm_image_info *param)
+{
+	int rc;
+	struct table_data d = {};
+
+	rc = dm_table(devname, get_params, &d);
+	if (rc)
+		return rc;
+	param->open_count = d.open_count;
+	param->ro = d.ro;
+
+	return 0;
+}
+
+int wait_for_open_count(const char *devname)
+{
+	struct dm_image_info i;
+	useconds_t total = 0;
+	useconds_t wait = 10000; // initial wait time 0.01s
+	useconds_t maxwait = 500000; // max wait time per iteration 0.5s
+	useconds_t maxtotal = PLOOP_UMOUNT_TIMEOUT * 1000000; // max total wait
+
+	do {
+		if (dm_get_info(devname, &i) == 0 &&
+				i.open_count == 0)
+			return 0;
+
+		if (total > maxtotal) {
+			ploop_err(0, "Wait for %s open_count=0 failed: timeout has expired",
+					devname);
+			return SYSEXIT_SYS;
+		}
+
+		usleep(wait);
+		total += wait;
+		wait *= 2;
+		if (wait > maxwait)
+			wait = maxwait;
+	} while (1);
 }
 
 int get_image_param_online(const char *devname, char **top, off_t *size,
@@ -570,9 +628,13 @@ int find_dev(struct ploop_disk_images_data *di, char *out, int len)
 
 	rc = dm_find_devs(base, top, &devs);
 	if (rc == 0) {
-		snprintf(out, len, "%s", devs[0]);
-		ploop_free_array(devs);
+		const char *d = cn_find_dev(devs, di);
+		if (d) 
+			snprintf(out, len, "%s", d);
+		else
+			rc = 1;
 	}
+	ploop_free_array(devs);
 
 	return rc;
 }
