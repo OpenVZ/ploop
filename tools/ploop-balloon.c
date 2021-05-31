@@ -212,7 +212,7 @@ static void usage_discard(void)
 {
 	fprintf(stderr, "Usage: ploop-balloon discard {-d DEVICE | -m MOUNT_POINT | DiskDescriptor.xml}\n"
 			"                     { [--automount] [--to-free SIZE] [--min-block MIN_SIZE]\n"
-			"                       [--defrag] | [--stat] }\n"
+			"                       [--defrag] | [--stat]}\n"
 			"       DEVICE      := ploop device, e.g. /dev/ploop0\n"
 			"       MOUNT_POINT := path where fs living on ploop device mounted to\n"
 			"       SIZE        := NUMBER[KMGT] (maximum space to free)\n"
@@ -245,6 +245,7 @@ static int pb_discard(int argc, char **argv)
 		{ "automount", no_argument, 0, 669 },
 		{ "defrag", no_argument, 0, 670 },
 		{ "defrag-only", no_argument, 0, 'D' },
+		{ "image-defrag-threshold", required_argument, 0, 671 },
 		{},
 	};
 	struct ploop_disk_images_data *di = NULL;
@@ -280,6 +281,9 @@ static int pb_discard(int argc, char **argv)
 			break;
 		case 670:
 			param.defrag = 1;
+			break;
+		case 671:
+			param.image_defrag_threshold = atoi(optarg);
 			break;
 		case 'D':
 			param.defrag = 2;

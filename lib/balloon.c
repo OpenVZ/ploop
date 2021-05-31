@@ -43,8 +43,7 @@
 
 #define EXT4_IOC_OPEN_BALLOON		_IO('f', 42)
 
-#define BIN_E4DEFRAG	"/usr/sbin/e4defrag2"
-
+#define BIN_E4DEFRAG	"/usr/sbin/ploop-e4defrag"
 
 char *mntn2str(int mntn_type)
 {
@@ -632,34 +631,100 @@ static int create_pidfile(const char *fname, pid_t pid)
 	return 0;
 }
 
-static int ploop_defrag(struct ploop_disk_images_data *di,
-		const char *dev, const char *mnt, const int *stop)
+static int get_num_clusters(const char *dev, char *img, int size, __u32 *out)
+{
+	int ret = 0;
+	__u32 clu, cluster;
+	struct ploop_pvd_header *hdr = NULL;
+	struct delta d = {};
+
+	ret = ploop_find_top_delta_name_and_format(dev, img, size, NULL, 0);
+	if (ret)
+		return ret;
+
+	ret = open_delta(&d, img, O_RDONLY|O_DIRECT, OD_ALLOW_DIRTY);
+	if (ret)
+		return ret;
+
+	hdr = (struct ploop_pvd_header *) d.hdr0;
+	cluster = S2B(d.blocksize);
+
+	for (clu = 0; clu < hdr->m_Size; clu++) {
+		int l2_cluster = (clu + PLOOP_MAP_OFFSET) / (cluster / sizeof(__u32));
+		__u32 l2_slot  = (clu + PLOOP_MAP_OFFSET) % (cluster / sizeof(__u32));
+		if (d.l2_cache != l2_cluster) {
+			if (PREAD(&d, d.l2, cluster, (off_t)l2_cluster * cluster)) {
+				ret = SYSEXIT_READ;
+				goto err;
+			}
+			d.l2_cache = l2_cluster;
+		}
+
+		if (d.l2[l2_slot])
+			(*out)++;
+	}
+
+err:
+	close_delta(&d);
+
+	return ret;
+}
+
+static int get_num_extents(const char *img, __u32 *out)
+{
+	char cmd[PATH_MAX];
+	FILE *fp;
+	int ret;
+	char *p;
+
+	snprintf(cmd, sizeof(cmd), "LANG=C /usr/sbin/filefrag %s", img);
+	fp = popen(cmd, "r");
+	if (fp == NULL) {
+		ploop_err(0, "Failed %s", cmd);
+		return SYSEXIT_SYS;
+	}
+
+	while (fgets(cmd, sizeof(cmd), fp) != NULL);
+
+	p = strrchr(cmd, ':');
+	if (p == NULL || sscanf(p + 1, "%d extent found", out) != 1) {
+		ploop_err(0, "Can not parse the filefrag output: %s", cmd);
+		ret = SYSEXIT_SYS;
+	}
+
+	if (pclose(fp)) {
+		ploop_err(0, "Error in pclose() for %s", cmd);
+		ret = SYSEXIT_SYS;
+	}
+
+	return ret;
+}
+
+static int do_kaio_ext4_defrag(const char *dev, struct ploop_discard_param *param)
 {
 	int ret;
-	int blocksize;
 	pid_t pid;
-	char pidfile[PATH_MAX];
-	char block_size[16];
-	char part[64];
-	char *arg[] = {BIN_E4DEFRAG, "-c", block_size, part, (char*)mnt, NULL};
+	char file[PATH_MAX];
+	char *arg[] = {BIN_E4DEFRAG, file, NULL};
+	__u32 num_clusters = 0, num_extents = 0, threshold = 0;
 
 	if (access(arg[0], F_OK))
 		return 0;
 
-	if (ploop_get_attr(dev, "block_size", &blocksize)) {
-		ploop_err(0, "Can't find block size");
-		return -1;
-	}
+	ret = get_num_clusters(dev, file, sizeof(file), &num_clusters);
+	if (ret)
+		return ret;
 
-	snprintf(block_size, sizeof(block_size), "%d", blocksize << 9);
+	ret = get_num_extents(file, &num_extents);
+	if (ret)
+		return ret;
+	if (num_clusters)
+		threshold = num_extents / num_clusters;
+	if (threshold <= param->image_defrag_threshold)
+		return 0;
 
-	if (ploop_get_partition_by_mnt(mnt, part, sizeof(part))) {
-		ploop_log(-1, "Can't get partition by_mnt %s", mnt);
-		return -1;
-	}
-
-	ploop_log(0, "Start defrag dev=%s mnt=%s blocksize=%d",
-			part, mnt, blocksize);
+	ploop_log(0, "Start defrag threshold=%d %s %s",
+			threshold, arg[0], arg[1]);
 
 	pid = fork();
 	if (pid < 0) {
@@ -672,12 +737,12 @@ static int ploop_defrag(struct ploop_disk_images_data *di,
 		_exit(1);
 	}
 
-	defrag_pidfile(dev, pidfile, sizeof(pidfile));
-	create_pidfile(pidfile, pid);
+	defrag_pidfile(dev, file, sizeof(file));
+	create_pidfile(file, pid);
 
-	ret = wait_pid(pid, arg[0], stop);
+	ret = wait_pid(pid, arg[0], param->stop);
 
-	unlink(pidfile);
+	unlink(file);
 
 	return ret;
 }
@@ -686,7 +751,7 @@ int ploop_discard(struct ploop_disk_images_data *di,
 		struct ploop_discard_param *param)
 {
 	int ret;
-	char dev[PATH_MAX];
+	char dev[64];
 	char mnt[PATH_MAX];
 	int mounted = 0;
 
@@ -709,15 +774,12 @@ int ploop_discard(struct ploop_disk_images_data *di,
 	}
 
 	ploop_unlock_dd(di);
-	
-	if (param->defrag) {
-		if (ploop_defrag(di, dev, mnt, param->stop))
-			ploop_log(0, BIN_E4DEFRAG" exited with error");
-		if (param->defrag == 2)
-			goto out;
-	}
+	ret = ploop_trim(di, dev, mnt, 0);
+	if (ret)
+		goto out;
 
-	ret = ploop_trim(di, dev, mnt, param->minlen_b);
+	if (param->defrag)
+		do_kaio_ext4_defrag(dev, param);
 
 out:
 	if (ploop_lock_dd(di) == 0) {
