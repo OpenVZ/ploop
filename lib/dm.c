@@ -385,13 +385,18 @@ static int display_entry(struct dm_task *task, struct table_data *data)
 {
 	int i, n = data->flags == 0 ? 1: 0xffff;
 	char *img = NULL;
+	const char *devname = dm_task_get_name(task);
+	char c[PATH_MAX];
 
 	for (i = 0; i < n; i++) {
-		if (dm_get_delta_name(dm_task_get_name(task), i, &img))
+		if (dm_get_delta_name(devname, i, &img))
 			break;
-		if (i == 0)
-			printf("%s\t%s\n", dm_task_get_name(task), img);
-		else
+		if (i == 0) {
+			printf("%s\t%s", devname, img);
+			if (cn_find_name(devname, c, sizeof(c), 0) == 0)
+				printf("\t%s", c);
+			printf("\n");
+		} else
 			printf("\t\t%s\n", img);
 		free(img);
 	}
@@ -623,9 +628,13 @@ int find_dev(struct ploop_disk_images_data *di, char *out, int len)
 
 	rc = dm_find_devs(base, top, &devs);
 	if (rc == 0) {
-		snprintf(out, len, "%s", devs[0]);
-		ploop_free_array(devs);
+		const char *d = cn_find_dev(devs, di);
+		if (d) 
+			snprintf(out, len, "%s", d);
+		else
+			rc = 1;
 	}
+	ploop_free_array(devs);
 
 	return rc;
 }

@@ -28,6 +28,7 @@
 #include <sys/ioctl.h>
 #include <sys/vfs.h>
 #include <sys/sysmacros.h>
+#include <dirent.h>
 
 #include "ploop.h"
 #ifndef EXT4_IOC_SET_RSV_BLOCKS
@@ -558,4 +559,95 @@ int grow_image(const char *delta, __u32 blocksize, __u64 size)
 		return rc;
 
 	return 0;
+}
+
+#define CN_DIR	"/var/run/ploop/"
+
+static const char *cn_get_name(struct ploop_disk_images_data *di)
+{
+	return di ? di->runtime->component_name : NULL;
+}
+
+const char *cn_get_fname(const char *devname, const char *cn, char *out, int size)
+{
+	snprintf(out, size, CN_DIR"%s:%s", get_basename(devname), cn);
+	return out;
+}
+
+int cn_register(const char *devname, struct ploop_disk_images_data *di)
+{
+	int fd;
+	char b[PATH_MAX];
+	const char *cn = cn_get_name(di);
+
+	if (cn == NULL)
+		return 0;
+
+	if (access(CN_DIR, F_OK) && mkdir(CN_DIR, 0755) && errno != EEXIST) {
+		ploop_err(errno, "Can't create " CN_DIR);
+		return SYSEXIT_MKDIR;
+	}
+	cn_get_fname(devname, cn, b, sizeof(b));
+	if (access(b, F_OK) == 0) {
+		ploop_log(3, "Remove stail %s", b);
+		unlink(b);
+	}
+
+	ploop_log(3, "Register %s", b);
+	fd = open(b, O_CREAT, 0600);
+	if (fd == -1) {
+		ploop_err(errno, "Can't create %s", b);
+		return SYSEXIT_SYS;
+	}
+	close(fd);
+
+	return 0;
+}
+
+const char *cn_find_dev(char **devs, struct ploop_disk_images_data *di)
+{
+	int i;
+	char b[PATH_MAX];
+	const char *cn = cn_get_name(di);
+
+	for (i = 0; devs[i] != NULL; i++) {
+		if (cn == NULL) {
+			if (cn_find_name(devs[i], b, sizeof(b), 0))
+				return devs[i];
+		} else {
+			if (access(cn_get_fname(devs[i], cn, b, sizeof(b)), F_OK) == 0)
+				return devs[i];
+		}
+	}
+	return NULL;
+}
+
+int cn_find_name(const char *devname, char *out, int size, int fname)
+{
+	int rc = 1;
+	DIR *fd;
+	struct dirent *d;
+	const char *dev = get_basename(devname);
+	int len = strlen(dev);
+
+	fd = opendir(CN_DIR);
+	if (fd == NULL) {
+		if (errno != ENOENT)
+			ploop_err(errno, "Can't opendir "CN_DIR);
+		return -1;
+	}
+
+	while ((d = readdir(fd))) {
+		if (strncmp(dev, d->d_name, len) == 0 && d->d_name[len] == ':') {
+			if (fname)
+				snprintf(out, size, CN_DIR"%s", d->d_name);
+			else
+				snprintf(out, size, "%s", d->d_name + len + 1);
+			rc = 0;
+			break;
+		}
+	}
+	closedir(fd);
+
+	return rc;
 }

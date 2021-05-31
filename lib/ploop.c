@@ -2157,10 +2157,14 @@ err_stop:
 
 err:
 
-	if (ret == 0 && di != NULL &&
-			di->runtime->component_name == NULL &&
-			param->target != NULL)
-		drop_statfs_info(di->images[0]->file);
+	if (ret == 0) {
+		ret = cn_register(param->device, di);
+		if (ret)
+			goto err_stop;
+		if (di && di->runtime->component_name == NULL &&
+				param->target != NULL)
+			drop_statfs_info(di->images[0]->file);
+	}
 
 	return ret;
 }
@@ -2353,6 +2357,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	char devname[64];
 	char partname[64];
 	char mnt[PATH_MAX] = "";
+	char cn[PATH_MAX] = "";
 	char *top = NULL;
 	int fmt;
 	struct delta d = {.fd = -1};
@@ -2420,9 +2425,15 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 		close(lfd);
 	}
 
+	cn_find_name(device, cn, sizeof(cn), 1);
 	ret = ploop_stop_device(device, di);
 	if (ret)
 		goto err;
+
+	if (cn[0] != '\0') {
+		ploop_log(3, "Unregister %s",  cn);
+		unlink(cn);
+	}
 
 	if (di != NULL) {
 		get_temp_mountpoint(di->images[0]->file, 0, mnt, sizeof(mnt));

@@ -575,4 +575,7 @@ int wait_for_open_count(const char *devname);
 
 PL_EXT int dump_bat(const char *image);
 PL_EXT int ploop_image_shuffle(const char *image, int nr, int flags);
+int cn_register(const char *devname, struct ploop_disk_images_data *di);
+const char *cn_find_dev(char **devs, struct ploop_disk_images_data *di);
+int cn_find_name(const char *devname, char *out, int size, int full);
 #endif
