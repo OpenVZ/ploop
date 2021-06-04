@@ -1494,7 +1494,7 @@ static int add_delta(char **images, int blocksize, int raw, int ro,
 
 err:
 	close_delta(&d);
-	for (i = 1; i < n; i++)
+	for (i = 0; i < n; i++)
 		close(fds[i]);
 
 	return rc;
