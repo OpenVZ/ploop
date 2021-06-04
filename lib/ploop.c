@@ -2395,15 +2395,13 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	if (fmt == PLOOP_FMT_V2) {
 		int lfd, rc;
 
-		ret = ploop_suspend_device(device);
+		ret = wait_for_open_count(device);
 		if (ret)
 			goto err;
 
-		ret = wait_for_open_count(device);
-		if (ret) {
-			ploop_resume_device(device);
+		ret = ploop_suspend_device(device);
+		if (ret)
 			goto err;
-		}
 
 		lfd = open(device, O_RDONLY|O_CLOEXEC);
 		if (lfd < 0) {
