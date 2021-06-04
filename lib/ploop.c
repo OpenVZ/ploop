@@ -1046,18 +1046,19 @@ static int ploop_stop(const char *devname,
 {
 	int rc;
 	char partname[64];
+	int tm = di ? di->runtime->umount_timeout : PLOOP_UMOUNT_TIMEOUT;
 
 	rc = get_dev_from_sys(devname, "holders", partname, sizeof(partname));
 	if (rc == -1) {
 		ploop_err(0, "Can not get part device name by %s", devname);
 		return SYSEXIT_SYS;
 	} else if (rc == 0) {
-		rc = dm_remove(partname);
+		rc = dm_remove(partname, tm);
 		if (rc)
 			return rc;
 	}
 
-	return dm_remove(devname);
+	return dm_remove(devname, tm);
 }
 
 /* Convert escape sequences used in /proc/mounts, /etc/mtab
@@ -1444,7 +1445,7 @@ static int add_delta(char **images, int blocksize, int raw, int ro,
 	int *fds = NULL;
 	char t[1024];
 	char *p = t, *e = t + sizeof(t);
-	struct delta d;
+	struct delta d = {.fd = -1};
 	off_t sz;
 
 	for (n = 0; images[n] != NULL; ++n);
@@ -2395,7 +2396,8 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	if (fmt == PLOOP_FMT_V2) {
 		int lfd, rc;
 
-		ret = wait_for_open_count(device);
+		ret = wait_for_open_count(device,
+				di ? di->runtime->umount_timeout : PLOOP_UMOUNT_TIMEOUT);
 		if (ret)
 			goto err;
 

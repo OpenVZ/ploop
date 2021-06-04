@@ -536,7 +536,7 @@ int notify_merged_backward (const char *devname, int id);
 int update_delta_index(const char *devname, int delta_idx, struct grow_maps *gm);
 int dm_create(const char *devname, __u64 start, __u64 size, int ro,
 		const char *args);
-int dm_remove(const char *devname);
+int dm_remove(const char *devname, int tm_sec);
 int dm_resize(const char *devname, off_t size);
 int dm_setnoresume(const char *devname, int on);
 int dm_tracking_start(const char *devname);
@@ -571,7 +571,7 @@ int get_dev_and_mnt(struct ploop_disk_images_data *di, pid_t pid,
 		int mnt_len, int *mounted);
 int umnt(struct ploop_disk_images_data *di, const char *dev,
 		const char *mnt, int mounted);
-int wait_for_open_count(const char *devname);
+int wait_for_open_count(const char *devname, int tm_sec);
 
 PL_EXT int dump_bat(const char *image);
 PL_EXT int ploop_image_shuffle(const char *image, int nr, int flags);
