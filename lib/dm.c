@@ -223,22 +223,19 @@ err:
 	dm_task_destroy(d);
 	return rc;
 }
-/* hardcodec in LVM2.2.02.186/libdm/ioctl/libdm-iface.c
-#define DM_IOCTL_RETRIES 25
-#define DM_RETRY_USLEEP_DELAY 200000
-*/
-#define DM_RETRY_TIMEOUT	5
-int dm_remove(const char *devname)
+
+int dm_remove(const char *devname, int tm_sec)
 {
-	int i;
+	int rc;
 
-	for (i = 0; i < PLOOP_UMOUNT_TIMEOUT / DM_RETRY_TIMEOUT; i++) {
-		if (cmd(devname, DM_DEVICE_REMOVE) == 0)
-			return 0;
-		else if (errno != EBUSY)
-			return SYSEXIT_DEVIOC;
-	}
+	rc = wait_for_open_count(devname, tm_sec);
+	if (rc)
+		return rc;
 
+	if (cmd(devname, DM_DEVICE_REMOVE) == 0)
+		return 0;
+	else if (errno != EBUSY)
+		return SYSEXIT_DEVIOC;
 	return SYSEXIT_UMOUNT_BUSY;
 }
 
@@ -529,13 +526,13 @@ static int dm_get_info(const char *devname, struct dm_image_info *param)
 	return 0;
 }
 
-int wait_for_open_count(const char *devname)
+int wait_for_open_count(const char *devname, int tm_sec)
 {
 	struct dm_image_info i;
 	useconds_t total = 0;
 	useconds_t wait = 10000; // initial wait time 0.01s
 	useconds_t maxwait = 500000; // max wait time per iteration 0.5s
-	useconds_t maxtotal = PLOOP_UMOUNT_TIMEOUT * 1000000; // max total wait
+	useconds_t maxtotal = tm_sec * 1000000; // max total wait
 
 	do {
 		if (dm_get_info(devname, &i) == 0 &&
