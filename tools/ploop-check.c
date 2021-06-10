@@ -60,6 +60,7 @@ int plooptool_check(int argc, char ** argv)
 	int check_bat = 0;
 	static struct option options[] = {
 		{"force", no_argument, NULL, 'f'},
+		{"verbose", no_argument, NULL, 'v'},
 		{"hard-force", no_argument, NULL, 'F'},
 		{"check", no_argument, NULL, 'c'},
 		{"drop-inuse", no_argument, NULL, 'd'},
@@ -75,7 +76,7 @@ int plooptool_check(int argc, char ** argv)
 		{ NULL, 0, NULL, 0 }
 	};
 
-	while ((i = getopt_long(argc, argv, "fFcrsdRb:Su:D", options, &idx)) != EOF) {
+	while ((i = getopt_long(argc, argv, "fFcrsdRb:Su:Dv", options, &idx)) != EOF) {
 		switch (i) {
 		case 'f':
 			/* try to repair non-fatal conditions */
@@ -125,6 +126,9 @@ int plooptool_check(int argc, char ** argv)
 		case 2:
 			check_bat = 1;
 			flags |= CHECK_SYNC_BAT;
+			break;
+		case 'v':
+			ploop_set_verbose_level(4);
 			break;
 		default:
 			usage();
