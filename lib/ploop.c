@@ -2710,16 +2710,12 @@ static int shrink_device(struct ploop_disk_images_data *di,
 {
 	struct dump2fs_data data;
 	int ret;
-	int top, raw;
+	int raw = 0;
 	off_t start, end, part_dev_size;
 
 	ret = ploop_get_size(part_device, &part_dev_size);
 	if (ret)
 		return ret;
-
-	ret = ploop_get_attr(device, "top", &top);
-	if (ret)
-		return SYSEXIT_SYSFS;
 
 	ret = e2fsck(part_device, E2FSCK_FORCE | E2FSCK_PREEN, NULL);
 	if (ret)
@@ -2734,7 +2730,6 @@ static int shrink_device(struct ploop_disk_images_data *di,
 	if (ret)
 		return ret;
 
-	raw = (di->mode == PLOOP_RAW_MODE && top == 0);
 	start = B2S(data.block_count * data.block_size);
 	end = part_dev_size;
 
