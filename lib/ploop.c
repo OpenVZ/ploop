@@ -1437,6 +1437,74 @@ static const char *get_dev_name(char *out, int size)
 	return out; 
 }
 
+static int ploop_path_to_blockdev_name(const char *ploop_path, char *out, int size)
+{
+	int minor, n;
+	char buf[64];
+
+	errno = 0;
+	n = sscanf(get_basename(ploop_path), "ploop%d", &minor);
+	if (n != 1) {
+		if (errno)
+			ploop_err(errno, "Failed to parse ploop_path '%s'",
+				ploop_path);
+		else
+			ploop_log(1, "Unexpected ploop path format: '%s'",
+				ploop_path);
+		return -1;
+	}
+
+	n = snprintf(buf, size, "dm-%d", minor);
+	if (n == -1) {
+		ploop_err(errno, "Failed to generate blockdev name for minor %d",
+			minor);
+		return -1;
+	} else if (n >= size) {
+		ploop_log(1, "Failed to generate blockdev name, buf size too small");
+		return -1;
+	}
+
+	return 0;
+}
+
+static int blockdev_set_untrusted(const char *devname)
+{
+	int fd = -1;
+	int rc;
+	char pathbuf[128];
+	char buf[2] = { '0', '\n' };
+	char blockdev_name[64];
+
+	if (ploop_path_to_blockdev_name(devname, blockdev_name, sizeof(blockdev_name)))
+		return -1;
+
+	rc = snprintf(pathbuf, sizeof(pathbuf), "/sys/block/%s/vz_trusted_exec",
+		blockdev_name);
+	if (rc == -1 || rc >= sizeof(pathbuf)) {
+		ploop_log(1, "Failed to generate blockdev path for %s",
+			devname);
+		return -1;
+	}
+
+	fd = open(blockdev_name, O_WRONLY);
+	if (fd == -1) {
+		ploop_err(errno, "Can't open %s for write",
+			pathbuf);
+		return -1;
+	}
+
+	if (write(fd, buf, sizeof(buf)) != 2) {
+		ploop_err(errno, "Failed to write '%c' to %s",
+			buf[0], pathbuf);
+		close(fd);
+		return -1;
+	}
+
+	close(fd);
+
+	return 0;
+}
+
 static int add_delta(char **images, int blocksize, int raw, int ro,
 		char *devname, int size)
 {
@@ -1489,6 +1557,14 @@ static int add_delta(char **images, int blocksize, int raw, int ro,
 	}
 
 	rc = dm_create(devname, 0, sz, ro, t);
+	if (rc)
+		goto err;
+
+	/*
+	 * Disallow accidental code execution from a newly created block device
+	 * from an image.
+	 */
+	rc = blockdev_set_untrusted(devname);
 	if (rc)
 		goto err;
 
