@@ -788,10 +788,10 @@ swap:
 	rc = dm_setnoresume(devname, 0);
 	if (rc)
 		goto err;
-	rc = ploop_resume_device(devname);
+	rc = update_delta_inuse(top, 0);
 	if (rc)
 		goto err;
-	rc = update_delta_inuse(top, 0);
+	rc = ploop_resume_device(devname);
 	if (rc)
 		goto err;
 
