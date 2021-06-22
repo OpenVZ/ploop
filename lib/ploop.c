@@ -1441,7 +1441,6 @@ static const char *get_dev_name(char *out, int size)
 static int ploop_path_to_blockdev_name(const char *ploop_path, char *out, int size)
 {
 	int minor, n;
-	char buf[64];
 
 	errno = 0;
 	n = sscanf(get_basename(ploop_path), "ploop%d", &minor);
@@ -1455,7 +1454,7 @@ static int ploop_path_to_blockdev_name(const char *ploop_path, char *out, int si
 		return -1;
 	}
 
-	n = snprintf(buf, size, "dm-%d", minor);
+	n = snprintf(out, size, "dm-%d", minor);
 	if (n == -1) {
 		ploop_err(errno, "Failed to generate blockdev name for minor %d",
 			minor);
@@ -1487,7 +1486,7 @@ static int blockdev_set_untrusted(const char *devname)
 		return -1;
 	}
 
-	fd = open(blockdev_name, O_WRONLY);
+	fd = open(pathbuf, O_WRONLY);
 	if (fd == -1) {
 		ploop_err(errno, "Can't open %s for write",
 			pathbuf);
