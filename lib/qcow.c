@@ -24,7 +24,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <json/json.h>
+#include <json-c/json.h>
 
 #include "ploop.h"
 
