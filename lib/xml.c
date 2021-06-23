@@ -544,6 +544,10 @@ int read_dd(struct ploop_disk_images_data *di)
 		ploop_err(0, "DiskDescriptor.xml is not opened");
 		return -1;
 	}
+
+	if (di->runtime->image_type == QCOW_TYPE)
+		return 0;
+
 	ploop_clear_dd(di);
 
 	fname = di->runtime->xml_fname;
@@ -689,6 +693,9 @@ int store_diskdescriptor(const char *fname, struct ploop_disk_images_data *di,
 	char tmp[PATH_MAX];
 	char basedir[PATH_MAX];
 	FILE *fp = NULL;
+
+	if (di->runtime->image_type == QCOW_TYPE)
+		return 0;
 
 	ploop_log(0, "Storing %s", fname);
 	if (!skip_convert && convert_disk_descriptor(di))

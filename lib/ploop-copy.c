@@ -822,7 +822,7 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 		return SYSEXIT_PARAM;
 	}
 
-	ret = get_image_param_online(device, &image, NULL, &blocksize, &fmt);
+	ret = get_image_param_online(di, device, &image, NULL, &blocksize, &fmt);
 	if (ret)
 		goto err;
 

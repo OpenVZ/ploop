@@ -84,7 +84,7 @@ int ploop_find_top_delta_name_and_format(const char *device, char *image,
 	int f;
 	int rc;
 
-	rc = get_image_param_online(device, &i, NULL, NULL, &f);
+	rc = get_image_param_online(NULL, device, &i, NULL, NULL, &f);
 	if (rc)
 		return rc;
 
@@ -95,8 +95,7 @@ int ploop_find_top_delta_name_and_format(const char *device, char *image,
 	return 0;
 }
 
-int ploop_get_names(const char *device, char **names[], const char **format,
-		int *blocksize)
+int ploop_get_names(const char *device, char **names[])
 {
 	int rc, i;
 	char **n = NULL;
@@ -118,10 +117,6 @@ int ploop_get_names(const char *device, char **names[], const char **format,
 
 		n[i + 1] = NULL;
 	}
-
-	rc = get_image_param_online(device, NULL, NULL, (__u32*)blocksize, NULL);
-	if (rc)
-		goto err;
 
 	if (names)
 		*names = n;

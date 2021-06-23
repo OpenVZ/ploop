@@ -354,7 +354,7 @@ static int change_key(struct ploop_disk_images_data *di,
 	if (rc == -1) {
 		ret = SYSEXIT_SYS;
 	} else if (rc != 0) {
-		ret = mount_image(di, &m);
+		ret = ploop_mount(di, NULL, &m, (di->mode == PLOOP_RAW_MODE));
 		if (ret)
 			return ret;
 		was_mounted = 1;

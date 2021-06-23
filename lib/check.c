@@ -779,7 +779,7 @@ int check_deltas(struct ploop_disk_images_data *di, char **images,
 	return ret;
 }
 
-int check_deltas_live(struct ploop_disk_images_data *di)
+int check_deltas_live(struct ploop_disk_images_data *di, const char *device)
 {
 	char **images;
 	__u32 blocksize;
@@ -787,6 +787,13 @@ int check_deltas_live(struct ploop_disk_images_data *di)
 
 	if (di == NULL)
 		return 0;
+
+	if (di->runtime->image_type == QCOW_TYPE) {
+		if (device == NULL)
+			return qcow_check(di);
+		else
+			return qcow_live_check(device);
+	}
 
 	images = make_images_list(di, di->top_guid, 0);
 	if (!images)

@@ -330,7 +330,7 @@ static int ploop_trim(struct ploop_disk_images_data *di,
 	};
 	sigemptyset(&sa.sa_mask);
 
-	ret = get_image_param_online(devname, NULL, &size, &cluster, NULL);
+	ret = get_image_param_online(di, devname, NULL, &size, &cluster, NULL);
 	if (ret)
 		return ret;
 	cluster = S2B(cluster);
@@ -766,7 +766,7 @@ int ploop_discard(struct ploop_disk_images_data *di,
 	}
 
 	if (!mounted) {
-		ret = check_deltas_live(di);
+		ret = check_deltas_live(di, dev);
 		if (ret) {
 			ploop_unlock_dd(di);
 			return ret;
@@ -786,7 +786,7 @@ out:
 		if (mounted) {
 			umnt(di, dev, mnt, mounted);
 		} else {
-			int rc = check_deltas_live(di);
+			int rc = check_deltas_live(di, dev);
 			if (ret == 0)
 				ret = rc;
 		}

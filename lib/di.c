@@ -372,6 +372,15 @@ int ploop_open_dd(struct ploop_disk_images_data **di, const char *fname)
 	}
 
 	p->runtime->xml_fname = path;
+
+	if (strcmp(get_basename(path), DISKDESCRIPTOR_XML)) {
+		int rc = qcow_open(path, p);
+		if (rc) {
+			ploop_close_dd(p);
+			return rc;
+		}
+	}
+
 	*di = p;
 
 	return 0;
