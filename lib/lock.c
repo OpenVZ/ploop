@@ -198,6 +198,8 @@ int ploop_lock_di(struct ploop_disk_images_data *di)
 
 	if (di == NULL)
 		return 0;
+	if (di->runtime->image_type == QCOW_TYPE)
+		return 0;
 	get_disk_descriptor_lock_fname(di, fname, sizeof(fname));
 	if (access(fname, F_OK)) {
 		if (create_file(fname))

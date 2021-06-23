@@ -38,14 +38,15 @@ LIBOBJS=uuid.o \
 	snapshot.o \
 	symbols.o \
 	cbt.o \
-	volume.o
+	volume.o \
+	qcow.c
 
 SOURCES=$(LIBOBJS:.o=.c)
 GENERATED=symbols.c
 
 CFLAGS += $(shell pkg-config libxml-2.0 --cflags) -fPIC -fvisibility=hidden
 LDFLAGS+= -shared -Wl,-soname,$(LIBPLOOP_SO_X)
-LDLIBS += $(shell pkg-config libxml-2.0 openssl uuid --libs) -ldevmapper -lpthread -lrt 
+LDLIBS += $(shell pkg-config libxml-2.0 openssl uuid --libs) -ldevmapper -ljson-c -lpthread -lrt
 
 all: $(LIBPLOOP) $(LIBPLOOP_SO) $(PC)
 .PHONY: all

@@ -125,7 +125,7 @@ static int grow_lower_delta(const char *device, int top,
 	if (ret)
 		return ret;
 
-	ret = get_image_param_online(device, NULL, NULL, &blocksize, &fmt);
+	ret = get_image_param_online(NULL, device, NULL, NULL, &blocksize, &fmt);
 	if (ret)
 		goto done;
 
@@ -749,7 +749,7 @@ static int reverse_merge_online(struct ploop_disk_images_data *di,
 	rc = ploop_store_diskdescriptor(cfg1, di);
 	if (rc)
 		return rc;
-	rc = dm_reload2(devname, 0, 1);
+	rc = dm_reload(di, devname, 0, RELOAD_RW2);
 	if (rc)
 		goto err;
 	// 3) deny to resume
@@ -846,8 +846,6 @@ int ploop_delete_snapshot_by_guid(struct ploop_disk_images_data *di,
 	int online = 0;
 	int sid, child_idx; /* parent and child snapshot ids */
 	int i, nelem;
-	const char *fmt;
-	int blocksize;
 
 	ret = SYSEXIT_PARAM;
 	sid = find_snapshot_by_guid(di, guid);
@@ -913,7 +911,7 @@ int ploop_delete_snapshot_by_guid(struct ploop_disk_images_data *di,
 		ret = complete_running_operation(di, dev);
 		if (ret)
 			return ret;
-		if ((ret = ploop_get_names(dev, &names, &fmt, &blocksize)))
+		if ((ret = ploop_get_names(dev, &names)))
 			return ret;
 		nelem = get_list_size(names);
 		for (i = 0; names[i] != NULL; i++) {

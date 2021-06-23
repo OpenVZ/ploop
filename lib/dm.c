@@ -77,8 +77,10 @@ int dm_get_delta_name(const char *devname, int idx, char **out)
 {
 	char m[64];
 
-	snprintf(m, sizeof(m), "get_delta_name %d", idx);
+	snprintf(m, sizeof(m), "get_img_name %d", idx);
 	if (ploop_dm_message(devname, m, out)) {
+		if (errno == ENOENT)
+			return 1;
 		ploop_err(errno, "Failed %s %s", devname, m);
 		return -1;
 	}
@@ -142,7 +144,7 @@ int update_delta_index(const char *devname, int delta_idx, struct grow_maps *gm)
 	return rc;
 }
 
-int dm_create(const char *devname, __u64 start, __u64 size, int ro,
+int dm_create(const char *devname, const char *target, __u64 start, __u64 size, int ro,
 		const char *args)
 {
 	struct dm_task *d;
@@ -154,7 +156,7 @@ int dm_create(const char *devname, __u64 start, __u64 size, int ro,
 		return SYSEXIT_MALLOC;
 	if (!dm_task_set_name(d, get_basename(devname)))
 		goto err;
-	if (!dm_task_add_target(d, start, size, "ploop", args))
+	if (!dm_task_add_target(d, start, size, target, args))
 		goto err;
 	if (!dm_task_set_add_node(d, DM_ADD_NODE_ON_CREATE))
 		goto err;
@@ -334,6 +336,7 @@ struct table_data {
 	const char *base;
 	const char *top;
 	__u32 blocksize;
+	__u32 version;
 	__u32 ndelta;
 	char **devs;
 	int ndevs;
@@ -430,7 +433,8 @@ static int dm_table(const char *devname, table_fn f, struct table_data *data)
 	do {
 		next = dm_get_next_target(d, next, &start, &length,
 				&target_type, &params);
-		if (target_type && strcmp(target_type, "ploop") == 0) {
+		if (target_type &&
+			(!strcmp(target_type, "ploop") || !strcmp(target_type, "qcow2"))) {
 			if (data)
 				data->params = params;
 			rc = f(d, data);
@@ -493,6 +497,8 @@ int ploop_list(int flags)
 
 static int get_params(struct dm_task *task, struct table_data *data)
 {
+	int n;
+	char v[3];
 	struct dm_info i = {};
 
 	if (data->params == NULL)
@@ -505,10 +511,17 @@ static int get_params(struct dm_task *task, struct table_data *data)
 	data->open_count = i.open_count;
 	data->ro = i.read_only;
 
-	if (sscanf(data->params, "%d %*s %d", &data->ndelta, &data->blocksize) != 2) {
+	data->version = PLOOP_FMT_UNDEFINED;
+	data->blocksize = 0;
+	n = sscanf(data->params, "%d %2s %d", &data->ndelta, v, &data->blocksize);
+	if (n < 1) {
 		ploop_err(0, "malformed params '%s'", data->params);
 		return -1;
+	} else if (n == 3) {
+		if (!strcmp(v, "v2"))
+			data->version = PLOOP_FMT_V2;
 	}
+
 	return 0;
 }
 
@@ -553,7 +566,8 @@ int wait_for_open_count(const char *devname, int tm_sec)
 	} while (1);
 }
 
-int get_image_param_online(const char *devname, char **top, off_t *size,
+int get_image_param_online(struct ploop_disk_images_data *di,
+		const char *devname, char **top, off_t *size,
 		__u32 *blocksize, int *version)
 {
 	int rc;
@@ -563,9 +577,10 @@ int get_image_param_online(const char *devname, char **top, off_t *size,
 	if (rc)
 		return rc;
 	if (blocksize)
-		*blocksize = d.blocksize;
+		*blocksize = d.blocksize == 0 && di ?
+				di->blocksize : d.blocksize;
 	if (version)
-		*version = PLOOP_FMT_V2;
+		*version = d.version;
 	if (size) {
 		rc = ploop_get_size(devname, size);
 		if (rc)
@@ -620,6 +635,10 @@ int find_dev(struct ploop_disk_images_data *di, char *out, int len)
 	const char *base = NULL, *top = NULL;
 
 	base = find_image_by_guid(di, get_base_delta_uuid(di));
+	if (base == NULL) {
+		ploop_err(0, "Can't find base delta");
+		return SYSEXIT_PARAM;
+	}
 	if (di->vol != NULL)
 		top = find_image_by_guid(di, get_top_delta_guid(di));
 
@@ -655,22 +674,32 @@ int find_dev_by_delta(const char *delta, char *out, int len)
 	return rc;
 }
 
-static int do_reload(const char *device, char **images, off_t new_size, 
-		__u32 blocksize, int rw2)
+int do_reload(struct ploop_disk_images_data *di, const char *device,
+		char **images, off_t new_size, int flags)
 {
 	int rc, *fds, i, j, n = 0;
 	char t[PATH_MAX];
 	char *a[7];
 	char *p, *e;
 
+	if (new_size == 0) {
+		rc = ploop_get_size(device, &new_size);
+		if (rc)
+			return rc;
+	}
+
 	for (n = 0; images[n] != NULL; ++n);
 	fds = alloca(n * sizeof(int));
 	p = t;
 	e = p + sizeof(t);
-	p += snprintf(p, e-p, "0 %lu ploop %d",
-			new_size, ffs(blocksize)-1);
+	if (di->runtime->image_type == PLOOP_TYPE)
+		p += snprintf(p, e-p, "0 %lu ploop %d",
+			new_size, ffs(di->blocksize)-1);
+	else
+		p += snprintf(p, e-p, "0 %lu qcow2", new_size);
+
 	for (i = 0; i < n; i++) {
-		int r = i < n - (rw2?2:1);
+		int r = i < n - (flags & RELOAD_RW2 ? 2 : 1);
 		ploop_log(0, "Adding delta dev=%s img=%s (%s)",
 				device, images[i], r ? "ro":"rw");
 		fds[i] = open(images[i], O_DIRECT | (r?O_RDONLY:O_RDWR));
@@ -696,51 +725,32 @@ err:
 	return rc;
 }
 
-int dm_reload2(const char *device, off_t new_size, int rw2)
+int dm_reload(struct ploop_disk_images_data *di, const char *device,
+		off_t new_size, int flags)
 {
-	int rc, rc1;
-	__u32 blocksize;
-	const char *fmt;
+	int rc, rc1 = 0;
 	char **images = NULL;
 
-	if (new_size == 0) {
-		rc = ploop_get_size(device, &new_size);
+	if (RELOAD_ONLINE) {
+		rc = ploop_get_names(device, &images);
 		if (rc)
 			return rc;
+	} else {
+		images = make_images_list(di, di->top_guid, 0);
+		if (images == NULL)
+			return SYSEXIT_MALLOC;
 	}
 
-	rc = ploop_suspend_device(device);
-	if (rc)
-		return rc;
-	rc = ploop_get_names(device, &images, &fmt, (int*)&blocksize);
-	if (rc)
-		goto err;
-	rc = do_reload(device, images, new_size, blocksize, rw2);
+	if (!(flags & RELOAD_SKIP_SUSPEND)) {
+		rc = ploop_suspend_device(device);
+		if (rc)
+			goto err;
+	}
 
-	ploop_free_array(images);
-err:
-	rc1 = ploop_resume_device(device);
+	rc = do_reload(di, device, images, new_size, flags);
 
-	return rc ? rc : rc1;
-}
-
-int dm_reload(struct ploop_disk_images_data *di, const char *device,
-		off_t new_size, __u32 blocksize)
-{
-	int rc, rc1;
-	char **images = NULL;
-	       
-	images = make_images_list(di, di->top_guid, 0);
-	if (images == NULL)
-		return SYSEXIT_MALLOC;
-
-	rc = ploop_suspend_device(device);
-	if (rc)
-		goto err;
-
-	rc = do_reload(device, images, new_size, blocksize, 0);
-
-	rc1 = ploop_resume_device(device);
+	if (!(flags & RELOAD_SKIP_SUSPEND))
+		rc1 = ploop_resume_device(device);
 err:
 	ploop_free_array(images);
 

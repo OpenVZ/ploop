@@ -184,6 +184,7 @@ struct ploop_disk_images_runtime_data {
 	char *xml_fname;
 	char *component_name;
 	int umount_timeout;
+	int image_type;
 };
 
 struct dump2fs_data {
@@ -201,6 +202,12 @@ enum {
 struct dm_image_info {
 	int open_count;
 	int ro;
+};
+
+enum {
+	RELOAD_ONLINE		= 0x01,
+	RELOAD_SKIP_SUSPEND	= 0x02,
+	RELOAD_RW2		= 0x04,
 };
 
 /* Mark lib functions used by ploop tools */
@@ -310,7 +317,7 @@ PL_EXT int ploop_check(const char *img, int flags, __u32 *blocksize_p,
 		int *cbt_allowed);
 int check_deltas(struct ploop_disk_images_data *di, char **images,
 		int raw, __u32 *blocksize, int *cbt_allowed, int flags);
-int check_deltas_live(struct ploop_disk_images_data *di);
+int check_deltas_live(struct ploop_disk_images_data *di, const char *device);
 PL_EXT int check_dd(struct ploop_disk_images_data *di, const char *uuid,
 		int flags);
 /* Logging */
@@ -341,7 +348,6 @@ void __ploop_err(int err_no, const char *format, ...)
 	 })
 
 char *make_sysfs_dev_name(int minor, char *buf, int len);
-int mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *param);
 PL_EXT int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		struct ploop_mount_param *param, int raw);
 PL_EXT int replace_delta(const char *device, int level, const char *image, int raw, int flags);
@@ -362,7 +368,8 @@ int sys_fallocate(int fd, int mode, off_t offset, off_t len);
 int sys_syncfs(int fd);
 int create_snapshot_delta(const char *path, __u32 blocksize, off_t bdsize,
 		int version);
-int get_image_param_online(const char *device, char **top, off_t *size,
+int get_image_param_online(struct ploop_disk_images_data *di,
+		const char *device, char **top, off_t *size,
 		__u32 *blocksize, int *version);
 int get_image_param(struct ploop_disk_images_data *di, const char *guid,
 		off_t *size, __u32 *blocksize, int *version);
@@ -534,18 +541,17 @@ int append_array_entry(const char *entry, char **ar[], int nelem);
 int merge_top_delta(const char *devname);
 int notify_merged_backward (const char *devname, int id);
 int update_delta_index(const char *devname, int delta_idx, struct grow_maps *gm);
-int dm_create(const char *devname, __u64 start, __u64 size, int ro,
-		const char *args);
 int dm_remove(const char *devname, int tm_sec);
+int dm_create(const char *devname, const char *target, __u64 start, __u64 size,
+		int ro, const char *args);
 int dm_resize(const char *devname, off_t size);
 int dm_setnoresume(const char *devname, int on);
 int dm_tracking_start(const char *devname);
 int dm_tracking_stop(const char *devname);
 int dm_tracking_get_next(const char *devname, __u64 *pos);
 int dm_flip_upper_deltas(const char *devname);
-int dm_reload2(const char *device, off_t new_size, int rw2);
 int dm_reload(struct ploop_disk_images_data *di, const char *device,
-		off_t new_size, __u32 blocksize);
+		off_t new_size, int flags);
 int find_devs(struct ploop_disk_images_data *di, char ***out);
 int find_dev(struct ploop_disk_images_data *di, char *out, int len);
 int find_devs_by_delta(const char *delta, char ***out);
@@ -553,6 +559,7 @@ int find_dev_by_delta(const char *delta, char *out, int len);
 int loop_set_capacity(const char *ldev);
 int loop_release(const char *ldev);
 int loop_create(const char *delta, char *ldev, int size);
+int grow_ploop_image(const char *delta, __u32 blocksize, __u64 size);
 int grow_image(const char *delta, __u32 blocksize, __u64 size);
 PL_EXT int ploop_list(int flags);
 int fsync_safe(int fd);
@@ -578,4 +585,19 @@ PL_EXT int ploop_image_shuffle(const char *image, int nr, int flags);
 int cn_register(const char *devname, struct ploop_disk_images_data *di);
 const char *cn_find_dev(char **devs, struct ploop_disk_images_data *di);
 int cn_find_name(const char *devname, char *out, int size, int full);
+const char *get_dev_name(char *out, int size);
+
+int qcow_create(const char *image, struct ploop_create_param *param);
+int qcow_resize(const char *image, off_t size_sec);
+int qcow_open(const char *image, struct ploop_disk_images_data *di);
+int qcow_check(struct ploop_disk_images_data *di);
+int qcow_live_check(const char *device);
+int qcow_mount(struct ploop_disk_images_data *di,
+		struct ploop_mount_param *param);
+int qcow_create_snapshot(struct ploop_disk_images_data *di,
+		const char *guid);
+int qcow_delete_snapshot(struct ploop_disk_images_data *di,
+		const char *guid);
+int qcow_grow_device(struct ploop_disk_images_data *di,
+		const char *image, const char *device, off_t size);
 #endif

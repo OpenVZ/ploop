@@ -57,6 +57,9 @@ int do_delete_snapshot(struct ploop_disk_images_data *di, const char *guid)
 	char dev[64];
 	int snap_id;
 
+	if (di->runtime->image_type == QCOW_TYPE)
+		return qcow_delete_snapshot(di, guid);
+
 	if (is_old_snapshot_format(di) || guid == NULL)
 		return SYSEXIT_PARAM;
 
@@ -168,14 +171,13 @@ static int create_snapshot_online(struct ploop_disk_images_data *di,
 {
 	int rc;
 	off_t size;
-	__u32 blocksize;
 	char *top;
 
 	ploop_log(0, "Creating snapshot dev=%s img=%s", device, new_top);
 	if (new_top == NULL)
 		return SYSEXIT_PARAM;
 
-	rc = get_image_param_online(device, &top, &size, &blocksize, NULL);
+	rc = get_image_param_online(di, device, &top, &size, NULL, NULL);
 	if (rc)
 		return rc;
 
@@ -187,7 +189,7 @@ static int create_snapshot_online(struct ploop_disk_images_data *di,
 	if (rc)
 		goto err;
 
-	rc = dm_reload(di, device, size, blocksize);
+	rc = dm_reload(di, device, size, 0);
 err:
 	free(top);
 
@@ -348,7 +350,6 @@ int do_create_snapshot(struct ploop_disk_images_data *di,
 	} else
 		strcpy(top_guid, TOPDELTA_UUID);
 
-	merge_temporary_snapshots(di);
 
 	if (guid != NULL) {
 		if (find_snapshot_by_guid(di, guid) != -1) {
@@ -358,6 +359,10 @@ int do_create_snapshot(struct ploop_disk_images_data *di,
 		}
 		strcpy(snap_guid, guid);
 	}
+	if (di->runtime->image_type == QCOW_TYPE)
+		return qcow_create_snapshot(di, snap_guid);
+
+	merge_temporary_snapshots(di);
 	n = get_snapshot_count(di);
 	if (n == -1) {
 		return SYSEXIT_PARAM;
@@ -382,7 +387,7 @@ int do_create_snapshot(struct ploop_disk_images_data *di,
 			if (ret)
 				return ret;
 		}
-		ret = get_image_param_online(dev, NULL, &size,
+		ret = get_image_param_online(di, dev, NULL, &size,
 				&blocksize, &version);
 		if (ret)
 			return ret;
@@ -553,7 +558,7 @@ int ploop_create_temporary_snapshot(struct ploop_disk_images_data *di,
 
 	mount_param.guid = param->guid;
 	mount_param.target = param->target;
-	ret = mount_image(di, &mount_param);
+	ret = ploop_mount(di, NULL, &mount_param, (di->mode == PLOOP_RAW_MODE));
 	di->runtime->component_name = t;
 
 	if (ret)
