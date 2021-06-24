@@ -2490,6 +2490,9 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	if (ret)
 		return ret;
 
+	if (open_delta(&d, top, O_RDWR, OD_ALLOW_DIRTY))
+		goto err;
+
 	if (di && di->runtime->image_type == PLOOP_TYPE) {
 		ret = save_cbt(di, device, &d);
 		if (ret)
