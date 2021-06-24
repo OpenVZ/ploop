@@ -185,11 +185,18 @@ static int create_snapshot_online(struct ploop_disk_images_data *di,
 	if (rc)
 		goto err;
 
+	rc = ploop_suspend_device(device);
+	if (rc)
+		goto err_resume;
+
 	rc = update_delta_inuse(top, 0);
 	if (rc)
-		goto err;
+		goto err_resume;
 
-	rc = dm_reload(di, device, size, 0);
+	rc = dm_reload(di, device, size, RELOAD_SKIP_SUSPEND);
+
+err_resume:
+	ploop_resume_device(device);
 err:
 	free(top);
 

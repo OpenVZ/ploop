@@ -731,7 +731,7 @@ int dm_reload(struct ploop_disk_images_data *di, const char *device,
 	int rc, rc1 = 0;
 	char **images = NULL;
 
-	if (RELOAD_ONLINE) {
+	if (flags & RELOAD_ONLINE) {
 		rc = ploop_get_names(device, &images);
 		if (rc)
 			return rc;
