@@ -177,7 +177,7 @@ static int create_snapshot_online(struct ploop_disk_images_data *di,
 	if (new_top == NULL)
 		return SYSEXIT_PARAM;
 
-	rc = get_image_param_online(di, device, &top, &size, NULL, NULL);
+	rc = get_image_param_online(di, device, &top, &size, NULL, NULL, NULL);
 	if (rc)
 		return rc;
 
@@ -395,7 +395,7 @@ int do_create_snapshot(struct ploop_disk_images_data *di,
 				return ret;
 		}
 		ret = get_image_param_online(di, dev, NULL, &size,
-				&blocksize, &version);
+				&blocksize, &version, NULL);
 		if (ret)
 			return ret;
 	} else {

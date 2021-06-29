@@ -330,7 +330,7 @@ static int ploop_trim(struct ploop_disk_images_data *di,
 	};
 	sigemptyset(&sa.sa_mask);
 
-	ret = get_image_param_online(di, devname, NULL, &size, &cluster, NULL);
+	ret = get_image_param_online(di, devname, NULL, &size, &cluster, NULL, NULL);
 	if (ret)
 		return ret;
 	cluster = S2B(cluster);

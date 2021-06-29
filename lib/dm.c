@@ -343,6 +343,7 @@ struct table_data {
 	int flags;
 	int open_count;
 	int ro;
+	int target_type;
 };
 
 /* return:
@@ -404,6 +405,17 @@ static int display_entry(struct dm_task *task, struct table_data *data)
 	return 0;
 }
 
+static int get_image_type(const char *str)
+{
+	if (str == NULL)
+		return -1;
+	if (strcmp(str, "ploop") == 0)
+		return PLOOP_TYPE;
+	if (strcmp(str, "qcow2") == 0)
+		return QCOW_TYPE;
+	return -1;
+}
+
 static int dm_table(const char *devname, table_fn f, struct table_data *data)
 {
 	struct dm_task *d;
@@ -433,10 +445,12 @@ static int dm_table(const char *devname, table_fn f, struct table_data *data)
 	do {
 		next = dm_get_next_target(d, next, &start, &length,
 				&target_type, &params);
-		if (target_type &&
-			(!strcmp(target_type, "ploop") || !strcmp(target_type, "qcow2"))) {
-			if (data)
+		int t = get_image_type(target_type);
+		if (t != -1) {
+			if (data) {
 				data->params = params;
+				data->target_type = t;
+			}
 			rc = f(d, data);
 			if (rc == -1)
 				goto err;
@@ -568,7 +582,7 @@ int wait_for_open_count(const char *devname, int tm_sec)
 
 int get_image_param_online(struct ploop_disk_images_data *di,
 		const char *devname, char **top, off_t *size,
-		__u32 *blocksize, int *version)
+		__u32 *blocksize, int *version, int *image_type)
 {
 	int rc;
 	struct table_data d = {};
@@ -586,6 +600,8 @@ int get_image_param_online(struct ploop_disk_images_data *di,
 		if (rc)
 			return rc;
 	}
+	if (image_type)
+		*image_type = d.target_type;
 	if (top && d.ndelta &&  dm_get_delta_name(devname, d.ndelta-1, top)) {
 		ploop_err(0, "dm_get_delta_name");
 		return SYSEXIT_SYS;

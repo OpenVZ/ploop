@@ -1154,7 +1154,7 @@ static int read_optional_header_from_kernel(struct ext_context *ctx,
 		return -1;
 	}
 
-	ret = get_image_param_online(NULL, dev, NULL, &dev_size, &blocksize, NULL);
+	ret = get_image_param_online(NULL, dev, NULL, &dev_size, &blocksize, NULL, NULL);
 	if (ret)
 		goto out;
 

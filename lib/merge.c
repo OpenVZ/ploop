@@ -125,7 +125,7 @@ static int grow_lower_delta(const char *device, int top,
 	if (ret)
 		return ret;
 
-	ret = get_image_param_online(NULL, device, NULL, NULL, &blocksize, &fmt);
+	ret = get_image_param_online(NULL, device, NULL, NULL, &blocksize, &fmt, NULL);
 	if (ret)
 		goto done;
 

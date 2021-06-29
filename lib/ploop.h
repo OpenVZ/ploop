@@ -370,7 +370,7 @@ int create_snapshot_delta(const char *path, __u32 blocksize, off_t bdsize,
 		int version);
 int get_image_param_online(struct ploop_disk_images_data *di,
 		const char *device, char **top, off_t *size,
-		__u32 *blocksize, int *version);
+		__u32 *blocksize, int *version, int *image_type);
 int get_image_param(struct ploop_disk_images_data *di, const char *guid,
 		off_t *size, __u32 *blocksize, int *version);
 int get_image_param_offline(struct ploop_disk_images_data *di, const char *guid,
@@ -586,6 +586,7 @@ int cn_register(const char *devname, struct ploop_disk_images_data *di);
 const char *cn_find_dev(char **devs, struct ploop_disk_images_data *di);
 int cn_find_name(const char *devname, char *out, int size, int full);
 const char *get_dev_name(char *out, int size);
+const char *get_full_devname(const char *devname, char *out, int size);
 
 int qcow_create(const char *image, struct ploop_create_param *param);
 int qcow_resize(const char *image, off_t size_sec);

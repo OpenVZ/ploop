@@ -1114,8 +1114,8 @@ int get_mount_dir(const char *device, int pid, char *out, int size)
 	unsigned _major, _minor, major, minor, u;
 	struct stat st;
 
-	if (stat(device, &st)) {
-		ploop_err(errno, "get_mount_dir stat(%s)", device);
+	if (stat(get_full_devname(device, buf, size), &st)) {
+		ploop_err(errno, "get_mount_dir stat(%s)", buf);
 		return -1;
 	}
 
@@ -2173,7 +2173,7 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		}
 		guid = param->guid;
 	} else
-		guid = di->top_guid;
+		guid = di ? di->top_guid : TOPDELTA_UUID;
 
 	if (!param->ro && di && di->vol && !di->vol->ro) {
 		int nr_ch = ploop_get_child_count_by_uuid(di, guid);
@@ -2221,7 +2221,7 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		goto err;
 	}
 
-	if (di->runtime->image_type == QCOW_TYPE) {
+	if (di && di->runtime->image_type == QCOW_TYPE) {
 		ret = qcow_mount(di, param);
 	} else {
 		ret = check_and_restore_fmt_version(di);
@@ -2465,6 +2465,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	int fmt;
 	struct delta d = {.fd = -1};
 	struct ploop_pvd_header *vh;
+	int image_type;
 
 	if (!device) {
 		ploop_err(0, "ploop_umount: device is not specified");
@@ -2486,17 +2487,20 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	if (get_crypt_layout(devname, partname))
 		crypt_close(devname, partname);
 
-	ret = get_image_param_online(di, device, &top, NULL, NULL, &fmt);
+	ret = get_image_param_online(di, device, &top, NULL, NULL,
+			&fmt, &image_type);
 	if (ret)
 		return ret;
 
-	if (open_delta(&d, top, O_RDWR, OD_ALLOW_DIRTY))
-		goto err;
-
-	if (di && di->runtime->image_type == PLOOP_TYPE) {
-		ret = save_cbt(di, device, &d);
-		if (ret)
+	if (image_type == PLOOP_TYPE) {
+		if (open_delta(&d, top, O_RDWR, OD_ALLOW_DIRTY))
 			goto err;
+
+		if (di) {
+			ret = save_cbt(di, device, &d);
+			if (ret)
+				goto err;
+		}
 	}
 
 	cn_find_name(device, cn, sizeof(cn), 1);
@@ -2515,7 +2519,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 			rmdir(mnt);
 	}
 
-	if (di->runtime->image_type == PLOOP_TYPE) {
+	if (image_type == PLOOP_TYPE) {
 		vh = (struct ploop_pvd_header *) d.hdr0;
 		if (vh->m_DiskInUse == SIGNATURE_DISK_IN_USE) {
 			ret = clear_delta(&d);
@@ -2625,7 +2629,7 @@ int get_image_param(struct ploop_disk_images_data *di, const char *guid,
 		if (ret == -1)
 			return SYSEXIT_SYS;
 		if (ret == 0)
-			return get_image_param_online(di, dev, NULL, size, blocksize, version);
+			return get_image_param_online(di, dev, NULL, size, blocksize, version, NULL);
 	}
 	return get_image_param_offline(di, guid, size, blocksize, version);
 }
@@ -2655,7 +2659,7 @@ int ploop_grow_device(struct ploop_disk_images_data *di,
 	char *top = NULL;
 	__u32 blocksize;
 
-	rc = get_image_param_online(di, device, &top, &size, &blocksize, NULL);
+	rc = get_image_param_online(di, device, &top, &size, &blocksize, NULL, NULL);
 	if (rc)
 		return rc;
 
@@ -2871,7 +2875,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di,
 
 	//FIXME: Deny resize image if there are childs
 	ret = get_image_param_online(di, dev, NULL, &dev_size,
-			&blocksize, &version);
+			&blocksize, &version, NULL);
 	if (ret)
 		goto err;
 

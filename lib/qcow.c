@@ -175,7 +175,7 @@ int qcow_live_check(const char *device)
 	char *top = NULL;
 	char *a[] = {"qemu-img", "check", "-q", "-f", "qcow2", NULL, NULL};
 
-	rc = get_image_param_online(NULL, device, &top, NULL, NULL, NULL);
+	rc = get_image_param_online(NULL, device, &top, NULL, NULL, NULL, NULL);
 	if (rc)
 		return rc;
 	a[5] = top;

@@ -34,6 +34,27 @@
 
 #include "ploop.h"
 
+const char *get_full_devname(const char *devname, char *out, int size)
+{
+	if (devname[0] != '/')
+		snprintf(out, size, "/dev/mapper/%s", devname);
+	else
+		snprintf(out, size, "%s", devname);
+	return out;
+}
+
+const char *get_dm_name(const char *devname, char *out, int size)
+{
+	char b[512];
+
+	snprintf(out, size, "/dev/%s", devname);
+
+	snprintf(b, sizeof(b), "/sys/class/block/%s/dm/name", devname);
+	if (access(b, F_OK) == 0 && read_line(b, b, sizeof(b)) == 0)
+		get_full_devname(b, out, size);
+
+	return out;
+}
 
 int get_dev_from_sys(const char *devname, const char *type, char *out,
 		int len)
@@ -42,35 +63,22 @@ int get_dev_from_sys(const char *devname, const char *type, char *out,
 	struct stat st;
 	char **devs = NULL;
 
-	if (devname[0] != '/')
-		snprintf(buf, sizeof(buf), "/dev/mapper/%s", devname);
-	else
-		snprintf(buf, sizeof(buf), "%s", devname);
-	if (stat(buf, &st) == -1) {
+	if (stat(get_full_devname(devname, buf, sizeof(buf)), &st) == -1) {
 		ploop_err(errno, "Can not stat %s", devname);
 		return -1;
 	}
+
 	snprintf(buf, sizeof(buf), "/sys/dev/block/%d:%d/%s",
 			major(st.st_rdev), minor(st.st_rdev), type);
 	if (get_dir_entry(buf, &devs)) {
 		ploop_free_array(devs);
 		return -1;
 	}
+
 	if (devs == NULL)
 		return 1;
 
-	snprintf(buf, sizeof(buf), "/sys/block/%s/dm/name", devs[0]);
-	if (access(buf, F_OK) == 0) {
-		if (read_line(buf, buf, sizeof(buf))) {
-			ploop_free_array(devs);
-			return -1;
-		}
-	} else
-		snprintf(buf, sizeof(buf), "%s", devs[0]);
-
-	snprintf(out, len, "/dev/%s", buf);
-	if (access(out, F_OK))
-		snprintf(out, len, "/dev/mapper/%s", buf);
+	get_dm_name(devs[0], out, len);
 
 	ploop_free_array(devs);
 
@@ -84,7 +92,7 @@ int ploop_find_top_delta_name_and_format(const char *device, char *image,
 	int f;
 	int rc;
 
-	rc = get_image_param_online(NULL, device, &i, NULL, NULL, &f);
+	rc = get_image_param_online(NULL, device, &i, NULL, NULL, &f, NULL);
 	if (rc)
 		return rc;
 
@@ -479,19 +487,6 @@ void ploop_free_array(char *array[])
 	free(array);
 }
 
-const char *get_dm_name(const char *devname, char *out, int size)
-{
-	char b[512];
-
-	snprintf(out, size, "/dev/%s", devname);
-
-	snprintf(b, sizeof(b), "/sys/class/block/%s/dm/name", devname);
-	if (access(b, F_OK) == 0 && read_line(b, b, sizeof(b)) == 0)
-		snprintf(out, size, "/dev/mapper/%s", b);
-
-	return out;
-}
-
 int get_part_devname_from_sys(const char *device, char *devname, int dsize,
 		char *out, int psize)
 {
@@ -501,7 +496,7 @@ int get_part_devname_from_sys(const char *device, char *devname, int dsize,
 	if (rc == -1)
 		return rc;
 	else if (rc)
-		snprintf(out, psize, "%s", device);
+		get_full_devname(device, out, psize);
 
 	return 0;
 }
