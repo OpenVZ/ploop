@@ -637,7 +637,7 @@ static int is_snapshot_in_use(struct ploop_disk_images_data *di,
 	if (fname == NULL)
 		return 1;
 
-	ret = find_devs_by_delta(fname, &devs);
+	ret = find_devs_by_delta(di, fname, &devs);
 	if (ret == -1)  /* return inuse on error */
 		return 1;
 	else if (ret == 1) /* no device found */

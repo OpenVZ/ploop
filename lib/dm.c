@@ -373,6 +373,22 @@ static int cmp_delta(struct dm_task *task, struct table_data *data)
 		return 0;
 
 	if (strcmp(data->base, base) == 0) {
+		if (data->top) {
+			int n;
+			char *top;
+
+			if (sscanf(data->params, "%d", &n) != 1) {
+				ploop_err(0, "malformed params '%s'", data->params);
+				return -1;
+			}
+
+			rc = dm_get_delta_name(devname, n - 1, &top);
+			if (rc == -1)
+				return -1;
+
+			if (strcmp(data->top, top))
+				return 1;
+		}
 		snprintf(data->devname, sizeof(data->devname), "/dev/mapper/%s", devname);
 		data->ndevs = append_array_entry(data->devname, &data->devs, data->ndevs);
 		if (data->ndevs == -1)
@@ -671,9 +687,18 @@ int find_dev(struct ploop_disk_images_data *di, char *out, int len)
 	return rc;
 }
 
-int find_devs_by_delta(const char *delta, char ***out)
+int find_devs_by_delta(struct ploop_disk_images_data *di,
+		const char *delta, char ***out)
 {
-	return dm_find_devs(delta, NULL, out);
+	const char *base = delta;
+	const char *top = NULL;
+
+	if (di) {
+		base = find_image_by_guid(di, get_base_delta_uuid(di));
+		top = delta;
+	}
+
+	return dm_find_devs(base, top, out);
 }
 
 int find_dev_by_delta(const char *delta, char *out, int len)

@@ -4094,7 +4094,7 @@ int check_snapshot_mount(struct ploop_disk_images_data *di,
 	if (guidcmp(guid, di->top_guid) == 0)
 		return 0;
 
-	ret = find_devs_by_delta(fname, &devs);
+	ret = find_devs_by_delta(di, fname, &devs);
 	if (ret == 1)
 		return 0;
 	if (ret == -1)

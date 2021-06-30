@@ -554,7 +554,8 @@ int dm_reload(struct ploop_disk_images_data *di, const char *device,
 		off_t new_size, int flags);
 int find_devs(struct ploop_disk_images_data *di, char ***out);
 int find_dev(struct ploop_disk_images_data *di, char *out, int len);
-int find_devs_by_delta(const char *delta, char ***out);
+int find_devs_by_delta(struct ploop_disk_images_data *di,
+		const char *delta, char ***out);
 int find_dev_by_delta(const char *delta, char *out, int len);
 int loop_set_capacity(const char *ldev);
 int loop_release(const char *ldev);
