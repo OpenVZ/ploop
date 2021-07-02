@@ -315,7 +315,9 @@ int run_prg_rc(char *const argv[], char *const env[], int hide_mask, int *rc)
 
 int run_prg(char *const argv[])
 {
-	return run_prg_rc(argv, NULL, 0, NULL);
+	char *env[] = {"PATH=/sbin:/usr/sbin:/bin:/usr/bin", NULL};
+
+	return run_prg_rc(argv, env, 0, NULL);
 }
 
 int p_memalign(void **memptr, size_t alignment, size_t size)
