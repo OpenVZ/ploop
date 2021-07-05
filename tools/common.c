@@ -128,7 +128,7 @@ int is_xml_fname(const char *fname)
 		return 0;
 
 	p = strrchr(fname, '.');
-	return (p != NULL && !strcmp(p, ".xml"));
+	return (p != NULL && (!strcmp(p, ".xml") || !strcmp(p, ".qcow2")));
 }
 
 static void cancel_callback(int sig)
