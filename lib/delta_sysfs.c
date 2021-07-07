@@ -492,6 +492,7 @@ int get_part_devname_from_sys(const char *device, char *devname, int dsize,
 {
 	int rc;
 
+	snprintf(devname, dsize, "%s", device);
 	rc = get_dev_from_sys(device, "holders", out, psize);
 	if (rc == -1)
 		return rc;
