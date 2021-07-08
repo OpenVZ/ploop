@@ -2466,7 +2466,6 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	struct delta d = {.fd = -1};
 	struct ploop_pvd_header *vh;
 	int image_type;
-	int tm = di ? di->runtime->umount_timeout : PLOOP_UMOUNT_TIMEOUT;
 
 	if (!device) {
 		ploop_err(0, "ploop_umount: device is not specified");
@@ -2487,17 +2486,17 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 
 	if (get_crypt_layout(devname, partname))
 		crypt_close(devname, partname);
+	else if (strcmp(devname, partname)) {
+		ret = dm_remove(partname, PLOOP_UMOUNT_TIMEOUT);
+		if (ret)
+			return ret;
+	}
 
 	ret = get_image_param_online(di, device, &top, NULL, NULL,
 			&fmt, &image_type);
 	if (ret)
 		return ret;
 
-	if (strcmp(devname, partname)) {
-		ret = dm_remove(partname, tm);
-		if (ret)
-			goto err;
-	}
 	if (image_type == PLOOP_TYPE) {
 		if (open_delta(&d, top, O_RDWR, OD_ALLOW_DIRTY))
 			goto err;
@@ -2510,7 +2509,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	}
 
 	cn_find_name(device, cn, sizeof(cn), 1);
-	ret = dm_remove(device, tm);
+	ret = ploop_stop(device, di);
 	if (ret)
 		goto err;
 
