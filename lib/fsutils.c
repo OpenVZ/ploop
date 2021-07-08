@@ -529,38 +529,6 @@ int is_device_from_devmapper(const char *device)
 	return 0;
 }
 
-int grow_image(const char *delta, __u32 blocksize, __u64 size)
-{
-	int rc, fd;
-	__u64 s, upb, l1_size;
-
-	upb = S2B(blocksize)  / sizeof(__u32);
-
-	l1_size = ((size / blocksize) + upb -1) / upb;
-	s = l1_size * blocksize + size;
-
-	fd = open(delta, O_RDWR|O_CLOEXEC);
-	if (fd == -1) {
-		ploop_err(errno, "Cannot open %s", delta);
-		return SYSEXIT_OPEN;
-	}
-
-	ploop_log(0, "Grow %s up to %llusec", delta, s);
-	if (ftruncate(fd, S2B(s))) {
-		ploop_err(errno, "Can not tuncate %s to %llusec",
-				delta, s);
-		close(fd);
-		return SYSEXIT_SYS;
-	}
-
-	rc = fsync_safe(fd);
-	close(fd);
-	if (rc)
-		return rc;
-
-	return 0;
-}
-
 #define CN_DIR	"/var/run/ploop/"
 
 static const char *cn_get_name(struct ploop_disk_images_data *di)

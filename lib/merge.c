@@ -164,11 +164,6 @@ static int grow_lower_delta(const char *device, int top,
 		goto done;
 	}
 
-	if (grow_image(dst_image, odelta.blocksize, src_size)) {
-		ret = SYSEXIT_WRITE;
-		goto done;
-	}
-
 	/* relocate blocks w/o nullifying them and changing on-disk header */
 	ret = grow_delta(&odelta, src_size, buf, &grow_maps);
 	if (clear_delta(&odelta)) {

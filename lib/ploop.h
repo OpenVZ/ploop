@@ -561,7 +561,6 @@ int loop_set_capacity(const char *ldev);
 int loop_release(const char *ldev);
 int loop_create(const char *delta, char *ldev, int size);
 int grow_ploop_image(const char *delta, __u32 blocksize, __u64 size);
-int grow_image(const char *delta, __u32 blocksize, __u64 size);
 PL_EXT int ploop_list(int flags);
 int fsync_safe(int fd);
 int build_hole_bitmap(struct delta *delta, __u64 **hole_bitmap,

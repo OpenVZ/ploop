@@ -383,9 +383,6 @@ static int do_create_delta(const char *path, __u32 blocksize, off_t bdsize, int 
 				goto out_close;
 	}
 
-	if (grow_image(path, blocksize, bdsize))
-		goto out_close;
-
 	if (fsync(fd)) {
 		ploop_err(errno, "fsync %s", path);
 		goto out_close;
@@ -2644,10 +2641,6 @@ static int grow_device(struct ploop_disk_images_data *di,
 		__u32 blocksize, off_t new_size)
 {
 	int rc;
-
-	rc = grow_image(image, blocksize, new_size);
-	if (rc)
-		return rc;
 
 	rc = dm_resize(device, new_size);
 	if (rc)
