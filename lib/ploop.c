@@ -710,6 +710,20 @@ int ploop_init_image(struct ploop_disk_images_data *di,
 			goto err;
 	}
 
+	if (!param->without_partition) {
+		int part;
+
+		ret = has_partition(devname, &part);
+		if (ret)
+			goto err;
+
+		if (!part) {
+			ret = create_gpt_partition(devname, di->blocksize);
+			if (ret)
+				goto err;
+		}
+	}
+
 	ret = get_part_devname(di, mount_param.device, devname, sizeof(devname),
 			partname, sizeof(partname));
 	if (ret)
