@@ -1111,7 +1111,7 @@ int get_mount_dir(const char *device, int pid, char *out, int size)
 	unsigned _major, _minor, major, minor, u;
 	struct stat st;
 
-	if (stat(get_full_devname(device, buf, size), &st)) {
+	if (stat(get_full_devname(device, buf, sizeof(buf)), &st)) {
 		ploop_err(errno, "get_mount_dir stat(%s)", buf);
 		return -1;
 	}
