@@ -113,7 +113,7 @@ static int plooptool_init(int argc, char **argv)
 		.fstype		= "ext4",
 		.mode		= PLOOP_EXPANDED_MODE,
 		.fmt_version	= PLOOP_FMT_UNDEFINED,
-		.without_partition = 1,
+		.without_partition = 0,
 	};
 	static struct option long_opts[] = {
 		{ "nolazy", no_argument, 0, 'n' },
