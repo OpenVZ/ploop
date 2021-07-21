@@ -48,18 +48,16 @@ int ploop_dm_message(const char *devname, const char *msg, char **out)
 		goto err;
 	if (!dm_task_set_message(d, msg))
 		goto err;
-	if (!dm_task_run(d))
+	if (!dm_task_run(d)) {
+		ploop_log(errno, "Failed to '%s' on %s", msg, devname);
 		goto err;
-
+	}
 	r = dm_task_get_message_response(d);
-	if (r) {
-		ploop_err(errno, "Failed to %s %s", devname, msg);
-		if (out != NULL) {
-			*out = strdup(r);
-			n = strlen(*out);
-			if ((*out)[n-1] == '\n')
-				(*out)[n-1] = '\0';
-		}
+	if (r && out != NULL) {
+		*out = strdup(r);
+		n = strlen(*out);
+		if ((*out)[n-1] == '\n')
+			(*out)[n-1] = '\0';
 	}
 	rc = 0;
 
@@ -227,21 +225,6 @@ static int cmd(const char *devname, int cmd)
 err:
 	dm_task_destroy(d);
 	return rc;
-}
-
-int dm_remove(const char *devname, int tm_sec)
-{
-	int rc;
-
-	rc = wait_for_open_count(devname, tm_sec);
-	if (rc)
-		return rc;
-
-	if (cmd(devname, DM_DEVICE_REMOVE) == 0)
-		return 0;
-	else if (errno != EBUSY)
-		return SYSEXIT_DEVIOC;
-	return SYSEXIT_UMOUNT_BUSY;
 }
 
 int dm_resize(const char *devname, off_t size)
@@ -572,7 +555,7 @@ static int dm_get_info(const char *devname, struct dm_image_info *param)
 	return 0;
 }
 
-int wait_for_open_count(const char *devname, int tm_sec)
+static int do_wait_for_open_count(const char *devname, int remove, int tm_sec)
 {
 	struct dm_image_info i;
 	useconds_t total = 0;
@@ -583,7 +566,15 @@ int wait_for_open_count(const char *devname, int tm_sec)
 	do {
 		if (dm_get_info(devname, &i) == 0 &&
 				i.open_count == 0)
-			return 0;
+		{
+			if (remove) {
+				if (cmd(devname, DM_DEVICE_REMOVE) == 0)
+					return 0;
+				else if (errno != EBUSY)
+					return SYSEXIT_DEVIOC;
+			} else
+				return 0;
+		}
 
 		if (total > maxtotal) {
 			ploop_err(0, "Wait for %s open_count=0 failed: timeout has expired",
@@ -597,6 +588,16 @@ int wait_for_open_count(const char *devname, int tm_sec)
 		if (wait > maxwait)
 			wait = maxwait;
 	} while (1);
+}
+
+int wait_for_open_count(const char *devname, int tm_sec)
+{
+	return do_wait_for_open_count(devname, 0, tm_sec);
+}
+
+int dm_remove(const char *devname, int tm_sec)
+{
+	return do_wait_for_open_count(devname, 1, tm_sec);
 }
 
 int get_image_param_online(struct ploop_disk_images_data *di,
