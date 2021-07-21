@@ -52,11 +52,14 @@ int ploop_dm_message(const char *devname, const char *msg, char **out)
 		goto err;
 
 	r = dm_task_get_message_response(d);
-	if (r && out != NULL) {
-		*out = strdup(r);
-		n = strlen(*out);
-		if ((*out)[n-1] == '\n')
-			(*out)[n-1] = '\0';
+	if (r) {
+		ploop_err(errno, "Failed to %s %s", devname, msg);
+		if (out != NULL) {
+			*out = strdup(r);
+			n = strlen(*out);
+			if ((*out)[n-1] == '\n')
+				(*out)[n-1] = '\0';
+		}
 	}
 	rc = 0;
 
