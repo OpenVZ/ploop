@@ -598,17 +598,14 @@ err_unlock:
 
 int is_device_inuse(const char *dev)
 {
-	int count;
 	char fname[PATH_MAX];
 	char cookie[PLOOP_COOKIE_SIZE] = "";
+	struct dm_image_info i;
 
-	if (ploop_get_attr(dev, "open_count", &count))
-		return 1;
+	if (dm_get_info(dev, &i))
+	       return 1;
 
-	/* detect if snapshot locked by ploop mount */
-	snprintf(fname, sizeof(fname), "/sys/block/%s/pstate/cookie",
-			memcmp(dev, "/dev/", 5) == 0 ? dev + 5 : dev);
-	if (read_line_quiet(fname, cookie, sizeof(cookie)))
+	if (cn_find_name(dev, cookie, sizeof(cookie), 0))
 		return 1;
 
 	if (!strncmp(cookie, TSNAPSHOT_MOUNT_LOCK_MARK,
@@ -616,11 +613,11 @@ int is_device_inuse(const char *dev)
 		return 0;
 
 	/* snap holder + mount */
-	if (count >= 2)
+	if (i.open_count >= 2)
 		return 1;
 
 	/* if there single reference we should detect is holder is alive */
-	if (count == 1 && ploop_get_mnt_by_dev(dev, fname, sizeof(fname)) != 0)
+	if (i.open_count == 1 && ploop_get_mnt_by_dev(dev, fname, sizeof(fname)) != 0)
 		return 1;
 
 	return 0;

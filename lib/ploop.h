@@ -552,6 +552,7 @@ int dm_tracking_get_next(const char *devname, __u64 *pos);
 int dm_flip_upper_deltas(const char *devname);
 int dm_reload(struct ploop_disk_images_data *di, const char *device,
 		off_t new_size, int flags);
+int dm_get_info(const char *devname, struct dm_image_info *param);
 int find_devs(struct ploop_disk_images_data *di, char ***out);
 int find_dev(struct ploop_disk_images_data *di, char *out, int len);
 int find_devs_by_delta(struct ploop_disk_images_data *di,

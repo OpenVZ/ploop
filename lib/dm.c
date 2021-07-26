@@ -541,7 +541,7 @@ static int get_params(struct dm_task *task, struct table_data *data)
 	return 0;
 }
 
-static int dm_get_info(const char *devname, struct dm_image_info *param)
+int dm_get_info(const char *devname, struct dm_image_info *param)
 {
 	int rc;
 	struct table_data d = {};
