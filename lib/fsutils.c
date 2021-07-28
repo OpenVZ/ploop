@@ -100,6 +100,7 @@ int create_gpt_partition(const char *device, __u32 blocksize)
 		return ret;
 
 	end = (size - blocksize) / blocksize * blocksize;
+	end = end / 8 * 8; // align to 4096 page size
 	ret = sgdisk_mkpart(device, 1, start, end);
 	if (ret)
 		return ret;
@@ -144,9 +145,22 @@ int sgdisk_mkpart(const char *device,
 {
 	char *argv[5];
 	char s1[100];
+	int ret, fd, sector_size;
 
-	snprintf(s1, sizeof(s1), "%d:%lluk:%lluk",
-			part_num, part_start/2, part_end/2);
+	fd = open(device, O_RDONLY|O_CLOEXEC);
+	if (fd == -1) {
+		ploop_err(errno, "Can't open %s", device);
+		return SYSEXIT_OPEN;
+	}
+
+	ret = get_sector_size(fd, &sector_size);
+	close(fd);
+	if (ret)
+		return ret;
+
+	snprintf(s1, sizeof(s1), "%d:%llu:%llu", part_num,
+			part_start * 512 / sector_size,
+			(part_end * 512 / sector_size) -1);
 
 	argv[0] = "sgdisk";
 	argv[1] = "-n";

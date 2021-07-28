@@ -92,7 +92,7 @@ struct MbrPartEntry
 	__u32 count;
 };
 
-static int get_sector_size(int fd, int *sector_size)
+int get_sector_size(int fd, int *sector_size)
 {
 	return ioctl_device(fd, BLKSSZGET, sector_size);
 }

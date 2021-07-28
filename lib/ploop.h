@@ -420,6 +420,7 @@ void tune_fs(int balloonfd, const char *device, unsigned long long size);
 int resize_fs(const char *device, off_t blocks);
 int dumpe2fs(const char *device, struct dump2fs_data *data);
 int e2fsck(const char *device, int flags, int *rc);
+int get_sector_size(int fd, int *sector_size);
 int create_gpt_partition(const char *dev,  __u32 blocksize);
 int resize_gpt_partition(const char *devname, const char *partname,
 		__u64 new_size512, __u32 blocksize512);
