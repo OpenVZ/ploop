@@ -289,7 +289,7 @@ static int update_gpt_partition(int fd, const char *devname, __u64 new_size512,
 	hdr.alternate_lba = new_size - 1;
 	hdr.last_usable_lba = new_size - (gpt_size_bytes / sector_size) - 1;
 	/* allign partition to blocksize */
-	pe->ending_lba = hdr.last_usable_lba / blocksize * blocksize;
+	pe->ending_lba = (hdr.last_usable_lba / blocksize * blocksize) -1;
 
 	if (convert) {
 		hdr.my_lba = 1;
