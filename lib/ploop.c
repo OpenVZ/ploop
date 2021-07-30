@@ -708,6 +708,7 @@ int ploop_init_image(struct ploop_disk_images_data *di,
 		ret = store_encryption_keyid(di, param->keyid);
 		if (ret)
 			goto err;
+		crypt_get_device_name(mount_param.device, devname, sizeof(devname));
 	}
 
 	if (!param->without_partition) {

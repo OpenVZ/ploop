@@ -491,13 +491,22 @@ int get_part_devname_from_sys(const char *device, char *devname, int dsize,
 		char *out, int psize)
 {
 	int rc;
+	char dev[64];
 
 	snprintf(devname, dsize, "%s", device);
 	rc = get_dev_from_sys(device, "holders", out, psize);
 	if (rc == -1)
 		return rc;
-	else if (rc)
+	else if (rc == 1) {
 		get_full_devname(device, out, psize);
+		return 0;
+	}
+
+	rc = get_dev_from_sys(out, "holders", dev, sizeof(dev));
+	if (rc == 0) {
+		snprintf(devname, dsize, "%s", out);
+		snprintf(out, psize, "%s", dev);
+	}
 
 	return 0;
 }

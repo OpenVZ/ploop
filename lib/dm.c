@@ -564,8 +564,8 @@ static int do_wait_for_open_count(const char *devname, int remove, int tm_sec)
 	useconds_t maxtotal = tm_sec * 1000000; // max total wait
 
 	do {
-		if (dm_get_info(devname, &i) == 0 &&
-				i.open_count == 0)
+		int rc = dm_get_info(devname, &i);
+		if ((rc == 0 && i.open_count == 0) || rc)
 		{
 			if (remove) {
 				if (cmd(devname, DM_DEVICE_REMOVE) == 0)
