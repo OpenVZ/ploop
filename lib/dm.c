@@ -302,12 +302,46 @@ int dm_setnoresume(const char *devname, int on)
 
 int ploop_suspend_device(const char *devname)
 {
-	return cmd(devname, DM_DEVICE_SUSPEND);
+	char dev[64], part[64];
+	int rc;
+
+	rc = get_part_devname_from_sys(devname, dev, sizeof(dev),
+				part, sizeof(part));
+	if (rc)
+		return rc;
+
+	if (strcmp(dev, part)) {
+		rc = cmd(part, DM_DEVICE_SUSPEND);
+		if (rc)
+			return rc;
+		rc = cmd(dev, DM_DEVICE_SUSPEND);
+		if (rc)
+			cmd(part, DM_DEVICE_RESUME);
+	} else
+		rc = cmd(devname, DM_DEVICE_SUSPEND);
+
+	return rc;
 }
 
 int ploop_resume_device(const char *devname)
 {
-	return cmd(devname, DM_DEVICE_RESUME);
+	char dev[64], part[64];
+	int rc;
+
+	rc = get_part_devname_from_sys(devname, dev, sizeof(dev),
+			part, sizeof(part));
+	if (rc)
+		return rc;
+
+	if (strcmp(dev, part)) {
+		rc = cmd(dev, DM_DEVICE_RESUME);
+		if (rc)
+			return rc;
+		rc = cmd(part, DM_DEVICE_RESUME);
+	} else
+		rc = cmd(devname, DM_DEVICE_RESUME);
+
+	return rc;
 }
 
 int dm_flip_upper_deltas(const char *devname)
