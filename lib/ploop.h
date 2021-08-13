@@ -415,7 +415,7 @@ PL_EXT int ploop_balloon_check_and_repair(const char *device, const char *mount_
 PL_EXT int ploop_discard_get_stat_by_dev(const char *device, const char *mount_point,
 		struct ploop_discard_stat *pd_stat);
 PL_EXT int ploop_discard_by_dev(const char *device, const char *mount_point,
-		__u64 minlen_b, __u64 to_free, const int *stop);
+		__u64 minlen_b, __u64 to_free, const volatile int *stop);
 int ploop_blk_discard(const char* device, const char *part, __u32 blocksize, off_t start, off_t end);
 
 /* lock */
