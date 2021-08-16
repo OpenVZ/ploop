@@ -842,7 +842,7 @@ err:
 	return ret;
 }
 
-static int trim_stop = 0;
+static volatile int trim_stop = 0;
 static void stop_trim_handler(int sig)
 {
 	trim_stop = 1;
@@ -946,7 +946,7 @@ static int blk_discard(int fd, __u32 cluster, __u64 start, __u64 len)
 	return 0;
 }
 
-static int wait_pid(pid_t pid, const char *mes, const int *stop)
+static int wait_pid(pid_t pid, const char *mes, const volatile int *stop)
 {
 	int err, status;
 	int flags = stop != NULL ? WNOHANG : 0;
@@ -986,7 +986,7 @@ static int wait_pid(pid_t pid, const char *mes, const int *stop)
 static int __ploop_discard(struct ploop_disk_images_data *di, int fd, int partfd,
 			const char *device, const char *mount_point,
 			__u64 minlen_b, __u32 cluster, __u32 to_free,
-			__u64 blk_discard_range[2], const int *stop)
+			__u64 blk_discard_range[2], const volatile int *stop)
 {
 	pid_t tpid;
 	int ret;
@@ -1134,7 +1134,7 @@ static int __ploop_discard(struct ploop_disk_images_data *di, int fd, int partfd
 
 static int do_ploop_discard(struct ploop_disk_images_data *di,
 		const char *device, const char *part, const char *mount_point,
-		__u64 minlen_b, __u64 to_free, const int *stop)
+		__u64 minlen_b, __u64 to_free, const volatile int *stop)
 {
 	int fd, partfd, ret;
 	int blocksize;
@@ -1278,7 +1278,7 @@ int get_dev_and_mnt(struct ploop_disk_images_data *di, pid_t pid,
 }
 
 int ploop_discard_by_dev(const char *device, const char *mount_point,
-		__u64 minlen_b, __u64 to_free, const int *stop)
+		__u64 minlen_b, __u64 to_free, const volatile int *stop)
 {
 	int ret;
 	char dev[64], part[64];
@@ -1488,7 +1488,7 @@ static int do_kaio_ext4_defrag(const char *dev, struct ploop_discard_param *para
 }
 
 static int do_defrag(struct ploop_disk_images_data *di,
-		const char *dev, const char *mnt, const int *stop)
+		const char *dev, const char *mnt, const volatile int *stop)
 {
 	int ret;
 	int blocksize;
