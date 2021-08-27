@@ -232,7 +232,7 @@ int ploop_balloon_change_size(const char *device, int balloonfd, off_t new_size)
 }
 
 
-static int trim_stop = 0;
+static volatile int trim_stop = 0;
 static void stop_trim_handler(int sig)
 {
 	trim_stop = 1;
@@ -420,7 +420,7 @@ static int blk_discard(int fd, __u32 cluster, __u64 start, __u64 len)
 	return 0;
 }
 
-static int wait_pid(pid_t pid, const char *mes, const int *stop)
+static int wait_pid(pid_t pid, const char *mes, const volatile int *stop)
 {
 	int err, status;
 	int flags = stop != NULL ? WNOHANG : 0;
@@ -545,7 +545,7 @@ int get_dev_and_mnt(struct ploop_disk_images_data *di, pid_t pid,
 
 
 int ploop_discard_by_dev(const char *device, const char *mount_point,
-		__u64 minlen_b, __u64 to_free, const int *stop)
+		__u64 minlen_b, __u64 to_free, const volatile int *stop)
 {
 	return ploop_trim(NULL, device, mount_point, minlen_b);
 }
