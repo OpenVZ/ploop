@@ -1414,8 +1414,16 @@ static int get_num_extents(const char *img, __u32 *out)
 {
 	char cmd[PATH_MAX];
 	FILE *fp;
-	int ret;
+	int ret, fd;
 	char *p;
+
+	fd = open(img, O_RDONLY|O_CLOEXEC);
+	if (fd == -1) {
+		ploop_err(0, "Failed to open %s", img);
+		return SYSEXIT_SYS;
+	}
+	clean_es_cache(fd);
+	close(fd);
 
 	snprintf(cmd, sizeof(cmd), "LANG=C /usr/sbin/filefrag %s", img);
 	fp = popen(cmd, "r");

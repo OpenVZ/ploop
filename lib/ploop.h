@@ -583,6 +583,7 @@ int get_discard_granularity(const char *dev, __u64 *granularity);
 int read_conf(struct conf_data *conf);
 int repair_sparse(const char *image, __u64 cluster, int flags);
 int is_zero_block(void *buf, __u64 size);
+void clean_es_cache(int fd);
 int dm_suspend_device(const char *devname);
 int dm_resume_device(const char *devname);
 int dm_remove(const char *devname);

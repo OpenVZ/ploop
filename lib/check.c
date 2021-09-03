@@ -35,8 +35,6 @@
 #include "ploop.h"
 #include "cbt.h"
 
-#define EXT4_IOC_CLEAR_ES_CACHE	_IO('f', 40)
-
 enum {
 	ZEROFIX = 0,
 	IGNORE
@@ -383,8 +381,7 @@ int repair_sparse(const char *image, __u64 cluster, int flags)
 
 	prev_end = 0;
 	last = 0;
-	if (ioctl(delta.fd, EXT4_IOC_CLEAR_ES_CACHE) && errno != ENOTTY)
-		ploop_err(errno, "Warning: ioctl(EXT4_IOC_CLEAR_ES_CACHE)"); 
+	clean_es_cache(delta.fd);
 
 	while (!last && prev_end < end) {
 		fiemap->fm_start	= prev_end;
