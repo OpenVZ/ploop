@@ -31,6 +31,7 @@
 #include <dirent.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/ioctl.h>
 
 #include "ploop.h"
 #include "cleanup.h"
@@ -377,4 +378,14 @@ int dump_bat(const char *image)
 
 	close_delta(&delta);
 	return 0;
+}
+
+#ifndef EXT4_IOC_CLEAR_ES_CACHE
+#define EXT4_IOC_CLEAR_ES_CACHE _IO('f', 40)
+#endif
+
+void clean_es_cache(int fd)
+{
+	if (ioctl(fd, EXT4_IOC_CLEAR_ES_CACHE) && errno != ENOTTY)
+		ploop_err(errno, "Warning: ioctl(EXT4_IOC_CLEAR_ES_CACHE)");
 }

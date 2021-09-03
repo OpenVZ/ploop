@@ -34,8 +34,6 @@
 
 #include "ploop.h"
 
-#define EXT4_IOC_CLEAR_ES_CACHE	_IO('f', 40)
-
 enum {
 	ZEROFIX = 0,
 	IGNORE
@@ -391,7 +389,7 @@ static int check_and_repair(const char *image, int *fd, __u64 cluster, int flags
 
 	prev_end = 0;
 	last = 0;
-	ioctl_device(delta.fd, EXT4_IOC_CLEAR_ES_CACHE, 0);
+	clean_es_cache(delta.fd);
 
 	while (!last && prev_end < end) {
 		fiemap->fm_start	= prev_end;
