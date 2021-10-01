@@ -199,10 +199,6 @@ enum {
 	snap_temporary_zero_swap= 3,
 };
 
-struct dm_image_info {
-	int open_count;
-	int ro;
-};
 
 enum {
 	RELOAD_ONLINE		= 0x01,
@@ -543,17 +539,21 @@ int merge_top_delta(const char *devname);
 int notify_merged_backward (const char *devname, int id);
 int update_delta_index(const char *devname, int delta_idx, struct grow_maps *gm);
 int dm_remove(const char *devname, int tm_sec);
-int dm_create(const char *devname, const char *target, __u64 start, __u64 size,
-		int ro, const char *args);
+int dm_create(const char *devname, int minor, const char *target,
+		__u64 start, __u64 size, int ro, const char *args);
 int dm_resize(const char *devname, off_t size);
 int dm_setnoresume(const char *devname, int on);
 int dm_tracking_start(const char *devname);
 int dm_tracking_stop(const char *devname);
 int dm_tracking_get_next(const char *devname, __u64 *pos);
 int dm_flip_upper_deltas(const char *devname);
+PL_EXT int dm_suspend(const char *devname);
+PL_EXT int dm_resume(const char *devname);
+int do_reload(const char *device, char **images, __u32 blocksize, off_t new_size,
+		int image_type, int flags);
 int dm_reload(struct ploop_disk_images_data *di, const char *device,
 		off_t new_size, int flags);
-int dm_get_info(const char *devname, struct dm_image_info *param);
+int dm_get_info(const char *devname, struct ploop_tg_info *param);
 int find_devs(struct ploop_disk_images_data *di, char ***out);
 int find_dev(struct ploop_disk_images_data *di, char *out, int len);
 int find_devs_by_delta(struct ploop_disk_images_data *di,
@@ -587,8 +587,11 @@ PL_EXT int ploop_image_shuffle(const char *image, int nr, int flags);
 int cn_register(const char *devname, struct ploop_disk_images_data *di);
 const char *cn_find_dev(char **devs, struct ploop_disk_images_data *di);
 int cn_find_name(const char *devname, char *out, int size, int full);
-const char *get_dev_name(char *out, int size);
+int get_dev_name(char *out, int size);
+int get_dev_tg_name(const char *devname, const char *tg,  char *out, int size);
 const char *get_full_devname(const char *devname, char *out, int size);
+int add_delta(char **images, char *devname, int minor, int blocksize,
+		int raw, int ro, int size);
 
 int qcow_create(const char *image, struct ploop_create_param *param);
 int qcow_resize(const char *image, off_t size_sec);

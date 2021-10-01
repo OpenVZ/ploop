@@ -145,12 +145,12 @@ int update_delta_index(const char *devname, int delta_idx, struct grow_maps *gm)
 	return rc;
 }
 
-int dm_create(const char *devname, const char *target, __u64 start, __u64 size, int ro,
-		const char *args)
+int dm_create(const char *devname, int minor, const char *target,
+		__u64 start, __u64 size, int ro, const char *args)
 {
 	struct dm_task *d;
 	uint32_t cookie = 0;
-	int minor, rc = -1;
+	int rc = -1;
 
 	d = dm_task_create(DM_DEVICE_CREATE);
 	if (d== NULL)
@@ -163,7 +163,8 @@ int dm_create(const char *devname, const char *target, __u64 start, __u64 size, 
 		goto err;
 	if (ro)
 		dm_task_set_ro(d);
-	sscanf(get_basename(devname), "ploop%d", &minor);
+	if (minor == 0)
+		sscanf(get_basename(devname), "ploop%d", &minor);
 	dm_task_set_minor(d, minor);
 	if (!dm_task_set_cookie(d, &cookie, 0))
 		goto err;
@@ -276,7 +277,6 @@ int dm_tracking_get_next(const char *devname, __u64 *pos)
 					devname);
 		return rc;
 	}
-
 	if (sscanf(out, "%llu", pos) != 1) {
 		ploop_err(0, "Not valid tracking offset %s", out);
 		rc = SYSEXIT_PARAM;
@@ -299,6 +299,10 @@ int dm_setnoresume(const char *devname, int on)
 	return rc;
 }
 
+int dm_suspend(const char *devname)
+{
+	return cmd(devname, DM_DEVICE_SUSPEND);
+}
 
 int ploop_suspend_device(const char *devname)
 {
@@ -321,6 +325,11 @@ int ploop_suspend_device(const char *devname)
 		rc = cmd(devname, DM_DEVICE_SUSPEND);
 
 	return rc;
+}
+
+int dm_resume(const char *devname)
+{
+	return cmd(devname, DM_DEVICE_RESUME);
 }
 
 int ploop_resume_device(const char *devname)
@@ -364,6 +373,7 @@ struct table_data {
 	int open_count;
 	int ro;
 	int target_type;
+	char status[64];
 };
 
 /* return:
@@ -548,7 +558,7 @@ int ploop_list(int flags)
 static int get_params(struct dm_task *task, struct table_data *data)
 {
 	int n;
-	char v[3];
+	char v[64] = "";
 	struct dm_info i = {};
 
 	if (data->params == NULL)
@@ -563,19 +573,31 @@ static int get_params(struct dm_task *task, struct table_data *data)
 
 	data->version = PLOOP_FMT_UNDEFINED;
 	data->blocksize = 0;
-	n = sscanf(data->params, "%d %2s %d", &data->ndelta, v, &data->blocksize);
-	if (n < 1) {
-		ploop_err(0, "malformed params '%s'", data->params);
-		return -1;
-	} else if (n == 3) {
+	switch (data->target_type) {
+	case PLOOP_TYPE:
+		n = sscanf(data->params, "%d %2s %d", &data->ndelta, v, &data->blocksize);
+		if (n != 3) {
+			ploop_err(0, "malformed ploop params '%s'", data->params);
+			return -1;
+		}
 		if (!strcmp(v, "v2"))
 			data->version = PLOOP_FMT_V2;
+		break;
+	case QCOW_TYPE:
+		n = sscanf(data->params, "%d %d", &data->ndelta, &data->blocksize);
+		if (n != 2) {
+			ploop_err(0, "malformed qcow params '%s'", data->params);
+			return -1;
+		}
+		break;
+	default:
+		break;
 	}
 
 	return 0;
 }
 
-int dm_get_info(const char *devname, struct dm_image_info *param)
+int dm_get_info(const char *devname, struct ploop_tg_info *param)
 {
 	int rc;
 	struct table_data d = {};
@@ -585,13 +607,20 @@ int dm_get_info(const char *devname, struct dm_image_info *param)
 		return rc;
 	param->open_count = d.open_count;
 	param->ro = d.ro;
+	param->blocksize = d.blocksize;
+	strcpy(param->status, d.status);
 
 	return 0;
 }
 
+int ploop_tg_info(const char *devname, struct ploop_tg_info *param)
+{
+	return dm_get_info(devname, param);
+}
+
 static int do_wait_for_open_count(const char *devname, int remove, int tm_sec)
 {
-	struct dm_image_info i;
+	struct ploop_tg_info i;
 	useconds_t total = 0;
 	useconds_t wait = 10000; // initial wait time 0.01s
 	useconds_t maxwait = 500000; // max wait time per iteration 0.5s
@@ -753,8 +782,8 @@ int find_dev_by_delta(const char *delta, char *out, int len)
 	return rc;
 }
 
-int do_reload(struct ploop_disk_images_data *di, const char *device,
-		char **images, off_t new_size, int flags)
+int do_reload(const char *device, char **images, __u32 blocksize, off_t new_size,
+		int image_type, int flags)
 {
 	int rc, *fds, i, j, n = 0;
 	char t[PATH_MAX];
@@ -771,9 +800,9 @@ int do_reload(struct ploop_disk_images_data *di, const char *device,
 	fds = alloca(n * sizeof(int));
 	p = t;
 	e = p + sizeof(t);
-	if (di->runtime->image_type == PLOOP_TYPE)
+	if (image_type == PLOOP_TYPE)
 		p += snprintf(p, e-p, "0 %lu ploop %d",
-			new_size, ffs(di->blocksize)-1);
+			new_size, ffs(blocksize)-1);
 	else
 		p += snprintf(p, e-p, "0 %lu qcow2", new_size);
 
@@ -826,7 +855,8 @@ int dm_reload(struct ploop_disk_images_data *di, const char *device,
 			goto err;
 	}
 
-	rc = do_reload(di, device, images, new_size, flags);
+	rc = do_reload(device, images, di->blocksize, new_size,
+			di->runtime->image_type, flags);
 
 	if (!(flags & RELOAD_SKIP_SUSPEND))
 		rc1 = ploop_resume_device(device);
@@ -834,4 +864,133 @@ err:
 	ploop_free_array(images);
 
 	return rc ? rc : rc1;
+}
+
+static int dm_reload_err(const char *dev, off_t size)
+{
+	char t[64];
+	char *a[] = {"dmsetup", "reload", (char *) get_basename(dev), "--table", t, NULL};
+
+	snprintf(t, sizeof(t), "0 %lu error", size);
+	return run_prg(a);
+}
+
+static int dm_tg_reload(const char *dev, const char *dev2, 
+		const char *tg, off_t size, __u32 blocksize)
+{
+	char t[PATH_MAX];
+	char *a[] = {"dmsetup", "reload", (char *) get_basename(dev), "--table",  t, NULL};
+
+	snprintf(t, sizeof(t), "0 %lu %s %u %s", size, tg, blocksize, dev2);
+
+	return run_prg(a);
+}
+
+/*
+1 dmsetup reload ploopXXX --table "0 4294967296 error"
+2 dmsetup create ploopXXX_underlining 0 sectors ploop ....
+3 dmsetup reload ploopXXX --table "0 4294967296 <tg> 2048 /dev/mapper/ploopXXX_underlining"
+4 dmsetup resume ploop_XXX
+ */
+int ploop_tg_init(const char *dev, const char *tg, struct ploop_tg_data *out)
+{
+	int rc, image_type, minor;
+	__u32 blocksize;
+	off_t size;
+	char **images = NULL;
+	char devname[64], part[64];
+	char devtg[64] = "";
+
+	rc = get_part_devname_from_sys(dev, devname, sizeof(devname), part, sizeof(part));
+	if (rc)
+		return rc;
+
+	rc = get_image_param_online(NULL, dev, NULL, &size, &blocksize, NULL, &image_type);
+	if (rc)
+		return rc;
+
+	rc = dm_suspend(dev);
+	if (rc)
+		return rc;
+
+	rc = ploop_get_names(dev, &images);
+	if (rc)
+		goto err;
+
+	rc = dm_reload_err(dev, size);
+	if (rc)
+		goto err;
+
+	minor = get_dev_tg_name(dev, tg, devtg, sizeof(devtg));
+	rc = add_delta(images, devtg, minor, blocksize, 0, 0, size);
+	if (rc)
+		goto err_reload;
+
+	rc = dm_tg_reload(dev, devtg, tg, size, blocksize);
+	if (rc)
+		goto err_reload;
+
+	snprintf(out->devname, sizeof(out->devname), "%s", devtg);
+	snprintf(out->devtg, sizeof(out->devtg), "%s", dev);
+	snprintf(out->part, sizeof(out->part), "%s", part);
+	ploop_log(0, "tg-init %s %s %s", out->devname, out->devtg, out->part);
+
+err:
+	dm_resume(dev);
+	ploop_free_array(images);
+
+	return rc;
+
+err_reload:
+	if (do_reload(dev, images, blocksize, size, image_type, 0) == 0)
+		dm_remove(devtg, PLOOP_UMOUNT_TIMEOUT);
+
+	goto err;
+}
+
+int ploop_tg_deinit(const char *dev, const char *tg)
+{
+	int rc, image_type;
+	__u32 blocksize;
+	off_t size;
+	char **images = NULL;
+	char devtg[64];
+
+	ploop_log(0, "tg-deinit %s %s", dev, tg);
+	get_dev_tg_name(dev, tg, devtg, sizeof(devtg));
+	rc = get_image_param_online(NULL, devtg, NULL, &size, &blocksize, NULL, &image_type);
+	if (rc)
+		return rc;
+
+	rc = dm_suspend(devtg);
+	if (rc)
+		return rc;
+
+	rc = dm_suspend(dev);
+	if (rc)
+		goto err;
+
+	rc = ploop_get_names(devtg, &images);
+	if (rc)
+		goto err;
+
+	rc = do_reload(dev, images, blocksize, size, image_type, 0);
+	if (rc)
+		goto err;
+
+	rc = dm_resume(dev);
+	if (rc)
+		goto err;
+
+	dm_remove(devtg, PLOOP_UMOUNT_TIMEOUT);
+	ploop_free_array(images);
+
+	return 0;
+
+err:
+	dm_resume(devtg);
+	dm_resume(dev);
+	ploop_free_array(images);
+
+	return rc;
 }

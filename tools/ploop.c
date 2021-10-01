@@ -1439,6 +1439,42 @@ static int plooptool_encrypt(int argc, char **argv)
 	return ret;
 }
 
+static int plooptool_tg_init(int argc, char **argv)
+{
+	struct ploop_tg_data d;
+
+	if (argc != 2)
+		return SYSEXIT_PARAM;
+
+	return ploop_tg_init(argv[1], "push_backup", &d);
+}
+
+static int plooptool_tg_deinit(int argc, char **argv)
+{
+	if (argc != 2) 
+		return SYSEXIT_PARAM;
+
+	return ploop_tg_deinit(argv[1], "push_backup");
+}
+
+static int plooptool_tg_status(int argc, char **argv)
+
+{
+	int rc;
+	struct ploop_tg_info i;
+
+	if (argc != 2) 
+		return SYSEXIT_PARAM;
+
+	rc =  ploop_tg_info(argv[1], &i);
+	if (rc)
+		return rc;
+
+	printf("status: %s\n", i.status);
+
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	char * cmd;
@@ -1537,6 +1573,12 @@ int main(int argc, char **argv)
 		return plooptool_restore_descriptor(argc, argv);
 	if (strcmp(cmd, "encrypt") == 0)
 		return plooptool_encrypt(argc, argv);
+	if (strcmp(cmd, "tg-init") == 0)
+		return plooptool_tg_init(argc, argv);
+	if (strcmp(cmd, "tg-deinit") == 0)
+		return plooptool_tg_deinit(argc, argv);
+	if (strcmp(cmd, "tg-status") == 0)
+		return plooptool_tg_status(argc, argv);
 
 	if (cmd[0] != '-') {
 		char ** nargs;
