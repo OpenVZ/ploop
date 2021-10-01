@@ -106,7 +106,10 @@ struct ploop_functions {
 	int (*resume_device)(const char *devname);
 	int (*suspend_device)(const char *devname);
 	void (*free_dm_message)(char *msg);
-	void *padding[57];
+	int (*tg_deinit)(const char *dev, const char *tg);
+	int (*tg_info)(const char *devname, struct ploop_tg_info *param);
+	int (*tg_init)(const char *dev, const char *tg, struct ploop_tg_data *out);
+	void *padding[54];
 }; /* struct ploop_functions */
 
 __attribute__ ((visibility("default")))
