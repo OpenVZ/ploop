@@ -284,6 +284,7 @@ struct ploop_tg_data {
 	char devname[64];
 	char devtg[64];
 	char part[64];
+	int lckfd;
 };
 
 struct ploop_tg_info {
@@ -394,7 +395,7 @@ int ploop_resume_device(const char *devname);
 int ploop_image_defrag(const char *image, int flags);
 
 int ploop_tg_init(const char *dev, const char *tg, struct ploop_tg_data *out);
-int ploop_tg_deinit(const char *dev, const char *tg);
+int ploop_tg_deinit(struct ploop_tg_data *data, const char *tg);
 int ploop_tg_info(const char *devname, struct ploop_tg_info *param);
 
 

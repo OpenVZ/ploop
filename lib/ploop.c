@@ -761,9 +761,6 @@ static int ploop_drop_image(struct ploop_disk_images_data *di)
 	get_disk_descriptor_fname(di, fname, sizeof(fname));
 	unlink(fname);
 
-	get_disk_descriptor_lock_fname(di, fname, sizeof(fname));
-	unlink(fname);
-
 	for (i = 0; i < di->nimages; i++) {
 		ploop_log(1, "Dropping image %s", di->images[i]->file);
 		unlink(di->images[i]->file);
@@ -2256,6 +2253,8 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 
 	if (di && di->runtime->image_type == QCOW_TYPE) {
 		ret = qcow_mount(di, param);
+		if (ret)
+			goto err;
 	} else {
 		ret = check_and_restore_fmt_version(di);
 		if (ret)
