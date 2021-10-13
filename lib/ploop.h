@@ -77,6 +77,7 @@
 	(((off_t)size + blocksize - 1) / blocksize * blocksize)
 
 #define PLOOP_LOCK_DIR	"/var/lock/ploop"
+#define LOCK_TIMEOUT	60
 
 /* PATH used by the library */
 #define DEF_PATH_ENV	"PATH=/sbin:/bin:/usr/sbin:/usr/bin:" \
@@ -355,7 +356,6 @@ struct ploop_disk_images_data *alloc_diskdescriptor(void);
 int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data *di);
 PL_EXT int ploop_read_disk_descr(struct ploop_disk_images_data **di, const char *file);
 void get_disk_descriptor_fname(struct ploop_disk_images_data *di, char *buf, int size);
-void get_disk_descriptor_lock_fname(struct ploop_disk_images_data *di, char *out, int size);
 int find_image_idx_by_guid(struct ploop_disk_images_data *di, const char *guid);
 int find_image_idx_by_file(struct ploop_disk_images_data *di, const char *file);
 int ploop_find_dev_by_dd(struct ploop_disk_images_data *di,
@@ -406,6 +406,7 @@ int ploop_lock_di(struct ploop_disk_images_data *di);
 void ploop_unlock_di(struct ploop_disk_images_data *di);
 int ploop_global_lock(void);
 void ploop_unlock(int *lckfd);
+int lock(const char *fname, unsigned int timeout);
 
 // fs util
 int get_partition_device_name(const char *device, char *out, int size);

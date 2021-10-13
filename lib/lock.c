@@ -34,7 +34,6 @@
 #include "ploop.h"
 
 #define PLOOP_GLOBAL_LOCK_FILE	PLOOP_LOCK_DIR"/ploop.lck"
-#define LOCK_TIMEOUT		60
 
 static int create_file(char *fname)
 {
@@ -136,7 +135,7 @@ static int lock_unlock(int fd, off_t start)
 	return lock_fcntl(fd, F_SETLK, start, LOCK_LEN, F_UNLCK, NULL);
 }
 
-static int do_lock(const char *fname, unsigned int timeout)
+int lock(const char *fname, unsigned int timeout)
 {
 	int fd, r;
 
@@ -175,27 +174,24 @@ void ploop_unlock(int *lckfd)
 	}
 }
 
-void get_disk_descriptor_lock_fname(struct ploop_disk_images_data *di,
-				    char *out, int size)
-{
-	get_disk_descriptor_fname(di, out, size);
-	strcat(out, ".lck");
-}
-
 int ploop_lock_di(struct ploop_disk_images_data *di)
 {
 	char fname[PATH_MAX];
 
 	if (di == NULL)
 		return 0;
-	if (di->runtime->image_type == QCOW_TYPE)
-		return 0;
-	get_disk_descriptor_lock_fname(di, fname, sizeof(fname));
-	if (access(fname, F_OK)) {
-		if (create_file(fname))
+
+	if (di->runtime->image_type == QCOW_TYPE) {
+		snprintf(fname, sizeof(fname), "%s", di->runtime->xml_fname);
+	} else {
+		if (ploop_read_dd(di))
+			return -1;
+
+		if (get_delta_fname(di, get_base_delta_uuid(di), fname, sizeof(fname)))
 			return -1;
 	}
-	di->runtime->lckfd = do_lock(fname, LOCK_TIMEOUT);
+
+	di->runtime->lckfd = lock(fname, LOCK_TIMEOUT);
 	if (di->runtime->lckfd == -1)
 		return -1;
 	return 0;
@@ -223,5 +219,5 @@ int ploop_global_lock(void)
 		if (create_file(PLOOP_GLOBAL_LOCK_FILE))
 			return -1;
 	}
-	return do_lock(PLOOP_GLOBAL_LOCK_FILE, 0);
+	return lock(PLOOP_GLOBAL_LOCK_FILE, 0);
 }

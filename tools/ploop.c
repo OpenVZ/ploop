@@ -1451,10 +1451,13 @@ static int plooptool_tg_init(int argc, char **argv)
 
 static int plooptool_tg_deinit(int argc, char **argv)
 {
+	struct ploop_tg_data tg = {.lckfd = -1};
 	if (argc != 2) 
 		return SYSEXIT_PARAM;
 
-	return ploop_tg_deinit(argv[1], "push_backup");
+	snprintf(tg.devname, sizeof(tg.devname), "%s", argv[1]);
+
+	return ploop_tg_deinit(&tg, "push_backup");
 }
 
 static int plooptool_tg_status(int argc, char **argv)
