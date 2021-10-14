@@ -33,24 +33,9 @@
 
 #include "ploop.h"
 
-#define PLOOP_GLOBAL_LOCK_FILE	PLOOP_LOCK_DIR"/ploop.lck"
-
-static int create_file(char *fname)
-{
-	int fd;
-
-	fd = open(fname, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-	if (fd == -1) {
-		ploop_err(errno, "Can't create file %s",
-				fname);
-		return -1;
-	}
-	if (fchmod(fd, 0644))
-		ploop_err(errno, "Can't chmod(0644) on %s", fname);
-
-	close(fd);
-	return 0;
-}
+#define LOCK_EXCL_BASE	200
+#define LOCK_LEN	5
+#define LOCK_EXCL_LONG	300
 
 int do_open(const char *fname, int flags)
 {
@@ -78,9 +63,6 @@ int do_open(const char *fname, int flags)
 
 	return -1;
 }
-
-#define LOCK_EXCL_BASE	200
-#define LOCK_LEN	5
 
 static int lock_fcntl(int fd, int cmd, off_t start, off_t len,
 		short type, struct flock *out)
@@ -110,6 +92,18 @@ static int lock_set(int fd, off_t start)
 	return lock_fcntl(fd, F_SETLK, start, LOCK_LEN, F_RDLCK, NULL);
 }
 
+static int do_lock_set(int fd, int long_op)
+{
+	int rc;
+
+	if (long_op) {
+		rc = lock_set(fd, LOCK_EXCL_LONG);
+		if (rc)
+			return rc;
+	}
+	return lock_set(fd, LOCK_EXCL_BASE);
+}
+
 static int lock_test(int fd, off_t start, unsigned int tm)
 {
 	int rc;
@@ -130,12 +124,28 @@ static int lock_test(int fd, off_t start, unsigned int tm)
 	return -1;
 }
 
-static int lock_unlock(int fd, off_t start)
+static int do_lock_test(int fd, unsigned int timeout)
 {
-	return lock_fcntl(fd, F_SETLK, start, LOCK_LEN, F_UNLCK, NULL);
+	int r;
+
+	/* do not wait if long lock obtained */
+	r = lock_test(fd, LOCK_EXCL_LONG, 0);
+	if (r)
+		return r;
+	return lock_test(fd, LOCK_EXCL_BASE, timeout);
 }
 
-int lock(const char *fname, unsigned int timeout)
+static int do_lock_unlock(int fd)
+{
+	int rc;
+
+	rc = lock_fcntl(fd, F_SETLK, LOCK_EXCL_LONG, LOCK_LEN, F_UNLCK, NULL);
+	rc |= lock_fcntl(fd, F_SETLK, LOCK_EXCL_BASE, LOCK_LEN, F_UNLCK, NULL);
+
+	return rc;
+}
+
+int lock(const char *fname, int long_op, unsigned int timeout)
 {
 	int fd, r;
 
@@ -144,22 +154,22 @@ int lock(const char *fname, unsigned int timeout)
 		return -1;
 	}
 
-	r = lock_test(fd, LOCK_EXCL_BASE, timeout);
-	if (r)
-		goto err;
-
-	r = lock_set(fd, LOCK_EXCL_BASE);
+	r = do_lock_test(fd, timeout);
 	if (r)
 		goto err_close;
 
-	r = lock_test(fd, LOCK_EXCL_BASE, 0);
+	r = do_lock_set(fd, long_op);
+	if (r)
+		goto err_close;
+
+	r = do_lock_test(fd, 0);
 	if (r)
 		goto err;
 
 	return fd;
 
 err:
-	lock_unlock(fd, LOCK_EXCL_BASE);
+	do_lock_unlock(fd);
 err_close:
 	close(fd);
 	return -1;
@@ -168,7 +178,7 @@ err_close:
 void ploop_unlock(int *lckfd)
 {
 	if (*lckfd != -1) {
-		lock_unlock(*lckfd, LOCK_EXCL_BASE);
+		do_lock_unlock(*lckfd);
 		close(*lckfd);
 		*lckfd = -1;
 	}
@@ -191,7 +201,7 @@ int ploop_lock_di(struct ploop_disk_images_data *di)
 			return -1;
 	}
 
-	di->runtime->lckfd = lock(fname, LOCK_TIMEOUT);
+	di->runtime->lckfd = lock(fname, 0, LOCK_TIMEOUT);
 	if (di->runtime->lckfd == -1)
 		return -1;
 	return 0;
@@ -206,18 +216,4 @@ void ploop_unlock_di(struct ploop_disk_images_data *di)
 void ploop_unlock_dd(struct ploop_disk_images_data *di)
 {
 	return ploop_unlock_di(di);
-}
-
-int ploop_global_lock(void)
-{
-	if (access(PLOOP_GLOBAL_LOCK_FILE, F_OK)) {
-		if (access(PLOOP_LOCK_DIR, F_OK) &&
-				mkdir(PLOOP_LOCK_DIR, 0700) && errno != EEXIST) {
-			ploop_err(errno, "Failed to create " PLOOP_LOCK_DIR);
-			return -1;
-		}
-		if (create_file(PLOOP_GLOBAL_LOCK_FILE))
-			return -1;
-	}
-	return lock(PLOOP_GLOBAL_LOCK_FILE, 0);
 }
