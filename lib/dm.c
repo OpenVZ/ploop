@@ -897,9 +897,10 @@ int ploop_tg_init(const char *dev, const char *tg, struct ploop_tg_data *out)
 	int rc, image_type, minor;
 	__u32 blocksize;
 	off_t size;
-	char **images = NULL;
+	char *p, **images = NULL;
 	char devname[64], part[64];
 	char devtg[64] = "";
+	struct ploop_tg_data d = {.lckfd = -1};
 
 	rc = get_part_devname_from_sys(dev, devname, sizeof(devname), part, sizeof(part));
 	if (rc)
@@ -917,6 +918,16 @@ int ploop_tg_init(const char *dev, const char *tg, struct ploop_tg_data *out)
 	if (out->lckfd == -1)
 		return SYSEXIT_LOCK;
 
+	p = strchr(dev, '.');
+	if (p) {
+		ploop_err(0, "Device %s hungs in the %s state", dev, p);
+		rc = ploop_tg_deinit(dev, &d);
+		if (rc)
+			goto err;
+		dev = d.devname;
+	}
+
+	ploop_log(0, "Start %s target on %s", tg, dev);
 	rc = dm_suspend(dev);
 	if (rc)
 		goto err;
@@ -944,9 +955,9 @@ err:
 	ploop_free_array(images);
 	if (rc) {
 		ploop_unlock(&out->lckfd);
-		ploop_err(0, "Failed to init %s target", tg);
+		ploop_err(0, "Failed to start %s target on %s", tg, dev);
 	} else
-		ploop_log(0, "Target %s sucessfully inited", tg);
+		ploop_log(0, "Target %s has been sucessfully started on %s", tg, dev);
 
 	return rc;
 
@@ -957,25 +968,25 @@ err_reload:
 	goto err;
 }
 
-int ploop_tg_deinit(struct ploop_tg_data *data, const char *tg)
+int ploop_tg_deinit(const char *devtg, struct ploop_tg_data *data)
 {
 	int rc, image_type;
 	__u32 blocksize;
 	off_t size;
-	char **images = NULL;
-	char *devtg = data->devname;
+	char *p, **images = NULL;
 	char dev[64], part[64];
 
-	if (strstr(data->devname, tg) == NULL) {
-		ploop_err(0, "ploop_tg_deinit: incorrect devname '%s'", data->devname);
+	p = strchr(devtg, '.');
+	if (p ==  NULL) {
+		ploop_err(0, "ploop_tg_deinit: incorrect devname '%s'", devtg);
 		return SYSEXIT_PARAM;
 	}
 
-	rc = get_part_devname_from_sys(data->devname, dev, sizeof(dev), part, sizeof(part));
+	ploop_log(0, "Deinit %s", devtg);
+	rc = get_part_devname_from_sys(devtg, dev, sizeof(dev), part, sizeof(part));
 	if (rc)
 		return rc;
 
-	ploop_log(0, "tg-deinit %s %s", devtg, dev);
 	rc = get_image_param_online(NULL, devtg, NULL, &size, &blocksize, NULL, &image_type);
 	if (rc)
 		return rc;
@@ -1002,16 +1013,20 @@ int ploop_tg_deinit(struct ploop_tg_data *data, const char *tg)
 
 	dm_remove(devtg, PLOOP_UMOUNT_TIMEOUT);
 	ploop_free_array(images);
-	ploop_unlock(&data->lckfd);
-	ploop_log(0, "Target %s sucessfully deinited", tg);
+	if (data) {
+		snprintf(data->devname, sizeof(data->devname), "%s", dev);
+		ploop_unlock(&data->lckfd);
+	}
+	ploop_log(0, "Device %s has been sucessfully deinited", devtg);
 	return 0;
 
 err:
 	dm_resume(devtg);
 	dm_resume(dev);
 	ploop_free_array(images);
-	ploop_unlock(&data->lckfd);
-	ploop_err(0, "Failed to deinit %s target", tg);
+	if (data)
+		ploop_unlock(&data->lckfd);
+	ploop_err(0, "Failed to deinit %s", dev);
 
 	return rc;
 }

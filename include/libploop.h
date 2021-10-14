@@ -395,7 +395,7 @@ int ploop_resume_device(const char *devname);
 int ploop_image_defrag(const char *image, int flags);
 
 int ploop_tg_init(const char *dev, const char *tg, struct ploop_tg_data *out);
-int ploop_tg_deinit(struct ploop_tg_data *data, const char *tg);
+int ploop_tg_deinit(const char *devtg, struct ploop_tg_data *data);
 int ploop_tg_info(const char *devname, struct ploop_tg_info *param);
 
 
