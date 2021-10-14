@@ -913,7 +913,7 @@ int ploop_tg_init(const char *dev, const char *tg, struct ploop_tg_data *out)
 	if (rc)
 		return rc;
 
-	out->lckfd = lock(images[0], LOCK_TIMEOUT);
+	out->lckfd = lock(images[0], 1, LOCK_TIMEOUT);
 	if (out->lckfd == -1)
 		return SYSEXIT_LOCK;
 

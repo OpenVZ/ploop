@@ -404,9 +404,8 @@ void ploop_unlock_dd(struct ploop_disk_images_data *di);
 void ploop_clear_dd(struct ploop_disk_images_data *di);
 int ploop_lock_di(struct ploop_disk_images_data *di);
 void ploop_unlock_di(struct ploop_disk_images_data *di);
-int ploop_global_lock(void);
 void ploop_unlock(int *lckfd);
-int lock(const char *fname, unsigned int timeout);
+int lock(const char *fname, int long_op, unsigned int timeout);
 
 // fs util
 int get_partition_device_name(const char *device, char *out, int size);
