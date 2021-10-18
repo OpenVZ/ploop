@@ -704,7 +704,7 @@ int delta_save_optional_header(int devfd, struct delta *delta,
 	}
 
 	hc->m_Magic = FORMAT_EXTENSION_MAGIC;
-	MD5((const unsigned char *)(hc + 1), block_size - sizeof(*hc), hc->m_Md5);
+	md5sum((const unsigned char *)(hc + 1), block_size - sizeof(*hc), hc->m_Md5);
 
 	if (PWRITE(delta, block, block_size, vh->m_FormatExtensionOffset * SECTOR_SIZE)) {
 		ploop_err(errno, "Can't write optional header");
@@ -943,7 +943,7 @@ static int delta_load_optional_header(struct ext_context *ctx,
 		goto drop_optional_hdr;
 	}
 
-	MD5((const unsigned char *)(hc + 1), block_size - sizeof(*hc), hash);
+	md5sum((const unsigned char *)(hc + 1), block_size - sizeof(*hc), hash);
 	if (memcmp(hash, hc->m_Md5, 16) != 0) {
 		ploop_err(0, "Wrong optional header checksum");
 		ret = SYSEXIT_PROTOCOL;

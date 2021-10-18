@@ -30,7 +30,6 @@
 #include <linux/fs.h>
 #include <string.h>
 #include <pthread.h>
-#include <openssl/md5.h>
 #include <sys/queue.h>
 
 #include "ploop.h"
@@ -277,7 +276,7 @@ static int remote_write(struct ploop_copy_handle *h, pcopy_pkt_type_t type,
 		char s[34];
 		struct pcopy_pkt_desc_md5 m;
 
-		MD5(data, len, m.md5);
+		md5sum(data, len, m.md5);
 		ploop_log(3, "SEND type: %d size=%d pos: %lu md5: %s",
 				desc.type, len, pos, md52str(m.md5, s));
 		if (nwrite(h->ofd, &m, sizeof(m)))
@@ -370,7 +369,7 @@ static int check_data(void *buf, struct pcopy_pkt_desc *desc,
 	char s[34];
 	char d[34];
 
-	MD5(buf, desc->size, m);
+	md5sum(buf, desc->size, m);
 	if (memcmp(md5->md5, m, sizeof(m))) {
 		ploop_err(0, "MD5 mismatch pos: %llu src: %s dst: %s",
 				desc->pos, md52str(md5->md5, s), md52str(m, d));
@@ -1030,7 +1029,7 @@ static int send_optional_header(struct ploop_copy_handle *copy_h)
 	ploop_log(3, "Send extension header offset=%llu size=%d",
 			vh->m_FormatExtensionOffset * SECTOR_SIZE, h->size);
 	hc->m_Magic = FORMAT_EXTENSION_MAGIC;
-	MD5((const unsigned char *)(hc + 1), block_size - sizeof(*hc), hc->m_Md5);
+	md5sum((const unsigned char *)(hc + 1), block_size - sizeof(*hc), hc->m_Md5);
 
 	if (send_buf(copy_h, block, block_size, vh->m_FormatExtensionOffset * SECTOR_SIZE)) {
 		ploop_err(errno, "Can't write optional header");

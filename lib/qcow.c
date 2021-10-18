@@ -129,7 +129,7 @@ static int qcow_info(const char *image, struct qcow_info *info)
 
 	json_object_put(obj);
 	json_tokener_free(tok);
-	fclose(fp);
+	pclose(fp);
 
 	return rc;
 }

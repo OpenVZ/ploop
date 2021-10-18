@@ -32,6 +32,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
+#include <openssl/evp.h>
 
 #include "ploop.h"
 #include "cleanup.h"
@@ -388,4 +389,19 @@ void clean_es_cache(int fd)
 {
 	if (ioctl(fd, EXT4_IOC_CLEAR_ES_CACHE) && errno != ENOTTY)
 		ploop_err(errno, "Warning: ioctl(EXT4_IOC_CLEAR_ES_CACHE)");
+}
+
+
+void md5sum(const unsigned char *buf, unsigned long len, unsigned char *out)
+{
+
+	unsigned int out_len = 16;
+	const EVP_MD* md = EVP_get_digestbyname("MD5");
+
+	EVP_MD_CTX* mdctx = EVP_MD_CTX_create();
+	EVP_MD_CTX_init(mdctx);
+	EVP_DigestInit_ex(mdctx, md, NULL);
+	EVP_DigestUpdate(mdctx, buf, len);
+	EVP_DigestFinal_ex(mdctx, out, &out_len);
+	EVP_MD_CTX_destroy(mdctx);
 }

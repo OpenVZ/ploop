@@ -520,7 +520,7 @@ int get_major_by_driver_name(const char* device_driver)
 		major = -1;
 	}
 
-	pclose(fd);
+	fclose(fd);
 	return major;
 }
 
