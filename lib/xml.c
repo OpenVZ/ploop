@@ -95,7 +95,7 @@ static int parse_ul(const char *str, __u64 *val)
 
 void normalize_path(const char *path, char *out)
 {
-	const char *s;
+	const char *s, *p = out;
 
 	for (s = path; *s != '\0'; out++, s++) {
 		*out = *s;
@@ -104,10 +104,9 @@ void normalize_path(const char *path, char *out)
 				s++;
 	}
 
-	if (*(out - 1) == '/')
+	if (p != out && *(out - 1) == '/')
 		out--;
 	*out = '\0';
-
 }
 
 static int get_num_dir(const char *dir)
@@ -533,7 +532,7 @@ static int validate_disk_descriptor(struct ploop_disk_images_data *di)
 int read_dd(struct ploop_disk_images_data *di)
 {
 	int ret;
-	char basedir[PATH_MAX];
+	char basedir[PATH_MAX+1];
 	const char *fname;
 	xmlDoc *doc = NULL;
 	xmlNode *root_element = NULL;
@@ -558,7 +557,7 @@ int read_dd(struct ploop_disk_images_data *di)
 	}
 	root_element = xmlDocGetRootElement(doc);
 
-	get_basedir(fname, basedir, sizeof(basedir));
+	get_basedir(fname, basedir, sizeof(basedir)-1);
 	ret = parse_xml(basedir, root_element, di);
 	if (ret == 0)
 		ret = validate_disk_descriptor(di);
@@ -704,7 +703,7 @@ int store_diskdescriptor(const char *fname, struct ploop_disk_images_data *di,
 	if (di->runtime->xml_fname == NULL)
 		di->runtime->xml_fname = strdup(fname);
 
-	get_basedir(fname, tmp, sizeof(tmp));
+	get_basedir(fname, tmp, sizeof(tmp)-1);
 	if (tmp[0] == '\0')
 		strcpy(tmp, "./");
 
