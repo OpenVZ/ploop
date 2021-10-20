@@ -761,9 +761,6 @@ static int ploop_drop_image(struct ploop_disk_images_data *di)
 	get_disk_descriptor_fname(di, fname, sizeof(fname));
 	unlink(fname);
 
-	get_disk_descriptor_lock_fname(di, fname, sizeof(fname));
-	unlink(fname);
-
 	for (i = 0; i < di->nimages; i++) {
 		ploop_log(1, "Dropping image %s", di->images[i]->file);
 		unlink(di->images[i]->file);
@@ -1440,18 +1437,39 @@ static void print_sys_block_ploop(void)
 			"| xargs grep -HF ''");
 }
 
-const char *get_dev_name(char *out, int size)
+static int get_free_minor(void)
 {
 	int i;
+	char b[64];
 
 	srand(time(NULL));
 	for (i = 0; i < 0xffff; i++) {
 		int m = rand() % 0xffff + 1000;
-		snprintf(out, size, "/dev/mapper/ploop%d", m);
-		if (access(out, F_OK))
-			break;
+		snprintf(b, sizeof(b), "/sys/block/dm-%d", m);
+		if (access(b, F_OK))
+			return m;
 	}
-	return out; 
+
+	return -1;
+}
+
+int get_dev_name(char *out, int size)
+{
+	int minor = get_free_minor();
+
+	snprintf(out, size, "/dev/mapper/ploop%d", minor);
+
+	return minor;
+}
+
+int get_dev_tg_name(const char *devname, const char *tg,
+		char *out, int size)
+{
+	int minor = get_free_minor();
+
+	snprintf(out, size, "%s.%s", devname, tg);
+
+	return minor;
 }
 
 static int ploop_path_to_blockdev_name(const char *ploop_path, char *out, int size)
@@ -1521,8 +1539,8 @@ static int blockdev_set_untrusted(const char *devname)
 	return 0;
 }
 
-static int add_delta(char **images, int blocksize, int raw, int ro,
-		char *devname, int size)
+int add_delta(char **images,  char *devname, int minor, int blocksize,
+		int raw, int ro, int size)
 {
 	int rc, i, n = 0;
 	int *fds = NULL;
@@ -1547,7 +1565,7 @@ static int add_delta(char **images, int blocksize, int raw, int ro,
 	}
 
 	if (devname[0] == '\0')
-		get_dev_name(devname, size);
+		minor = get_dev_name(devname, size);
 
 	fds = alloca(n * sizeof(int));
 	p += snprintf(p, e-p, "%d", ffs(blocksize) - 1);
@@ -1572,7 +1590,7 @@ static int add_delta(char **images, int blocksize, int raw, int ro,
 			goto err;
 	}
 
-	rc = dm_create(devname, "ploop", 0, sz, ro, t);
+	rc = dm_create(devname, minor, "ploop", 0, sz, ro, t);
 	if (rc)
 		goto err;
 
@@ -2001,7 +2019,7 @@ static int add_deltas(struct ploop_disk_images_data *di,
 	}
 
 
-	ret = add_delta(images, blocksize, raw, ro, param->device, sizeof(param->device));
+	ret = add_delta(images, param->device, 0, blocksize, raw, ro, sizeof(param->device));
 	if (ret)
 		goto err;
 
@@ -2235,6 +2253,8 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 
 	if (di && di->runtime->image_type == QCOW_TYPE) {
 		ret = qcow_mount(di, param);
+		if (ret)
+			goto err;
 	} else {
 		ret = check_and_restore_fmt_version(di);
 		if (ret)
@@ -2441,7 +2461,7 @@ static int save_cbt(struct ploop_disk_images_data *di, const char *device,
 	if (ret)
 		return ret;
 
-	ret = ploop_suspend_device(device);
+	ret = dm_suspend(device);
 	if (ret)
 		return ret;
 
@@ -2459,7 +2479,7 @@ static int save_cbt(struct ploop_disk_images_data *di, const char *device,
 	rc = cbt_stop(lfd);
 	if (rc && rc != SYSEXIT_NOCBT)
 		ploop_err(errno, "Warning: stopping cbt failed: %d", rc);
-	ploop_resume_device(device);
+	dm_resume(device);
 
 	close(lfd);
 
@@ -2468,7 +2488,7 @@ static int save_cbt(struct ploop_disk_images_data *di, const char *device,
 
 int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 {
-	int ret;
+	int ret, last;
 	char devname[64];
 	char partname[64];
 	char mnt[PATH_MAX] = "";
@@ -2496,13 +2516,25 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 			return ret;
 	}
 
-	if (get_crypt_layout(devname, partname))
-		crypt_close(devname, partname);
-	else if (strcmp(devname, partname)) {
-		ret = dm_remove(partname, PLOOP_UMOUNT_TIMEOUT);
+	if (get_crypt_layout(devname, partname)) {
+		ret = crypt_close(devname, partname);
 		if (ret)
 			return ret;
 	}
+
+	do {
+		ret = get_part_devname_from_sys(device, devname, sizeof(devname),
+				partname, sizeof(partname));
+		if (ret)
+			return ret;
+
+		last = strcmp(devname, partname) == 0;
+		if (!last) {
+			ret = dm_remove(partname, PLOOP_UMOUNT_TIMEOUT);
+			if (ret)
+				return ret;
+		}
+	} while (!last);
 
 	ret = get_image_param_online(di, device, &top, NULL, NULL,
 			&fmt, &image_type);

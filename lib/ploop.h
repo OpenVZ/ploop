@@ -77,6 +77,7 @@
 	(((off_t)size + blocksize - 1) / blocksize * blocksize)
 
 #define PLOOP_LOCK_DIR	"/var/lock/ploop"
+#define LOCK_TIMEOUT	60
 
 /* PATH used by the library */
 #define DEF_PATH_ENV	"PATH=/sbin:/bin:/usr/sbin:/usr/bin:" \
@@ -199,10 +200,6 @@ enum {
 	snap_temporary_zero_swap= 3,
 };
 
-struct dm_image_info {
-	int open_count;
-	int ro;
-};
 
 enum {
 	RELOAD_ONLINE		= 0x01,
@@ -359,7 +356,6 @@ struct ploop_disk_images_data *alloc_diskdescriptor(void);
 int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data *di);
 PL_EXT int ploop_read_disk_descr(struct ploop_disk_images_data **di, const char *file);
 void get_disk_descriptor_fname(struct ploop_disk_images_data *di, char *buf, int size);
-void get_disk_descriptor_lock_fname(struct ploop_disk_images_data *di, char *out, int size);
 int find_image_idx_by_guid(struct ploop_disk_images_data *di, const char *guid);
 int find_image_idx_by_file(struct ploop_disk_images_data *di, const char *file);
 int ploop_find_dev_by_dd(struct ploop_disk_images_data *di,
@@ -408,8 +404,8 @@ void ploop_unlock_dd(struct ploop_disk_images_data *di);
 void ploop_clear_dd(struct ploop_disk_images_data *di);
 int ploop_lock_di(struct ploop_disk_images_data *di);
 void ploop_unlock_di(struct ploop_disk_images_data *di);
-int ploop_global_lock(void);
 void ploop_unlock(int *lckfd);
+int lock(const char *fname, int long_op, unsigned int timeout);
 
 // fs util
 int get_partition_device_name(const char *device, char *out, int size);
@@ -544,17 +540,21 @@ int merge_top_delta(const char *devname);
 int notify_merged_backward (const char *devname, int id);
 int update_delta_index(const char *devname, int delta_idx, struct grow_maps *gm);
 int dm_remove(const char *devname, int tm_sec);
-int dm_create(const char *devname, const char *target, __u64 start, __u64 size,
-		int ro, const char *args);
+int dm_create(const char *devname, int minor, const char *target,
+		__u64 start, __u64 size, int ro, const char *args);
 int dm_resize(const char *devname, off_t size);
 int dm_setnoresume(const char *devname, int on);
 int dm_tracking_start(const char *devname);
 int dm_tracking_stop(const char *devname);
 int dm_tracking_get_next(const char *devname, __u64 *pos);
 int dm_flip_upper_deltas(const char *devname);
+PL_EXT int dm_suspend(const char *devname);
+PL_EXT int dm_resume(const char *devname);
+int do_reload(const char *device, char **images, __u32 blocksize, off_t new_size,
+		int image_type, int flags);
 int dm_reload(struct ploop_disk_images_data *di, const char *device,
 		off_t new_size, int flags);
-int dm_get_info(const char *devname, struct dm_image_info *param);
+int dm_get_info(const char *devname, struct ploop_tg_info *param);
 int find_devs(struct ploop_disk_images_data *di, char ***out);
 int find_dev(struct ploop_disk_images_data *di, char *out, int len);
 int find_devs_by_delta(struct ploop_disk_images_data *di,
@@ -589,8 +589,11 @@ PL_EXT int ploop_image_shuffle(const char *image, int nr, int flags);
 int cn_register(const char *devname, struct ploop_disk_images_data *di);
 const char *cn_find_dev(char **devs, struct ploop_disk_images_data *di);
 int cn_find_name(const char *devname, char *out, int size, int full);
-const char *get_dev_name(char *out, int size);
+int get_dev_name(char *out, int size);
+int get_dev_tg_name(const char *devname, const char *tg,  char *out, int size);
 const char *get_full_devname(const char *devname, char *out, int size);
+int add_delta(char **images, char *devname, int minor, int blocksize,
+		int raw, int ro, int size);
 
 int qcow_create(const char *image, struct ploop_create_param *param);
 int qcow_resize(const char *image, off_t size_sec);

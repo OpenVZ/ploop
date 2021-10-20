@@ -223,7 +223,7 @@ static int qcow_add(struct ploop_disk_images_data *di, struct ploop_mount_param 
 	}
 	snprintf(b, sizeof(b), "%d", fd);
 
-	rc = dm_create(param->device, "qcow2", 0, size, param->ro, b);
+	rc = dm_create(param->device, 0, "qcow2", 0, size, param->ro, b);
 	close(fd);
 
 	return rc;

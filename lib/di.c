@@ -334,29 +334,18 @@ void ploop_free_diskdescriptor(struct ploop_disk_images_data *di)
  */
 int ploop_lock_dd(struct ploop_disk_images_data *di)
 {
-	int ret;
-
 	if (!di || !di->runtime || !di->runtime->xml_fname) {
 		ploop_err(0, "Unable to lock: DiskDescriptor.xml is not opened");
 		return -1;
 	}
 
-	ret = ploop_lock_di(di);
-	if (ret)
-		return ret;
-
-	/* Update the DiskDescriptor.xml representation after lock */
-	if (ploop_read_dd(di)) {
-		ploop_unlock_di(di);
-		return -1;
-	}
-
-	return 0;
+	return ploop_lock_di(di);
 }
 
 int ploop_open_dd(struct ploop_disk_images_data **di, const char *fname)
 {
 	char *path;
+	const char *s;
 	struct ploop_disk_images_data *p;
 
 	path = realpath(fname, NULL);
@@ -372,8 +361,8 @@ int ploop_open_dd(struct ploop_disk_images_data **di, const char *fname)
 	}
 
 	p->runtime->xml_fname = path;
-
-	if (strcmp(get_basename(path), ".qcow2") == 0) {
+	s = get_basename(path);
+	if (strcmp(s + strlen(s) - 6, ".qcow2") == 0) {
 		int rc = qcow_open(path, p);
 		if (rc) {
 			ploop_close_dd(p);

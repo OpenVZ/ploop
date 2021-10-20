@@ -600,7 +600,7 @@ int is_device_inuse(const char *dev)
 {
 	char fname[PATH_MAX];
 	char cookie[PLOOP_COOKIE_SIZE] = "";
-	struct dm_image_info i;
+	struct ploop_tg_info i;
 
 	if (dm_get_info(dev, &i))
 	       return 1;

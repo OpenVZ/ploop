@@ -29,67 +29,13 @@
 #include <limits.h>
 #include <signal.h>
 #include <time.h>
+#include <fcntl.h>
 
 #include "ploop.h"
 
-#define PLOOP_GLOBAL_LOCK_FILE	PLOOP_LOCK_DIR"/ploop.lck"
-#define LOCK_TIMEOUT		60
-
-static int create_file(char *fname)
-{
-	int fd;
-
-	fd = open(fname, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-	if (fd == -1) {
-		ploop_err(errno, "Can't create file %s",
-				fname);
-		return -1;
-	}
-	if (fchmod(fd, 0644))
-		ploop_err(errno, "Can't chmod(0644) on %s", fname);
-
-	close(fd);
-	return 0;
-}
-
-static void timer_handler(int ino)
-{
-}
-
-static int set_timer(timer_t *tid, unsigned int timeout)
-{
-	struct sigevent sigev = {};
-	struct itimerspec it = {};
-
-	sigev.sigev_notify = SIGEV_SIGNAL;
-	sigev.sigev_signo = SIGRTMIN;
-	sigev.sigev_value.sival_ptr = tid;
-
-	if (timer_create(CLOCK_MONOTONIC, &sigev, tid)) {
-		ploop_err(errno, "timer_create");
-		return -1;
-	}
-	it.it_value.tv_sec = timeout;
-	it.it_value.tv_nsec = 0;
-
-	if (timer_settime(*tid, 0, &it, NULL)) {
-		ploop_err(errno, "timer_settime");
-		return -1;
-	}
-	return 0;
-}
-
-#define SEC_TO_NSEC(sec) ((clock_t)(sec) * 1000000000)
-static clock_t get_cpu_time(void)
-{
-	struct timespec ts;
-
-	if (clock_gettime(CLOCK_MONOTONIC, &ts)) {
-		ploop_err(errno, "clock_gettime");
-		return (clock_t)-1;
-	}
-	return SEC_TO_NSEC(ts.tv_sec) + ts.tv_nsec;
-}
+#define LOCK_EXCL_BASE	200
+#define LOCK_LEN	5
+#define LOCK_EXCL_LONG	300
 
 int do_open(const char *fname, int flags)
 {
@@ -118,58 +64,113 @@ int do_open(const char *fname, int flags)
 	return -1;
 }
 
-static int do_lock(const char *fname, unsigned int timeout)
+static int lock_fcntl(int fd, int cmd, off_t start, off_t len,
+		short type, struct flock *out)
 {
-	int fd, r, _errno;
-	timer_t tid;
-	clock_t end = 0;
-	struct sigaction osa;
-	struct sigaction sa = {
-			.sa_handler = timer_handler,
-		};
+	int rc;
+	struct flock fl = {
+		.l_whence = SEEK_SET,
+		.l_start = start,
+		.l_len = len,
+		.l_type = type,
+	};
 
-	if ((fd = do_open(fname, O_RDWR)) == -1) {
-		ploop_err(errno, "Can't open lock file %s", fname);
+	rc = TEMP_FAILURE_RETRY(fcntl(fd, cmd, &fl));
+	if (rc) {
+		ploop_err(errno, "Can not lock");
+		return rc;
+	}
+
+	if (out)
+		memcpy(out, &fl, sizeof(struct flock));
+
+	return 0;
+}
+
+static int lock_set(int fd, off_t start)
+{
+	return lock_fcntl(fd, F_SETLK, start, LOCK_LEN, F_RDLCK, NULL);
+}
+
+static int do_lock_set(int fd, int long_op)
+{
+	int rc;
+
+	if (long_op) {
+		rc = lock_set(fd, LOCK_EXCL_LONG);
+		if (rc)
+			return rc;
+	}
+	return lock_set(fd, LOCK_EXCL_BASE);
+}
+
+static int lock_test(int fd, off_t start, unsigned int tm)
+{
+	int rc;
+	struct flock fl;
+
+	do {
+		rc = lock_fcntl(fd, F_GETLK, start, LOCK_LEN, F_WRLCK, &fl);
+		if (rc)
+			return rc;
+		if (fl.l_type == F_UNLCK)
+			return 0;
+		if (tm)
+			sleep(1);
+	} while (tm--);
+
+	ploop_err(0, "Already locked by pid %d", fl.l_pid);
+
+	return -1;
+}
+
+static int do_lock_test(int fd, unsigned int timeout)
+{
+	int r;
+
+	/* do not wait if long lock obtained */
+	r = lock_test(fd, LOCK_EXCL_LONG, 0);
+	if (r)
+		return r;
+	return lock_test(fd, LOCK_EXCL_BASE, timeout);
+}
+
+static int do_lock_unlock(int fd)
+{
+	int rc;
+
+	rc = lock_fcntl(fd, F_SETLK, LOCK_EXCL_LONG, LOCK_LEN, F_UNLCK, NULL);
+	rc |= lock_fcntl(fd, F_SETLK, LOCK_EXCL_BASE, LOCK_LEN, F_UNLCK, NULL);
+
+	return rc;
+}
+
+int lock(const char *fname, int long_op, unsigned int timeout)
+{
+	int fd, r;
+
+	if ((fd = do_open(fname, O_RDONLY | O_CLOEXEC)) == -1) {
+		ploop_err(errno, "Can not open %s", fname);
 		return -1;
 	}
 
-	/* Set FD_CLOEXEC explicitly */
-	fcntl(fd, F_SETFD, FD_CLOEXEC);
+	r = do_lock_test(fd, timeout);
+	if (r)
+		goto err_close;
 
-	if (timeout) {
-		end = get_cpu_time();
-		if (end == (clock_t)-1)
-			goto err;
-		end += SEC_TO_NSEC(timeout);
-		sigaction(SIGRTMIN, &sa, &osa);
-		if (set_timer(&tid, timeout))
-			goto err;
-	}
-	while ((r = flock(fd, LOCK_EX)) == -1) {
-		_errno = errno;
-		if (_errno != EINTR)
-			break;
-		if (timeout == 0 || get_cpu_time() < end)
-			continue;
-		_errno = EAGAIN;
-		break;
-	}
-	if (timeout) {
-		timer_delete(tid);
-		sigaction(SIGRTMIN, &osa, NULL);
-	}
-	if (r != 0) {
-		if (_errno == EAGAIN) {
-			ploop_err(_errno, "The %s is locked", fname);
-			goto err;
-		} else {
-			ploop_err(_errno, "Error in flock(%s)", fname);
-			goto err;
-		}
-	}
+	r = do_lock_set(fd, long_op);
+	if (r)
+		goto err_close;
+
+	r = do_lock_test(fd, 0);
+	if (r)
+		goto err;
+
 	return fd;
 
 err:
+	do_lock_unlock(fd);
+err_close:
 	close(fd);
 	return -1;
 }
@@ -177,19 +178,10 @@ err:
 void ploop_unlock(int *lckfd)
 {
 	if (*lckfd != -1) {
-		if (flock(*lckfd, LOCK_UN))
-			ploop_err(errno, "Can't flock(%d, LOCK_UN)",
-					*lckfd);
+		do_lock_unlock(*lckfd);
 		close(*lckfd);
 		*lckfd = -1;
 	}
-}
-
-void get_disk_descriptor_lock_fname(struct ploop_disk_images_data *di,
-				    char *out, int size)
-{
-	get_disk_descriptor_fname(di, out, size);
-	strcat(out, ".lck");
 }
 
 int ploop_lock_di(struct ploop_disk_images_data *di)
@@ -198,14 +190,18 @@ int ploop_lock_di(struct ploop_disk_images_data *di)
 
 	if (di == NULL)
 		return 0;
-	if (di->runtime->image_type == QCOW_TYPE)
-		return 0;
-	get_disk_descriptor_lock_fname(di, fname, sizeof(fname));
-	if (access(fname, F_OK)) {
-		if (create_file(fname))
+
+	if (di->runtime->image_type == QCOW_TYPE) {
+		snprintf(fname, sizeof(fname), "%s", di->runtime->xml_fname);
+	} else {
+		if (ploop_read_dd(di))
+			return -1;
+
+		if (get_delta_fname(di, get_base_delta_uuid(di), fname, sizeof(fname)))
 			return -1;
 	}
-	di->runtime->lckfd = do_lock(fname, LOCK_TIMEOUT);
+
+	di->runtime->lckfd = lock(fname, 0, LOCK_TIMEOUT);
 	if (di->runtime->lckfd == -1)
 		return -1;
 	return 0;
@@ -220,18 +216,4 @@ void ploop_unlock_di(struct ploop_disk_images_data *di)
 void ploop_unlock_dd(struct ploop_disk_images_data *di)
 {
 	return ploop_unlock_di(di);
-}
-
-int ploop_global_lock(void)
-{
-	if (access(PLOOP_GLOBAL_LOCK_FILE, F_OK)) {
-		if (access(PLOOP_LOCK_DIR, F_OK) &&
-				mkdir(PLOOP_LOCK_DIR, 0700) && errno != EEXIST) {
-			ploop_err(errno, "Failed to create " PLOOP_LOCK_DIR);
-			return -1;
-		}
-		if (create_file(PLOOP_GLOBAL_LOCK_FILE))
-			return -1;
-	}
-	return do_lock(PLOOP_GLOBAL_LOCK_FILE, 0);
 }

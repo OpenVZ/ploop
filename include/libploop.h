@@ -280,6 +280,20 @@ struct ploop_bitmap
 	__u64 map[0];
 };
 
+struct ploop_tg_data {
+	char devname[64];
+	char devtg[64];
+	char part[64];
+	int lckfd;
+};
+
+struct ploop_tg_info {
+	char status[64];
+	int open_count;
+	int ro;
+	int blocksize;
+};
+
 /* Constants for ploop_set_verbose_level(): */
 #define PLOOP_LOG_NOCONSOLE	-2	/* disable all console logging */
 #define PLOOP_LOG_NOSTDOUT	-1	/* disable all but errors to stderr */
@@ -379,6 +393,12 @@ void ploop_free_dm_message(char *msg);
 int ploop_suspend_device(const char *devname);
 int ploop_resume_device(const char *devname);
 int ploop_image_defrag(const char *image, int flags);
+
+int ploop_tg_init(const char *dev, const char *tg, struct ploop_tg_data *out);
+int ploop_tg_deinit(const char *devtg, struct ploop_tg_data *data);
+int ploop_tg_info(const char *devname, struct ploop_tg_info *param);
+
+
 /* deprecated */
 PLOOP_DEPRECATED char *ploop_get_base_delta_uuid(struct ploop_disk_images_data *di);
 PLOOP_DEPRECATED int ploop_complete_running_operation(const char *device);
