@@ -983,9 +983,10 @@ int ploop_copy_next_iteration(struct ploop_copy_handle *h,
 static int cbt_writer(void *data, const void *buf, int len, off_t pos)
 {
 	struct ploop_copy_handle *h = (struct ploop_copy_handle *)data;
+	off_t eof = pos + len;
 
-	h->eof_offset += len;
-
+	if (h->eof_offset < eof)
+		h->eof_offset = eof;
 	return send_buf(h, buf, len, pos);
 }
 
@@ -997,21 +998,25 @@ static int send_optional_header(struct ploop_copy_handle *copy_h)
 	struct ploop_pvd_ext_block_check *hc;
 	struct ploop_pvd_ext_block_element_header *h;
 	__u8 *block = NULL, *data;
+	struct stat st;
 
-	// FIXME
-	return 0;
+	if (fstat(copy_h->idelta.fd, &st)) {
+		ploop_err(errno, "send_optional_header: fstat");
+		return SYSEXIT_READ;
+	}
+
 	vh = (struct ploop_pvd_header *)copy_h->idelta.hdr0;
 	block_size = vh->m_Sectors * SECTOR_SIZE;
 	if (p_memalign((void **)&block, 4096, block_size))
 		return SYSEXIT_MALLOC;
-
+	bzero(block, block_size);
 	hc = (struct ploop_pvd_ext_block_check *)block;
 	h = (struct ploop_pvd_ext_block_element_header *)(hc + 1);
 	data = (__u8 *)(h + 1);
 	h->magic = EXT_MAGIC_DIRTY_BITMAP;
 
 	ret = save_dirty_bitmap(copy_h->devfd, &copy_h->idelta,
-			copy_h->eof_offset, data, &h->size,
+			st.st_size, data, &h->size,
 			NULL, cbt_writer, copy_h);
 	if (ret) {
 		if (ret == SYSEXIT_NOCBT)
