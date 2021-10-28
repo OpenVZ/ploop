@@ -180,6 +180,47 @@ int build_hole_bitmap(struct delta *delta, __u64 **hole_bitmap,
 	return 0;
 }
 
+int build_alloc_bitmap(struct delta *delta, __u64 **bitmap,
+		__u32 *bitmap_size, int *nr_clusters)
+{
+	__u32 clu, cluster, off;
+	__u64 size;
+
+	*bitmap_size = delta->l1_size + delta->l2_size;
+	size = (*bitmap_size + 7) / 8; /* round up byte */
+	size = (size + sizeof(unsigned long)-1) & ~(sizeof(unsigned long)-1);
+	if (p_memalign((void *)bitmap, sizeof(__u64), size))
+		return SYSEXIT_MALLOC;
+	memset(*bitmap, 0, size);
+
+	cluster = S2B(delta->blocksize);
+
+	for (clu = 0; clu < delta->l2_size; clu++) {
+		int l2_cluster = (clu + PLOOP_MAP_OFFSET) / (cluster / sizeof(__u32));
+		__u32 l2_slot  = (clu + PLOOP_MAP_OFFSET) % (cluster / sizeof(__u32));
+		if (delta->l2_cache != l2_cluster) {
+			if (PREAD(delta, delta->l2, cluster, (off_t)l2_cluster * cluster))
+				return SYSEXIT_READ;
+			delta->l2_cache = l2_cluster;
+		}
+
+		if (delta->l2[l2_slot] == 0)
+			continue;
+
+		off = clu; 
+		ploop_log(0, "[%u]->%u %u", l2_slot, delta->l2[l2_slot], off);
+		if (off < *bitmap_size) {
+			BMAP_SET(*bitmap, off);
+			*nr_clusters += 1;
+		} else
+			ploop_err(0, "Cluster %d[%d] allocated outside devce %d",
+					clu, off, *bitmap_size);
+	}
+	delta->l2_cache = -1;
+
+	return 0;
+}
+
 int image_defrag(struct delta *delta)
 {
 	int rc = 0, nr_clusters;
