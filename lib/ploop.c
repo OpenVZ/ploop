@@ -1066,11 +1066,12 @@ static int ploop_stop(const char *devname,
 		ploop_err(0, "Can not get part device name by %s", devname);
 		return SYSEXIT_SYS;
 	} else if (rc == 0) {
+		dm_resume(partname);
 		rc = dm_remove(partname, tm);
 		if (rc)
 			return rc;
 	}
-
+	dm_resume(devname);
 	return dm_remove(devname, tm);
 }
 
