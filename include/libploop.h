@@ -44,6 +44,12 @@ enum e2fsck_flags {
 	E2FSCK_FORCE_REPAIR     = 1 << 2, /* -y */
 };
 
+
+enum quota_type {
+	PLOOP_JQUOTA	= 1,
+	PLOOP_QUOTA	= 2,
+};
+
 struct ploop_mount_param {
 	char device[64];	/* out: returns device name */
 	int ro;			/* read-only mount */
@@ -52,7 +58,7 @@ struct ploop_mount_param {
 	char *fstype;		/* filesystem type; default if not set*/
 	char *target;		/* mount point */
 	char *guid;		/* UUID; top if not set */
-	int quota;		/* enable inner FS quota */
+	int quota;		/* enable inner FS quota with quota_type*/
 	char *mount_data;
 	unsigned int blocksize; /* blocksize for raw image */
 	union {
@@ -60,6 +66,7 @@ struct ploop_mount_param {
 		int fsck_flags;	/* enum e2fsck_flags */
 	};
 	int fsck_rc;		/* out: fsck return code */
+	int skip_balloon;
 	char dummy[32];
 };
 

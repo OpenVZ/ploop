@@ -42,6 +42,7 @@
 #include "cleanup.h"
 
 #define EXT4_IOC_OPEN_BALLOON		_IO('f', 42)
+#define XFS_IOC_OPEN_BALLOON		_IO('X', 255)
 
 #define BIN_E4DEFRAG	"/usr/sbin/ploop-e4defrag"
 
@@ -98,11 +99,13 @@ int get_balloon(const char *mount_point, struct stat *st, int *outfd)
 		return(SYSEXIT_OPEN);
 	}
 
-	fd2 = ioctl(fd, EXT4_IOC_OPEN_BALLOON, 0);
+	fd2 = ioctl(fd, XFS_IOC_OPEN_BALLOON, 0);
+	if (fd2 == -1 && errno == ENOTTY)
+		fd2 = ioctl(fd, EXT4_IOC_OPEN_BALLOON, 0);
 	close(fd);
 
 	if (fd2 < 0) {
-		ploop_err(errno, "Can't ioctl mount point %s", mount_point);
+		ploop_err(errno, "Cannot open balloon at %s", mount_point);
 		return(SYSEXIT_DEVIOC);
 	}
 

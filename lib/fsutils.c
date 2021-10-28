@@ -29,6 +29,9 @@
 #include <sys/vfs.h>
 #include <sys/sysmacros.h>
 #include <dirent.h>
+#include <sys/utsname.h>
+
+#include <blkid/blkid.h>
 
 #include "ploop.h"
 #ifndef EXT4_IOC_SET_RSV_BLOCKS
@@ -294,7 +297,7 @@ out:
 	return ret;
 }
 
-int make_fs(const char *part_device, const char *fstype, unsigned int fsblocksize,
+static int make_ext4(const char *part_device, const char *fstype, unsigned int fsblocksize,
 		unsigned int flags, const char *fslabel)
 {
 	int i;
@@ -349,6 +352,45 @@ int make_fs(const char *part_device, const char *fstype, unsigned int fsblocksiz
 	return 0;
 }
 
+static int make_xfs(const char *part_device, const char *fstype, unsigned int fsblocksize,
+		unsigned int flags, const char *fslabel)
+{
+	int i = 0;
+	char *argv[7];
+	char blocksize[14];
+
+	argv[i++] = "mkfs.xfs";
+	if (fslabel != NULL) {
+		argv[i++] = "-L";
+		argv[i++] = (char*)fslabel;
+	}
+	argv[i++] = "-b";
+	snprintf(blocksize, sizeof(blocksize), "size=%u",
+			fsblocksize != 0 ? fsblocksize : 4096);
+	argv[i++] = blocksize;
+	argv[i++] = (char *)part_device;
+	argv[i] = NULL;
+
+	if (run_prg(argv))
+		return SYSEXIT_MKFS;
+	return 0;
+}
+
+int make_fs(const char *part_device, const char *fstype, unsigned int fsblocksize,
+		unsigned int flags, const char *fslabel)
+{
+	if (fstype[0] == '\0') {
+		struct utsname b;
+
+		uname(&b);
+		fstype  = b.release[0] == '5' ? "xfs" : "ext4";
+	}
+
+	if (strcmp(fstype, "ext4") == 0)
+		return make_ext4(part_device, fstype, fsblocksize, flags, fslabel);
+	return make_xfs(part_device, fstype, fsblocksize, flags, fslabel);
+}
+
 void tune_fs(int balloonfd, const char *device, unsigned long long size_sec)
 {
 	unsigned long long reserved_blocks;
@@ -356,6 +398,9 @@ void tune_fs(int balloonfd, const char *device, unsigned long long size_sec)
 	char *argv[5];
 	char buf[21];
 	int ret;
+
+	if (is_xfs(device))
+		return;
 
 	if (fstatfs(balloonfd, &fs) != 0) {
 		ploop_err(errno, "tune_fs: can't statfs %s", device);
@@ -390,7 +435,7 @@ void tune_fs(int balloonfd, const char *device, unsigned long long size_sec)
 	run_prg(argv);
 }
 
-int resize_fs(const char *device, off_t size_sec)
+int resize_ext4(const char *device, off_t size_sec)
 {
 	char *argv[5];
 	char buf[22];
@@ -411,6 +456,40 @@ int resize_fs(const char *device, off_t size_sec)
 	return 0;
 }
 
+int resize_xfs(const char *device, off_t size_sec)
+{
+	int i = 0;
+	char *argv[5];
+	char buf[22];
+
+	argv[i++] = "xfs_growfs";
+	if (size_sec) {
+		// align size to 4K
+		argv[i++] = "-D";
+		snprintf(buf, sizeof(buf), "%luk", (long)(size_sec >> 3 << 3) >> 1);
+		argv[i++] = buf;
+	}
+
+	argv[i++] = (char *)device;
+	argv[i] = NULL;
+
+	if (run_prg(argv))
+		return SYSEXIT_RESIZE_FS;
+	return 0;
+}
+
+int resize_fs(const char *partname, off_t size_sec)
+{
+	int xfs;
+
+	xfs = is_xfs(partname);
+	if (xfs == -1)
+		return SYSEXIT_READ;
+
+	return xfs ? resize_xfs(partname, size_sec) :
+		resize_ext4(partname, size_sec);
+}
+
 enum {
 	BLOCK_COUNT,
 	BLOCK_FREE,
@@ -421,13 +500,12 @@ enum {
 #define BLOCK_FREE_BIT (1 << BLOCK_FREE)
 #define BLOCK_SIZE_BIT (1 << BLOCK_SIZE)
 
-int dumpe2fs(const char *device, struct dump2fs_data *data)
+int dump_ext4(const char *device, struct dump2fs_data *data)
 {
 	char cmd[512];
 	char buf[512];
 	FILE *fp;
 	int found = BLOCK_COUNT_BIT | BLOCK_FREE_BIT | BLOCK_SIZE_BIT;
-
 	snprintf(cmd, sizeof(cmd), "LANG=C " DEF_PATH_ENV " %s -h %s",
 			get_prog(dumpe2fs_progs), device);
 	fp = popen(cmd, "r");
@@ -460,7 +538,54 @@ int dumpe2fs(const char *device, struct dump2fs_data *data)
 	return 0;
 }
 
-int e2fsck(const char *device, int flags, int *rc)
+int dump_xfs(const char *device, struct dump2fs_data *data)
+{
+	char buf[512];
+	int found = 0;
+	FILE *fp;
+
+	snprintf(buf, sizeof(buf), "LANG=C /usr/sbin/xfs_info  %s", device);
+	fp = popen(buf, "r");
+	if (fp == NULL) {
+		ploop_err(0, "Failed %s", buf);
+		return SYSEXIT_SYS;
+	}
+
+	while (fgets(buf, sizeof(buf), fp) != NULL) {
+		if (sscanf(buf, "data = bsize=%u blocks=%" SCNu64,
+					&data->block_size, &data->block_count) == 2)
+		{
+			found = 1;
+			break;
+		}
+	}
+
+	if (pclose(fp)) {
+		ploop_err(0, "Cannot get xfs info %s", device);
+		return SYSEXIT_SYS;
+	}
+
+	if (!found) {
+		ploop_err(0, "Not enough data: from xfs_info %s", device);
+		return SYSEXIT_SYS;
+	}
+
+	return 0;
+}
+
+int dumpe2fs(const char *partname, struct dump2fs_data *data)
+{
+	int xfs;
+
+	xfs = is_xfs(partname);
+	if (xfs == -1)
+		return SYSEXIT_READ;
+
+	return xfs ? dump_xfs(partname, data) :
+		dump_ext4(partname, data);
+}
+
+static int fsck_ext4(const char *device, int flags, int *rc)
 {
 	char *arg[5];
 	int i = 0;
@@ -490,6 +615,39 @@ int e2fsck(const char *device, int flags, int *rc)
 	}
 
 	return 0;
+}
+
+static int fsck_xfs(const char *device, int flags, int *rc)
+{
+	char *arg[] = {"xfs_repair", "-L", (char *)device, NULL};
+	int ret;
+
+	if (!(flags & E2FSCK_FORCE))
+		return 0;
+
+	if (run_prg_rc(arg, NULL, HIDE_STDOUT, &ret))
+		return SYSEXIT_FSCK;
+	if (rc)
+		*rc = ret;
+
+	if (ret) {
+		ploop_err(0, "xfs_repair failed (exit code %d)\n", ret);
+		return SYSEXIT_FSCK;
+	}
+
+	return 0;
+}
+
+int fsck(const char *partname, int flags, int *rc)
+{
+	int xfs;
+
+	xfs = is_xfs(partname);
+	if (xfs == -1)
+		return SYSEXIT_READ;
+
+	return xfs ? fsck_xfs(partname, flags, rc) :
+		fsck_ext4(partname, flags, rc);
 }
 
 int get_major_by_driver_name(const char* device_driver)
@@ -632,4 +790,50 @@ int cn_find_name(const char *devname, char *out, int size, int fname)
 	closedir(fd);
 
 	return rc;
+}
+
+int get_fstype(const char *partname, char *fstype, int size)
+{
+	blkid_tag_iterate iter;
+	const char *type, *value;
+	blkid_cache cache;
+	int rc = 0;
+
+	rc = blkid_get_cache(&cache, "/dev/null");
+	if (rc) {
+		ploop_err(0, "blkid: cannot create cache (%d)", rc);
+		return -1;
+	}
+
+	blkid_dev dev = blkid_get_dev(cache, partname, BLKID_DEV_NORMAL);
+	if (dev == NULL) {
+		ploop_err(0, "blkid: %s has an unsupported type", partname);
+		return -1;
+	}
+
+	iter = blkid_tag_iterate_begin(dev);
+	while (blkid_tag_next(iter, &type, &value) == 0) {
+		if (!strcmp(type, "TYPE")) {
+			snprintf(fstype, size, "%s", value);
+			goto out;
+		}
+	}
+	ploop_err(0, "Unable to detect file system type of %s", partname);
+	rc = 1;
+out:
+	blkid_tag_iterate_end(iter);
+	blkid_put_cache(cache);
+
+	return rc;
+}
+
+int is_xfs(const char *partname)
+{
+	int rc;
+	char fstype[64];
+
+	rc = get_fstype(partname, fstype, sizeof(fstype));
+	if (rc)
+		return -1;
+	return strcmp(fstype, "xfs") == 0;
 }

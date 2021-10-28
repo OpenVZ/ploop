@@ -42,9 +42,8 @@
 #include "cleanup.h"
 #include "cbt.h"
 
-static int ploop_mount_fs(struct ploop_disk_images_data *di,
-		const char *partname,	struct ploop_mount_param *param,
-		int need_balloon);
+static int mount_fs(struct ploop_disk_images_data *di,
+		const char *partname,	struct ploop_mount_param *param);
 static int ploop_umount_fs(const char *mnt, struct ploop_disk_images_data *di);
 
 static off_t round_bdsize(off_t size, __u32 blocksize, int version)
@@ -612,14 +611,14 @@ int create_balloon_file(struct ploop_disk_images_data *di,
 	int fd, ret;
 	char mnt[PATH_MAX];
 	char fname[PATH_MAX + sizeof(BALLOON_FNAME)];
-	struct ploop_mount_param mount_param = {};
+	struct ploop_mount_param mount_param = {.skip_balloon = 1};
 
 	ploop_log(0, "Creating balloon file " BALLOON_FNAME);
 	ret = get_temp_mountpoint(di->images[0]->file, 1, mnt, sizeof(mnt));
 	if (ret)
 		return ret;
 	mount_param.target = mnt;
-	ret = ploop_mount_fs(di, partname, &mount_param, 0);
+	ret = mount_fs(di, partname, &mount_param);
 	if (ret)
 		goto out;
 	snprintf(fname, sizeof(fname), "%s/"BALLOON_FNAME, mnt);
@@ -730,7 +729,7 @@ int ploop_init_image(struct ploop_disk_images_data *di,
 	if (ret)
 		goto err;
 
-	ret = make_fs(partname, param->fstype ?: DEFAULT_FSTYPE,
+	ret = make_fs(partname, param->fstype,
 			param->fsblocksize, param->flags, param->fslabel);
 	if (ret)
 		goto err;
@@ -1364,23 +1363,26 @@ int reread_part(const char *device)
 	return partprobe(device);
 }
 
-static int ploop_mount_fs(struct ploop_disk_images_data *di,
-		const char *partname, struct ploop_mount_param *param,
-		int need_balloon)
+static int mount_fs(struct ploop_disk_images_data *di,
+		const char *partname, struct ploop_mount_param *param)
 {
 	unsigned long flags =
 		(param->flags & MS_NOATIME) |
 		(param->ro | (di && di->vol && di->vol->ro) ? MS_RDONLY : 0);
 	char buf[PATH_MAX + sizeof(BALLOON_FNAME)];
 	struct stat st;
-	char *fstype = param->fstype == NULL ? DEFAULT_FSTYPE : param->fstype;
 	char data[1024];
 	int len;
 	int mounted = 0;
+	const char *fstype;
+	int xfs;
 
-	if (param->fsck_flags && (strncmp(fstype, "ext", 3) == 0))
-		if (e2fsck(partname, param->fsck_flags, &param->fsck_rc))
-			return SYSEXIT_FSCK;
+	xfs = is_xfs(partname);
+	if (xfs == -1)
+		return SYSEXIT_READ;
+
+	if (param->fsck_flags && fsck(partname, param->fsck_flags, &param->fsck_rc))
+		return SYSEXIT_FSCK;
 
 	if (param->target == NULL)
 		return 0;
@@ -1389,15 +1391,27 @@ static int ploop_mount_fs(struct ploop_disk_images_data *di,
 	 * 1 mount and find balloon inode
 	 * 2 remount with balloon_ino=ino
 	 */
-	snprintf(data, sizeof(data), "%s%s",
-			param->quota ? "usrjquota=aquota.user,grpjquota=aquota.group,jqfmt=vfsv0," : "",
+
+	if (xfs) {
+		fstype = "xfs";
+		snprintf(data, sizeof(data), "%s%s",
+			param->quota ? "uqnoenforce,uqnoenforce,pqnoenforce," : "",
 			param->mount_data ? param->mount_data : "");
+	} else {
+		fstype = "ext4";
+		snprintf(data, sizeof(data), "%s%s",
+			param->quota == 0 ? "" :
+				((param->quota == PLOOP_JQUOTA ? "usrjquota=aquota.user,grpjquota=aquota.group,jqfmt=vfsv0," :
+								 "usrquota,grpquota")),
+			param->mount_data ? param->mount_data : "");
+	}
+
 	if (mount(partname, param->target, fstype, flags, data))
 		goto mnt_err;
-	mounted = 1;
 
-	if (!need_balloon)
+	if (param->skip_balloon)
 		goto done;
+	mounted = 1;
 
 	snprintf(buf, sizeof(buf), "%s/" BALLOON_FNAME, param->target);
 	if (stat(buf, &st) < 0) {
@@ -1427,6 +1441,12 @@ mnt_err:
 		umount(param->target);
 
 	return SYSEXIT_MOUNT;
+}
+
+
+int ploop_mount_fs(const char *partname, struct ploop_mount_param *param)
+{
+	return mount_fs(NULL, partname, param);
 }
 
 static void print_sys_block_ploop(void)
@@ -2285,7 +2305,7 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		goto err_stop;
 
 	if (param->target != NULL || param->fsck) {
-		ret = ploop_mount_fs(di, partname, param, 1);
+		ret = mount_fs(di, partname, param);
 		if (ret)
 			goto err_stop;
 	}
@@ -2312,14 +2332,14 @@ err:
 	return ret;
 }
 
-int mount_fs(const char *part, const char *target)
+static int do_mount(const char *part, const char *target)
 {
-	ploop_log(0, "Mounting %s at %s", part, target);
-	if (mount(part, target, DEFAULT_FSTYPE, 0, 0)) {
-		ploop_err(errno, "Can't mount dev=%s target=%s",
-				part, target);
+	struct ploop_mount_param param = {
+		.target = (char *) target,
+	};
+
+	if (ploop_mount_fs(part, &param))
 		return SYSEXIT_MOUNT;
-	}
 
 	return 0;
 }
@@ -2341,12 +2361,12 @@ int auto_mount_fs(struct ploop_disk_images_data *di, pid_t pid,
 		if (ret < 0)
 			return SYSEXIT_SYS;
 		if (ret == 0)
-			return mount_fs(partname, target);
+			return do_mount(partname, target);
 	}
 
-	ret = ploop_mount_fs(di, partname, param, 1);
+	ret = mount_fs(di, partname, param);
 	if (ret && errno == EPERM)
-		return mount_fs(partname, target);
+		return do_mount(partname, target);
 
 	return ret;
 }
@@ -2384,7 +2404,7 @@ static int remount_image(struct ploop_disk_images_data *di,
 			return ret;
 	}
 
-	return ploop_mount_fs(di, part, param, 1);
+	return mount_fs(di, part, param);
 }
 
 int ploop_mount_image(struct ploop_disk_images_data *di,
@@ -2854,7 +2874,7 @@ static int shrink_device(struct ploop_disk_images_data *di,
 	if (ret)
 		return ret;
 
-	ret = e2fsck(part_device, E2FSCK_FORCE | E2FSCK_PREEN, NULL);
+	ret = fsck(part_device, E2FSCK_FORCE | E2FSCK_PREEN, NULL);
 	if (ret)
 		return ret;
 
@@ -2967,7 +2987,6 @@ int ploop_resize_image(struct ploop_disk_images_data *di,
 		}
 
 		free_space = B2S(fs.f_bfree * fs.f_bsize);
-
 		for (new_balloon_size = balloon_size + free_space;
 				delta < free_space && new_balloon_size > balloon_size;
 				delta *= 2)
@@ -2995,7 +3014,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di,
 			if (ret)
 				goto err;
 
-			ret = e2fsck(partname, E2FSCK_FORCE | E2FSCK_PREEN, NULL);
+			ret = fsck(partname, E2FSCK_FORCE | E2FSCK_PREEN, NULL);
 			if (ret)
 				goto err;
 		}
@@ -3063,7 +3082,6 @@ int ploop_resize_image(struct ploop_disk_images_data *di,
 			struct dump2fs_data data = {};
 			__u64 available_balloon_size;
 			__u64 blocks;
-			__u64 reserved_blocks;
 
 			ret = dumpe2fs(partname, &data);
 			if (ret)
@@ -3077,25 +3095,17 @@ int ploop_resize_image(struct ploop_disk_images_data *di,
 					ret = SYSEXIT_FSTAT;
 					goto err;
 				}
-
+				float ratio = (float) ((fs.f_blocks * B2S(fs.f_bsize)) + balloon_size) / blocks;
 				new_balloon_size = blocks - new_fs_size;
-				/* exclude data accounted by ext4 by assumption that
-				 * overhead is inodes * inode size
-				 */
-				reserved_blocks = B2S(fs.f_files * 256);
-				if (reserved_blocks > new_balloon_size) {
-					ret = ploop_balloon_change_size(dev,
-							balloonfd, 0);
-					goto err;
-				}
-
-				new_balloon_size -= reserved_blocks;
+				if (ratio)
+					new_balloon_size *= ratio;
 				available_balloon_size = balloon_size + (fs.f_bfree * B2S(fs.f_bsize));
+				ploop_log(3, "newsize=%lu blocks=%llu balloonsize=%llu available=%llu ratio=%f",
+						new_fs_size, blocks, balloon_size, available_balloon_size, ratio);
 				if (available_balloon_size < new_balloon_size) {
 					ploop_err(0, "Unable to change image size to %lu "
-							"sectors, minimal size is %" PRIu64,
-							(long)new_fs_size,
-							(uint64_t)(blocks - available_balloon_size - reserved_blocks));
+							"sectors, minimal size is %llu",
+							new_fs_size, (blocks - available_balloon_size));
 					ret = SYSEXIT_PARAM;
 					goto err;
 				}
@@ -3162,7 +3172,7 @@ int ploop_resize_blkdev(const char *device, off_t new_size)
 	if (ret)
 		return ret;
 
-	ret = e2fsck(partname, E2FSCK_FORCE | E2FSCK_PREEN, NULL);
+	ret = fsck(partname, E2FSCK_FORCE | E2FSCK_PREEN, NULL);
 	if (ret)
 		return ret;
 
