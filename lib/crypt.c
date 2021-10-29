@@ -209,7 +209,6 @@ static int encrypt_image(struct ploop_disk_images_data *di,
 	struct ploop_create_param c_enc = {
 		.size = di->size,
 		.image = image,
-		.fstype = DEFAULT_FSTYPE,
 		.blocksize = di->blocksize,
 		.keyid = keyid,
 	};

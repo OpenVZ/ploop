@@ -47,7 +47,6 @@
 #define TOPDELTA_UUID		"{5fbaabe3-6958-40ff-92a7-860e329aab41}"
 #define NONE_UUID		"{00000000-0000-0000-0000-000000000000}"
 #define UUID_SIZE		39	/* sizeof(TOPDELTA_UUID) for example */
-#define DEFAULT_FSTYPE		"ext4"
 #define BALLOON_FNAME		".balloon-c3a5ae3d-ce7f-43c4-a1ea-c61e2b4504e8"
 
 /* od_flags for open_delta() */
@@ -415,7 +414,7 @@ int make_fs(const char *device, const char *fstype, unsigned int fsblocksize,
 void tune_fs(int balloonfd, const char *device, unsigned long long size);
 int resize_fs(const char *device, off_t blocks);
 int dumpe2fs(const char *device, struct dump2fs_data *data);
-int e2fsck(const char *device, int flags, int *rc);
+int fsck(const char *device, int flags, int *rc);
 int get_sector_size(int fd, int *sector_size);
 int create_gpt_partition(const char *dev,  __u32 blocksize);
 int resize_gpt_partition(const char *devname, const char *partname,
@@ -431,6 +430,7 @@ int get_last_partition_num(const char *device, int *part_num);
 int reread_part(const char *device);
 int partprobe(const char *device);
 int is_device_from_devmapper(const char *device);
+int is_xfs(const char *partname);
 
 // misc
 void get_basedir(const char *fname, char *out, int len);

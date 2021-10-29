@@ -46,7 +46,7 @@ GENERATED=symbols.c
 
 CFLAGS += $(shell pkg-config libxml-2.0 --cflags) -fPIC -fvisibility=hidden
 LDFLAGS+= -shared -Wl,-soname,$(LIBPLOOP_SO_X)
-LDLIBS += $(shell pkg-config libxml-2.0 openssl uuid --libs) -ldevmapper -ljson-c -lpthread -lrt
+LDLIBS += $(shell pkg-config libxml-2.0 openssl uuid --libs) -ldevmapper -lblkid -ljson-c -lpthread -lrt
 
 all: $(LIBPLOOP) $(LIBPLOOP_SO) $(PC)
 .PHONY: all

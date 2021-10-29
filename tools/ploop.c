@@ -110,7 +110,7 @@ static int plooptool_init(int argc, char **argv)
 	char * endptr;
 	struct stat st;
 	struct ploop_create_param param = {
-		.fstype		= "ext4",
+		.fstype		= "",
 		.mode		= PLOOP_EXPANDED_MODE,
 		.fmt_version	= PLOOP_FMT_UNDEFINED,
 		.without_partition = 0,
@@ -120,7 +120,6 @@ static int plooptool_init(int argc, char **argv)
 		{ "sparse", no_argument, 0, 'S' },
 		{},
 	};
-
 
 	while ((i = getopt_long(argc, argv, "s:b:B:f:t:L:v:nSk:P",
 					long_opts, NULL)) != EOF) {
@@ -157,7 +156,8 @@ static int plooptool_init(int argc, char **argv)
 			if (!strcmp(optarg, "none"))
 				param.fstype = NULL;
 			else if (!strcmp(optarg, "ext4") ||
-					!strcmp(optarg, "ext3")) {
+					!strcmp(optarg, "ext3") ||
+					!strcmp(optarg, "xfs")) {
 				param.fstype = strdup(optarg);
 			} else {
 				fprintf(stderr, "Incorrect file system type "
@@ -252,7 +252,7 @@ static int plooptool_mount(int argc, char **argv)
 	struct ploop_mount_param mountopts = {};
 	const char *component_name = NULL;
 
-	while ((i = getopt(argc, argv, "rFf:d:m:t:u:o:b:c:")) != EOF) {
+	while ((i = getopt(argc, argv, "rFf:d:m:t:u:o:b:c:q")) != EOF) {
 		switch (i) {
 		case 'd':
 			strncpy(mountopts.device, optarg, sizeof(mountopts.device)-1);
@@ -295,10 +295,13 @@ static int plooptool_mount(int argc, char **argv)
 				  return SYSEXIT_PARAM;
 			  }
 			  break;
+		}
 		case 'c':
 			component_name = optarg;
 			break;
-		}
+		case 'q':
+			mountopts.quota = PLOOP_JQUOTA;
+			break;
 		default:
 			usage_mount();
 			return SYSEXIT_PARAM;
