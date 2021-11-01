@@ -544,7 +544,7 @@ int dump_xfs(const char *device, struct dump2fs_data *data)
 	int found = 0;
 	FILE *fp;
 
-	snprintf(buf, sizeof(buf), "LANG=C /usr/sbin/xfs_info  %s", device);
+	snprintf(buf, sizeof(buf), "LANG=C " DEF_PATH_ENV " xfs_info  %s", device);
 	fp = popen(buf, "r");
 	if (fp == NULL) {
 		ploop_err(0, "Failed %s", buf);
