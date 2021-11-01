@@ -2921,7 +2921,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di,
 	struct statfs fs;
 	unsigned long long new_size;
 	__u32 blocksize = 0;
-	int version;
+	int version, xfs;
 	off_t new_fs_size = 0;
 
 	if (ploop_lock_dd(di))
@@ -2947,6 +2947,10 @@ int ploop_resize_image(struct ploop_disk_images_data *di,
 	ret = get_part_devname(di, dev, devname, sizeof(devname),
 			partname, sizeof(partname));
 	if (ret)
+		goto err;
+
+	xfs = is_xfs(partname);
+	if (xfs == -1)
 		goto err;
 
 	if (check_size(param->size, blocksize, version)) {
@@ -3008,7 +3012,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di,
 		}
 		close(balloonfd);
 		balloonfd = -1;
-		if (mounted && param->offline_resize) {
+		if (mounted && !xfs && param->offline_resize) {
 			/* offline */
 			ret = ploop_umount_fs(target, di);
 			if (ret)
@@ -3057,7 +3061,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di,
 				goto err;
 		}
 
-		if (mounted && param->offline_resize) {
+		if (mounted && !xfs && param->offline_resize) {
 			/* Offline */
 			if (balloon_size != 0) {
 				/* FIXME: restore balloon size on failure */
