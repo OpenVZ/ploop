@@ -1394,7 +1394,7 @@ static int mount_fs(struct ploop_disk_images_data *di,
 
 	if (xfs) {
 		fstype = "xfs";
-		snprintf(data, sizeof(data), "%s%s",
+		snprintf(data, sizeof(data), "nouuid,%s%s",
 			param->quota ? "uqnoenforce,uqnoenforce,pqnoenforce," : "",
 			param->mount_data ? param->mount_data : "");
 	} else {
