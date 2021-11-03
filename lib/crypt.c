@@ -211,6 +211,7 @@ static int encrypt_image(struct ploop_disk_images_data *di,
 		.image = image,
 		.blocksize = di->blocksize,
 		.keyid = keyid,
+		.fstype = "",
 	};
 	int wipe = param->flags & PLOOP_ENC_WIPE;
 
