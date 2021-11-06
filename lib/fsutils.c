@@ -792,12 +792,12 @@ int cn_find_name(const char *devname, char *out, int size, int fname)
 	return rc;
 }
 
-int get_fstype(const char *partname, char *fstype, int size)
+static int get_mnt_info(const char *partname, struct ploop_mnt_info *info)
 {
 	blkid_tag_iterate iter;
 	const char *type, *value;
 	blkid_cache cache;
-	int rc = 0;
+	int rc = 0, found = 0;
 
 	rc = blkid_get_cache(&cache, "/dev/null");
 	if (rc) {
@@ -814,13 +814,17 @@ int get_fstype(const char *partname, char *fstype, int size)
 	iter = blkid_tag_iterate_begin(dev);
 	while (blkid_tag_next(iter, &type, &value) == 0) {
 		if (!strcmp(type, "TYPE")) {
-			snprintf(fstype, size, "%s", value);
-			goto out;
-		}
+			snprintf(info->fstype, sizeof(info->fstype), "%s", value);
+			found = 1;
+		} else if (!strcmp(type, "UUID"))
+			snprintf(info->uuid, sizeof(info->uuid), "%s", value);
 	}
-	ploop_err(0, "Unable to detect file system type of %s", partname);
-	rc = 1;
-out:
+
+	if (!found) {
+		ploop_err(0, "Unable to detect file system type of %s", partname);
+		rc = SYSEXIT_PARAM;
+	}
+
 	blkid_tag_iterate_end(iter);
 	blkid_put_cache(cache);
 
@@ -830,10 +834,31 @@ out:
 int is_xfs(const char *partname)
 {
 	int rc;
-	char fstype[64];
+	struct ploop_mnt_info info = {};
 
-	rc = get_fstype(partname, fstype, sizeof(fstype));
+	rc = get_mnt_info(partname, &info);
 	if (rc)
 		return -1;
-	return strcmp(fstype, "xfs") == 0;
+	return strcmp(info.fstype, "xfs") == 0;
+}
+
+int ploop_get_mnt_info(const char *partname, int quota,
+		struct ploop_mnt_info *info)
+{
+	int rc;
+
+	rc = get_mnt_info(partname, info);
+	if (rc)
+		return rc;
+
+	if (!strcmp(info->fstype, "xfs"))
+		info->opts = quota ? "nouuid,uqnoenforce,uqnoenforce,pqnoenforce" : "nouuid";
+	else if (!strcmp(info->fstype, "ext4")) {
+		if (quota == PLOOP_JQUOTA)
+			info->opts = "usrjquota=aquota.user,grpjquota=aquota.group,jqfmt=vfsv0";
+		else if (quota == PLOOP_QUOTA)
+			info->opts = "usrquota,grpquota";
+	}
+
+	return 0;
 }

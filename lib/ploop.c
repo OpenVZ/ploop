@@ -1366,6 +1366,7 @@ int reread_part(const char *device)
 static int mount_fs(struct ploop_disk_images_data *di,
 		const char *partname, struct ploop_mount_param *param)
 {
+	int rc;
 	unsigned long flags =
 		(param->flags & MS_NOATIME) |
 		(param->ro | (di && di->vol && di->vol->ro) ? MS_RDONLY : 0);
@@ -1374,12 +1375,7 @@ static int mount_fs(struct ploop_disk_images_data *di,
 	char data[1024];
 	int len;
 	int mounted = 0;
-	const char *fstype;
-	int xfs;
-
-	xfs = is_xfs(partname);
-	if (xfs == -1)
-		return SYSEXIT_READ;
+	struct ploop_mnt_info info = {};
 
 	if (param->fsck_flags && fsck(partname, param->fsck_flags, &param->fsck_rc))
 		return SYSEXIT_FSCK;
@@ -1387,26 +1383,17 @@ static int mount_fs(struct ploop_disk_images_data *di,
 	if (param->target == NULL)
 		return 0;
 
+	rc = ploop_get_mnt_info(partname, param->quota, &info);
+	if (rc)
+		return rc;
+
 	/* Two step mount
 	 * 1 mount and find balloon inode
 	 * 2 remount with balloon_ino=ino
 	 */
 
-	if (xfs) {
-		fstype = "xfs";
-		snprintf(data, sizeof(data), "nouuid,%s%s",
-			param->quota ? "uqnoenforce,uqnoenforce,pqnoenforce," : "",
-			param->mount_data ? param->mount_data : "");
-	} else {
-		fstype = "ext4";
-		snprintf(data, sizeof(data), "%s%s",
-			param->quota == 0 ? "" :
-				((param->quota == PLOOP_JQUOTA ? "usrjquota=aquota.user,grpjquota=aquota.group,jqfmt=vfsv0," :
-								 "usrquota,grpquota")),
-			param->mount_data ? param->mount_data : "");
-	}
-
-	if (mount(partname, param->target, fstype, flags, data))
+	snprintf(data, sizeof(data), "%s,%s", info.opts ?: "", param->mount_data ?: "");
+	if (mount(partname, param->target, info.fstype, flags, data))
 		goto mnt_err;
 
 	if (param->skip_balloon)
@@ -1419,24 +1406,25 @@ static int mount_fs(struct ploop_disk_images_data *di,
 		goto mnt_err;
 	}
 
+	param->balloon_ino = st.st_ino;
 	len = strlen(data);
 	snprintf(data + len, sizeof(data) - len, ",balloon_ino=%llu",
 			(unsigned long long) st.st_ino);
 
 	flags |= MS_REMOUNT;
-	if (mount(partname, param->target, fstype, flags, data))
+	if (mount(partname, param->target, info.fstype, flags, data))
 		goto mnt_err;
 
 done:
 	ploop_log(0, "Mounted %s at %s fstype=%s data='%s' %s",
-			partname, param->target, fstype,
+			partname, param->target, info.fstype,
 			data, param->ro  ? "ro":"");
 	return 0;
 
 mnt_err:
 	ploop_err(errno, "Can't mount file system "
 			"(dev=%s target=%s fstype=%s flags=%lx data=%s)",
-			partname, param->target, fstype, flags, data);
+			partname, param->target, info.fstype, flags, data);
 	if (mounted)
 		umount(param->target);
 
