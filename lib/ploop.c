@@ -2203,6 +2203,8 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 	char partname[64] = "";
 	char **i = NULL;
 	const char *guid;
+	char buf [PATH_MAX];
+	char *target = param->target;
 
 	if (param->guid != NULL) {
 		if (find_image_by_guid(di, param->guid) == NULL) {
@@ -2219,17 +2221,6 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 			ploop_err(0, "Unable to mount (rw) snapshot %s: "
 				"it has %d child%s", guid,
 				nr_ch, (nr_ch == 1) ? "" : "ren");
-			return SYSEXIT_PARAM;
-		}
-	}
-
-	if (param->target != NULL) {
-		if (stat(param->target, &st)) {
-			ploop_err(errno, "Failed to stat mount point %s", param->target);
-			return SYSEXIT_PARAM;
-		}
-		if (!S_ISDIR(st.st_mode)) {
-			ploop_err(0, "Mount point %s not a directory", param->target);
 			return SYSEXIT_PARAM;
 		}
 	}
@@ -2292,10 +2283,33 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 	if (ret)
 		goto err_stop;
 
-	if (param->target != NULL || param->fsck) {
+	if (target != NULL || param->automount) {
+		if (target == NULL) {
+		        ret = get_temp_mountpoint(images[0], 1, buf, sizeof(buf));
+		        if (ret)
+		                return ret;
+			target = buf;
+		}
+
+		if (stat(target, &st)) {
+			ploop_err(errno, "Failed to stat mount point %s", target);
+			return SYSEXIT_PARAM;
+		}
+		if (!S_ISDIR(st.st_mode)) {
+			ploop_err(0, "Mount point %s not a directory", target);
+			return SYSEXIT_PARAM;
+		}
+	}
+
+	if (target != NULL || param->fsck) {
+		char *x = param->target;
+		param->target = target;
 		ret = mount_fs(di, partname, param);
+		param->target = x;
 		if (ret)
 			goto err_stop;
+		if (param->target == NULL && target != NULL && umount(target))
+			ploop_err(errno, "Warning: cannot umount automount %s", target);
 	}
 
 err_stop:
