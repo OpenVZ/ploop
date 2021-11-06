@@ -261,7 +261,7 @@ static int plooptool_mount(int argc, char **argv)
 			mountopts.ro = 1;
 			break;
 		case 'F':
-			mountopts.fsck = 1;
+			mountopts.fsck = E2FSCK_PREEN|E2FSCK_FORCE;
 			break;
 		case 'f':
 			f = parse_format_opt(optarg);
