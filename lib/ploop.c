@@ -1065,11 +1065,12 @@ static int ploop_stop(const char *devname,
 		ploop_err(0, "Can not get part device name by %s", devname);
 		return SYSEXIT_SYS;
 	} else if (rc == 0) {
+		dm_resume(partname);
 		rc = dm_remove(partname, tm);
 		if (rc)
 			return rc;
 	}
-
+	dm_resume(devname);
 	return dm_remove(devname, tm);
 }
 
@@ -2255,10 +2256,6 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		if (ret)
 			goto err;
 	} else {
-		ret = check_and_restore_fmt_version(di);
-		if (ret)
-			goto err;
-
 		ret = check_deltas(di, images, raw, &blocksize, &load_cbt,
 			di ? CHECK_DROPINUSE : 0);
 		if (ret)
@@ -2564,10 +2561,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 		return ret;
 
 	if (image_type == PLOOP_TYPE) {
-		if (open_delta(&d, top, O_RDWR, OD_ALLOW_DIRTY))
-			goto err;
-
-		if (di) {
+		if (open_delta(&d, top, O_RDWR, OD_ALLOW_DIRTY) == 0 && di) {
 			ret = save_cbt(di, device, &d);
 			if (ret)
 				goto err;
@@ -2590,7 +2584,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 			rmdir(mnt);
 	}
 
-	if (image_type == PLOOP_TYPE) {
+	if (image_type == PLOOP_TYPE && d.hdr0) {
 		vh = (struct ploop_pvd_header *) d.hdr0;
 		if (vh->m_DiskInUse == SIGNATURE_DISK_IN_USE) {
 			ret = clear_delta(&d);

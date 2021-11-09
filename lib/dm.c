@@ -25,6 +25,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/sysmacros.h>
+#include <time.h>
 
 #include <libdevmapper.h>
 
@@ -265,6 +266,20 @@ int dm_tracking_stop(const char *devname)
 	return rc;
 }
 
+int dm_tracking_clear(const char *devname, __u64 clu)
+{
+	int rc;
+	char m[64];
+
+	snprintf(m, sizeof(m), "tracking_clear %llu", clu);
+	rc = ploop_dm_message(devname, m, NULL);
+	if (rc)
+		ploop_err(errno, "Cannot clear tracking on %s clu=%llu",
+					devname, clu);
+
+	return rc;
+}
+
 int dm_tracking_get_next(const char *devname, __u64 *pos)
 {
 	char *out = NULL;
@@ -277,6 +292,7 @@ int dm_tracking_get_next(const char *devname, __u64 *pos)
 					devname);
 		return rc;
 	}
+	ploop_log(3, "tracking_get_next out=%s", out);
 	if (sscanf(out, "%llu", pos) != 1) {
 		ploop_err(0, "Not valid tracking offset %s", out);
 		rc = SYSEXIT_PARAM;
@@ -621,10 +637,14 @@ int ploop_tg_info(const char *devname, struct ploop_tg_info *param)
 static int do_wait_for_open_count(const char *devname, int remove, int tm_sec)
 {
 	struct ploop_tg_info i;
+        struct timespec ts;
 	useconds_t total = 0;
 	useconds_t wait = 10000; // initial wait time 0.01s
 	useconds_t maxwait = 500000; // max wait time per iteration 0.5s
-	useconds_t maxtotal = tm_sec * 1000000; // max total wait
+	clock_t end;
+
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	end = ts.tv_sec + tm_sec;
 
 	do {
 		int rc = dm_get_info(devname, &i);
@@ -639,18 +659,17 @@ static int do_wait_for_open_count(const char *devname, int remove, int tm_sec)
 				return 0;
 		}
 
-		if (total > maxtotal) {
-			ploop_err(0, "Wait for %s open_count=0 failed: timeout has expired",
-					devname);
-			return SYSEXIT_SYS;
-		}
-
 		usleep(wait);
 		total += wait;
 		wait *= 2;
 		if (wait > maxwait)
 			wait = maxwait;
-	} while (1);
+		clock_gettime(CLOCK_MONOTONIC, &ts);
+	} while (ts.tv_sec < end);
+	ploop_err(0, "Wait for %s open_count=0 failed: timeout has expired",
+					devname);
+	return SYSEXIT_SYS;
+
 }
 
 int wait_for_open_count(const char *devname, int tm_sec)
@@ -902,10 +921,10 @@ int ploop_tg_init(const char *dev, const char *tg, struct ploop_tg_data *out)
 	char devtg[64] = "";
 	struct ploop_tg_data d = {.lckfd = -1};
 
+	ploop_log(0, "Start %s target on %s", tg, dev);
 	rc = get_part_devname_from_sys(dev, devname, sizeof(devname), part, sizeof(part));
 	if (rc)
 		return rc;
-
 	rc = get_image_param_online(NULL, dev, NULL, &size, &blocksize, NULL, &image_type);
 	if (rc)
 		return rc;
@@ -927,7 +946,10 @@ int ploop_tg_init(const char *dev, const char *tg, struct ploop_tg_data *out)
 		dev = d.devname;
 	}
 
-	ploop_log(0, "Start %s target on %s", tg, dev);
+	rc = dm_suspend(part);
+	if (rc)
+		goto err;
+
 	rc = dm_suspend(dev);
 	if (rc)
 		goto err;
@@ -952,6 +974,7 @@ int ploop_tg_init(const char *dev, const char *tg, struct ploop_tg_data *out)
 
 err:
 	dm_resume(dev);
+	dm_resume(part);
 	ploop_free_array(images);
 	if (rc) {
 		ploop_unlock(&out->lckfd);
@@ -982,7 +1005,7 @@ int ploop_tg_deinit(const char *devtg, struct ploop_tg_data *data)
 		return SYSEXIT_PARAM;
 	}
 
-	ploop_log(0, "Deinit %s", devtg);
+	ploop_log(0, "ploop_tg_deinit %s", devtg);
 	rc = get_part_devname_from_sys(devtg, dev, sizeof(dev), part, sizeof(part));
 	if (rc)
 		return rc;
@@ -991,11 +1014,15 @@ int ploop_tg_deinit(const char *devtg, struct ploop_tg_data *data)
 	if (rc)
 		return rc;
 
-	rc = dm_suspend(devtg);
+	rc = dm_suspend(part);
 	if (rc)
 		return rc;
 
 	rc = dm_suspend(dev);
+	if (rc)
+		goto err;
+
+	rc = dm_suspend(devtg);
 	if (rc)
 		goto err;
 
@@ -1017,12 +1044,15 @@ int ploop_tg_deinit(const char *devtg, struct ploop_tg_data *data)
 		snprintf(data->devname, sizeof(data->devname), "%s", dev);
 		ploop_unlock(&data->lckfd);
 	}
+	dm_resume(part);
+
 	ploop_log(0, "Device %s has been sucessfully deinited", devtg);
 	return 0;
 
 err:
 	dm_resume(devtg);
 	dm_resume(dev);
+	dm_resume(part);
 	ploop_free_array(images);
 	if (data)
 		ploop_unlock(&data->lckfd);

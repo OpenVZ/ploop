@@ -19,11 +19,20 @@ def hashfile(afile, hasher, blocksize=65536):
 	print (hasher.hexdigest())
 	return hasher.hexdigest()
 
+def get_devname():
+	return '/dev/mapper/ploop1234'
+
+def create_data():
+	print("Fill data...")
+	ret = sp.call(['/bin/dd', 'if=/dev/urandom', "of="+get_storage()+get_data(), 'bs=1M', 'count=512'])
+	if ret != 0:
+		raise Exception("Cannot create data file")
+	print("Fill done")
 
 def start_image_filller():
 	pid = os.fork()
 	if pid == 0:
-		os.execl('/bin/dd',  'dd', 'if=/dev/urandom', "of=/dev/ploop0", 'bs=4096', 'count=1310720', 'oflag=direct')
+		os.execl('/bin/dd', 'dd', "if="+get_storage()+get_data(), "of="+get_mnt()+get_data(), 'bs=1M', 'oflag=direct')
 		os._exit(1)
 	else:
 		print("Start filler pid=%d" % pid)
@@ -37,16 +46,22 @@ def start_pcopy_receiver(fname, fd):
 	return t
 
 def get_storage():
-	return '/vz/test'
+	return '/vz/test/'
+
+def get_data():
+	return 'data.dat'
 
 def get_image():
 	return os.path.join(get_storage(), "test.hds")
 
+def get_out():
+	return os.path.join(get_storage(), "out.hds");
+
 def get_ddxml():
 	return os.path.join(get_storage(), 'DiskDescriptor.xml')
 
-def get_mnt_dir():
-	return '_'.join([get_storage(), "mnt"])
+def get_mnt():
+	return get_storage() + "mnt/"
 
 def ploop_create(img):
 	ret = sp.call(["ploop", "init", "-s10g", img])
@@ -54,19 +69,19 @@ def ploop_create(img):
 		raise Exception("failed to create image")
 
 def ploop_mount(ddxml):
-	ret = sp.call(["ploop", "mount", "-d/dev/mapper/ploop1", ddxml])
+	ret = sp.call(["ploop", "mount", "-m", get_mnt(), ddxml])
 	if ret != 0:
 		raise Exception("failed to mount image")
 
 def ploop_umount(ddxml):
-	return sp.call(["ploop", "umount", "-d/dev/mapper/ploop1"])
+	return sp.call(["ploop", "umount", ddxml])
 
 def dump_cbt(img):
 	fout = img + ".cbt"
 	
 	with open(fout, "w") as f:
-		sp.Popen(["ploop-cbt", "show", img], stdout=f)
-
+		p = sp.Popen(["ploop-cbt", "show", img], stdout=f)
+	p.wait()
 	return fout;
 
 def do_ploop_copy(ddxml, fd):
@@ -79,26 +94,45 @@ def do_ploop_copy(ddxml, fd):
 
 	print("Start copy")
 	pc.copy_start()
+	n = 0
 
-	for n in range(0, 10):
+	while True:
 		print("Iter:",  n)
 		transferred = pc.copy_next_iteration()
 		print("transferred:", transferred)
+		try:
+			p, s = os.waitpid(pid, os.WNOHANG)
+			if p == pid:
+				break
+		except:
+			break;
 		time.sleep(sleep_sec)
-
-	print("Wait filler %d" % pid)
-	os.kill(pid, 15)
-	os.waitpid(pid, 0)
+		n = n + 1
+	try:
+		os.waitpid(pid, 0)
+	except:
+		print("waitpid");
 
 	print("Stop copy")
 	pc.copy_stop()
+	print("Umount")
 	ploop_umount(ddxml)
+
+def check(t):
+	print("Check MD5");
+	s = open(get_storage()+get_data(), 'rb')
+	src = hashfile(s, hashlib.md5())
+
+	sp.call(["ploop", "mount", "-m", get_mnt(), "-d", get_devname(), get_out()])
+	d = open(get_mnt()+get_data(), 'rb')
+	dst = hashfile(d, hashlib.md5())
+	s.close()
+	d.close()
+	sp.call(["ploop", "umount", "-d", get_devname()])
+	t.assertEqual(src, dst)
 
 class testPcopy(unittest.TestCase):
 	def setUp(self):
-		if not os.path.exists('/dev/mapper/ploop1'):
-			sp.call(['mknod', '/dev/mapper/ploop1', 'b', '182', '0'])
-
 		if os.path.exists(get_ddxml()):
 			ploop_umount(get_ddxml())
 			shutil.rmtree(get_storage())
@@ -106,62 +140,68 @@ class testPcopy(unittest.TestCase):
 		if not os.path.exists(get_storage()):
 			os.mkdir(get_storage())
 
-		if not os.path.exists(get_mnt_dir()):
-			os.mkdir(get_mnt_dir())
+		if not os.path.exists(get_mnt()):
+			os.mkdir(get_mnt())
 
+		create_data()
 		ploop_create(get_image())
-		self.out = os.path.join(get_storage(), "out.hds")
+		self.out = get_out()
 		self.ddxml = get_ddxml()
 
 	def tearDown(self):
 		print("tearDown")
 		if os.path.exists(get_ddxml()):
 			ploop_umount(get_ddxml())
-			shutil.rmtree(get_storage())
+			#shutil.rmtree(get_storage())
 
-	def test_aremote(self):
+	def test_cbt(self):
+		print("Start local CBT dst=%s" % self.out)
+
+		ret = sp.call(["ploop", "snapshot", "-u262178fe-49d7-4c8b-b47c-4c0799dbf02a", "-b262178fe-49d7-4c8b-b47c-4c0799dbf02a", self.ddxml])
+		if ret != 0:
+			raise Exception("Cannot create snapshot")
+
+		sp.call(["ploop", "snapshot-delete", "-u262178fe-49d7-4c8b-b47c-4c0799dbf02a", self.ddxml])
+
+		parent, child = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
+
+		self.rcv_thr = start_pcopy_receiver(self.out, child.fileno())
+		child.close()
+		if do_ploop_copy(self.ddxml, parent.fileno()):
+			return
+		parent.close();
+
+		f1 = dump_cbt(get_image())
+		f2 = dump_cbt(self.out)
+		print("Check CBT");
+		ret = sp.call(["diff", "-u", f1, f2])
+		if ret != 0:
+			raise Exception("Check CBT failed")
+		print("Check CBT [Ok]");
+		check(self)
+
+	def test_remote(self):
 		print("Start remote")
 
 		parent, child = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
 
 		self.rcv_thr = start_pcopy_receiver(self.out, child.fileno())
 
-		do_ploop_copy(self.ddxml, parent.fileno())
-
-		src = hashfile(open(get_image(), 'rb'), hashlib.md5())
-		dst = hashfile(open(self.out, 'rb'), hashlib.md5())
-
-		self.assertEqual(src, dst)
-
+		if do_ploop_copy(self.ddxml, parent.fileno()):
+			return
+		parent.close()
+		child.close()
+		check(self)
+"""
 	def test_local(self):
 		print("Start local")
 
 		f = open(self.out, 'wb')
+		if do_ploop_copy(self.ddxml, f.fileno()):
+			return
+		check(self)
+		f.close()
 
-		do_ploop_copy(self.ddxml, f.fileno())
-
-		src = hashfile(open(get_image(), 'rb'), hashlib.md5())
-		dst = hashfile(open(self.out, 'rb'), hashlib.md5())
-
-		self.assertEqual(src, dst)
-
-	def test_local_cbt(self):
-		print("Start local CBT dst=%s" % self.out)
-
-		sp.call(["ploop", "snapshot", "-u262178fe-49d7-4c8b-b47c-4c0799dbf02a", "-b262178fe-49d7-4c8b-b47c-4c0799dbf02a", self.ddxml])
-		sp.call(["ploop", "snapshot-delete", "-u262178fe-49d7-4c8b-b47c-4c0799dbf02a", self.ddxml])
-
-		f = open(self.out, 'wb')
-		do_ploop_copy(self.ddxml, f.fileno())
-		
-		f1 = dump_cbt(get_image())
-		f2 = dump_cbt(self.out)
-		sp.call(["diff", "-u", f1, f2])
-
-		src = hashfile(open(get_image(), 'rb'), hashlib.md5())
-		dst = hashfile(open(self.out, 'rb'), hashlib.md5())
-
-		self.assertEqual(src, dst)
-
+"""
 if __name__ == '__main__':
 	unittest.main()

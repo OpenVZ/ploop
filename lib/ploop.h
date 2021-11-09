@@ -547,6 +547,7 @@ int dm_setnoresume(const char *devname, int on);
 int dm_tracking_start(const char *devname);
 int dm_tracking_stop(const char *devname);
 int dm_tracking_get_next(const char *devname, __u64 *pos);
+int dm_tracking_clear(const char *devname, __u64 clu);
 int dm_flip_upper_deltas(const char *devname);
 PL_EXT int dm_suspend(const char *devname);
 PL_EXT int dm_resume(const char *devname);
@@ -569,6 +570,8 @@ int fsync_safe(int fd);
 void clean_es_cache(int fd);
 int build_hole_bitmap(struct delta *delta, __u64 **hole_bitmap,
 		__u32 *hole_bitmap_size, int *nr_clusters);
+int build_alloc_bitmap(struct delta *delta, __u64 **bitmap,
+		__u32 *bitmap_size, int *nr_clusters);
 int image_defrag(struct delta *delta);
 int do_umount(const char *mnt, int tmo_sec);
 int get_part_devname(struct ploop_disk_images_data *di,
