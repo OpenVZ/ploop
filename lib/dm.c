@@ -287,12 +287,16 @@ int dm_tracking_get_next(const char *devname, __u64 *pos)
 
 	rc = ploop_dm_message(devname, "tracking_get_next", &out);
 	if (rc) {
-		if (errno != EAGAIN)
-			ploop_err(errno, "Can not get next tracking block on %s",
+		ploop_err(errno, "Can not get next tracking block on %s",
 					devname);
 		return rc;
 	}
 	ploop_log(3, "tracking_get_next out=%s", out);
+	if (out == NULL) {
+		errno = EAGAIN;
+		return SYSEXIT_SYS;
+	}
+
 	if (sscanf(out, "%llu", pos) != 1) {
 		ploop_err(0, "Not valid tracking offset %s", out);
 		rc = SYSEXIT_PARAM;
