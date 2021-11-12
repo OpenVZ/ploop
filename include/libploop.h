@@ -234,9 +234,12 @@ struct ploop_fs_info
 };
 
 struct ploop_mnt_info {
+	int quota;	/* in */
+	int ro;		/* in */
 	char fstype[5];
 	char uuid[38];
 	const char *opts;
+	char dummy[32];
 };
 
 struct ploop_spec {
@@ -408,8 +411,7 @@ void ploop_free_dm_message(char *msg);
 int ploop_suspend_device(const char *devname);
 int ploop_resume_device(const char *devname);
 int ploop_image_defrag(const char *image, int flags);
-int ploop_get_mnt_info(const char *partname, int quota,
-		struct ploop_mnt_info *info);
+int ploop_get_mnt_info(const char *partname, struct ploop_mnt_info *info);
 
 int ploop_tg_init(const char *dev, const char *tg, struct ploop_tg_data *out);
 int ploop_tg_deinit(const char *devtg, struct ploop_tg_data *data);
