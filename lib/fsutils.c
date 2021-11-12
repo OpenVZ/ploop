@@ -842,8 +842,7 @@ int is_xfs(const char *partname)
 	return strcmp(info.fstype, "xfs") == 0;
 }
 
-int ploop_get_mnt_info(const char *partname, int quota,
-		struct ploop_mnt_info *info)
+int ploop_get_mnt_info(const char *partname, struct ploop_mnt_info *info)
 {
 	int rc;
 
@@ -851,12 +850,16 @@ int ploop_get_mnt_info(const char *partname, int quota,
 	if (rc)
 		return rc;
 
-	if (!strcmp(info->fstype, "xfs"))
-		info->opts = quota ? "nouuid,uqnoenforce,uqnoenforce,pqnoenforce" : "nouuid";
-	else if (!strcmp(info->fstype, "ext4")) {
-		if (quota == PLOOP_JQUOTA)
+	if (!strcmp(info->fstype, "xfs")) {
+		if (info->quota)
+			info->opts = info->ro ? "norecovery,nouuid,uqnoenforce,uqnoenforce,pqnoenforce" :
+				"nouuid,uqnoenforce,uqnoenforce,pqnoenforce";
+		else
+			info->opts = info->ro ? "norecovery,nouuid" : "nouuid";
+	} else if (!strcmp(info->fstype, "ext4")) {
+		if (info->quota == PLOOP_JQUOTA)
 			info->opts = "usrjquota=aquota.user,grpjquota=aquota.group,jqfmt=vfsv0";
-		else if (quota == PLOOP_QUOTA)
+		else if (info->quota == PLOOP_QUOTA)
 			info->opts = "usrquota,grpquota";
 	}
 

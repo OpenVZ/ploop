@@ -1376,7 +1376,10 @@ static int mount_fs(struct ploop_disk_images_data *di,
 	char data[1024];
 	int len;
 	int mounted = 0;
-	struct ploop_mnt_info info = {};
+	struct ploop_mnt_info info = {
+		.quota = param->quota,
+		.ro = param->ro
+	};
 
 	if (param->fsck_flags && fsck(partname, param->fsck_flags, &param->fsck_rc))
 		return SYSEXIT_FSCK;
@@ -1384,7 +1387,7 @@ static int mount_fs(struct ploop_disk_images_data *di,
 	if (param->target == NULL)
 		return 0;
 
-	rc = ploop_get_mnt_info(partname, param->quota, &info);
+	rc = ploop_get_mnt_info(partname, &info);
 	if (rc)
 		return rc;
 

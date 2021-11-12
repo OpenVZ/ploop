@@ -109,7 +109,7 @@ struct ploop_functions {
 	int (*tg_deinit)(const char *devtg, struct ploop_tg_data *data);
 	int (*tg_info)(const char *devname, struct ploop_tg_info *param);
 	int (*tg_init)(const char *dev, const char *tg, struct ploop_tg_data *out);
-	int (*get_mnt_info)(const char *partname, int quota, struct ploop_mnt_info *info);
+	int (*get_mnt_info)(const char *partname, struct ploop_mnt_info *info);
 	void *padding[53];
 }; /* struct ploop_functions */
 
