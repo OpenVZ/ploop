@@ -152,6 +152,7 @@ static int zero_index_fix(struct ploop_check_desc *d, __u32 clu,
 static int check_one_slot(struct ploop_check_desc *d, __u32 clu, off_t isec,
 		__u32 blocksize, int version)
 {
+	struct stat st;
 	__u64 cluster = S2B(blocksize);
 	__u32 cluster_log = ffs(blocksize) - 1;
 	__u32 iblk = isec >> cluster_log;
@@ -167,10 +168,16 @@ static int check_one_slot(struct ploop_check_desc *d, __u32 clu, off_t isec,
 				clu);
 		return zero_index_fix(d, clu, HARD_FIX, ZEROFIX, FATAL);
 	}
-
+retry:
 	if ((off_t)iblk * cluster + cluster > d->size) {
-		ploop_log(0, "Data cluster %u is beyond EOF, vsec=%u... ",
-			iblk, clu);
+		/* live check: revalidate image size */
+		if (fstat(d->fd, &st) == 0 && st.st_size != d->size) {
+			d->size = st.st_size;
+			goto retry;
+		}
+
+		ploop_log(0, "Data cluster %u is beyond EOF, image size=%lu vsec=%u... ",
+			iblk, d->size, clu);
 		return zero_index_fix(d, clu, HARD_FIX, ZEROFIX, FATAL);
 	}
 
