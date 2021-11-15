@@ -57,7 +57,7 @@ int do_delete_snapshot(struct ploop_disk_images_data *di, const char *guid)
 	char dev[64];
 	int snap_id;
 
-	if (di->runtime->image_type == QCOW_TYPE)
+	if (di->runtime->image_fmt == QCOW_FMT)
 		return qcow_delete_snapshot(di, guid);
 
 	if (is_old_snapshot_format(di) || guid == NULL)
@@ -366,7 +366,7 @@ int do_create_snapshot(struct ploop_disk_images_data *di,
 		}
 		strcpy(snap_guid, guid);
 	}
-	if (di->runtime->image_type == QCOW_TYPE)
+	if (di->runtime->image_fmt == QCOW_FMT)
 		return qcow_create_snapshot(di, snap_guid);
 
 	merge_temporary_snapshots(di);

@@ -21,6 +21,10 @@
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#include <unistd.h>
+
 #include <libxml/parser.h>
 #include <libxml/tree.h>
 #include <libxml/xmlwriter.h>
@@ -342,37 +346,90 @@ int ploop_lock_dd(struct ploop_disk_images_data *di)
 	return ploop_lock_di(di);
 }
 
+static int detect_image_fmt(const char *image, int *image_fmt)
+{
+	int fd;
+	size_t n;
+	__u8 magic[16];
+
+	fd = open(image, O_RDONLY|O_CLOEXEC);
+	if (fd == -1) {
+		ploop_err(errno, "Can't open %s", image);
+		return SYSEXIT_OPEN;
+	}
+
+	n = read(fd, &magic, sizeof(magic));
+	if (n != sizeof(magic)) {
+		ploop_err(errno, "Can't read header magic %s", image);
+		close(fd);
+		return SYSEXIT_READ;
+	}
+
+	if (!memcmp(magic, SIGNATURE_STRUCTURED_DISK_V1, sizeof(magic)) ||
+			!memcmp(magic, SIGNATURE_STRUCTURED_DISK_V2, sizeof(magic)))
+		*image_fmt = PLOOP_FMT;
+	else
+		*image_fmt = QCOW_FMT;
+
+	close(fd);
+	return 0;
+}
+
 int ploop_open_dd(struct ploop_disk_images_data **di, const char *fname)
 {
-	char *path;
-	const char *s;
+	int rc, image_fmt = -1;
+	char path[PATH_MAX];
 	struct ploop_disk_images_data *p;
+	struct stat st;
 
-	path = realpath(fname, NULL);
-	if (path == NULL) {
+	if (stat(fname, &st)) {
+		ploop_err(errno, "Can't open %s", fname);
+		return SYSEXIT_OPEN;
+	}
+
+	if (realpath(fname, path) == NULL) { 
 		ploop_err(errno, "Can't resolve %s", fname);
 		return SYSEXIT_DISKDESCR;
 	}
 
-	p = alloc_diskdescriptor();
-	if (p == NULL) {
-		free(path);
-		return SYSEXIT_MALLOC;
+	if (S_ISDIR(st.st_mode)) {
+		strcat(path, "/"DISKDESCRIPTOR_XML);
+		if (access(path, F_OK)) {
+			ploop_err(0, "Can't open ploop image %s", fname);
+			return SYSEXIT_DISKDESCR;
+		}
+		image_fmt = PLOOP_FMT;
+	} else if (strcmp(get_basename(path), DISKDESCRIPTOR_XML) == 0) {
+		image_fmt = PLOOP_FMT;
+	} else {
+		rc = detect_image_fmt(path, &image_fmt);
+		if (rc)
+			return rc;
 	}
 
-	p->runtime->xml_fname = path;
-	s = get_basename(path);
-	if (strcmp(s + strlen(s) - 6, ".qcow2") == 0) {
-		int rc = qcow_open(path, p);
-		if (rc) {
-			ploop_close_dd(p);
-			return rc;
-		}
+	p = alloc_diskdescriptor();
+	if (p == NULL)
+		return SYSEXIT_MALLOC;
+
+	p->runtime->xml_fname = strdup(path);
+
+	if (image_fmt == QCOW_FMT) {
+		rc = qcow_open(path, p);
+		if (rc)
+			goto err;
+
+		rc = ploop_di_add_image(p, path, TOPDELTA_UUID, NONE_UUID);
+		if (rc)
+			goto err;
 	}
 
 	*di = p;
 
 	return 0;
+err:
+	ploop_close_dd(p);
+
+	return rc;
 }
 
 int find_image_idx_by_file(struct ploop_disk_images_data *di, const char *file)

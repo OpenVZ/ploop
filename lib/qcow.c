@@ -23,10 +23,40 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/param.h>
 #include <fcntl.h>
+#include <byteswap.h>
 #include <json-c/json.h>
 
 #include "ploop.h"
+
+typedef enum {
+	QCOW2_INCOMPAT_DIRTY = 1,
+} qcow_hdr_op_t;
+
+struct qcow_hdr {
+	uint32_t magic;
+	uint32_t version;
+	uint64_t backing_file_offset;
+	uint32_t backing_file_size;
+	uint32_t cluster_bits;
+	uint64_t size; /* in bytes */
+	uint32_t crypt_method;
+	uint32_t l1_size;
+	uint64_t l1_table_offset;
+	uint64_t refcount_table_offset;
+	uint32_t refcount_table_clusters;
+	uint32_t nb_snapshots;
+	uint64_t snapshots_offset;
+
+	/* The following fields are only valid for version >= 3 */
+	uint64_t incompatible_features;
+	uint64_t compatible_features;
+	uint64_t autoclear_features;
+
+	uint32_t refcount_order;
+	uint32_t header_length;
+};
 
 struct qcow_info {
 	off_t virtual_size;
@@ -39,7 +69,7 @@ int qcow_create(const char *image, struct ploop_create_param *param)
 	char o[256];
 	char *a[] = {"qemu-img", "create", "-f", "qcow2", "-o", o, (char *)image, NULL};
 
-	snprintf(o, sizeof(o), "size=%ld,cluster_size=%ld,lazy_refcounts=on",
+	snprintf(o, sizeof(o), "size=%ld,cluster_size=%ld,lazy_refcounts=on,compression_type=zlib",
 			S2B(param->size), S2B(param->blocksize?:2048));
 	rc = run_prg(a);
 	if (rc) {
@@ -144,16 +174,20 @@ int qcow_open(const char *image, struct ploop_disk_images_data *di)
 		return rc;
 	di->size = i.virtual_size;
 	di->blocksize = i.cluster_size;
-	di->runtime->image_type = QCOW_TYPE;
+	di->runtime->image_fmt = QCOW_FMT;
 	return ploop_di_add_image(di, image, TOPDELTA_UUID, NONE_UUID);
 }
 
-int qcow_check(struct ploop_disk_images_data *di)
+static int do_qcow_check(const char *image)
 {
 	int rc;
-	const char *i = find_image_by_guid(di, get_top_delta_guid(di));
-	char *a[] = {"qemu-img", "check", "-q", "-f", "qcow2", "-r", "leaks", (char *)i, NULL};
+	char opts[PATH_MAX];
+	char *a[] = {"qemu-img", "check", "-q", "-r", "leaks", "--image-opts", opts, NULL};
 
+	if (image == NULL)
+		return SYSEXIT_PARAM;
+
+	snprintf(opts, sizeof(opts), "driver=qcow2,file.driver=file,file.filename=%s,file.locking=off", image);
 	/*
 	 * 0   Check completed, the image is (now) consistent
 	 * 1   Check not completed because of internal errors
@@ -163,45 +197,77 @@ int qcow_check(struct ploop_disk_images_data *di)
 	 */
 	rc = run_prg(a);
 	if (rc && rc != 3) {
-		ploop_err(0, "Failed to check qcow2 image %s", i);
+		ploop_err(0, "Failed to check qcow2 image %s", image);
 		return SYSEXIT_SYS;
 	}
 	return 0;
 }
 
+int qcow_check(struct ploop_disk_images_data *di)
+{
+	return do_qcow_check(find_image_by_guid(di, get_top_delta_guid(di)));
+}
+
 int qcow_live_check(const char *device)
 {
 	int rc;
-	char *top = NULL;
-	char *a[] = {"qemu-img", "check", "-q", "-f", "qcow2", NULL, NULL};
+	char *top;
 
 	rc = get_image_param_online(NULL, device, &top, NULL, NULL, NULL, NULL);
 	if (rc)
 		return rc;
-	a[5] = top;
 
 	rc = ploop_suspend_device(device);
 	if (rc)
 		goto err;
 
-	/*
-	 * 0   Check completed, the image is (now) consistent
-	 * 1   Check not completed because of internal errors
-	 * 2   Check completed, image is corrupted
-	 * 3   Check completed, image has leaked clusters, but is not corrupted
-	 * 63  Checks are not supported by the image format
-	 */
-	rc = run_prg(a);
-	if (rc && rc != 3) {
-		ploop_err(0, "Failed to check qcow2 image %s", top);
-		rc = SYSEXIT_SYS;
-		goto err; /* Leave device suspended for investigation */
-	}
-
-	rc = ploop_resume_device(device);
+	rc = do_qcow_check(top);
+	ploop_resume_device(device);
 
 err:
 	free(top);
+	return rc;
+}
+
+static int qcow_update_hdr(const char *image, qcow_hdr_op_t op, int set)
+{
+	int fd, rc = 0;
+	size_t n;
+	struct qcow_hdr hdr;
+
+	fd = open(image, O_RDWR|O_CLOEXEC);
+	if (fd < 0) {
+		ploop_err(errno, "Can't open file %s", image);
+		return SYSEXIT_OPEN;
+	}
+
+	n = pread(fd, &hdr, sizeof(hdr), 0);
+	if (n != sizeof(hdr)) {
+		ploop_err(errno, "Can't read header %s", image);
+		rc = SYSEXIT_READ;
+		goto err;
+	}
+
+	hdr.incompatible_features = bswap_64(hdr.incompatible_features);
+	ploop_log(3, "%s dirty %s %lu", set ? "Set" : "Drop",
+			image, hdr.incompatible_features);
+	if (set)
+		hdr.incompatible_features |= op;
+	else
+		hdr.incompatible_features &= ~op;
+
+	hdr.incompatible_features = bswap_64(hdr.incompatible_features);
+	n = pwrite(fd, &hdr, sizeof(hdr), 0);
+	if (n != sizeof(hdr)) {
+		ploop_err(errno, "Can't update header %s", image);
+		rc = SYSEXIT_WRITE;
+		goto err;
+	}
+err:
+	if (close(fd)) {
+		ploop_err(errno, "Can't close %s", image);
+		rc = SYSEXIT_WRITE;
+	}
 	return rc;
 }
 
@@ -216,14 +282,25 @@ static int qcow_add(struct ploop_disk_images_data *di, struct ploop_mount_param 
 		get_dev_name(param->device, sizeof(param->device));
 	ploop_log(0, "Adding delta dev=%s img=%s (%s)",
 			param->device, i, param->ro ? "ro":"rw");
-	fd = open(i, O_DIRECT | (param->ro ? O_RDONLY : O_RDWR));
+
+	fd = open(i, O_DIRECT | (param->ro ? O_RDONLY : O_RDWR)|O_CLOEXEC);
 	if (fd < 0) {
 		ploop_err(errno, "Can't open file %s", i);
 		return SYSEXIT_OPEN;
 	}
-	snprintf(b, sizeof(b), "%d", fd);
 
+	if (!param->ro) {
+		rc = qcow_update_hdr(i, QCOW2_INCOMPAT_DIRTY, 1);
+		if (rc)
+			goto err;
+	}
+
+	snprintf(b, sizeof(b), "%d", fd);
 	rc = dm_create(param->device, 0, "qcow2", 0, size, param->ro, b);
+	if (rc && !param->ro)
+		qcow_update_hdr(i, QCOW2_INCOMPAT_DIRTY, 0);
+
+err:
 	close(fd);
 
 	return rc;

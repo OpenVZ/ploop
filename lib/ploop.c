@@ -880,7 +880,7 @@ int ploop_create(const char *path, const char *ipath,
 	}
 
 	basedir = strrchr(image, '.');
-	if (basedir != NULL && !strcmp(basedir, ".qcow2"))
+	if (param->image_fmt == QCOW_FMT)
 		return qcow_create(image, param);
 
 	get_basedir(ddxml, fname, sizeof(fname));
@@ -2254,7 +2254,7 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 		goto err;
 	}
 
-	if (di && di->runtime->image_type == QCOW_TYPE) {
+	if (di && di->runtime->image_fmt == QCOW_FMT) {
 		ret = qcow_mount(di, param);
 		if (ret)
 			goto err;
@@ -2475,7 +2475,7 @@ static int save_cbt(struct ploop_disk_images_data *di, const char *device,
 {
 	int lfd, ret, rc;
 
-	if (di->runtime->image_type == QCOW_TYPE)
+	if (di->runtime->image_fmt == QCOW_FMT)
 		return 0;
 
 	ret = wait_for_open_count(device,
@@ -2519,7 +2519,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	int fmt;
 	struct delta d = {.fd = -1};
 	struct ploop_pvd_header *vh;
-	int image_type;
+	int image_fmt;
 
 	if (!device) {
 		ploop_err(0, "ploop_umount: device is not specified");
@@ -2559,11 +2559,11 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	} while (!last);
 
 	ret = get_image_param_online(di, device, &top, NULL, NULL,
-			&fmt, &image_type);
+			&fmt, &image_fmt);
 	if (ret)
 		return ret;
 
-	if (image_type == PLOOP_TYPE) {
+	if (image_fmt == PLOOP_FMT) {
 		if (open_delta(&d, top, O_RDWR, OD_ALLOW_DIRTY) == 0 && di) {
 			ret = save_cbt(di, device, &d);
 			if (ret)
@@ -2587,7 +2587,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 			rmdir(mnt);
 	}
 
-	if (image_type == PLOOP_TYPE && d.hdr0) {
+	if (image_fmt == PLOOP_FMT && d.hdr0) {
 		vh = (struct ploop_pvd_header *) d.hdr0;
 		if (vh->m_DiskInUse == SIGNATURE_DISK_IN_USE) {
 			ret = clear_delta(&d);
@@ -2666,7 +2666,7 @@ int get_image_param_offline(struct ploop_disk_images_data *di,
 		*size = st.st_size / SECTOR_SIZE;
 		*version = PLOOP_FMT_UNDEFINED;
 		*blocksize = di->blocksize;
-	} else if (di->runtime->image_type == QCOW_TYPE) {
+	} else if (di->runtime->image_fmt == QCOW_FMT) {
 		*size = di->size;
 		*version = 0;
 		*blocksize = di->blocksize;
@@ -2730,7 +2730,7 @@ int ploop_grow_device(struct ploop_disk_images_data *di,
 	ploop_log(0, "Growing dev=%s size=%llu sectors (new size=%llu)",
 			device, (unsigned long long)size,
 			(unsigned long long)new_size);
-	if (di->runtime->image_type == QCOW_TYPE)
+	if (di->runtime->image_fmt == QCOW_FMT)
 		rc = qcow_grow_device(di, top, device, new_size);
 	else
 		rc = grow_device(di, top, device, blocksize, new_size);
