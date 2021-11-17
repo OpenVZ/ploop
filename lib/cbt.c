@@ -887,14 +887,14 @@ int send_dirty_bitmap_to_kernel(struct ext_context *ctx, int devfd,
 	if (raw == NULL)
 		return 0;
 
-	if (open_delta(&delta, img_name, O_RDWR, OD_ALLOW_DIRTY))
+	if (open_delta(&delta, img_name, O_RDONLY|O_DIRECT, OD_ALLOW_DIRTY))
 		return SYSEXIT_OPEN;
 
 	vh = (struct ploop_pvd_header *)delta.hdr0;
 
 	/* granularity and uuid */
 	if ((ret = cbt_start(devfd, raw->m_Id, raw->m_Granularity * SECTOR_SIZE)))
-		return ret;
+		goto out;
 
 	block_size = vh->m_Sectors * SECTOR_SIZE;
 

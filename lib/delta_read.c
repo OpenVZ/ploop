@@ -87,7 +87,7 @@ int open_delta_simple(struct delta * delta, const char * path, int rw, int od_fl
 	delta->l2 = NULL;
 
 	ploop_log(0, "Opening delta %s", path);
-	delta->fd = open(path, rw, 0600);
+	delta->fd = open(path, rw|O_CLOEXEC, 0600);
 	if (delta->fd < 0) {
 		ploop_err(errno, "open %s", path);
 		return -1;
