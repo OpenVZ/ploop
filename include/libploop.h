@@ -79,8 +79,8 @@ enum ploop_create_flags {
 };
 
 enum ploop_image_type {
-	PLOOP_TYPE	= 0,
-	QCOW_TYPE	= 1,
+	PLOOP_FMT	= 0,
+	QCOW_FMT	= 1,
 };
 
 struct ploop_create_param {
@@ -95,6 +95,7 @@ struct ploop_create_param {
 	unsigned int flags;
 	const char *keyid;
 	char *fslabel;
+	int image_fmt;
 	char dummy[32];
 };
 

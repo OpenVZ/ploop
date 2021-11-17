@@ -471,14 +471,14 @@ static int display_entry(struct dm_task *task, struct table_data *data)
 	return 0;
 }
 
-static int get_image_type(const char *str)
+static int get_image_fmt(const char *str)
 {
 	if (str == NULL)
 		return -1;
 	if (strcmp(str, "ploop") == 0)
-		return PLOOP_TYPE;
+		return PLOOP_FMT;
 	if (strcmp(str, "qcow2") == 0)
-		return QCOW_TYPE;
+		return QCOW_FMT;
 	return -1;
 }
 
@@ -511,7 +511,7 @@ static int dm_table(const char *devname, table_fn f, struct table_data *data)
 	do {
 		next = dm_get_next_target(d, next, &start, &length,
 				&target_type, &params);
-		int t = get_image_type(target_type);
+		int t = get_image_fmt(target_type);
 		if (t != -1) {
 			if (data) {
 				data->params = params;
@@ -594,7 +594,7 @@ static int get_params(struct dm_task *task, struct table_data *data)
 	data->version = PLOOP_FMT_UNDEFINED;
 	data->blocksize = 0;
 	switch (data->target_type) {
-	case PLOOP_TYPE:
+	case PLOOP_FMT:
 		n = sscanf(data->params, "%d %2s %d", &data->ndelta, v, &data->blocksize);
 		if (n != 3) {
 			ploop_err(0, "malformed ploop params '%s'", data->params);
@@ -603,9 +603,11 @@ static int get_params(struct dm_task *task, struct table_data *data)
 		if (!strcmp(v, "v2"))
 			data->version = PLOOP_FMT_V2;
 		break;
-	case QCOW_TYPE:
-		n = sscanf(data->params, "%d %d", &data->ndelta, &data->blocksize);
-		if (n != 2) {
+	case QCOW_FMT:
+//		n = sscanf(data->params, "%d %d", &data->ndelta, &data->blocksize);
+		n = sscanf(data->params, "%d", &data->ndelta);
+		data->blocksize = 2048;
+		if (n != 1) {
 			ploop_err(0, "malformed qcow params '%s'", data->params);
 			return -1;
 		}
@@ -688,7 +690,7 @@ int dm_remove(const char *devname, int tm_sec)
 
 int get_image_param_online(struct ploop_disk_images_data *di,
 		const char *devname, char **top, off_t *size,
-		__u32 *blocksize, int *version, int *image_type)
+		__u32 *blocksize, int *version, int *image_fmt)
 {
 	int rc;
 	struct table_data d = {};
@@ -706,8 +708,8 @@ int get_image_param_online(struct ploop_disk_images_data *di,
 		if (rc)
 			return rc;
 	}
-	if (image_type)
-		*image_type = d.target_type;
+	if (image_fmt)
+		*image_fmt = d.target_type;
 	if (top && d.ndelta &&  dm_get_delta_name(devname, d.ndelta-1, top)) {
 		ploop_err(0, "dm_get_delta_name");
 		return SYSEXIT_SYS;
@@ -806,7 +808,7 @@ int find_dev_by_delta(const char *delta, char *out, int len)
 }
 
 int do_reload(const char *device, char **images, __u32 blocksize, off_t new_size,
-		int image_type, int flags)
+		int image_fmt, int flags)
 {
 	int rc, *fds, i, j, n = 0;
 	char t[PATH_MAX];
@@ -823,7 +825,7 @@ int do_reload(const char *device, char **images, __u32 blocksize, off_t new_size
 	fds = alloca(n * sizeof(int));
 	p = t;
 	e = p + sizeof(t);
-	if (image_type == PLOOP_TYPE)
+	if (image_fmt == PLOOP_FMT)
 		p += snprintf(p, e-p, "0 %lu ploop %d",
 			new_size, ffs(blocksize)-1);
 	else
@@ -879,7 +881,7 @@ int dm_reload(struct ploop_disk_images_data *di, const char *device,
 	}
 
 	rc = do_reload(device, images, di->blocksize, new_size,
-			di->runtime->image_type, flags);
+			di->runtime->image_fmt, flags);
 
 	if (!(flags & RELOAD_SKIP_SUSPEND))
 		rc1 = ploop_resume_device(device);
@@ -917,7 +919,7 @@ static int dm_tg_reload(const char *dev, const char *dev2,
  */
 int ploop_tg_init(const char *dev, const char *tg, struct ploop_tg_data *out)
 {
-	int rc, image_type, minor;
+	int rc, image_fmt, minor;
 	__u32 blocksize;
 	off_t size;
 	char *p, **images = NULL;
@@ -929,7 +931,7 @@ int ploop_tg_init(const char *dev, const char *tg, struct ploop_tg_data *out)
 	rc = get_part_devname_from_sys(dev, devname, sizeof(devname), part, sizeof(part));
 	if (rc)
 		return rc;
-	rc = get_image_param_online(NULL, dev, NULL, &size, &blocksize, NULL, &image_type);
+	rc = get_image_param_online(NULL, dev, NULL, &size, &blocksize, NULL, &image_fmt);
 	if (rc)
 		return rc;
 
@@ -989,7 +991,7 @@ err:
 	return rc;
 
 err_reload:
-	if (do_reload(dev, images, blocksize, size, image_type, 0) == 0)
+	if (do_reload(dev, images, blocksize, size, image_fmt, 0) == 0)
 		dm_remove(devtg, PLOOP_UMOUNT_TIMEOUT);
 
 	goto err;
@@ -997,7 +999,7 @@ err_reload:
 
 int ploop_tg_deinit(const char *devtg, struct ploop_tg_data *data)
 {
-	int rc, image_type;
+	int rc, image_fmt;
 	__u32 blocksize;
 	off_t size;
 	char *p, **images = NULL;
@@ -1014,7 +1016,7 @@ int ploop_tg_deinit(const char *devtg, struct ploop_tg_data *data)
 	if (rc)
 		return rc;
 
-	rc = get_image_param_online(NULL, devtg, NULL, &size, &blocksize, NULL, &image_type);
+	rc = get_image_param_online(NULL, devtg, NULL, &size, &blocksize, NULL, &image_fmt);
 	if (rc)
 		return rc;
 
@@ -1034,7 +1036,7 @@ int ploop_tg_deinit(const char *devtg, struct ploop_tg_data *data)
 	if (rc)
 		goto err;
 
-	rc = do_reload(dev, images, blocksize, size, image_type, 0);
+	rc = do_reload(dev, images, blocksize, size, image_fmt, 0);
 	if (rc)
 		goto err;
 

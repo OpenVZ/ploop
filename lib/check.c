@@ -793,7 +793,7 @@ int check_deltas_live(struct ploop_disk_images_data *di, const char *device)
 	if (di == NULL)
 		return 0;
 
-	if (di->runtime->image_type == QCOW_TYPE) {
+	if (di->runtime->image_fmt == QCOW_FMT) {
 		if (device == NULL)
 			return qcow_check(di);
 		else

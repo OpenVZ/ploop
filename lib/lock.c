@@ -191,7 +191,7 @@ int ploop_lock_di(struct ploop_disk_images_data *di)
 	if (di == NULL)
 		return 0;
 
-	if (di->runtime->image_type == QCOW_TYPE) {
+	if (di->runtime->image_fmt == QCOW_FMT) {
 		snprintf(fname, sizeof(fname), "%s", di->runtime->xml_fname);
 	} else {
 		if (ploop_read_dd(di))

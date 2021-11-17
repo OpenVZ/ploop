@@ -544,7 +544,7 @@ int read_dd(struct ploop_disk_images_data *di)
 		return -1;
 	}
 
-	if (di->runtime->image_type == QCOW_TYPE)
+	if (di->runtime->image_fmt == QCOW_FMT)
 		return 0;
 
 	ploop_clear_dd(di);
@@ -693,7 +693,7 @@ int store_diskdescriptor(const char *fname, struct ploop_disk_images_data *di,
 	char basedir[PATH_MAX];
 	FILE *fp = NULL;
 
-	if (di->runtime->image_type == QCOW_TYPE)
+	if (di->runtime->image_fmt == QCOW_FMT)
 		return 0;
 
 	ploop_log(0, "Storing %s", fname);

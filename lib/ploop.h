@@ -184,7 +184,7 @@ struct ploop_disk_images_runtime_data {
 	char *xml_fname;
 	char *component_name;
 	int umount_timeout;
-	int image_type;
+	int image_fmt;
 };
 
 struct dump2fs_data {

@@ -75,13 +75,14 @@ static void usage_summary(void)
 static void usage_init(void)
 {
 	fprintf(stderr,
-"Usage: ploop init -s SIZE [-f FORMAT] [-v VERSION] [-t FSTYPE]\n"
+"Usage: ploop init -s SIZE [-f FORMAT] [-v VERSION] [-t FSTYPE] [-T IMAGEFMT]\n"
 "                 [-b BLOCKSIZE] [-B FSBLOCKSIZE] [-L LABEL] [-n|--nolazy] [-k KEY] DELTA | DEVICE\n"
 "\n"
 "       SIZE        := NUMBER[KMGT]\n"
 "       FORMAT      := " USAGE_FORMATS "\n"
 "       VERSION     := " USAGE_VERSIONS "\n"
 "       FSTYPE      := { none | ext3 | ext4 } (create filesystem, default ext4)\n"
+"       IMAGEFMT    := { ploop | qcow } image format, default ploop)\n"
 "       BLOCKSIZE   := cluster block size, sectors\n"
 "       FSBLOCKSIZE := file system block size, bytes\n"
 "       LABEL       := label for the filesystem\n"
@@ -121,7 +122,7 @@ static int plooptool_init(int argc, char **argv)
 		{},
 	};
 
-	while ((i = getopt_long(argc, argv, "s:b:B:f:t:L:v:nSk:P",
+	while ((i = getopt_long(argc, argv, "s:b:B:f:t:L:v:nSk:PT:",
 					long_opts, NULL)) != EOF) {
 		switch (i) {
 		case 's':
@@ -187,6 +188,18 @@ static int plooptool_init(int argc, char **argv)
 			break;
 		case 'P':
 			param.without_partition = 1;
+			break;
+		case 'T':
+			if (!strcmp(optarg, "qcow2"))
+				param.image_fmt = QCOW_FMT;
+			else if (!strcmp(optarg, "ploop"))
+				param.image_fmt = PLOOP_FMT;
+			else {
+				fprintf(stderr, "Incorrect image format "
+						"specified: %s\n", optarg);
+				return SYSEXIT_PARAM;
+			}
+
 			break;
 		default:
 			usage_init();
@@ -316,7 +329,7 @@ static int plooptool_mount(int argc, char **argv)
 		return SYSEXIT_PARAM;
 	}
 
-	if (argc == 1 && is_xml_fname(argv[0]))
+	if (argc == 1)
 	{
 		struct ploop_disk_images_data *di;
 		ret = ploop_open_dd(&di, argv[0]);
@@ -549,7 +562,7 @@ static int plooptool_umount(int argc, char **argv)
 			return SYSEXIT_PARAM;
 		}
 		ret = ploop_umount(device, NULL);
-	} else if (is_xml_fname(argv[0])) {
+	} else {
 		struct ploop_disk_images_data *di;
 		ret = ploop_open_dd(&di, argv[0]);
 		if (ret)
@@ -561,9 +574,6 @@ static int plooptool_umount(int argc, char **argv)
 		ret = ploop_umount_image(di);
 
 		ploop_close_dd(di);
-	} else {
-		usage_umount();
-		return SYSEXIT_PARAM;
 	}
 
 	return ret;
@@ -673,20 +683,15 @@ static int plooptool_snapshot(int argc, char **argv)
 		return SYSEXIT_PARAM;
 	}
 
-	if (is_xml_fname(argv[0])) {
-		struct ploop_disk_images_data *di;
-		ret = ploop_open_dd(&di, argv[0]);
-		if (ret)
-			return ret;
+	struct ploop_disk_images_data *di;
+	ret = ploop_open_dd(&di, argv[0]);
+	if (ret)
+		return ret;
 
-		ret = offline ? ploop_create_snapshot_offline(di, &param) :
-			ploop_create_snapshot(di, &param);
+	ret = offline ? ploop_create_snapshot_offline(di, &param) :
+		ploop_create_snapshot(di, &param);
 
-		ploop_close_dd(di);
-	} else {
-		usage_snapshot();
-		return SYSEXIT_PARAM;
-	}
+	ploop_close_dd(di);
 
 	return ret;
 }
@@ -726,7 +731,7 @@ static int plooptool_tsnapshot(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if (argc != 1 || !is_xml_fname(argv[0]) ||
+	if (argc != 1 ||
 			param.guid == NULL ||
 			param.component_name == NULL) {
 		usage_tsnapshot();
@@ -777,7 +782,7 @@ static int plooptool_snapshot_switch(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if (argc != 1 || !is_xml_fname(argv[0]) || uuid == NULL) {
+	if (argc != 1 || uuid == NULL) {
 		usage_snapshot_switch();
 		return SYSEXIT_PARAM;
 	}
@@ -821,7 +826,7 @@ static int plooptool_snapshot_delete(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if (argc != 1 || !is_xml_fname(argv[0]) || uuid == NULL) {
+	if (argc != 1 || uuid == NULL) {
 		usage_snapshot_delete();
 		return SYSEXIT_PARAM;
 	}
@@ -877,7 +882,7 @@ static int plooptool_snapshot_merge(int argc, char ** argv)
 		return SYSEXIT_PARAM;
 	}
 
-	if (argc == 1 && is_xml_fname(argv[0])) {
+	if (argc == 1) {
 		struct ploop_disk_images_data *di;
 		ret = ploop_open_dd(&di, argv[0]);
 		if (ret)
@@ -1088,7 +1093,7 @@ static int plooptool_info(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if (argc != 1 || !is_xml_fname(argv[0])) {
+	if (argc != 1) {
 		usage_info();
 		return SYSEXIT_PARAM;
 	}
