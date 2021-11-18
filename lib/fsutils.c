@@ -436,6 +436,9 @@ int e2fsck(const char *device, int flags, int *rc)
 		arg[i++] = "-y";
 	if (flags & E2FSCK_FORCE)
 		arg[i++] = "-f";
+	if (flags & E2FSCK_RO)
+		arg[i++] = "-n";
+
 	arg[i++] = (char *)device;
 	arg[i++] = NULL;
 
