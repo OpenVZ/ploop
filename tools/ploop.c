@@ -1510,6 +1510,34 @@ static int plooptool_encrypt(int argc, char **argv)
 	return ret;
 }
 
+static void usage_fscheck(void)
+{
+	fprintf(stderr, "Usage: ploop fscheck DiskDescriptor.xml\n");
+}
+
+static int plooptool_fscheck(int argc, char **argv)
+{
+	int ret;
+	struct ploop_disk_images_data *di;
+
+	argv += optind;
+
+	if (argc != 2) {
+		usage_fscheck();
+		return SYSEXIT_PARAM;
+	}
+
+	ret = ploop_open_dd(&di, argv[0]);
+	if (ret)
+		return ret;
+
+	ret = ploop_fscheck(di);
+
+	ploop_close_dd(di);
+
+	return ret;
+}
+
 int main(int argc, char **argv)
 {
 	char * cmd;
@@ -1589,6 +1617,8 @@ int main(int argc, char **argv)
 		return plooptool_info(argc, argv);
 	if (strcmp(cmd, "list") == 0)
 		return plooptool_list(argc, argv);
+	if (strcmp(cmd, "fscheck") == 0)
+		return plooptool_fscheck(argc, argv);
 	if (strcmp(cmd, "check") == 0)
 		return plooptool_check(argc, argv);
 	if (strcmp(cmd, "fsck") == 0) {

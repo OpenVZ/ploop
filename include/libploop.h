@@ -42,6 +42,7 @@ enum e2fsck_flags {
 	E2FSCK_PREEN    = 1 << 0, /* -p */
 	E2FSCK_FORCE    = 1 << 1, /* -f */
 	E2FSCK_FORCE_REPAIR     = 1 << 2, /* -y */
+	E2FSCK_RO	= 1 << 3, /* -n */
 };
 
 struct ploop_mount_param {
