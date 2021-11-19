@@ -1484,54 +1484,21 @@ int get_dev_tg_name(const char *devname, const char *tg,
 	return minor;
 }
 
-static int ploop_path_to_blockdev_name(const char *ploop_path, char *out, int size)
-{
-	int minor, n;
-
-	errno = 0;
-	n = sscanf(get_basename(ploop_path), "ploop%d", &minor);
-	if (n != 1) {
-		if (errno)
-			ploop_err(errno, "Failed to parse ploop_path '%s'",
-				ploop_path);
-		else
-			ploop_log(1, "Unexpected ploop path format: '%s'",
-				ploop_path);
-		return -1;
-	}
-
-	n = snprintf(out, size, "dm-%d", minor);
-	if (n == -1) {
-		ploop_err(errno, "Failed to generate blockdev name for minor %d",
-			minor);
-		return -1;
-	} else if (n >= size) {
-		ploop_log(1, "Failed to generate blockdev name, buf size too small");
-		return -1;
-	}
-
-	return 0;
-}
-
 static int blockdev_set_untrusted(const char *devname)
 {
-	int fd = -1;
-	int rc;
+	int fd;
 	char pathbuf[128];
 	char buf[2] = { '0', '\n' };
-	char blockdev_name[64];
+	struct stat st;
 
-	if (ploop_path_to_blockdev_name(devname, blockdev_name, sizeof(blockdev_name)))
-		return -1;
-
-	rc = snprintf(pathbuf, sizeof(pathbuf), "/sys/block/%s/vz_trusted_exec",
-		blockdev_name);
-	if (rc == -1 || rc >= sizeof(pathbuf)) {
-		ploop_log(1, "Failed to generate blockdev path for %s",
-			devname);
-		return -1;
+	ploop_log(3, "Set untrusted %s", devname);
+	if (stat(devname, &st)) {
+		ploop_err(errno, "CAn't stat %s", devname);
+		return SYSEXIT_FSTAT;
 	}
 
+	snprintf(pathbuf, sizeof(pathbuf), "/sys/dev/block/%d:%d/vz_trusted_exec",
+			major(st.st_rdev), minor(st.st_rdev));
 	fd = open(pathbuf, O_WRONLY);
 	if (fd == -1) {
 		ploop_err(errno, "Can't open %s for write",
@@ -1606,13 +1573,6 @@ int add_delta(char **images,  char *devname, int minor, int blocksize,
 	if (rc)
 		goto err;
 
-	/*
-	 * Disallow accidental code execution from a newly created block device
-	 * from an image.
-	 */
-	rc = blockdev_set_untrusted(devname);
-	if (rc)
-		goto err;
 
 err:
 	close_delta(&d);
@@ -2280,6 +2240,13 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 
 	ret = get_part_devname(di, param->device, devname, sizeof(devname),
 			partname, sizeof(partname));
+	if (ret)
+		goto err_stop;
+	/*
+	 * Disallow accidental code execution from a newly created block device
+	 * from an image.
+	 */
+	ret = blockdev_set_untrusted(partname);
 	if (ret)
 		goto err_stop;
 
