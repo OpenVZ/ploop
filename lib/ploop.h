@@ -316,6 +316,7 @@ int check_deltas(struct ploop_disk_images_data *di, char **images,
 int check_deltas_live(struct ploop_disk_images_data *di, const char *device);
 PL_EXT int check_dd(struct ploop_disk_images_data *di, const char *uuid,
 		int flags);
+PL_EXT int ploop_fscheck(struct ploop_disk_images_data *di);
 /* Logging */
 #define LOG_BUF_SIZE	8192
 int ploop_get_log_level(void);

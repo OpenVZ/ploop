@@ -856,3 +856,45 @@ out:
 
 	return ret;
 }
+
+int ploop_fscheck(struct ploop_disk_images_data *di)
+{
+	int ret;
+	char devname[64];
+	char partname[64];
+	int holder_fd = -1;
+	char uuid[39];
+	int failed = 0;
+	struct ploop_tsnapshot_param s = {
+		.component_name = "ploop.fscheck",
+		.guid = uuid,
+	};
+
+	ret = ploop_uuid_generate(uuid, sizeof(uuid));
+	if (ret)
+		return ret;
+
+	ret = ploop_create_temporary_snapshot(di, &s, &holder_fd);
+	if (ret)
+		return ret;
+
+	ret = get_part_devname_from_sys(s.device, devname, sizeof(devname),
+			partname, sizeof(partname));
+	if (ret)
+		goto err;
+
+	ploop_log(0, "Checking fs on %s...", partname);
+	if (fsck(partname, E2FSCK_FORCE|E2FSCK_RO, NULL))
+		failed = 1;
+
+err:
+	close(holder_fd);
+	ploop_umount(s.device, NULL);
+	ploop_delete_snapshot(di, uuid);
+	if (failed)
+		ploop_err(0, "File system check failed");
+	else
+		ploop_log(0, "No error found on %s", partname);
+
+	return ret;
+}

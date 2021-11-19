@@ -598,6 +598,9 @@ static int fsck_ext4(const char *device, int flags, int *rc)
 		arg[i++] = "-y";
 	if (flags & E2FSCK_FORCE)
 		arg[i++] = "-f";
+	if (flags & E2FSCK_RO)
+		arg[i++] = "-n";
+
 	arg[i++] = (char *)device;
 	arg[i++] = NULL;
 
@@ -619,11 +622,17 @@ static int fsck_ext4(const char *device, int flags, int *rc)
 
 static int fsck_xfs(const char *device, int flags, int *rc)
 {
-	char *arg[] = {"xfs_repair", "-L", (char *)device, NULL};
-	int ret;
+	char *arg[5] = {"xfs_repair", "-L",};
+	int ret, i = 2;
 
-	if (!(flags & E2FSCK_FORCE))
+
+	if (flags & E2FSCK_RO)
+		arg[i++] = "-n";
+	else if (!(flags & E2FSCK_FORCE))
 		return 0;
+
+	arg[i++] = (char *) device;
+	arg[i] = NULL;
 
 	if (run_prg_rc(arg, NULL, HIDE_STDOUT, &ret))
 		return SYSEXIT_FSCK;
