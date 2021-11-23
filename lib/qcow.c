@@ -63,6 +63,9 @@ struct qcow_info {
 	int cluster_size;
 };
 
+
+#define QEMU_IMAGE_NAME "driver=qcow2,file.driver=file,file.filename=%s,file.locking=off"
+
 int qcow_create(const char *image, struct ploop_create_param *param)
 {
 	int rc;
@@ -187,7 +190,7 @@ static int do_qcow_check(const char *image)
 	if (image == NULL)
 		return SYSEXIT_PARAM;
 
-	snprintf(opts, sizeof(opts), "driver=qcow2,file.driver=file,file.filename=%s,file.locking=off", image);
+	snprintf(opts, sizeof(opts), QEMU_IMAGE_NAME, image);
 	/*
 	 * 0   Check completed, the image is (now) consistent
 	 * 1   Check not completed because of internal errors
@@ -341,8 +344,10 @@ err:
 
 static int do_snapshot(const char *image, const char *action, const char *guid)
 {
-	char *a[] = {"qemu-img", "snapshot", (char *) action, (char*) guid, (char*) image, NULL};
+	char opts[PATH_MAX];
+	char *a[] = {"qemu-img", "snapshot", (char *) action, (char*) guid, "--image-opts", opts, NULL};
 
+	snprintf(opts, sizeof(opts), QEMU_IMAGE_NAME, image);
 	if (run_prg(a)) {
 		ploop_err(0, "Failed to snapshot %s", guid);
 		return SYSEXIT_SYS;
