@@ -423,7 +423,7 @@ static int blk_discard(int fd, __u32 cluster, __u64 start, __u64 len)
 	return 0;
 }
 
-static int wait_pid(pid_t pid, const char *mes, const volatile int *stop)
+int wait_pid(pid_t pid, const char *mes, const volatile int *stop)
 {
 	int err, status;
 	int flags = stop != NULL ? WNOHANG : 0;
@@ -527,25 +527,22 @@ int get_dev_and_mnt(struct ploop_disk_images_data *di, pid_t pid,
 	if (r == 0) {
 		ret = auto_mount_fs(di, pid, partname, &m);
 		if (ret)
-			return ret;
+			goto err;
 		*mounted = 1;
 	} else {
 		ret = auto_mount_image(di, &m);
 		if (ret)
-			return ret;
+			goto err;
 		snprintf(dev, dev_len, "%s", m.device);
 		*mounted = 2;
 	}
-	if (ret)
-		return ret;
-
 	snprintf(mnt, mnt_len, "%s", m.target);
 
+err:
 	free_mount_param(&m);
-	return 0;
+
+	return ret;
 }
-
-
 
 int ploop_discard_by_dev(const char *device, const char *mount_point,
 		__u64 minlen_b, __u64 to_free, const volatile int *stop)
