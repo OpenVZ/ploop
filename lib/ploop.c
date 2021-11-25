@@ -35,8 +35,10 @@
 #include <sys/syscall.h>
 #include <mntent.h>
 #include <ext2fs/ext2_fs.h>
+#include <linux/mount.h>
 #include <stdint.h>
 #include <time.h>
+#include <sched.h>
 
 #include "ploop.h"
 #include "cleanup.h"
@@ -1147,10 +1149,7 @@ int get_mount_dir(const char *device, int pid, char *out, int size)
 		if (_major == major && _minor == minor)	{
 			if (out != NULL) {
 				unmangle_to_buffer(target, buf, sizeof(buf));
-				if (pid > 0)
-					snprintf(out, size, "/proc/%d/root/%s", pid, buf);
-				else
-					snprintf(out, size, "%s", buf);
+				snprintf(out, size, "%s", buf);
 			}
 			ret = 0;
 			break;
@@ -2307,13 +2306,116 @@ static int do_mount(const char *part, const char *target)
 		.target = (char *) target,
 	};
 
-	if (ploop_mount_fs(part, &param))
+	if (mount_fs(NULL, part, &param))
 		return SYSEXIT_MOUNT;
 
 	return 0;
 }
 
-int auto_mount_fs(struct ploop_disk_images_data *di, pid_t pid,
+
+static int open_tree(int dirfd, const char *pathname, unsigned int flags)
+{
+	return syscall(428, dirfd, pathname, flags);
+}
+
+static int move_mount(int from_dirfd, const char *from_pathname, int to_dirfd,
+		const char *to_pathname, unsigned int flags)
+{
+	return syscall(429, from_dirfd, from_pathname, to_dirfd, to_pathname, flags);
+}
+
+static int do_mount_ns(const char *src_mnt, const char *dst_mnt, int pid, const char *devname)
+{
+	char path[PATH_MAX];
+	char fname[PATH_MAX];
+	int fd = -1, src_nsfd = -1, nsfd = -1;
+	const char *self = "/proc/self/ns/mnt";
+	struct stat st;
+
+	ploop_log(3, "Mounting %s into %s\n", src_mnt, dst_mnt);
+	nsfd = open(self, O_RDONLY);
+	if (nsfd == -1) {
+		ploop_err(errno, "Can't open %s", self);
+		return 1;
+	}
+
+	snprintf(path, sizeof(path), "/proc/%d/ns/mnt", pid);
+	src_nsfd = open(path, O_RDONLY);
+	if (src_nsfd == -1) {
+		ploop_err(errno, "Can't open src ns %s", path);
+		goto err;
+	}
+
+	if (setns(src_nsfd, CLONE_NEWNS)) {
+		ploop_err(errno, "setns src");
+		goto err;
+	}
+	close(src_nsfd);
+	src_nsfd = -1;
+
+	fd = open_tree(AT_FDCWD, src_mnt, OPEN_TREE_CLONE);
+	if (fd == -1) {
+		ploop_err(errno, "Can't src open_tree %s", src_mnt);
+		goto err;
+	}
+
+	if (setns(nsfd, CLONE_NEWNS)) {
+		ploop_err(errno, "setns ns");
+		goto err;
+	}
+	close(nsfd);
+	nsfd = -1;
+
+	snprintf(path, sizeof(path), "/proc/self/fd/%d", fd);
+	if (mount(NULL, path, NULL, MS_PRIVATE, NULL)) {
+		ploop_err(errno, "Can't mount private");
+		goto err;
+	}
+
+
+	if (move_mount(fd, "", AT_FDCWD, dst_mnt, MOVE_MOUNT_F_EMPTY_PATH)) {
+		ploop_err(errno, "Can't move_mount");
+		goto err;
+	}
+
+	// WA #PSBM-133521
+	snprintf(fname, sizeof(fname), "%s/"BALLOON_FNAME, path);
+	if (stat(fname, &st) == 0) {
+		char b[64];
+		snprintf(b, sizeof(b), "balloon_ino=%lu", st.st_ino);
+		if (mount(devname, path, NULL, MS_REMOUNT, b)) {
+			ploop_err(errno, "Can't remount");
+			goto err;
+		}
+	}
+
+	close(fd);
+
+	return 0;
+err:
+	close(fd);
+	close(src_nsfd);
+	close(nsfd);
+
+	return 1;
+}
+
+static int mount_ns(const char *src_mnt, const char *dst_mnt, int ns_pid, const char *devname)
+{
+	int p;
+
+	p = fork();
+	if (p == -1) {
+		ploop_err(errno, "Can't fork");
+		return SYSEXIT_SYS;
+	} else if (p == 0) {
+		_exit(do_mount_ns(src_mnt, dst_mnt, ns_pid, devname));
+	}
+
+	return wait_pid(p, "mount_ns", NULL);
+}
+
+int auto_mount_fs(struct ploop_disk_images_data *di, pid_t ns_pid,
 		const char *partname, struct ploop_mount_param *param)
 {
 	int ret;
@@ -2325,12 +2427,15 @@ int auto_mount_fs(struct ploop_disk_images_data *di, pid_t pid,
 
 	param->target = strdup(target);
 
-	if (pid) {
-		ret = get_mount_dir(partname, pid, NULL, 0);
+	if (ns_pid) {
+		char src[PATH_MAX];
+
+		ret = get_mount_dir(partname, ns_pid, src, sizeof(src));
 		if (ret < 0)
 			return SYSEXIT_SYS;
 		if (ret == 0)
-			return do_mount(partname, target);
+			return mount_ns(src, target, ns_pid, partname);
+		return do_mount(partname, target);
 	}
 
 	ret = mount_fs(di, partname, param);
@@ -2895,6 +3000,8 @@ int ploop_resize_image(struct ploop_disk_images_data *di,
 
 	ret = get_dev_and_mnt(di, param->mntns_pid,  1, dev, sizeof(dev),
 			buf, sizeof(buf), &mounted);
+	if (ret)
+		return ret;
 
 	if (!mounted) {
 		ret = check_deltas_live(di, dev);

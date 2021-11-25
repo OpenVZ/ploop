@@ -919,7 +919,7 @@ static int plooptool_resize(int argc, char **argv)
 	char fname[PATH_MAX];
 	char *dev_name;
 
-	while ((i = getopt(argc, argv, "s:bo")) != EOF) {
+	while ((i = getopt(argc, argv, "s:bop:")) != EOF) {
 		switch (i) {
 		case 's':
 			if (parse_size(optarg, &new_size, "-s")) {
@@ -933,6 +933,9 @@ static int plooptool_resize(int argc, char **argv)
 			break;
 		case 'o':
 			param.offline_resize = 0;
+			break;
+		case 'p':
+			param.mntns_pid = atoi(optarg);
 			break;
 		default:
 			usage_resize();
