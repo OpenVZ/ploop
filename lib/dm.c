@@ -672,10 +672,14 @@ static int do_wait_for_open_count(const char *devname, int remove, int tm_sec)
 			wait = maxwait;
 		clock_gettime(CLOCK_MONOTONIC, &ts);
 	} while (ts.tv_sec < end);
-	ploop_err(0, "Wait for %s open_count=0 failed: timeout has expired",
-					devname);
-	return SYSEXIT_SYS;
 
+	if (i.open_count)
+		ploop_err(0, "Wait for %s open_count failed: timeout %d has expired",
+					devname, tm_sec);
+	else
+		ploop_err(EBUSY, "Can't remove device %s", devname);
+
+	return SYSEXIT_SYS;
 }
 
 int wait_for_open_count(const char *devname, int tm_sec)

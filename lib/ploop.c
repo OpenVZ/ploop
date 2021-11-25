@@ -60,6 +60,11 @@ static off_t round_bdsize(off_t size, __u32 blocksize, int version)
 	return ROUNDUP(size, blocksize);
 }
 
+static int get_umount_tm(struct ploop_disk_images_data *di)
+{
+	return di ? di->runtime->umount_timeout : PLOOP_UMOUNT_TIMEOUT;
+}
+
 int get_part_devname(struct ploop_disk_images_data *di,
 		const char *device, char *devname, int dlen,
 		char *partname, int plen)
@@ -1059,7 +1064,6 @@ static int ploop_stop(const char *devname,
 {
 	int rc;
 	char partname[64];
-	int tm = di ? di->runtime->umount_timeout : PLOOP_UMOUNT_TIMEOUT;
 
 	ploop_log(0, "Unmounting device %s", devname);
 	rc = get_dev_from_sys(devname, "holders", partname, sizeof(partname));
@@ -1068,12 +1072,12 @@ static int ploop_stop(const char *devname,
 		return SYSEXIT_SYS;
 	} else if (rc == 0) {
 		dm_resume(partname);
-		rc = dm_remove(partname, tm);
+		rc = dm_remove(partname, get_umount_tm(di));
 		if (rc)
 			return rc;
 	}
 	dm_resume(devname);
-	return dm_remove(devname, tm);
+	return dm_remove(devname, get_umount_tm(di));
 }
 
 /* Convert escape sequences used in /proc/mounts, /etc/mtab
@@ -2537,7 +2541,7 @@ static int ploop_umount_fs(const char *mnt, struct ploop_disk_images_data *di)
 		store_statfs_info(mnt, di->images[0]->file);
 
 	ploop_log(0, "Unmounting file system at %s", mnt);
-	ret = do_umount(mnt, di ? di->runtime->umount_timeout : PLOOP_UMOUNT_TIMEOUT);
+	ret = do_umount(mnt, get_umount_tm(di));
 
 	return ret;
 }
@@ -2550,8 +2554,7 @@ static int save_cbt(struct ploop_disk_images_data *di, const char *device,
 	if (di->runtime->image_fmt == QCOW_FMT)
 		return 0;
 
-	ret = wait_for_open_count(device,
-			di ? di->runtime->umount_timeout : PLOOP_UMOUNT_TIMEOUT);
+	ret = wait_for_open_count(device, get_umount_tm(di));
 	if (ret)
 		return ret;
 
@@ -2624,7 +2627,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 
 		last = strcmp(devname, partname) == 0;
 		if (!last) {
-			ret = dm_remove(partname, PLOOP_UMOUNT_TIMEOUT);
+			ret = dm_remove(partname, get_umount_tm(di));
 			if (ret)
 				return ret;
 		}
