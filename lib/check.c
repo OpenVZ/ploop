@@ -579,7 +579,7 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 	if (stb.st_size % cluster) {
 		off_t size = ROUNDUP(stb.st_size, cluster);
 
-		ploop_err(0, "Image size %lu is not alligned to cluster %llu",
+		ploop_err(0, "Image size %lu is not aligned to cluster %llu",
 				stb.st_size, cluster);
 		if (!force || ro)
 			goto done;
