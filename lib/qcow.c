@@ -439,3 +439,26 @@ err:
 	return rc;
 }
 
+int qcow_switch_snapshot(struct ploop_disk_images_data *di,
+		const char *guid)
+{
+	int rc;
+	char dev[64];
+	const char *images[] = {find_image_by_guid(di, get_top_delta_guid(di)), NULL};
+
+	rc = ploop_find_dev_by_dd(di, dev, sizeof(dev));
+	if (rc == -1)
+		return SYSEXIT_SYS;
+	if (rc == 0) {
+		ploop_err(0, "Unable to perform switch to snapshot operation"
+				" on running device (%s)", dev);
+		return SYSEXIT_PARAM;
+	}
+
+	rc = do_snapshot(images[0], "-a", guid);
+	if (rc)
+		ploop_log(0, "Can't switch to snapshot %s", guid);
+	else
+		ploop_log(0, "ploop snapshot has been successfully switched");
+	return rc;
+}

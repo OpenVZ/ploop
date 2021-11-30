@@ -34,17 +34,6 @@
 /* lock temporary snapshot by mount */
 #define TSNAPSHOT_MOUNT_LOCK_MARK	"~"
 
-static int is_old_snapshot_format(struct ploop_disk_images_data *di)
-{
-	return 0;
-
-	if (di->top_guid != NULL && !guidcmp(di->top_guid, TOPDELTA_UUID))
-		return 0;
-
-	ploop_err(0, "Snapshot is in old format");
-	return 1;
-}
-
 /* delete snapshot by guid
  * 1) if guid is not active and last -> delete guid
  * 2) if guid is not last merge with child -> delete child
@@ -59,9 +48,6 @@ int do_delete_snapshot(struct ploop_disk_images_data *di, const char *guid)
 
 	if (di->runtime->image_fmt == QCOW_FMT)
 		return qcow_delete_snapshot(di, guid);
-
-	if (is_old_snapshot_format(di) || guid == NULL)
-		return SYSEXIT_PARAM;
 
 	snap_id = find_snapshot_by_guid(di, guid);
 	if (snap_id == -1) {
@@ -341,9 +327,6 @@ int do_create_snapshot(struct ploop_disk_images_data *di,
 		ploop_err(0, "Incorrect guid %s", guid);
 		return SYSEXIT_PARAM;
 	}
-
-	if (is_old_snapshot_format(di))
-		return SYSEXIT_PARAM;
 
 	ret = gen_uuid_pair(snap_guid, sizeof(snap_guid),
 			file_guid, sizeof(file_guid));
@@ -754,10 +737,13 @@ int ploop_switch_snapshot_ex(struct ploop_disk_images_data *di,
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
-	if (is_old_snapshot_format(di)) {
-		ret = SYSEXIT_PARAM;
-		goto err_cleanup1;
+	/* destroy precached info */
+	drop_statfs_info(di->images[0]->file);
 
+	if (di->runtime->image_fmt == QCOW_FMT) {
+		ret = qcow_switch_snapshot(di, guid);
+		ploop_unlock_dd(di);
+		return ret;
 	}
 
 	ret = SYSEXIT_PARAM;
@@ -854,9 +840,6 @@ int ploop_switch_snapshot_ex(struct ploop_disk_images_data *di,
 		ret = SYSEXIT_RENAME;
 		goto err_cleanup3;
 	}
-
-	/* destroy precached info */
-	drop_statfs_info(di->images[0]->file);
 
 	if (old_top_delta_fname != NULL) {
 		ploop_log(0, "Removing %s", old_top_delta_fname);

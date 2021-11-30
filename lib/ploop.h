@@ -614,4 +614,6 @@ int qcow_delete_snapshot(struct ploop_disk_images_data *di,
 		const char *guid);
 int qcow_grow_device(struct ploop_disk_images_data *di,
 		const char *image, const char *device, off_t size);
+int qcow_switch_snapshot(struct ploop_disk_images_data *di,
+		const char *guid);
 #endif
