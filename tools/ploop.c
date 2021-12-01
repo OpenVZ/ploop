@@ -1101,6 +1101,7 @@ static int plooptool_info(int argc, char **argv)
 		return SYSEXIT_PARAM;
 	}
 
+	ploop_set_verbose_level(PLOOP_LOG_NOCONSOLE);
 	if (spec || device) {
 		struct ploop_disk_images_data *di;
 
