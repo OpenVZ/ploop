@@ -1565,7 +1565,7 @@ int ploop_discard(struct ploop_disk_images_data *di,
 	}
 
 	if (!mounted) {
-		ret = check_deltas_live(di);
+		ret = check_deltas_live(di, dev);
 		if (ret) {
 			ploop_unlock_dd(di);
 			return ret;
@@ -1618,7 +1618,7 @@ out:
 		if (mounted) {
 			umnt(di, dev, mnt, mounted);
 		} else {
-			int rc = check_deltas_live(di);
+			int rc = check_deltas_live(di, dev);
 			if (ret == 0)
 				ret = rc;
 		}
