@@ -818,7 +818,7 @@ int check_deltas(struct ploop_disk_images_data *di, char **images,
 	return ret;
 }
 
-int check_deltas_live(struct ploop_disk_images_data *di)
+int check_deltas_live(struct ploop_disk_images_data *di, const char *devname)
 {
 	char **images;
 	__u32 blocksize;
@@ -835,6 +835,10 @@ int check_deltas_live(struct ploop_disk_images_data *di)
 	raw = (di->mode == PLOOP_RAW_MODE);
 
 	ret = check_deltas(di, images, raw, &blocksize, NULL, CHECK_LIVE);
+	if (ret && ploop_suspend_device(devname) == 0) {
+		ret = check_deltas(di, images, raw, &blocksize, NULL, CHECK_LIVE);
+		ploop_resume_device(devname);
+	}
 
 	ploop_free_array(images);
 

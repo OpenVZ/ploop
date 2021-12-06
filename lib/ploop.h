@@ -324,7 +324,7 @@ PL_EXT int ploop_check(const char *img, int flags, __u32 *blocksize_p,
 		int *cbt_allowed);
 int check_deltas(struct ploop_disk_images_data *di, char **images,
 		int raw, __u32 *blocksize, int *cbt_allowed, int flags);
-int check_deltas_live(struct ploop_disk_images_data *di);
+int check_deltas_live(struct ploop_disk_images_data *di, const char *devname);
 PL_EXT int check_dd(struct ploop_disk_images_data *di, const char *uuid,
 		int flags);
 PL_EXT int ploop_fscheck(struct ploop_disk_images_data *di);

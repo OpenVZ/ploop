@@ -2787,7 +2787,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 			rmdir(mnt);
 	}
 
-	return check_deltas_live(di);
+	return check_deltas_live(di, device);
 }
 
 int ploop_umount_image(struct ploop_disk_images_data *di)
@@ -3161,7 +3161,7 @@ int ploop_resize_image(struct ploop_disk_images_data *di, struct ploop_resize_pa
 		goto err;
 
 	if (!mounted) {
-		ret = check_deltas_live(di);
+		ret = check_deltas_live(di, dev);
 		if (ret)
 			goto err;
 	}
@@ -3376,7 +3376,7 @@ err:
 
 
 	if (!mounted) {
-		rc = check_deltas_live(di);
+		rc = check_deltas_live(di, dev);
 		if (ret == 0)
 			ret = rc;
 	} else
