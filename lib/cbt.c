@@ -482,6 +482,11 @@ int cbt_get_dirty_bitmap_metadata(int devfd, __u8 *uuid, __u32 *blksize)
 		return SYSEXIT_DEVIOC;
 	}
 
+	if (info.ci_blksize == 0) {
+		ploop_err(0, "BLKCBTGET: Invalid ci_blksize == 0");
+		return SYSEXIT_PARAM;
+	}
+
 	if (blksize != NULL)
 		*blksize = info.ci_blksize;
 
