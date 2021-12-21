@@ -31,6 +31,12 @@
 
 #include "ploop.h"
 
+enum {
+	PLOOP_TARGET,
+	QCOW_TARGET,
+	PUSH_BACKUP_TARGET,
+};
+
 int ploop_dm_message(const char *devname, const char *msg, char **out)
 {
 	struct dm_task *d;
@@ -476,9 +482,11 @@ static int get_image_fmt(const char *str)
 	if (str == NULL)
 		return -1;
 	if (strcmp(str, "ploop") == 0)
-		return PLOOP_FMT;
+		return PLOOP_TARGET;
 	if (strcmp(str, "qcow2") == 0)
-		return QCOW_FMT;
+		return QCOW_TARGET;
+	if (strcmp(str, "push_backup") == 0)
+		return PUSH_BACKUP_TARGET;
 	return -1;
 }
 
@@ -594,7 +602,7 @@ static int get_params(struct dm_task *task, struct table_data *data)
 	data->version = PLOOP_FMT_UNDEFINED;
 	data->blocksize = 0;
 	switch (data->target_type) {
-	case PLOOP_FMT:
+	case PLOOP_TARGET:
 		n = sscanf(data->params, "%d %2s %d", &data->ndelta, v, &data->blocksize);
 		if (n != 3) {
 			ploop_err(0, "malformed ploop params '%s'", data->params);
@@ -603,12 +611,20 @@ static int get_params(struct dm_task *task, struct table_data *data)
 		if (!strcmp(v, "v2"))
 			data->version = PLOOP_FMT_V2;
 		break;
-	case QCOW_FMT:
+	case QCOW_TARGET:
 //		n = sscanf(data->params, "%d %d", &data->ndelta, &data->blocksize);
 		n = sscanf(data->params, "%d", &data->ndelta);
 		data->blocksize = 2048;
 		if (n != 1) {
 			ploop_err(0, "malformed qcow params '%s'", data->params);
+			return -1;
+		}
+		break;
+	case PUSH_BACKUP_TARGET:
+		// 253:34256 2048 3600 active
+		n = sscanf(data->params, "%*d:%*d %*d %*d %63s", data->status);
+		if (n != 1) {
+			ploop_err(0, "malformed push_backup params '%s'", data->params);
 			return -1;
 		}
 		break;
