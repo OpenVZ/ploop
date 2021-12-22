@@ -543,8 +543,9 @@ int dump_xfs(const char *device, struct dump2fs_data *data)
 	char buf[512];
 	int found = 0;
 	FILE *fp;
+	uint64_t agcount = 1;
 
-	snprintf(buf, sizeof(buf), "LANG=C " DEF_PATH_ENV " xfs_info  %s", device);
+	snprintf(buf, sizeof(buf), "LANG=C " DEF_PATH_ENV " xfs_info %s", device);
 	fp = popen(buf, "r");
 	if (fp == NULL) {
 		ploop_err(0, "Failed %s", buf);
@@ -552,6 +553,8 @@ int dump_xfs(const char *device, struct dump2fs_data *data)
 	}
 
 	while (fgets(buf, sizeof(buf), fp) != NULL) {
+		sscanf(buf, "meta-data=%*s isize=%*d  agcount=%" SCNu64, &agcount);
+
 		if (sscanf(buf, "data = bsize=%u blocks=%" SCNu64,
 					&data->block_size, &data->block_count) == 2)
 		{
@@ -569,6 +572,8 @@ int dump_xfs(const char *device, struct dump2fs_data *data)
 		ploop_err(0, "Not enough data: from xfs_info %s", device);
 		return SYSEXIT_SYS;
 	}
+
+	data->block_count = data->block_count - (agcount * 8);
 
 	return 0;
 }
