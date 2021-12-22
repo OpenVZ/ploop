@@ -2671,7 +2671,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 		}
 	}
 
-	ret = check_deltas_live(di, device);
+	ret = check_deltas_live(di, NULL);
 err:
 
 	close_delta(&d);
