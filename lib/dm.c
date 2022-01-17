@@ -24,10 +24,19 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/sysmacros.h>
+#include <time.h>
+#include <pthread.h>
 
 #include <libdevmapper.h>
 
 #include "ploop.h"
+
+static pthread_mutex_t _s_dm_mutex;
+
+__attribute__((constructor)) void __init__(void)
+{
+	pthread_mutex_init(&_s_dm_mutex, NULL);
+}
 
 int ploop_dm_message(const char *devname, const char *msg, char **out)
 {
@@ -106,8 +115,13 @@ static int cmd(const char *devname, int cmd)
 		
 	if (!dm_task_run(d))
 		goto err;
-	if (udev_wait_flag)
+	if (udev_wait_flag) {
+		if (pthread_mutex_lock(&_s_dm_mutex))
+			ploop_err(errno, "pthread_mutex_lock");
 		dm_udev_wait(cookie);
+		if (pthread_mutex_unlock(&_s_dm_mutex))
+			 ploop_err(errno, "pthread_mutex_unlock");
+	}
 
 	rc = 0;
 err:
