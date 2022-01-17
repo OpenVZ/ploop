@@ -58,6 +58,7 @@ struct ploop_check_desc {
 	off_t  bd_size;
 	off_t  size;
 	__u32 *bmap;
+	__u32  bmap_size;
 	int   *clean;
 	int   *fatality;
 	__u32 *alloc_head;
@@ -181,7 +182,7 @@ retry:
 		return zero_index_fix(d, clu, HARD_FIX, ZEROFIX, FATAL);
 	}
 
-	if (d->check) {
+	if (d->check && d->bmap_size < (iblk / 8)) {
 		if (d->bmap[iblk / 32] & (1 << (iblk % 32))) {
 			ploop_log(0, "Block %u is used more than once, vsec=%u... ",
 				iblk, clu);
@@ -638,6 +639,7 @@ int ploop_check(const char *img, int flags, __u32 *blocksize_p, int *cbt_allowed
 	d.size	     = stb.st_size;
 	/* out */
 	d.bmap	     = bmap;
+	d.bmap_size  = bmap_size;
 	d.clean	     = &clean;
 	d.fatality   = &fatality;
 	d.alloc_head = &alloc_head;
