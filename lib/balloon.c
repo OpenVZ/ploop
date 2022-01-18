@@ -490,10 +490,13 @@ int ploop_balloon_clear_state(const char *device)
 		goto err;
 
 	if (b_ctl.mntn_type != PLOOP_MNTN_OFF) {
-		ploop_err(0, "Can't clear stale in-kernel \"BALLOON\" "
+		ret = SYSEXIT_EBUSY;
+		if (b_ctl.mntn_type == PLOOP_MNTN_TRACK)
+			ret = ioctl(fd, PLOOP_IOC_TRACK_ABORT, 0);
+		if (ret) 
+			ploop_err(0, "Can't clear stale in-kernel \"BALLOON\" "
 				"maintenance state because kernel is in \"%s\" "
 				"state now", mntn2str(b_ctl.mntn_type));
-		ret = SYSEXIT_EBUSY;
 	}
 err:
 	close(fd);
