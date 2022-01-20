@@ -1399,7 +1399,7 @@ static int mount_fs(struct ploop_disk_images_data *di,
 	 * 2 remount with balloon_ino=ino
 	 */
 
-	snprintf(data, sizeof(data), "%s,%s", info.opts ?: "", param->mount_data ?: "");
+	snprintf(data, sizeof(data), "%s,%s,lazytime", info.opts ?: "", param->mount_data ?: "");
 	if (mount(partname, param->target, info.fstype, flags, data))
 		goto mnt_err;
 
