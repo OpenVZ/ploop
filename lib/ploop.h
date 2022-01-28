@@ -466,6 +466,7 @@ PL_EXT int ploop_restore_descriptor(const char *dir, char *delta_path, int raw, 
 int is_device_inuse(const char *dev);
 void md5sum(const unsigned char *buf, unsigned long len, unsigned char *out);
 int wait_pid(pid_t pid, const char *mes, const volatile int *stop);
+int is_on_rotational(const char *image);
 
 // merge
 PL_EXT int merge_image(const char *device, int start_level, int end_level, int raw, int merge_top,
