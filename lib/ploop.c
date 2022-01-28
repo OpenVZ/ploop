@@ -1524,7 +1524,7 @@ static int blockdev_set_untrusted(const char *devname)
 int add_delta(char **images,  char *devname, int minor, int blocksize,
 		int raw, int ro, int size)
 {
-	int rc, i, n = 0;
+	int rc, i, n = 0, rot;
 	int *fds = NULL;
 	char t[1024];
 	char *p = t, *e = t + sizeof(t);
@@ -1532,6 +1532,12 @@ int add_delta(char **images,  char *devname, int minor, int blocksize,
 	off_t sz;
 
 	for (n = 0; images[n] != NULL; ++n);
+
+	rot = is_on_rotational(images[n-1]);
+	if (rot == -1) {
+		ploop_err(0, "Can't detect preallocation mode for %s", images[n-1]);
+		return SYSEXIT_SYS;
+	}
 	if (raw) {
 		struct stat st;
 
@@ -1550,7 +1556,8 @@ int add_delta(char **images,  char *devname, int minor, int blocksize,
 		minor = get_dev_name(devname, size);
 
 	fds = alloca(n * sizeof(int));
-	p += snprintf(p, e-p, "%d", ffs(blocksize) - 1);
+	p += snprintf(p, e-p, "%d %s", ffs(blocksize) - 1,
+			rot ? "falloc_new_clu" : "");
 	for (i = 0; i < n; i++) {
 		int r = ro || i < n-1;
 

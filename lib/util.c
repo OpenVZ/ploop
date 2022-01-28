@@ -33,6 +33,7 @@
 #include <sys/wait.h>
 #include <sys/ioctl.h>
 #include <openssl/evp.h>
+#include <sys/sysmacros.h>
 
 #include "ploop.h"
 #include "cleanup.h"
@@ -404,4 +405,26 @@ void md5sum(const unsigned char *buf, unsigned long len, unsigned char *out)
 	EVP_DigestUpdate(mdctx, buf, len);
 	EVP_DigestFinal_ex(mdctx, out, &out_len);
 	EVP_MD_CTX_destroy(mdctx);
+}
+
+
+int is_on_rotational(const char *image)
+{
+	char f[128];
+	struct stat st;
+
+	if (stat(image, &st)) {
+		ploop_err(errno, "Can't stat %s", image);
+		return -1;
+	}
+
+	snprintf(f, sizeof(f), "/sys/dev/block/%d:%d/queue/rotational",
+			major(st.st_dev), minor(st.st_dev));
+	if (access(f, F_OK))
+		return 0;
+
+	if (read_line(f, f, sizeof(f)))
+		return -1;
+
+	return (f[0] == '1');
 }
