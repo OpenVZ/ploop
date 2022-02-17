@@ -100,8 +100,10 @@ int qcow_resize(const char *image, off_t size_sec)
 {
 	int rc;
 	char s[64];
-	char *a[] = {"qemu-img", "resize", (char *)image, s, NULL};
+	char opts[PATH_MAX];
+	char *a[] = {"qemu-img", "resize", "--image-opts", opts, s, NULL};
 
+	snprintf(opts, sizeof(opts), QEMU_IMAGE_NAME, image);
 	snprintf(s, sizeof(s), "%ld", S2B(size_sec));
 	rc = run_prg(a);
 	if (rc) {
