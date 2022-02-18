@@ -182,13 +182,18 @@ retry:
 		return zero_index_fix(d, clu, HARD_FIX, ZEROFIX, FATAL);
 	}
 
-	if (d->check && d->bmap_size < (iblk / 8)) {
-		if (d->bmap[iblk / 32] & (1 << (iblk % 32))) {
-			ploop_log(0, "Block %u is used more than once, vsec=%u... ",
-				iblk, clu);
-			d->ndup++;
+	if (d->check) {
+		if (d->bmap_size <= (iblk / 8)) {
+			ploop_log(0, "Block %u exceed bmap size %u, ignore, vsec=%u... ",
+				iblk, d->bmap_size, clu);
+		} else {
+			if (d->bmap[iblk / 32] & (1 << (iblk % 32))) {
+				ploop_log(0, "Block %u is used more than once, vsec=%u... ",
+					iblk, clu);
+				d->ndup++;
+			}
+			d->bmap[iblk / 32] |= (1 << (iblk % 32));
 		}
-		d->bmap[iblk / 32] |= (1 << (iblk % 32));
 	}
 
 	if (iblk > *d->alloc_head)
