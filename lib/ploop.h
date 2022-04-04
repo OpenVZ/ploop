@@ -605,6 +605,7 @@ int add_delta(char **images, char *devname, int minor, int blocksize,
 int qcow_create(const char *image, struct ploop_create_param *param);
 int qcow_resize(const char *image, off_t size_sec);
 int qcow_open(const char *image, struct ploop_disk_images_data *di);
+int qcow_add(char **images, off_t size, int minor, struct ploop_mount_param *param);
 int qcow_check(struct ploop_disk_images_data *di);
 int qcow_live_check(const char *device);
 int qcow_mount(struct ploop_disk_images_data *di,

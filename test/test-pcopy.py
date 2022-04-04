@@ -8,8 +8,11 @@ import time
 import subprocess as sp
 import unittest
 import hashlib
+import sys
 
 sleep_sec = 3
+image_fmt = "qcow2"
+#image_fmt = "ploop"
 
 def hashfile(afile, hasher, blocksize=65536):
 	buf = afile.read(blocksize)
@@ -58,13 +61,15 @@ def get_out():
 	return os.path.join(get_storage(), "out.hds");
 
 def get_ddxml():
-	return os.path.join(get_storage(), 'DiskDescriptor.xml')
+	if image_fmt == "ploop":
+		return os.path.join(get_storage(), 'DiskDescriptor.xml')
+	return get_image()
 
 def get_mnt():
 	return get_storage() + "mnt/"
 
 def ploop_create(img):
-	ret = sp.call(["ploop", "init", "-s10g", img])
+	ret = sp.call(["ploop", "init", "-s10g", "-T", image_fmt, img])
 	if ret != 0:
 		raise Exception("failed to create image")
 
@@ -74,6 +79,13 @@ def ploop_mount(ddxml):
 		raise Exception("failed to mount image")
 
 def ploop_umount(ddxml):
+	ret = sp.run(["ploop", "list"], text=True, stdout=sp.PIPE)
+	if ddxml.find("DiskDescriptor.xml") == -1:
+		if ret.returncode == 0 and ret.stdout.find(ddxml) == -1:
+			return 0
+	else:
+		if ret.returncode == 0 and len(ret.stdout) == 0:
+			return 0
 	return sp.call(["ploop", "umount", ddxml])
 
 def dump_cbt(img):
@@ -123,18 +135,18 @@ def check(t):
 	s = open(get_storage()+get_data(), 'rb')
 	src = hashfile(s, hashlib.md5())
 
-	sp.call(["ploop", "mount", "-m", get_mnt(), "-d", get_devname(), get_out()])
+	ploop_mount(t.ddxml)
 	d = open(get_mnt()+get_data(), 'rb')
 	dst = hashfile(d, hashlib.md5())
 	s.close()
 	d.close()
-	sp.call(["ploop", "umount", "-d", get_devname()])
+	ploop_umount(t.ddxml)
 	t.assertEqual(src, dst)
 
 class testPcopy(unittest.TestCase):
 	def setUp(self):
-		if os.path.exists(get_ddxml()):
-			ploop_umount(get_ddxml())
+		if os.path.exists(get_image()):
+			ploop_umount(get_image())
 			shutil.rmtree(get_storage())
 
 		if not os.path.exists(get_storage()):
@@ -150,10 +162,23 @@ class testPcopy(unittest.TestCase):
 
 	def tearDown(self):
 		print("tearDown")
-		if os.path.exists(get_ddxml()):
-			ploop_umount(get_ddxml())
-			#shutil.rmtree(get_storage())
+		if os.path.exists(get_image()):
+			ploop_umount(self.ddxml)
+			shutil.rmtree(get_storage())
 
+	def test_remote(self):
+		print("Start remote")
+
+		parent, child = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
+		self.rcv_thr = start_pcopy_receiver(self.out, child.fileno())
+
+		if do_ploop_copy(self.ddxml, parent.fileno()):
+			return
+		parent.close()
+		child.close()
+		check(self)
+
+"""
 	def test_cbt(self):
 		print("Start local CBT dst=%s" % self.out)
 
@@ -179,19 +204,8 @@ class testPcopy(unittest.TestCase):
 			raise Exception("Check CBT failed")
 		print("Check CBT [Ok]");
 		check(self)
+"""
 
-	def test_remote(self):
-		print("Start remote")
-
-		parent, child = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
-
-		self.rcv_thr = start_pcopy_receiver(self.out, child.fileno())
-
-		if do_ploop_copy(self.ddxml, parent.fileno()):
-			return
-		parent.close()
-		child.close()
-		check(self)
 """
 	def test_local(self):
 		print("Start local")

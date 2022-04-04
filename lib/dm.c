@@ -168,7 +168,7 @@ int dm_create(const char *devname, int minor, const char *target,
 	int rc = -1;
 
 	d = dm_task_create(DM_DEVICE_CREATE);
-	if (d== NULL)
+	if (d == NULL)
 		return SYSEXIT_MALLOC;
 	if (!dm_task_set_name(d, get_basename(devname)))
 		goto err;
@@ -998,7 +998,13 @@ int ploop_tg_init(const char *dev, const char *tg, struct ploop_tg_data *out)
 		goto err;
 
 	minor = get_dev_tg_name(dev, tg, devtg, sizeof(devtg));
-	rc = add_delta(images, devtg, minor, blocksize, 0, 0, size);
+	if (image_fmt == QCOW_FMT) {
+		struct ploop_mount_param p = {};
+
+		snprintf(p.device, sizeof(p.device), "%s", devtg);
+		rc = qcow_add(images, size, minor, &p);
+	} else
+		rc = add_delta(images, devtg, minor, blocksize, 0, 0, size);
 	if (rc)
 		goto err_reload;
 

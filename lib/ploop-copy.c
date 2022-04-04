@@ -50,7 +50,8 @@ typedef enum {
 typedef enum {
 	PCOPY_CMD_SYNC,
 	PCOPY_CMD_FINISH,
-	PCOPY_CMD_INIT,
+	PCOPY_CMD_INIT_PLOOP,
+	PCOPY_CMD_INIT_QCOW,
 	PCOPY_CMD_MOUNT,
 	PCOPY_CMD_UMOUNT,
 } pcopy_cmd_t;
@@ -108,6 +109,7 @@ struct ploop_copy_handle {
 	int devfd;
 	int devploopfd; 
 	int ofd;
+	int qcowfd;
 	int is_remote;
 	int niter;
 	int cluster;
@@ -124,6 +126,9 @@ struct ploop_copy_handle {
 	int stage;
 	int remote_flags;
 	struct ploop_tg_data tg;
+	int image_fmt;
+	off_t size;
+	char *image;
 };
 
 struct ploop_receiver_data {
@@ -360,6 +365,13 @@ static int send_cmd_ex(struct ploop_copy_handle *h, pcopy_cmd_t cmd, __u32 size,
 	return 0;
 }
 
+static int send_init_cmd(struct ploop_copy_handle *h)
+{
+	return send_cmd_ex(h, h->image_fmt == QCOW_FMT ?
+			PCOPY_CMD_INIT_QCOW : PCOPY_CMD_INIT_PLOOP,
+			B2S(h->cluster), h->size);
+}
+
 static int send_cmd(struct ploop_copy_handle *h, pcopy_cmd_t cmd)
 {
 	return send_cmd_ex(h, cmd, cmd == PCOPY_CMD_FINISH ? 0 : sizeof(cmd), 0);
@@ -406,23 +418,38 @@ static int check_data(void *buf, struct pcopy_pkt_desc *desc,
 }
 
 static int receiver_process_init(struct ploop_receiver_data *data,
-		struct pcopy_pkt_desc *desc)
+		struct pcopy_pkt_desc *desc, int image_fmt)
 {
 	int rc;
 	struct ploop_mount_param m = {};
 	struct ploop_disk_images_data *di;
-	char *i[] = {(char *)data->file, NULL};
+	struct ploop_create_param p = {
+		.blocksize = desc->size,
+		.size = desc->pos,
+	};
 
 	ploop_log(3, "pcopy_receiver: init image %s size: %llu blocksize: %u",
-			data->file, desc->pos, desc->size);
-	rc = create_image(data->file, desc->size, desc->pos, PLOOP_EXPANDED_MODE,
+			data->file, p.size, p.blocksize);
+
+	if (image_fmt == PLOOP_FMT)
+		rc = create_image(data->file, p.blocksize, p.size, PLOOP_EXPANDED_MODE,
 			PLOOP_FMT_UNDEFINED, 0);
+	else
+		rc = qcow_create(data->file, &p);
 	if (rc)
 		return rc;
 
 	ploop_log(3, "pcopy_receiver: mount %s", data->file);
 	di = alloc_diskdescriptor();
-	rc = ploop_mount(di, i, &m, 0);
+	di->size = p.size;
+	di->runtime->image_fmt = image_fmt;
+	rc = ploop_di_add_image(di, data->file, TOPDELTA_UUID, NONE_UUID);
+	if (rc) {
+		ploop_close_dd(di);
+		return rc;
+	}
+
+	rc = ploop_mount(di, NULL, &m, 0);
 	ploop_close_dd(di);
 	if (rc)
 		return rc;
@@ -490,8 +517,10 @@ static int receiver_process(struct ploop_receiver_data *data,
 					return ret;
 			}
 			break;
-		case PCOPY_CMD_INIT:
-			ret = receiver_process_init(data, desc);
+		case PCOPY_CMD_INIT_PLOOP:
+		case PCOPY_CMD_INIT_QCOW:
+			ret = receiver_process_init(data, desc,
+				cmd == PCOPY_CMD_INIT_QCOW ? QCOW_FMT : PLOOP_FMT);
 			if (ret) {
 				ploop_err(0, "failed receiver_process_init");
 				return ret;
@@ -742,7 +771,8 @@ static int send_image_block(struct ploop_copy_handle *h, int type, __u64 size, _
 	}
 
 	ploop_dbg(3, "READ type=%d size=%llu pos=%llu", type, size, pos);
-	fd = type == PCOPY_PKT_DATA_DEVICE ? h->devploopfd : h->idelta.fd;
+	fd = type == PCOPY_PKT_DATA_DEVICE ? h->devploopfd :
+		(h->image_fmt == QCOW_FMT ? h->qcowfd : h->idelta.fd);
 	nread = TEMP_FAILURE_RETRY(pread(fd, c->data, c->size, c->pos));
 	if (nread == 0)
 		goto out;
@@ -827,12 +857,19 @@ void ploop_copy_release(struct ploop_copy_handle *h)
 		h->idelta.fd = -1;
 	}
 
+	if (h->qcowfd != -1) {
+		close(h->qcowfd);
+		h->qcowfd = -1;
+	}
+
 	if (h->send_th) {
 		pthread_cancel(h->send_th);
 		pthread_join(h->send_th, NULL);
 		h->send_th = 0;
 	}
 
+	free(h->image);
+	h->image = NULL;
 	ploop_tg_deinit(h->devploop, &h->tg);
 }
 
@@ -867,7 +904,7 @@ static struct ploop_copy_handle *alloc_ploop_copy_handle(int cluster)
 	pthread_mutex_init(&h->sd.wait_mutex, NULL);
 	pthread_cond_init(&h->sd.wait_cond, NULL);
 
-	h->devfd = h->ofd = h->idelta.fd = -1;
+	h->devfd = h->ofd = h->idelta.fd = h->qcowfd = -1;
 
 	return h;
 }
@@ -919,7 +956,6 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 {
 	int ret;
 	__u32 blocksize;
-	char *image = NULL;
 	int fmt;
 	char device[64];
 	struct ploop_copy_handle  *_h = NULL;
@@ -968,6 +1004,7 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 	_h->ofd = param->ofd;
 	_h->is_remote = is_remote;
 	_h->async = param->async;
+	_h->image_fmt = di->runtime->image_fmt;
 	snprintf(_h->devploop, sizeof(_h->devname), "%s", _h->tg.devname);
 	snprintf(_h->devname, sizeof(_h->devname), "%s", _h->tg.devtg);
 	snprintf(_h->part, sizeof(_h->part), "%s", _h->tg.part);
@@ -977,25 +1014,32 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 		ret = SYSEXIT_DEVICE;
 		goto err;
 	}
+	ret = get_image_param_online(di, _h->devploop, &_h->image, &_h->size, &blocksize, &fmt, NULL);
+	if (ret)
+		goto err;
+	_h->cluster = S2B(blocksize);
 	_h->devploopfd = open(_h->devploop, O_RDONLY|O_CLOEXEC|O_DIRECT);
 	if (_h->devploopfd == -1) {
 		ploop_err(errno, "Can't open device %s", _h->devploop);
 		ret = SYSEXIT_DEVICE;
 		goto err;
 	}
-
-	ret = get_image_param_online(di, _h->devploop, &image, NULL, &blocksize, &fmt, NULL);
-	if (ret)
-		goto err;
-
-	ploop_log(0, "Send image %s dev=%s fmt=%d blocksize=%d local=%d",
-			image, device, fmt, blocksize, !is_remote);
-	if (open_delta(&_h->idelta, image, O_RDONLY|O_DIRECT, OD_ALLOW_DIRTY)) {
-		ret = SYSEXIT_OPEN;
-		goto err;
+	if (_h->image_fmt == QCOW_FMT) {
+		_h->qcowfd = open(_h->image, O_RDONLY|O_CLOEXEC|O_DIRECT);
+		if (_h->qcowfd == -1) {
+			ploop_err(errno, "Can't open qcow2 image %s", _h->image);
+			ret = SYSEXIT_OPEN;
+			goto err;
+		}
+	} else {
+		if (open_delta(&_h->idelta, _h->image, O_RDONLY|O_DIRECT, OD_ALLOW_DIRTY)) {
+			ret = SYSEXIT_OPEN;
+			goto err;
+		}
 	}
-	_h->cluster = S2B(_h->idelta.blocksize);
-
+	ploop_log(0, "Send %s image %s dev=%s fmt=%d blocksize=%d local=%d",
+			_h->image_fmt == QCOW_FMT ? "qcow2" : "ploop",
+			_h->image, device, fmt, blocksize, !is_remote);
 	ret = complete_running_operation(di, device);
 	if (ret)
 		goto err;
@@ -1010,13 +1054,11 @@ err:
 	} else
 		*h = _h;
 
-	free(image);
-
 	return ret;
 }
 
 
-int process_start(struct ploop_copy_handle *h, struct ploop_copy_stat *stat)
+static int process_start(struct ploop_copy_handle *h, struct ploop_copy_stat *stat)
 {
 	int rc, nr_clusters;
 	__u64 n = 0, *map = NULL;
@@ -1030,27 +1072,41 @@ int process_start(struct ploop_copy_handle *h, struct ploop_copy_stat *stat)
 	if (rc)
 		goto err;
 	h->tracker_on = 1;
-	rc = build_alloc_bitmap(&h->idelta, &map, &map_size, &nr_clusters);
-	if (rc)
-		goto err;
+	if (h->image_fmt != QCOW_FMT) {
+		rc = build_alloc_bitmap(&h->idelta, &map, &map_size, &nr_clusters);
+		if (rc)
+			goto err;
+	}
 	rc = resume(h);
 	if (rc) 
 		goto err;
-
-	rc = send_cmd_ex(h, PCOPY_CMD_INIT,  h->idelta.blocksize,
-			h->idelta.l2_size * h->idelta.blocksize);
+	rc = send_init_cmd(h);
 	if (rc)
 		goto err;
 
-	while ((n = BitFindNextSet64(map, map_size, n)) != -1) {
-		rc = send_image_block(h, PCOPY_PKT_DATA_DEVICE, h->cluster, n * h->cluster);
-		if (rc)
-			break;
-		rc = dm_tracking_clear(h->devname, n);
-		if (rc)
-			break;
-		stat->xferred_total += h->cluster;
-		n++;
+	if (h->image_fmt != QCOW_FMT) {
+		while ((n = BitFindNextSet64(map, map_size, n)) != -1) {
+			rc = send_image_block(h, PCOPY_PKT_DATA_DEVICE, h->cluster, n * h->cluster);
+	 		if (rc)
+				break;
+			rc = dm_tracking_clear(h->devname, n);
+	 		if (rc)
+				break;
+	 		stat->xferred_total += h->cluster;
+			n++;
+		}
+	} else {
+		off_t off;
+
+		for (off = 0; off < h->size; off += h->cluster) {
+			rc = send_image_block(h, PCOPY_PKT_DATA_DEVICE, h->cluster, off);
+			if (rc)
+				break;
+			rc = dm_tracking_clear(h->devname, off / h->cluster);
+			if (rc)
+				break;
+			stat->xferred_total += h->cluster;
+		}
 	}
 err:
 	resume(h);
@@ -1152,7 +1208,6 @@ static int send_optional_header(struct ploop_copy_handle *copy_h)
 {
 	int ret;
 	struct ploop_pvd_header *vh;
-	size_t block_size;
 	struct ploop_pvd_ext_block_check *hc;
 	struct ploop_pvd_ext_block_element_header *h;
 	__u8 *block = NULL, *data;
@@ -1164,10 +1219,9 @@ static int send_optional_header(struct ploop_copy_handle *copy_h)
 	}
 
 	vh = (struct ploop_pvd_header *)copy_h->idelta.hdr0;
-	block_size = vh->m_Sectors * SECTOR_SIZE;
-	if (p_memalign((void **)&block, 4096, block_size))
+	if (p_memalign((void **)&block, 4096, copy_h->cluster))
 		return SYSEXIT_MALLOC;
-	bzero(block, block_size);
+	bzero(block, copy_h->cluster);
 	hc = (struct ploop_pvd_ext_block_check *)block;
 	h = (struct ploop_pvd_ext_block_element_header *)(hc + 1);
 	data = (__u8 *)(h + 1);
@@ -1194,9 +1248,9 @@ static int send_optional_header(struct ploop_copy_handle *copy_h)
 	}
 
 	hc->m_Magic = FORMAT_EXTENSION_MAGIC;
-	md5sum((const unsigned char *)(hc + 1), block_size - sizeof(*hc), hc->m_Md5);
+	md5sum((const unsigned char *)(hc + 1), copy_h->cluster - sizeof(*hc), hc->m_Md5);
 
-	if (send_buf(copy_h, PCOPY_PKT_DATA, block, block_size, vh->m_FormatExtensionOffset * SECTOR_SIZE)) {
+	if (send_buf(copy_h, PCOPY_PKT_DATA, block, copy_h->cluster, vh->m_FormatExtensionOffset * SECTOR_SIZE)) {
 		ploop_err(errno, "Can't write optional header");
 		ret = SYSEXIT_WRITE;
 		goto out;
@@ -1237,7 +1291,7 @@ int ploop_copy_stop(struct ploop_copy_handle *h,
 	ret = send_cmd(h, PCOPY_CMD_UMOUNT);
 	if (ret)
 		goto err;
-	if (!h->raw) {
+	if (!h->raw && h->image_fmt != QCOW_FMT) {
 		ret = send_optional_header(h);
 		if (ret)
 			goto err;

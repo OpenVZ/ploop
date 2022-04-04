@@ -2171,7 +2171,7 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 {
 	struct stat st;
 	int ret = 0;
-	__u32 blocksize = 0;
+	__u32 blocksize = param->blocksize;
 	int load_cbt;
 	char devname[64] = "";
 	char partname[64] = "";
@@ -2209,8 +2209,7 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 			return SYSEXIT_PARAM;
 		}
 	} else if (di)
-		blocksize = di->blocksize;
-
+		blocksize = param->blocksize ?: di->blocksize;
 
 	if (images == NULL) {
 		i = make_images_list(di, guid, 0);
