@@ -65,6 +65,9 @@ static void usage_summary(void)
 			"       ploop restore-descriptor [-f FORMAT] [-b BLOCKSIZE] IMAGE_DIR BASE_DELTA\n"
 			"       ploop replace -i DELTA DiskDescriptor.xml\n"
 			"       ploop encrypt [-k KEY] [-w] DiskDescriptor.xml\n"
+			"       ploop tg-init DEVICE NAME\n"
+			"       ploop tg-deinit DEVICE\n"
+			"       ploop tg-status DEVICE\n"
 			"Also:  ploop { start | stop | delete | clear | merge | grow | copy |\n"
 			"               stat | info | list} ...\n"
 			"\n"
@@ -1455,10 +1458,12 @@ static int plooptool_tg_init(int argc, char **argv)
 {
 	struct ploop_tg_data d;
 
-	if (argc != 2)
+	if (argc != 3) { 
+		fprintf(stderr, "Usage: ploop tg-init <DEV> <NAME>\n");
 		return SYSEXIT_PARAM;
+	}
 
-	return ploop_tg_init(argv[1], "push_backup", &d);
+	return ploop_tg_init(argv[1], argv[2], &d);
 }
 
 static int plooptool_tg_deinit(int argc, char **argv)

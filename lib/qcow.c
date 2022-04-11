@@ -276,17 +276,16 @@ err:
 	return rc;
 }
 
-static int qcow_add(struct ploop_disk_images_data *di, struct ploop_mount_param *param)
+int qcow_add(char **images, off_t size, int minor, struct ploop_mount_param *param)
 {
 	int fd, rc;
 	char b[4096];
-	off_t size = di->size;
-	const char *i = find_image_by_guid(di, get_top_delta_guid(di));
+	const char *i = images[0];
 
 	if (param->device[0] == '\0')
 		get_dev_name(param->device, sizeof(param->device));
-	ploop_log(0, "Adding delta dev=%s img=%s (%s)",
-			param->device, i, param->ro ? "ro":"rw");
+	ploop_log(0, "Adding qcow delta dev=%s img=%s size=%lu (%s)",
+			param->device, i, size, param->ro ? "ro":"rw");
 
 	fd = open(i, O_DIRECT | (param->ro ? O_RDONLY : O_RDWR)|O_CLOEXEC);
 	if (fd < 0) {
@@ -301,7 +300,7 @@ static int qcow_add(struct ploop_disk_images_data *di, struct ploop_mount_param 
 	}
 
 	snprintf(b, sizeof(b), "%d", fd);
-	rc = dm_create(param->device, 0, "qcow2", 0, size, param->ro, b);
+	rc = dm_create(param->device, minor, "qcow2", 0, size, param->ro, b);
 	if (rc && !param->ro)
 		qcow_update_hdr(i, QCOW2_INCOMPAT_DIRTY, 0);
 
@@ -309,6 +308,13 @@ err:
 	close(fd);
 
 	return rc;
+}
+
+static int add_image(struct ploop_disk_images_data *di, struct ploop_mount_param *param)
+{
+	char *images[] = {find_image_by_guid(di, get_top_delta_guid(di)), NULL};
+
+	return qcow_add(images, di->size, 0, param);
 }
 
 int qcow_mount(struct ploop_disk_images_data *di,
@@ -319,7 +325,7 @@ int qcow_mount(struct ploop_disk_images_data *di,
 	rc = qcow_check(di);
 	if (rc)
 		return rc;
-	return qcow_add(di, param);
+	return add_image(di, param);
 }
 
 int qcow_grow_device(struct ploop_disk_images_data *di,
