@@ -2650,6 +2650,10 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 			if (ret)
 				goto err;
 		}
+	} else if (image_fmt == QCOW_FMT) {
+		ret = qcow_umount(di, device, top);
+		if (ret)
+			goto err;
 	}
 
 	cn_find_name(device, cn, sizeof(cn), 1);

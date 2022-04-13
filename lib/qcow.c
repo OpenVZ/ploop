@@ -24,11 +24,16 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/param.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <sys/select.h>
 #include <fcntl.h>
 #include <byteswap.h>
 #include <json-c/json.h>
+#include <uuid/uuid.h>
 
 #include "ploop.h"
+#include "cbt.h"
 
 typedef enum {
 	QCOW2_INCOMPAT_DIRTY = 1,
@@ -61,6 +66,8 @@ struct qcow_hdr {
 struct qcow_info {
 	off_t virtual_size;
 	int cluster_size;
+	int cbt_enable;
+	char cbt_uuid[UUID_SIZE];
 };
 
 
@@ -115,9 +122,57 @@ int qcow_resize(const char *image, off_t size_sec)
 	return 0;
 }
 
+static struct json_object *json_get_key(json_object *obj, const char *key)
+{
+	struct json_object_iterator it,	ie;
+
+	it = json_object_iter_begin(obj);
+	ie = json_object_iter_end(obj);
+	for (; !json_object_iter_equal(&it, &ie); json_object_iter_next(&it)) {
+		const char *name = json_object_iter_peek_name(&it);
+		if (strcmp(name, key) == 0)
+			return json_object_iter_peek_value(&it);
+	}
+
+	return NULL;
+}
+
+static const char *json_get_key_string(json_object *obj, const char *key)
+{
+	struct json_object *val;
+
+	val = json_get_key(obj, key);
+	if (val == NULL || json_object_get_type(val) != json_type_string)
+		return NULL;
+
+	return json_object_get_string(val);
+}
+
+static const char *json_get_uuid(json_object *bmps)
+{
+	int i;
+
+	if (bmps == NULL || json_object_get_type(bmps) != json_type_array ||
+	json_object_array_length(bmps) == 0)
+		return NULL;
+
+	for (i = 0; i < json_object_array_length(bmps); i++) {
+		struct json_object *el = json_object_array_get_idx(bmps, i);
+		struct json_object *flags = json_get_key(el, "flags");
+		const char *name = json_get_key_string(el, "name");
+		if (flags == NULL || name == NULL)
+			continue;
+		return name;
+	}
+
+	return NULL;
+}
+
 static int json_parse(struct json_object* obj, struct qcow_info *info)
 {
 	struct json_object_iterator it,	ie;
+
+	info->cbt_enable = 0;
 
 	it = json_object_iter_begin(obj);
 	ie = json_object_iter_end(obj);
@@ -129,6 +184,17 @@ static int json_parse(struct json_object* obj, struct qcow_info *info)
 			info->virtual_size = B2S(json_object_get_int64(val));
 		else if (strcmp(name, "cluster-size") == 0)
 			info->cluster_size = B2S(json_object_get_int(val));
+		else if (strcmp(name, "format-specific") == 0) {
+			struct json_object *data = json_get_key(val, "data");
+			if (data) {
+				struct json_object *bmps = json_get_key(data, "bitmaps");
+				const char *name = json_get_uuid(bmps);
+				if (name) {
+					strncpy(info->cbt_uuid, name, UUID_SIZE);
+					info->cbt_enable = 1;
+				}
+			}
+		}
 	} 
 	return 0;
 }
@@ -180,6 +246,8 @@ int qcow_open(const char *image, struct ploop_disk_images_data *di)
 	di->size = i.virtual_size;
 	di->blocksize = i.cluster_size;
 	di->runtime->image_fmt = QCOW_FMT;
+	if (i.cbt_enable)
+		di->cbt_uuid = strdup(i.cbt_uuid);
 	return ploop_di_add_image(di, image, TOPDELTA_UUID, NONE_UUID);
 }
 
@@ -276,7 +344,398 @@ err:
 	return rc;
 }
 
-int qcow_add(char **images, off_t size, int minor, struct ploop_mount_param *param)
+static int qmp_check_reply(struct json_object* obj)
+{
+	struct json_object *err;
+
+	/* There is the capabilities negotiation mode */
+	if (json_get_key(obj, "QMP") != NULL)
+		return 0;
+
+	if (json_get_key(obj, "return") != NULL)
+		return 0;
+
+	/* Try to get QMP error description */
+	err = json_get_key(obj, "error");
+	if (err == NULL)
+		ploop_err(0, "Unknown QMP error");
+	else {
+		const char *class, *desc;
+
+		class = json_get_key_string(err, "class");
+		desc = json_get_key_string(err, "desc");
+		ploop_err(0, "QMP %s: %s", class ? class : "error", desc ? desc : "unknown");
+	}
+
+	return -1;
+}
+
+#define QMP_REPLY_TIMEOUT	10 /* timeout in seconds */
+
+static int qmp_get_reply(FILE *fp, json_object **replay)
+{
+	int rc = -1;
+	int fd, ret;
+	json_object *obj = NULL;
+	struct json_tokener *tok;
+	enum json_tokener_error jerr;
+	struct timeval timeout = {QMP_REPLY_TIMEOUT, 0};
+	fd_set fds;
+
+	fd = fileno(fp);
+	FD_ZERO(&fds);
+	FD_SET(fd, &fds);
+
+	tok = json_tokener_new();
+	do {
+		char buf[4096];
+
+	        ret = select(fd + 1, &fds, NULL, NULL, &timeout);
+		if (ret <= 0)
+			break;
+
+		if (fgets(buf, sizeof(buf), fp) == NULL)
+			break;
+
+		obj = json_tokener_parse_ex(tok, buf, strlen(buf));
+	} while ((jerr = json_tokener_get_error(tok)) == json_tokener_continue);
+
+	if (ret == 0)
+		ploop_err(errno, "Socket timeout expired");
+	else if (ret == -1)
+		ploop_err(errno, "Socket reading error");
+	else if (jerr != json_tokener_success)
+		ploop_err(0, "Cannot parse json: %s", json_tokener_error_desc(jerr));
+	else
+		rc = qmp_check_reply(obj);
+
+	if (replay)
+		*replay = obj;
+	else
+		json_object_put(obj);
+
+	json_tokener_free(tok);
+
+	return rc;
+}
+
+static int qmp_run_cmd(FILE *fp, const char *cmd, json_object *args, json_object **replay)
+{
+	int ret;
+	struct json_object *obj = NULL;
+
+	obj = json_object_new_object();
+	json_object_object_add(obj, "execute", json_object_new_string(cmd));
+
+	if (args)
+		json_object_object_add(obj, "arguments", args);
+
+	ret = fputs(json_object_to_json_string_ext(obj, JSON_C_TO_STRING_PLAIN), fp);
+	json_object_put(obj);
+	if (ret == EOF) {
+		ploop_err(errno, "Can't write command to qmp socket");
+		return SYSEXIT_WRITE;
+	}
+
+	ret = fputs("\r\n", fp);
+	if (ret == EOF) {
+		ploop_err(errno, "Can't write end of line to qmp socket");
+		return SYSEXIT_WRITE;
+	}
+
+	return qmp_get_reply(fp, replay);
+}
+
+static int qcow_quit_qemu(FILE *qmp_fp, int qmp_fd, int pid, int dev_fd,
+	const char *qmp_dir, int abort)
+{
+	int rc = 0;
+
+	if (!abort)
+		rc = qmp_run_cmd(qmp_fp, "quit", NULL, NULL);
+
+	if (qmp_fp)
+		fclose(qmp_fp);
+	else if (qmp_fd > 0)
+		close(qmp_fd);
+
+	if (pid > 0)
+		rc = wait_pid(pid, "qemu-kvm", &abort);
+
+	if (dev_fd > 0)
+		close(dev_fd);
+
+	if (access(qmp_dir, F_OK) == 0)
+		rmdir(qmp_dir);
+
+	return rc;
+}
+
+static int qmp_launch_qemu(const char *dev, int fd, const char *image,
+	int *pid, int *dev_fd, char *qmp_dir, int *qmp_fd, FILE **qmp_fp)
+{
+	int rc = -1;
+	int log = 1;
+	int i, ret;
+	struct sockaddr_un addr;
+	char ploop_opts[64+PATH_MAX];
+	char qcow2_opts[64+PATH_MAX];
+	char qmp_opts[64+PATH_MAX];
+	char qmp_file[PATH_MAX];
+	char *arg[] = { "/usr/libexec/qemu-kvm", "-S",
+		"-nodefaults",
+		"-nographic",
+		"-add-fd", ploop_opts,
+		"-add-fd", qcow2_opts,
+		"-blockdev", "{\"node-name\": \"vz-ploop\", \"driver\": \"host_device\", \"filename\": \"/dev/fdset/1\"}",
+		"-blockdev", "{\"node-name\": \"vz-protocol-node\", \"driver\": \"file\", \"filename\": \"/dev/fdset/2\", \"locking\": \"off\"}",
+		"-blockdev", "{\"node-name\": \"vz-qcow2-node\", \"driver\": \"qcow2\", \"file\": \"vz-protocol-node\", \"__vz_keep-dirty\": true}",
+		"-qmp", qmp_opts,
+		NULL
+	};
+
+	*dev_fd = open(dev, O_RDWR);
+	if (*dev_fd < 0) {
+		ploop_err(errno, "Can't open ploop device %s", dev);
+		rc = SYSEXIT_DEVICE;
+		goto err;
+	}
+
+	strcpy(qmp_dir, "/tmp/ploop-qmp-XXXXXX");
+	if (mkdtemp(qmp_dir) == NULL) {
+		ploop_err(errno, "Can't create unique directory with "
+			"template '%s' for communicating with qemu-kvm", qmp_dir);
+		rc = SYSEXIT_WRITE;
+		goto err;
+	}
+
+	snprintf(qmp_file, sizeof(qmp_file), "%s/%s", qmp_dir, "qmp.monitor");
+	snprintf(ploop_opts, sizeof(ploop_opts), "fd=%d,set=1,opaque=\"ro:%s\"", *dev_fd, dev);
+	snprintf(qcow2_opts, sizeof(qcow2_opts), "fd=%d,set=2,opaque=\"rw:%s\"", fd, image);
+	snprintf(qmp_opts, sizeof(qmp_opts), "unix:%s,server,nowait", qmp_file);
+
+	if (log) {
+		char b[4096];
+
+		for (i = 0; arg[i] != NULL; i++) {
+			strcat(b, arg[i]);
+			if (arg[i + 1] != NULL)
+				strcat(b, " ");
+		}
+
+		ploop_log(0, "Prepared cmd: %s", b);
+	}
+
+	*pid = fork();
+	if (*pid < 0) {
+		ploop_err(errno, "Can't fork");
+		goto err;
+	} else if (*pid == 0) {
+		execv(arg[0], arg);
+		ploop_err(errno, "Can't exec %s", arg[0]);
+		_exit(1);
+	}
+
+	if ((*qmp_fd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
+		ploop_err(errno, "Can't create unix socket for qmp");
+		goto err;
+	}
+
+	bzero(&addr, sizeof(addr));
+	addr.sun_family = AF_UNIX;
+	strcpy(addr.sun_path, qmp_file);
+
+	for (i = 0; i < 300; i++) {
+		ret = connect(*qmp_fd, (struct sockaddr *)&addr, sizeof(addr));
+		if (ret == 0)
+			break;
+
+		/* ENOENT       : Socket may not have shown up yet
+		 * ECONNREFUSED : Leftover socket hasn't been removed yet */
+		if (errno == ENOENT || errno == ECONNREFUSED) {
+			usleep(10000); /* Wait time 0.01s */
+			continue;
+		}
+
+		ploop_err(errno, "Can't connect to socket %s", qmp_file);
+		goto err;
+	}
+
+	if (ret) {
+		ploop_err(errno, "Socket %s did not show up", qmp_file);
+		goto err;
+	}
+
+	*qmp_fp = fdopen(*qmp_fd, "a+");
+	if (*qmp_fp == NULL) {
+		ploop_err(errno, "Can't create file stream for qmp");
+		rc = SYSEXIT_SYS;
+		goto err;
+	}
+
+	setvbuf(*qmp_fp, NULL, _IONBF, 0);
+
+	/* Get first QMP greeting message */
+	rc = qmp_get_reply(*qmp_fp, NULL);
+	if (rc)
+		goto err;
+
+	rc = qmp_run_cmd(*qmp_fp, "qmp_capabilities", NULL, NULL);
+	if (rc)
+		goto err;
+
+	return 0;
+
+err:
+	qcow_quit_qemu(*qmp_fp, *qmp_fd, *pid, *dev_fd, qmp_dir, 1);
+
+	return rc;
+}
+
+static struct json_object *qmp_bitmap_merge_args(const char *name)
+{
+	struct json_object *args;
+	struct json_object *bmps;
+	struct json_object *el;
+
+	args = json_object_new_object();
+	json_object_object_add(args, "node", json_object_new_string("vz-ploop"));
+	json_object_object_add(args, "target", json_object_new_string(name));
+	json_object_object_add(args, "__vz_push", json_object_new_boolean(1));
+
+	el = json_object_new_object();
+	json_object_object_add(el, "node", json_object_new_string("vz-qcow2-node"));
+	json_object_object_add(el, "name", json_object_new_string(name));
+
+	bmps = json_object_new_array();
+	json_object_array_add(bmps, el);
+	json_object_object_add(args, "bitmaps", bmps);
+
+	return args;
+}
+
+static struct json_object *qmp_bitmap_remove_args(const char *name)
+{
+	struct json_object *args;
+
+	args = json_object_new_object();
+	json_object_object_add(args, "node", json_object_new_string("vz-qcow2-node"));
+	json_object_object_add(args, "name", json_object_new_string(name));
+
+	return args;
+}
+
+static int qcow_load_cbt(const char *dev, int fd, const char *image, const char *uuid)
+{
+	int pid = 0;
+	int dev_fd = 0;
+	int qmp_fd = 0;
+	int ret, rc;
+	struct json_object *args = NULL;
+	FILE *qmp_fp = NULL;
+	char qmp_dir[PATH_MAX];
+
+	rc = qmp_launch_qemu(dev, fd, image, &pid, &dev_fd, qmp_dir,
+		&qmp_fd, &qmp_fp);
+	if (rc)
+		return rc;
+
+	args = qmp_bitmap_merge_args(uuid);
+	rc = qmp_run_cmd(qmp_fp, "block-dirty-bitmap-merge", args, NULL);
+	if (rc)
+		goto err;
+
+	args = qmp_bitmap_remove_args(uuid);
+	rc = qmp_run_cmd(qmp_fp, "block-dirty-bitmap-remove", args, NULL);
+	if (rc)
+		goto err;
+
+	rc = 0;
+
+err:
+	ret = qcow_quit_qemu(qmp_fp, qmp_fd, pid, dev_fd, qmp_dir, rc);
+	if (!rc && ret)
+		rc = ret;
+
+	return rc;
+}
+
+static struct json_object *qmp_bitmap_move_args(const char *name)
+{
+	struct json_object *args;
+	struct json_object *actions;
+	struct json_object *add;
+	struct json_object *merge;
+	struct json_object *data;
+	struct json_object *bmps;
+	struct json_object *el;
+
+	data = json_object_new_object();
+	json_object_object_add(data, "node", json_object_new_string("vz-qcow2-node"));
+	json_object_object_add(data, "name", json_object_new_string(name));
+	json_object_object_add(data, "persistent", json_object_new_boolean(1));
+
+	add = json_object_new_object();
+	json_object_object_add(add, "type", json_object_new_string("block-dirty-bitmap-add"));
+	json_object_object_add(add, "data", data);
+
+	data = json_object_new_object();
+	json_object_object_add(data, "node", json_object_new_string("vz-qcow2-node"));
+	json_object_object_add(data, "target", json_object_new_string(name));
+
+	el = json_object_new_object();
+	json_object_object_add(el, "node", json_object_new_string("vz-ploop"));
+	json_object_object_add(el, "name", json_object_new_string(name));
+	json_object_object_add(el, "__vz_pull", json_object_new_boolean(1));
+
+	bmps = json_object_new_array();
+	json_object_array_add(bmps, el);
+	json_object_object_add(data, "bitmaps", bmps);
+
+	merge = json_object_new_object();
+	json_object_object_add(merge, "type", json_object_new_string("block-dirty-bitmap-merge"));
+	json_object_object_add(merge, "data", data);
+
+	actions = json_object_new_array();
+	json_object_array_add(actions, add);
+	json_object_array_add(actions, merge);
+
+	args = json_object_new_object();
+	json_object_object_add(args, "actions", actions);
+
+	return args;
+}
+
+static int qcow_save_cbt(const char *uuid, const char *dev,
+		 int fd, const char *image)
+{
+	int pid = 0;
+	int dev_fd = 0;
+	int qmp_fd = 0;
+	int ret, rc;
+	struct json_object *args = NULL;
+	FILE *qmp_fp = NULL;
+	char qmp_dir[PATH_MAX];
+
+	rc = qmp_launch_qemu(dev, fd, image, &pid, &dev_fd, qmp_dir,
+		&qmp_fd, &qmp_fp);
+	if (rc)
+		return rc;
+
+	args = qmp_bitmap_move_args(uuid);
+	rc = qmp_run_cmd(qmp_fp, "transaction", args, NULL);
+	if (rc)
+		ploop_err(0, "Can't move CBT from device to qcow2 image");
+
+	ret = qcow_quit_qemu(qmp_fp, qmp_fd, pid, dev_fd, qmp_dir, rc);
+	if (!rc && ret)
+		rc = ret;
+
+	return rc;
+}
+
+int qcow_add(char **images, off_t size, int minor,
+	 struct ploop_mount_param *param, struct ploop_disk_images_data *di)
 {
 	int fd, rc;
 	char b[4096];
@@ -287,7 +746,7 @@ int qcow_add(char **images, off_t size, int minor, struct ploop_mount_param *par
 	ploop_log(0, "Adding qcow delta dev=%s img=%s size=%lu (%s)",
 			param->device, i, size, param->ro ? "ro":"rw");
 
-	fd = open(i, O_DIRECT | (param->ro ? O_RDONLY : O_RDWR)|O_CLOEXEC);
+	fd = open(i, O_DIRECT | (param->ro ? O_RDONLY : O_RDWR));
 	if (fd < 0) {
 		ploop_err(errno, "Can't open file %s", i);
 		return SYSEXIT_OPEN;
@@ -299,12 +758,25 @@ int qcow_add(char **images, off_t size, int minor, struct ploop_mount_param *par
 			goto err;
 	}
 
-	snprintf(b, sizeof(b), "%d", fd);
-	rc = dm_create(param->device, minor, "qcow2", 0, size, param->ro, b);
+	if ((di && di->cbt_uuid) && !param->ro) {
+		rc = dm_create(param->device, minor, "zero-rq", 0, size, 0, "");
+		if (rc)
+			goto err;
+
+		rc = qcow_load_cbt(param->device, fd, i, di->cbt_uuid);
+		if (rc)
+			goto err;
+
+		rc = dm_reload(di, param->device, size, 0);
+	} else {
+		snprintf(b, sizeof(b), "%d", fd);
+		rc = dm_create(param->device, minor, "qcow2", 0, size, param->ro, b);
+	}
+
+err:
 	if (rc && !param->ro)
 		qcow_update_hdr(i, QCOW2_INCOMPAT_DIRTY, 0);
 
-err:
 	close(fd);
 
 	return rc;
@@ -314,7 +786,7 @@ static int add_image(struct ploop_disk_images_data *di, struct ploop_mount_param
 {
 	char *images[] = {find_image_by_guid(di, get_top_delta_guid(di)), NULL};
 
-	return qcow_add(images, di->size, 0, param);
+	return qcow_add(images, di->size, 0, param, di);
 }
 
 int qcow_mount(struct ploop_disk_images_data *di,
@@ -326,6 +798,78 @@ int qcow_mount(struct ploop_disk_images_data *di,
 	if (rc)
 		return rc;
 	return add_image(di, param);
+}
+
+int qcow_umount(struct ploop_disk_images_data *di,
+		const char *device, const char *image)
+{
+	int rc, fd, image_fmt;
+	off_t size;
+	char buf[64];
+	__u8 uuid[16];
+
+	if (di && di->vol && di->vol->ro)
+		return 0;
+
+	rc = get_image_param_online(NULL, device, NULL, &size, NULL, NULL, &image_fmt);
+	if (rc)
+		return rc;
+
+	if (image_fmt != QCOW_FMT)
+		return 0;
+
+	rc = wait_for_open_count(device, di ?
+		di->runtime->umount_timeout : PLOOP_UMOUNT_TIMEOUT);
+	if (rc)
+		return rc;
+
+	rc = ploop_suspend_device(device);
+	if (rc)
+		return rc;
+
+	fd = open(device, O_RDONLY | O_CLOEXEC);
+	if (fd < 0) {
+		ploop_err(errno, "Can't open device %s", device);
+		rc = SYSEXIT_DEVICE;
+		goto err;
+	}
+
+	rc = cbt_get_dirty_bitmap_metadata(fd, uuid, NULL);
+	close(fd);
+	if (rc) {
+		if (rc == SYSEXIT_NOCBT)
+			rc = 0;
+		goto err;
+	}
+
+	uuid_unparse(uuid, buf);
+	ploop_log(0, "Found dirty bitmap %s for %s, move it to qcow2 image %s",
+		buf, device, image);
+
+	fd = open(image, O_RDWR);
+	if (fd < 0) {
+		ploop_err(errno, "Can't open qcow2 image %s", image);
+		rc = SYSEXIT_DEVICE;
+		goto err;
+	}
+
+	rc = dm_reload_other(device, "zero-rq", size);
+	if (rc)
+		goto err;
+
+	ploop_resume_device(device);
+
+	rc = qcow_save_cbt(buf, device, fd, image);
+	close(fd);
+	if (!rc)
+		rc = qcow_update_hdr(image, QCOW2_INCOMPAT_DIRTY, 0);
+
+	return rc;
+
+err:
+	ploop_resume_device(device);
+
+	return rc;
 }
 
 int qcow_grow_device(struct ploop_disk_images_data *di,

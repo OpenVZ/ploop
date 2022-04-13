@@ -159,6 +159,7 @@ struct ploop_disk_images_data {
 	unsigned long long max_delta_size;
 	struct encryption_data *enc;
 	struct volume_data *vol;
+	char *cbt_uuid;
 	char dummy[32];
 };
 
