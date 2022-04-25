@@ -190,7 +190,8 @@ static int json_parse(struct json_object* obj, struct qcow_info *info)
 				struct json_object *bmps = json_get_key(data, "bitmaps");
 				const char *name = json_get_uuid(bmps);
 				if (name) {
-					strncpy(info->cbt_uuid, name, UUID_SIZE);
+					strncpy(info->cbt_uuid, name, sizeof(info->cbt_uuid)-1);
+					info->cbt_uuid[sizeof(info->cbt_uuid)-1] = '\0';
 					info->cbt_enable = 1;
 				}
 			}
