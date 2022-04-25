@@ -559,6 +559,7 @@ int do_reload(const char *device, char **images, __u32 blocksize, off_t new_size
 		int image_type, int flags);
 int dm_reload(struct ploop_disk_images_data *di, const char *device,
 		off_t new_size, int flags);
+int dm_reload_other(const char *device, const char *drv, off_t new_size);
 int dm_get_info(const char *devname, struct ploop_tg_info *param);
 int find_devs(struct ploop_disk_images_data *di, char ***out);
 int find_dev(struct ploop_disk_images_data *di, char *out, int len);
@@ -605,11 +606,14 @@ int add_delta(char **images, char *devname, int minor, int blocksize,
 int qcow_create(const char *image, struct ploop_create_param *param);
 int qcow_resize(const char *image, off_t size_sec);
 int qcow_open(const char *image, struct ploop_disk_images_data *di);
-int qcow_add(char **images, off_t size, int minor, struct ploop_mount_param *param);
+int qcow_add(char **images, off_t size, int minor,
+	 struct ploop_mount_param *param, struct ploop_disk_images_data *di);
 int qcow_check(struct ploop_disk_images_data *di);
 int qcow_live_check(const char *device);
 int qcow_mount(struct ploop_disk_images_data *di,
 		struct ploop_mount_param *param);
+int qcow_umount(struct ploop_disk_images_data *di,
+		const char *device, const char *image);
 int qcow_create_snapshot(struct ploop_disk_images_data *di,
 		const char *guid);
 int qcow_delete_snapshot(struct ploop_disk_images_data *di,

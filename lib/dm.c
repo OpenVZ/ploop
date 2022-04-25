@@ -924,12 +924,13 @@ err:
 	return rc ? rc : rc1;
 }
 
-static int dm_reload_err(const char *dev, off_t size)
+int dm_reload_other(const char *device, const char *drv, off_t size)
 {
 	char t[64];
-	char *a[] = {"dmsetup", "reload", (char *) get_basename(dev), "--table", t, NULL};
+	char *a[] = {"dmsetup", "reload", (char *) get_basename(device), "--table", t, NULL};
 
-	snprintf(t, sizeof(t), "0 %lu error", size);
+	snprintf(t, sizeof(t), "0 %lu %s", size, drv);
+
 	return run_prg(a);
 }
 
@@ -993,7 +994,7 @@ int ploop_tg_init(const char *dev, const char *tg, struct ploop_tg_data *out)
 	if (rc)
 		goto err;
 
-	rc = dm_reload_err(dev, size);
+	rc = dm_reload_other(dev, "error", size);
 	if (rc)
 		goto err;
 
@@ -1002,7 +1003,7 @@ int ploop_tg_init(const char *dev, const char *tg, struct ploop_tg_data *out)
 		struct ploop_mount_param p = {};
 
 		snprintf(p.device, sizeof(p.device), "%s", devtg);
-		rc = qcow_add(images, size, minor, &p);
+		rc = qcow_add(images, size, minor, &p, NULL);
 	} else
 		rc = add_delta(images, devtg, minor, blocksize, 0, 0, size);
 	if (rc)

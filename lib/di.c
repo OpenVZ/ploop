@@ -311,6 +311,9 @@ void ploop_clear_dd(struct ploop_disk_images_data *di)
 	free(di->top_guid);
 	di->top_guid = NULL;
 
+	free(di->cbt_uuid);
+	di->cbt_uuid = NULL;
+
 	free_encryption_data(di);
 	free_volume(di);
 }
