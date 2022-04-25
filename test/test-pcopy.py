@@ -11,6 +11,8 @@ import hashlib
 import sys
 
 sleep_sec = 3
+bitmap_name = "5fbaabe3-6958-40ff-92a7-860e329aab42"
+#bitmap_name = ""
 image_fmt = "qcow2"
 #image_fmt = "ploop"
 
@@ -72,6 +74,10 @@ def ploop_create(img):
 	ret = sp.call(["ploop", "init", "-s10g", "-T", image_fmt, img])
 	if ret != 0:
 		raise Exception("failed to create image")
+	if image_fmt == "qcow2" and len(bitmap_name) > 0:
+		ret = sp.call(["/usr/bin/qemu-img", "bitmap", "--add", img, bitmap_name])
+		if ret != 0:
+			raise Exception("failed to add bitmap")
 
 def ploop_mount(ddxml):
 	ret = sp.call(["ploop", "mount", "-m", get_mnt(), ddxml])
@@ -130,6 +136,13 @@ def do_ploop_copy(ddxml, fd):
 	print("Umount")
 	ploop_umount(ddxml)
 
+def get_qcow_info(img):
+	ret = sp.run(["/usr/bin/qemu-img", "info", img], text=True, stdout=sp.PIPE)
+	if ret.returncode != 0:
+		raise Exception("failed to get info from", img)
+	print(ret.stdout)
+	return ret.stdout
+
 def check(t):
 	print("Check MD5");
 	s = open(get_storage()+get_data(), 'rb')
@@ -143,15 +156,36 @@ def check(t):
 	ploop_umount(t.ddxml)
 	t.assertEqual(src, dst)
 
+	ploop_mount(t.out)
+	o = open(get_mnt()+get_data(), 'rb')
+	out = hashfile(o, hashlib.md5())
+	o.close()
+	ploop_umount(t.out)
+	t.assertEqual(src, out)
+
+def check_qcow(t):
+	print("Check bitmap in images");
+	x = get_qcow_info(t.ddxml)
+	if x.find(bitmap_name) == -1:
+		raise Exception("Not found bitmap in", t.ddxml)
+	x = get_qcow_info(t.out)
+	if x.find(bitmap_name) == -1:
+		raise Exception("Not found bitmap in", t.out)
+
+def clean_all():
+	if os.path.exists(get_image()):
+		ploop_umount(get_image())
+	if os.path.exists(get_out()):
+		ploop_umount(get_out())
+	if os.path.exists(get_storage()):
+		shutil.rmtree(get_storage())
+
 class testPcopy(unittest.TestCase):
 	def setUp(self):
-		if os.path.exists(get_image()):
-			ploop_umount(get_image())
-			shutil.rmtree(get_storage())
+		clean_all()
 
 		if not os.path.exists(get_storage()):
 			os.mkdir(get_storage())
-
 		if not os.path.exists(get_mnt()):
 			os.mkdir(get_mnt())
 
@@ -162,9 +196,7 @@ class testPcopy(unittest.TestCase):
 
 	def tearDown(self):
 		print("tearDown")
-		if os.path.exists(get_image()):
-			ploop_umount(self.ddxml)
-			shutil.rmtree(get_storage())
+		clean_all()
 
 	def test_remote(self):
 		print("Start remote")
@@ -177,6 +209,8 @@ class testPcopy(unittest.TestCase):
 		parent.close()
 		child.close()
 		check(self)
+		if image_fmt == "qcow2" and len(bitmap_name) > 0:
+			check_qcow(self)
 
 """
 	def test_cbt(self):

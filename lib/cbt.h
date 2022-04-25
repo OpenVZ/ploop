@@ -45,6 +45,8 @@ int cbt_start(int devfd, const __u8 *uuid, __u32 blksize);
 int cbt_stop(int devfd);
 int cbt_get_dirty_bitmap_metadata(int devfd, __u8 *uuid, __u32 *blksize);
 int cbt_get_and_clear(int devfd, void **data);
+int cbt_get(int devfd, writer_fn wr, void *data);
+int cbt_put(int devfd, void *data, size_t size, off_t pos);
 int cbt_set_uuid(int devfd, const __u8 *uuid);
 int cbt_snapshot_prepare(int lfd, const unsigned char *cbt_uuid,
 		void **or_data);
