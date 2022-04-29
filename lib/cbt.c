@@ -551,7 +551,7 @@ int cbt_put(int devfd, void *data, size_t size, off_t pos)
 		}
 	}
 
-	ploop_log(3, "Load CBT uuid: %s start: %ld size %lu",
+	ploop_log(3, "Save CBT uuid: %s start: %ld size %lu",
 		uuid2str(info_kern->ci_uuid, x), pos, size);
 
 	info_kern->ci_extent_count = info_kern->ci_mapped_extents;

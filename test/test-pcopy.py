@@ -11,8 +11,7 @@ import hashlib
 import sys
 
 sleep_sec = 3
-bitmap_name = "5fbaabe3-6958-40ff-92a7-860e329aab42"
-#bitmap_name = ""
+bitmap_name = "262178fe-49d7-4c8b-b47c-4c0799dbf02a"
 image_fmt = "qcow2"
 #image_fmt = "ploop"
 
@@ -74,10 +73,6 @@ def ploop_create(img):
 	ret = sp.call(["ploop", "init", "-s10g", "-T", image_fmt, img])
 	if ret != 0:
 		raise Exception("failed to create image")
-	if image_fmt == "qcow2" and len(bitmap_name) > 0:
-		ret = sp.call(["/usr/bin/qemu-img", "bitmap", "--add", img, bitmap_name])
-		if ret != 0:
-			raise Exception("failed to add bitmap")
 
 def ploop_mount(ddxml):
 	ret = sp.call(["ploop", "mount", "-m", get_mnt(), ddxml])
@@ -156,15 +151,17 @@ def check(t):
 	ploop_umount(t.ddxml)
 	t.assertEqual(src, dst)
 
-	ploop_mount(t.out)
-	o = open(get_mnt()+get_data(), 'rb')
-	out = hashfile(o, hashlib.md5())
-	o.close()
-	ploop_umount(t.out)
-	t.assertEqual(src, out)
+	if image_fmt == "qcow2":
+		ploop_mount(t.out)
+		o = open(get_mnt()+get_data(), 'rb')
+		out = hashfile(o, hashlib.md5())
+		o.close()
+		ploop_umount(t.out)
+		t.assertEqual(src, out)
+	print("Check MD5 [Ok]");
 
-def check_qcow(t):
-	print("Check bitmap in images");
+def check_qcow_cbt(t):
+	print("Check bitmap in images", t.ddxml, "and", t.out)
 	x = get_qcow_info(t.ddxml)
 	if x.find(bitmap_name) == -1:
 		raise Exception("Not found bitmap in", t.ddxml)
@@ -209,36 +206,39 @@ class testPcopy(unittest.TestCase):
 		parent.close()
 		child.close()
 		check(self)
-		if image_fmt == "qcow2" and len(bitmap_name) > 0:
-			check_qcow(self)
 
-"""
 	def test_cbt(self):
 		print("Start local CBT dst=%s" % self.out)
 
-		ret = sp.call(["ploop", "snapshot", "-u262178fe-49d7-4c8b-b47c-4c0799dbf02a", "-b262178fe-49d7-4c8b-b47c-4c0799dbf02a", self.ddxml])
-		if ret != 0:
-			raise Exception("Cannot create snapshot")
-
-		sp.call(["ploop", "snapshot-delete", "-u262178fe-49d7-4c8b-b47c-4c0799dbf02a", self.ddxml])
+		if image_fmt == "qcow2":
+			ret = sp.call(["/usr/bin/qemu-img", "bitmap", "--add", self.ddxml, bitmap_name])
+			if ret != 0:
+				raise Exception("Failed to add bitmap")
+		else:
+			ret = sp.call(["ploop", "snapshot", "-u"+bitmap_name, "-b"+bitmap_name, self.ddxml])
+			if ret != 0:
+				raise Exception("Cannot create snapshot")
+			sp.call(["ploop", "snapshot-delete", "-u"+bitmap_name, self.ddxml])
 
 		parent, child = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
-
 		self.rcv_thr = start_pcopy_receiver(self.out, child.fileno())
-		child.close()
+
 		if do_ploop_copy(self.ddxml, parent.fileno()):
 			return
 		parent.close();
+		child.close()
 
-		f1 = dump_cbt(get_image())
-		f2 = dump_cbt(self.out)
 		print("Check CBT");
-		ret = sp.call(["diff", "-u", f1, f2])
-		if ret != 0:
-			raise Exception("Check CBT failed")
+		if image_fmt == "qcow2":
+			check_qcow_cbt(self)
+		else:
+			f1 = dump_cbt(get_image())
+			f2 = dump_cbt(self.out)
+			ret = sp.call(["diff", "-u", f1, f2])
+			if ret != 0:
+				raise Exception("Check CBT failed")
 		print("Check CBT [Ok]");
 		check(self)
-"""
 
 """
 	def test_local(self):

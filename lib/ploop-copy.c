@@ -1213,74 +1213,6 @@ int ploop_copy_next_iteration(struct ploop_copy_handle *h,
 	return 0;
 }
 
-static int cbt_writer(void *data, const void *buf, int len, off_t pos)
-{
-	struct ploop_copy_handle *h = (struct ploop_copy_handle *)data;
-	off_t eof = pos + len;
-
-	if (h->eof_offset < eof)
-		h->eof_offset = eof;
-	return send_buf(h, PCOPY_PKT_DATA, buf, len, pos);
-}
-
-static int send_optional_header(struct ploop_copy_handle *copy_h)
-{
-	int ret;
-	struct ploop_pvd_header *vh;
-	struct ploop_pvd_ext_block_check *hc;
-	struct ploop_pvd_ext_block_element_header *h;
-	__u8 *block = NULL, *data;
-	struct stat st;
-
-	if (fstat(copy_h->idelta.fd, &st)) {
-		ploop_err(errno, "send_optional_header: fstat");
-		return SYSEXIT_READ;
-	}
-
-	vh = (struct ploop_pvd_header *)copy_h->idelta.hdr0;
-	if (p_memalign((void **)&block, 4096, copy_h->cluster))
-		return SYSEXIT_MALLOC;
-	bzero(block, copy_h->cluster);
-	hc = (struct ploop_pvd_ext_block_check *)block;
-	h = (struct ploop_pvd_ext_block_element_header *)(hc + 1);
-	data = (__u8 *)(h + 1);
-	h->magic = EXT_MAGIC_DIRTY_BITMAP;
-
-	ret = save_dirty_bitmap(copy_h->devfd, &copy_h->idelta,
-			st.st_size, data, &h->size,
-			NULL, cbt_writer, copy_h);
-	if (ret) {
-		if (ret == SYSEXIT_NOCBT)
-			ret = 0;
-		goto out;
-	}
-
-	vh->m_DiskInUse = SIGNATURE_DISK_CLOSED_V21;
-	vh->m_FormatExtensionOffset = (copy_h->eof_offset + SECTOR_SIZE - 1) / SECTOR_SIZE;
-	ploop_log(3, "Send extension header offset=%llu size=%d",
-			vh->m_FormatExtensionOffset * SECTOR_SIZE, h->size);
-
-	if (send_buf(copy_h, PCOPY_PKT_DATA, vh, sizeof(*vh), 0)) {
-		ploop_err(errno, "Can't write header");
-		ret = SYSEXIT_WRITE;
-		goto out;
-	}
-
-	hc->m_Magic = FORMAT_EXTENSION_MAGIC;
-	md5sum((const unsigned char *)(hc + 1), copy_h->cluster - sizeof(*hc), hc->m_Md5);
-
-	if (send_buf(copy_h, PCOPY_PKT_DATA, block, copy_h->cluster, vh->m_FormatExtensionOffset * SECTOR_SIZE)) {
-		ploop_err(errno, "Can't write optional header");
-		ret = SYSEXIT_WRITE;
-		goto out;
-	}
-
-out:
-	free(block);
-
-	return ret;
-}
-
 static int cbt_sender(void *data, const void *buf, int len, off_t pos)
 {
 	int ret;
@@ -1337,7 +1269,7 @@ int ploop_copy_stop(struct ploop_copy_handle *h,
 		}
 	}
 
-	if (h->image_fmt == QCOW_FMT) {
+	if (!h->raw) {
 		ret = send_cbt(h);
 		if (ret)
 			goto err;
@@ -1345,11 +1277,6 @@ int ploop_copy_stop(struct ploop_copy_handle *h,
 	ret = send_cmd(h, PCOPY_CMD_UMOUNT);
 	if (ret)
 		goto err;
-	if (!h->raw && h->image_fmt != QCOW_FMT) {
-		ret = send_optional_header(h);
-		if (ret)
-			goto err;
-	}
 
 	ret = dm_tracking_stop(h->devname);
 	if (ret)

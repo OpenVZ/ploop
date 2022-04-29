@@ -2557,7 +2557,7 @@ static int save_cbt(struct ploop_disk_images_data *di, const char *device,
 {
 	int lfd, ret, rc;
 
-	if (di->runtime->image_fmt == QCOW_FMT)
+	if (di && di->runtime->image_fmt == QCOW_FMT)
 		return 0;
 
 	ret = wait_for_open_count(device, get_umount_tm(di));
@@ -2645,7 +2645,7 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 		return ret;
 
 	if (image_fmt == PLOOP_FMT) {
-		if (open_delta(&d, top, O_RDWR, OD_ALLOW_DIRTY) == 0 && di) {
+		if (open_delta(&d, top, O_RDWR, OD_ALLOW_DIRTY) == 0) {
 			ret = save_cbt(di, device, &d);
 			if (ret)
 				goto err;
