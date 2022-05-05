@@ -471,6 +471,104 @@ int cbt_get_and_clear(int devfd, void **data)
 	return 0;
 }
 
+int cbt_get(int devfd, writer_fn wr, void *data)
+{
+	int ret = 0;
+	struct blk_user_cbt_info *info_kern;
+	size_t s_kern = sizeof(struct blk_user_cbt_info) +
+		CBT_MAX_EXTENTS * sizeof(struct blk_user_cbt_extent);
+
+	info_kern = (struct blk_user_cbt_info *)malloc(s_kern);
+	if (info_kern == NULL)
+		return SYSEXIT_MALLOC;
+
+	bzero(info_kern, s_kern);
+	info_kern->ci_extent_count = CBT_MAX_EXTENTS;
+	info_kern->ci_length = -1;
+
+	do {
+		struct blk_user_cbt_extent *last;
+
+		info_kern->ci_mapped_extents = 0;
+
+		if (ioctl(devfd, BLKCBTGET, info_kern)) {
+			ploop_err(errno, "BLKCBTGET");
+			ret = (errno == EINVAL) ? SYSEXIT_NOCBT : SYSEXIT_DEVIOC;
+			goto out;
+		}
+
+		s_kern = sizeof(struct blk_user_cbt_info) +
+			info_kern->ci_mapped_extents * sizeof(struct blk_user_cbt_extent);
+
+		if ((ret = wr(data, info_kern, s_kern, info_kern->ci_start))) {
+			ploop_err(errno, "Can't write CBT block");
+			ret = SYSEXIT_WRITE;
+			goto out;
+		}
+
+		last = info_kern->ci_extents + info_kern->ci_mapped_extents - 1;
+		info_kern->ci_start = last->ce_physical + last->ce_length;
+		info_kern->ci_length = -1 - info_kern->ci_start;
+	} while (info_kern->ci_mapped_extents == info_kern->ci_extent_count);
+
+out:
+	free(info_kern);
+
+	return ret;
+}
+
+int cbt_put(int devfd, void *data, size_t size, off_t pos)
+{
+	struct blk_user_cbt_info *info_kern;
+	char x[50];
+
+	if (size < sizeof(struct blk_user_cbt_info)) {
+		ploop_err(0, "Size of data less than possible: %lu", size);
+		return SYSEXIT_PARAM;
+	}
+
+	info_kern = (struct blk_user_cbt_info *)data;
+
+	if (size < (sizeof(struct blk_user_cbt_info) +
+	info_kern->ci_mapped_extents * sizeof(struct blk_user_cbt_extent))) {
+		ploop_err(0, "Size of data less than necessary: %lu", size);
+		return SYSEXIT_PARAM;
+	}
+
+	if (info_kern->ci_start != pos) {
+		ploop_err(0, "Non equal offsets: %llu and %ld",
+			info_kern->ci_start, pos);
+		return SYSEXIT_PARAM;
+	}
+
+	/* This is first CBT packet so we must create CBT */
+	if (info_kern->ci_start == 0) {
+		int ret;
+
+		if ((ret = cbt_start(devfd, info_kern->ci_uuid, info_kern->ci_blksize))) {
+			ploop_err(errno, "Can't start cbt: %d", ret);
+			return ret;
+		}
+	}
+
+	ploop_log(3, "Save CBT uuid: %s start: %ld size %lu",
+		uuid2str(info_kern->ci_uuid, x), pos, size);
+
+	info_kern->ci_extent_count = info_kern->ci_mapped_extents;
+	info_kern->ci_start = 0;
+	info_kern->ci_length = 0;
+	info_kern->ci_blksize = 0;
+	info_kern->ci_flags = 0;
+	info_kern->ci_reserved = 0;
+
+	if (ioctl(devfd, BLKCBTSET, info_kern)) {
+		ploop_err(errno, "BLKCBTSET");
+		return SYSEXIT_DEVIOC;
+	}
+
+	return 0;
+}
+
 int cbt_get_dirty_bitmap_metadata(int devfd, __u8 *uuid, __u32 *blksize)
 {
 	struct blk_user_cbt_info info = {{0}};

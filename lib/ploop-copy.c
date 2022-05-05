@@ -31,6 +31,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <sys/queue.h>
+#include <uuid/uuid.h>
 
 #include "ploop.h"
 #include "cleanup.h"
@@ -45,6 +46,7 @@ typedef enum {
 	PCOPY_PKT_CMD,
 	PCOPY_PKT_DATA_ASYNC,
 	PCOPY_PKT_DATA_DEVICE,
+	PCOPY_PKT_DATA_CBT,
 } pcopy_pkt_type_t;
 
 typedef enum {
@@ -541,6 +543,14 @@ static int receiver_process(struct ploop_receiver_data *data,
 		}
 		break;
 	}
+	case PCOPY_PKT_DATA_CBT:
+		if (data->devfd < 0) {
+			ploop_err(0, "pcopy_receiver: device unmouted");
+			return SYSEXIT_WRITE;
+		}
+		if ((ret = cbt_put(data->devfd, data->iobuf, desc->size, desc->pos)))
+			return ret;
+		break;
 	default:
 		ploop_err(0, "pcopy_receiver: unsupported command type%d",
 					desc->type);
@@ -754,7 +764,7 @@ static int is_zero_block(void *buf, __u64 size)
 		!memcmp(buf, buf + sizeof(__u64), size - sizeof(__u64));
 }
 
-static int send_image_block(struct ploop_copy_handle *h, int type, __u64 size, __u64 pos)
+static int send_image_block(struct ploop_copy_handle *h, int type, __u64 size, __u64 pos, int *skip)
 {
 	int ret = 0, fd;
 	size_t nread;
@@ -770,12 +780,13 @@ static int send_image_block(struct ploop_copy_handle *h, int type, __u64 size, _
 		return SYSEXIT_MALLOC;
 	}
 
-	ploop_dbg(3, "READ type=%d size=%llu pos=%llu", type, size, pos);
 	fd = type == PCOPY_PKT_DATA_DEVICE ? h->devploopfd :
 		(h->image_fmt == QCOW_FMT ? h->qcowfd : h->idelta.fd);
 	nread = TEMP_FAILURE_RETRY(pread(fd, c->data, c->size, c->pos));
-	if (nread == 0)
+	if (nread == 0) {
+		ploop_dbg(4, "Skip zero cluster block at offset %llu", pos);
 		goto out;
+	}
 	if (nread < 0) {
 		ploop_err(errno, "Error from pread() size=%llu pos=%llu",
 				 size, pos);
@@ -792,8 +803,14 @@ static int send_image_block(struct ploop_copy_handle *h, int type, __u64 size, _
 		goto out;
 	}
 
+	ploop_dbg(3, "READ type=%d size=%llu pos=%llu", type, size, pos);
+	if (skip)
+		*skip = 0;
+
 	return send_async(h, c);
 out:
+	if (skip)
+		*skip = 1;
 	free_chunk(c);
 	return ret;
 }
@@ -1060,7 +1077,7 @@ err:
 
 static int process_start(struct ploop_copy_handle *h, struct ploop_copy_stat *stat)
 {
-	int rc, nr_clusters;
+	int rc, nr_clusters, skip;
 	__u64 n = 0, *map = NULL;
 	__u32 map_size;
 
@@ -1086,7 +1103,7 @@ static int process_start(struct ploop_copy_handle *h, struct ploop_copy_stat *st
 
 	if (h->image_fmt != QCOW_FMT) {
 		while ((n = BitFindNextSet64(map, map_size, n)) != -1) {
-			rc = send_image_block(h, PCOPY_PKT_DATA_DEVICE, h->cluster, n * h->cluster);
+			rc = send_image_block(h, PCOPY_PKT_DATA_DEVICE, h->cluster, n * h->cluster, NULL);
 	 		if (rc)
 				break;
 			rc = dm_tracking_clear(h->devname, n);
@@ -1098,14 +1115,16 @@ static int process_start(struct ploop_copy_handle *h, struct ploop_copy_stat *st
 	} else {
 		off_t off;
 
-		for (off = 0; off < h->size; off += h->cluster) {
-			rc = send_image_block(h, PCOPY_PKT_DATA_DEVICE, h->cluster, off);
+		for (off = 0; off < S2B(h->size); off += h->cluster) {
+			rc = send_image_block(h, PCOPY_PKT_DATA_DEVICE, h->cluster, off, &skip);
 			if (rc)
 				break;
-			rc = dm_tracking_clear(h->devname, off / h->cluster);
-			if (rc)
-				break;
-			stat->xferred_total += h->cluster;
+			if (!skip) {
+				rc = dm_tracking_clear(h->devname, off / h->cluster);
+				if (rc)
+					break;
+				stat->xferred_total += h->cluster;
+			}
 		}
 	}
 err:
@@ -1128,7 +1147,7 @@ static int process_next(struct ploop_copy_handle *h, struct ploop_copy_stat *sta
 				rc = 0;
 			break;
 		}
-		rc = send_image_block(h, PCOPY_PKT_DATA_DEVICE, h->cluster, c * h->cluster);
+		rc = send_image_block(h, PCOPY_PKT_DATA_DEVICE, h->cluster, c * h->cluster, NULL);
 		if (rc)
 			break;
 		stat->xferred += h->cluster;
@@ -1194,72 +1213,34 @@ int ploop_copy_next_iteration(struct ploop_copy_handle *h,
 	return 0;
 }
 
-static int cbt_writer(void *data, const void *buf, int len, off_t pos)
-{
-	struct ploop_copy_handle *h = (struct ploop_copy_handle *)data;
-	off_t eof = pos + len;
-
-	if (h->eof_offset < eof)
-		h->eof_offset = eof;
-	return send_buf(h, PCOPY_PKT_DATA, buf, len, pos);
-}
-
-static int send_optional_header(struct ploop_copy_handle *copy_h)
+static int cbt_sender(void *data, const void *buf, int len, off_t pos)
 {
 	int ret;
-	struct ploop_pvd_header *vh;
-	struct ploop_pvd_ext_block_check *hc;
-	struct ploop_pvd_ext_block_element_header *h;
-	__u8 *block = NULL, *data;
-	struct stat st;
+	struct ploop_copy_handle *h = (struct ploop_copy_handle *)data;
 
-	if (fstat(copy_h->idelta.fd, &st)) {
-		ploop_err(errno, "send_optional_header: fstat");
-		return SYSEXIT_READ;
-	}
+	if ((ret = send_buf(h, PCOPY_PKT_DATA_CBT, buf, len, pos)))
+		ploop_err(errno, "Can't send CBT data");
 
-	vh = (struct ploop_pvd_header *)copy_h->idelta.hdr0;
-	if (p_memalign((void **)&block, 4096, copy_h->cluster))
-		return SYSEXIT_MALLOC;
-	bzero(block, copy_h->cluster);
-	hc = (struct ploop_pvd_ext_block_check *)block;
-	h = (struct ploop_pvd_ext_block_element_header *)(hc + 1);
-	data = (__u8 *)(h + 1);
-	h->magic = EXT_MAGIC_DIRTY_BITMAP;
+	return ret;
+}
 
-	ret = save_dirty_bitmap(copy_h->devfd, &copy_h->idelta,
-			st.st_size, data, &h->size,
-			NULL, cbt_writer, copy_h);
+static int send_cbt(struct ploop_copy_handle *copy_h)
+{
+	int ret;
+	char buf[64];
+	__u8 uuid[16];
+
+	ret = cbt_get_dirty_bitmap_metadata(copy_h->devfd, uuid, NULL);
 	if (ret) {
 		if (ret == SYSEXIT_NOCBT)
 			ret = 0;
-		goto out;
+		return ret;
 	}
 
-	vh->m_DiskInUse = SIGNATURE_DISK_CLOSED_V21;
-	vh->m_FormatExtensionOffset = (copy_h->eof_offset + SECTOR_SIZE - 1) / SECTOR_SIZE;
-	ploop_log(3, "Send extension header offset=%llu size=%d",
-			vh->m_FormatExtensionOffset * SECTOR_SIZE, h->size);
+	uuid_unparse(uuid, buf);
+	ploop_log(3, "Store CBT uuid: %s", buf);
 
-	if (send_buf(copy_h, PCOPY_PKT_DATA, vh, sizeof(*vh), 0)) {
-		ploop_err(errno, "Can't write header");
-		ret = SYSEXIT_WRITE;
-		goto out;
-	}
-
-	hc->m_Magic = FORMAT_EXTENSION_MAGIC;
-	md5sum((const unsigned char *)(hc + 1), copy_h->cluster - sizeof(*hc), hc->m_Md5);
-
-	if (send_buf(copy_h, PCOPY_PKT_DATA, block, copy_h->cluster, vh->m_FormatExtensionOffset * SECTOR_SIZE)) {
-		ploop_err(errno, "Can't write optional header");
-		ret = SYSEXIT_WRITE;
-		goto out;
-	}
-
-out:
-	free(block);
-
-	return ret;
+	return cbt_get(copy_h->devfd, &cbt_sender, copy_h);
 }
 
 int ploop_copy_stop(struct ploop_copy_handle *h,
@@ -1288,14 +1269,14 @@ int ploop_copy_stop(struct ploop_copy_handle *h,
 		}
 	}
 
-	ret = send_cmd(h, PCOPY_CMD_UMOUNT);
-	if (ret)
-		goto err;
-	if (!h->raw && h->image_fmt != QCOW_FMT) {
-		ret = send_optional_header(h);
+	if (!h->raw) {
+		ret = send_cbt(h);
 		if (ret)
 			goto err;
 	}
+	ret = send_cmd(h, PCOPY_CMD_UMOUNT);
+	if (ret)
+		goto err;
 
 	ret = dm_tracking_stop(h->devname);
 	if (ret)
