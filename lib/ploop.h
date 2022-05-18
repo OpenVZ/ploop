@@ -622,4 +622,8 @@ int qcow_grow_device(struct ploop_disk_images_data *di,
 		const char *image, const char *device, off_t size);
 int qcow_switch_snapshot(struct ploop_disk_images_data *di,
 		const char *guid);
+int qcow_alloc_active_bitmap(int fd, __u64 **bitmap, __u32 *bitmap_size,
+		int *nr_clusters);
+int qcow_alloc_bitmap(int fd, __u64 **bitmap, __u32 *bitmap_size,
+		int *nr_clusters);
 #endif

@@ -1042,7 +1042,7 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 		goto err;
 	}
 	if (_h->image_fmt == QCOW_FMT) {
-		_h->qcowfd = open(_h->image, O_RDONLY|O_CLOEXEC|O_DIRECT);
+		_h->qcowfd = open(_h->image, O_RDONLY|O_CLOEXEC);
 		if (_h->qcowfd == -1) {
 			ploop_err(errno, "Can't open qcow2 image %s", _h->image);
 			ret = SYSEXIT_OPEN;
@@ -1089,11 +1089,14 @@ static int process_start(struct ploop_copy_handle *h, struct ploop_copy_stat *st
 	if (rc)
 		goto err;
 	h->tracker_on = 1;
-	if (h->image_fmt != QCOW_FMT) {
+
+	if (h->image_fmt != QCOW_FMT)
 		rc = build_alloc_bitmap(&h->idelta, &map, &map_size, &nr_clusters);
-		if (rc)
-			goto err;
-	}
+	else
+		rc = qcow_alloc_bitmap(h->qcowfd, &map, &map_size, &nr_clusters);
+	if (rc)
+		goto err;
+
 	rc = resume(h);
 	if (rc) 
 		goto err;
@@ -1101,32 +1104,21 @@ static int process_start(struct ploop_copy_handle *h, struct ploop_copy_stat *st
 	if (rc)
 		goto err;
 
-	if (h->image_fmt != QCOW_FMT) {
-		while ((n = BitFindNextSet64(map, map_size, n)) != -1) {
-			rc = send_image_block(h, PCOPY_PKT_DATA_DEVICE, h->cluster, n * h->cluster, NULL);
-	 		if (rc)
-				break;
-			rc = dm_tracking_clear(h->devname, n);
-	 		if (rc)
-				break;
-	 		stat->xferred_total += h->cluster;
-			n++;
-		}
-	} else {
-		off_t off;
+	while ((n = BitFindNextSet64(map, map_size, n)) != -1) {
+		rc = send_image_block(h, PCOPY_PKT_DATA_DEVICE, h->cluster, n * h->cluster, &skip);
+		if (rc)
+			break;
 
-		for (off = 0; off < S2B(h->size); off += h->cluster) {
-			rc = send_image_block(h, PCOPY_PKT_DATA_DEVICE, h->cluster, off, &skip);
-			if (rc)
-				break;
-			if (!skip) {
-				rc = dm_tracking_clear(h->devname, off / h->cluster);
-				if (rc)
-					break;
-				stat->xferred_total += h->cluster;
-			}
-		}
+		rc = dm_tracking_clear(h->devname, n);
+		if (rc)
+			break;
+
+		if (!skip)
+			stat->xferred_total += h->cluster;
+
+		n++;
 	}
+
 err:
 	resume(h);
 	free(map);
@@ -1135,7 +1127,7 @@ err:
 
 static int process_next(struct ploop_copy_handle *h, struct ploop_copy_stat *stat)
 {
-	int rc;
+	int rc, skip;
 	__u64 p, c = 0;
 
 	stat->xferred = 0;
@@ -1147,10 +1139,12 @@ static int process_next(struct ploop_copy_handle *h, struct ploop_copy_stat *sta
 				rc = 0;
 			break;
 		}
-		rc = send_image_block(h, PCOPY_PKT_DATA_DEVICE, h->cluster, c * h->cluster, NULL);
+		rc = send_image_block(h, PCOPY_PKT_DATA_DEVICE, h->cluster, c * h->cluster, &skip);
 		if (rc)
 			break;
-		stat->xferred += h->cluster;
+
+		if (!skip)
+			stat->xferred += h->cluster;
 	} while (p < c);
 	
         wait_sender(h);
@@ -1185,7 +1179,8 @@ int ploop_copy_start(struct ploop_copy_handle *h,
 	ret = process_start(h, stat);
 	if (ret)
 		goto err;
-	ploop_dbg(3, "pcopy start finished %s", h->devname);
+	ploop_dbg(3, "pcopy start finished %s xferred_total=%llu",
+		h->devname, stat->xferred_total);
 
 	return 0;
 err:

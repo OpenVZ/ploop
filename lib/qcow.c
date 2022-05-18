@@ -32,6 +32,7 @@
 #include <json-c/json.h>
 #include <uuid/uuid.h>
 
+#include "bit_ops.h"
 #include "ploop.h"
 #include "cbt.h"
 
@@ -62,6 +63,14 @@ struct qcow_hdr {
 	uint32_t refcount_order;
 	uint32_t header_length;
 };
+
+#define L1_CLUSTER_USED			(1ULL << 63)
+#define L2_CLUSTER_STANDARD		(1ULL << 63)
+#define L2_CLUSTER_COMPRESSED		(1ULL << 62)
+
+#define L1_OFFSET_MASK			0x00fffffffffffe00ULL
+#define L2_OFFSET_MASK 			0x00fffffffffffe00ULL
+#define L2_COMPRESSED_OFFSET_SIZE_MASK	0x3fffffffffffffffULL
 
 struct qcow_info {
 	off_t virtual_size;
@@ -1013,5 +1022,234 @@ int qcow_switch_snapshot(struct ploop_disk_images_data *di,
 		ploop_log(0, "Can't switch to snapshot %s", guid);
 	else
 		ploop_log(0, "ploop snapshot has been successfully switched");
+	return rc;
+}
+
+int qcow_alloc_active_bitmap(int fd, __u64 **bitmap, __u32 *bitmap_size,
+		int *nr_clusters)
+{
+	int rc = 0;
+	size_t i, j, size, cluster_size;
+	size_t l1_size, l1_entries, l2_entries;
+	struct qcow_hdr hdr;
+	uint32_t version;
+	uint64_t disk_size;
+	uint64_t *l1 = NULL;
+	uint64_t *l2 = NULL;
+
+	size = pread(fd, &hdr, sizeof(hdr), 0);
+	if (size != sizeof(hdr)) {
+		ploop_err(errno, "Can't read header of qcow2");
+		rc = SYSEXIT_READ;
+		goto err;
+	}
+
+	/* All numbers in qcow2 are stored in Big Endian byte order */
+	version = bswap_32(hdr.version);
+	if (version != 2 && version != 3) {
+		ploop_err(0, "Unknown version of qcow2 %u", version);
+		rc = SYSEXIT_PLOOPFMT;
+		goto err;
+	}
+
+	cluster_size = 1ull << bswap_32(hdr.cluster_bits);
+	disk_size = bswap_64(hdr.size);
+	l1_entries = bswap_32(hdr.l1_size);
+
+	ploop_log(0, "qcow2 version: %u", version);
+	ploop_log(0, "qcow2 cluster size: %lu", cluster_size);
+	ploop_log(0, "qcow2 disk size: %lu", disk_size);
+	if (version == 3)
+		ploop_log(0, "qcow2 incompatible features: %016llx",
+			bswap_64(hdr.incompatible_features));
+
+	l1_size = l1_entries * sizeof(uint64_t);
+	if (p_memalign((void *)&l1, sizeof(uint64_t), l1_size)) {
+		ploop_err(errno, "Can't allocate buffer for L1 table");
+		rc = SYSEXIT_MALLOC;
+		goto err;
+	}
+
+	size = pread(fd, l1, l1_size, bswap_64(hdr.l1_table_offset));
+	if (size != l1_size) {
+		ploop_err(errno, "Can't read L1 table from qcow2");
+		rc = SYSEXIT_READ;
+		goto err;
+	}
+
+	l2_entries = cluster_size / sizeof(uint64_t);
+	if (p_memalign((void *)&l2, sizeof(uint64_t), cluster_size)) {
+		ploop_err(errno, "Can't allocate buffer for L2 table");
+		rc = SYSEXIT_MALLOC;
+		goto err;
+	}
+
+	*bitmap_size = (disk_size + cluster_size - 1) / cluster_size;
+	size = (*bitmap_size + 7) / 8;
+	size = (size + sizeof(unsigned long) - 1) & ~(sizeof(unsigned long) - 1);
+	if (p_memalign((void *)bitmap, sizeof(uint64_t), size)) {
+		ploop_err(errno, "Can't allocate bitmap for used clusters");
+		rc = SYSEXIT_MALLOC;
+		goto err;
+	}
+
+	bzero(*bitmap, size);
+	*nr_clusters = 0;
+
+	for (i = 0; i < l1_entries; i++) {
+		uint64_t l1_entry = bswap_64(l1[i]);
+		if (l1_entry & L1_CLUSTER_USED && l1_entry & L1_OFFSET_MASK) {
+			uint64_t offset = l1_entry & L1_OFFSET_MASK;
+			size = pread(fd, l2, cluster_size, offset);
+			if (size != cluster_size) {
+				ploop_err(errno, "Can't read L2 table from qcow2");
+				rc = SYSEXIT_READ;
+				goto err;
+			}
+
+			for (j = 0; j < l2_entries && (i * l2_entries + j) < *bitmap_size; j++) {
+				uint64_t l2_entry = bswap_64(l2[j]);
+				if ((l2_entry & L2_CLUSTER_STANDARD ||
+				l2_entry & L2_CLUSTER_COMPRESSED) && l2_entry & L2_OFFSET_MASK) {
+					if (l2_entry & L2_CLUSTER_STANDARD)
+						ploop_log(3, "[%lu]->%llu", i * l2_entries + j,
+							(l2_entry & L2_OFFSET_MASK) / cluster_size);
+					else
+						ploop_log(3, "[%lu]->%016llx", i * l2_entries + j,
+							l2_entry & L2_COMPRESSED_OFFSET_SIZE_MASK);
+
+					BMAP_SET(*bitmap, i * l2_entries + j);
+					(*nr_clusters)++;
+				}
+			}
+		}
+	}
+
+	ploop_log(0, "found %d/%u active used clusters", *nr_clusters, *bitmap_size);
+
+err:
+	free(l2);
+	free(l1);
+
+	if (rc) {
+		free(*bitmap);
+		*bitmap = NULL;
+	}
+
+	return rc;
+}
+
+int qcow_alloc_bitmap(int fd, __u64 **bitmap, __u32 *bitmap_size,
+		int *nr_clusters)
+{
+	int rc = 0;
+	size_t i, j, size, cluster_size, refcount_bits;
+	size_t table_size, table_entries, block_entries;
+	struct qcow_hdr hdr;
+	uint32_t version;
+	uint64_t *table = NULL;
+	uint8_t *block = NULL;
+
+	/*
+	 * At first we try to scan active cluster mapping tables
+	 * because of lazy refcounts we can read not relevant
+	 * values for active clusters from refcount tables.
+	 */
+	rc = qcow_alloc_active_bitmap(fd, bitmap, bitmap_size, nr_clusters);
+	if (rc)
+		return rc;
+
+	size = pread(fd, &hdr, sizeof(hdr), 0);
+	if (size != sizeof(hdr)) {
+		ploop_err(errno, "Can't read header of qcow2");
+		rc = SYSEXIT_READ;
+		goto err;
+	}
+
+	version = bswap_32(hdr.version);
+	cluster_size = 1ull << bswap_32(hdr.cluster_bits);
+	table_entries = bswap_32(hdr.refcount_table_clusters);
+	if (version == 2)
+		refcount_bits = 16; /* Always use fixed value for version 2 */
+	else
+		refcount_bits = 1ull << bswap_32(hdr.refcount_order);
+
+	ploop_log(0, "qcow2 refcount bits: %lu", refcount_bits);
+	if (version == 3)
+		ploop_log(0, "qcow2 compatible features: %016llx",
+			bswap_64(hdr.compatible_features));
+
+	table_size = table_entries * sizeof(uint64_t);
+	if (p_memalign((void *)&table, sizeof(uint64_t), table_size)) {
+		ploop_err(errno, "Can't allocate buffer for refcount table");
+		rc = SYSEXIT_MALLOC;
+		goto err;
+	}
+
+	size = pread(fd, table, table_size, bswap_64(hdr.refcount_table_offset));
+	if (size != table_size) {
+		ploop_err(errno, "Can't read refcount table from qcow2");
+		rc = SYSEXIT_READ;
+		goto err;
+	}
+
+	block_entries = (cluster_size * 8) / refcount_bits;
+	if (p_memalign((void *)&block, sizeof(uint64_t), cluster_size)) {
+		ploop_err(errno, "Can't allocate buffer for refcount block");
+		rc = SYSEXIT_MALLOC;
+		goto err;
+	}
+
+	for (i = 0; i < table_entries; i++) {
+		uint64_t offset = bswap_64(table[i]);
+		if (offset) {
+			size = pread(fd, block, cluster_size, offset);
+			if (size != cluster_size) {
+				ploop_err(errno, "Can't read refcount block from qcow2");
+				rc = SYSEXIT_READ;
+				goto err;
+			}
+
+			for (j = 0; j < block_entries && (i * block_entries + j) < *bitmap_size; j++) {
+				uint64_t refcount;
+				switch (refcount_bits) {
+				case 8:
+					refcount = block[j];
+					break;
+				case 16:
+					refcount = bswap_16(*(uint16_t*)&block[j * 2]);
+					break;
+				case 32:
+					refcount = bswap_32(*(uint32_t*)&block[j * 4]);
+					break;
+				case 64:
+					refcount = bswap_64(*(uint64_t*)&block[j * 8]);
+					break;
+				default:
+					ploop_err(0, "Incorrect value of refcount bits %lu", refcount_bits);
+					rc = SYSEXIT_PLOOPFMT;
+					goto err;
+				}
+
+				if (refcount && !BMAP_GET(*bitmap, i * block_entries + j)) {
+					ploop_log(3, "[%lu]->%lu", i * block_entries + j, refcount);
+					BMAP_SET(*bitmap, i * block_entries + j);
+					(*nr_clusters)++;
+				}
+			}
+		}
+	}
+
+	ploop_log(0, "total found %d/%u used clusters", *nr_clusters, *bitmap_size);
+
+err:
+	free(block);
+	free(table);
+
+	if (rc) {
+		free(*bitmap);
+		*bitmap = NULL;
+	}
+
 	return rc;
 }
