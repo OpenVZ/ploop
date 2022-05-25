@@ -45,6 +45,7 @@ __attribute__((constructor)) void __init__(void)
 	pthread_mutex_init(&_s_dm_mutex, NULL);
 }
 
+//NB: do not forget free `out` after usage
 int ploop_dm_message(const char *devname, const char *msg, char **out)
 {
 	struct dm_task *d;
@@ -424,10 +425,11 @@ typedef int (*table_fn)(struct dm_task *task, struct table_data *data);
 
 static int cmp_delta(struct dm_task *task, struct table_data *data)
 {
-	int rc;
+	int rc = 0;
 	struct dm_info i = {};
 	const char *devname;
 	char *base = NULL;
+	char *top = NULL;
 
 	if (!dm_task_get_info(task, &i)) {
 		ploop_err(0, "dm_task_get_info()");
@@ -437,34 +439,41 @@ static int cmp_delta(struct dm_task *task, struct table_data *data)
 	devname = dm_task_get_name(task);
 	rc = dm_get_delta_name(devname, 0, &base);
 	if (rc == -1)	
-		return -1;
+		return rc;
 	else if (rc)
 		return 0;
 
 	if (strcmp(data->base, base) == 0) {
 		if (data->top) {
 			int n;
-			char *top;
 
 			if (sscanf(data->params, "%d", &n) != 1) {
 				ploop_err(0, "malformed params '%s'", data->params);
-				return -1;
+				rc = -1;
+				goto exit_;
 			}
 
 			rc = dm_get_delta_name(devname, n - 1, &top);
 			if (rc == -1)
-				return -1;
+				goto exit_;
 
-			if (strcmp(data->top, top))
-				return 1;
+			if (strcmp(data->top, top)){
+				rc = 1;
+				goto exit_;
+			}
 		}
+
 		snprintf(data->devname, sizeof(data->devname), "/dev/mapper/%s", devname);
 		data->ndevs = append_array_entry(data->devname, &data->devs, data->ndevs);
-		if (data->ndevs == -1)
-			return -1;
-		return 0;
+		rc = (data->ndevs == -1) ? -1 : 0;
+		goto exit_;
 	}
-	return 1;
+
+	rc = 1;
+exit_:
+	free(top);
+	free(base);
+	return rc;
 }
 
 static int display_entry(struct dm_task *task, struct table_data *data)
