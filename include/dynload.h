@@ -110,7 +110,8 @@ struct ploop_functions {
 	int (*tg_info)(const char *devname, struct ploop_tg_info *param);
 	int (*tg_init)(const char *dev, const char *tg, struct ploop_tg_data *out);
 	int (*get_mnt_info)(const char *partname, struct ploop_mnt_info *info);
-	void *padding[53];
+	int (*compact)(struct ploop_compact_param *param);
+	void *padding[52];
 }; /* struct ploop_functions */
 
 __attribute__ ((visibility("default")))

@@ -32,6 +32,7 @@
 #include <sys/user.h>
 #include <sys/param.h>
 #include <sys/ioctl.h>
+#include <sys/time.h>
 #include <linux/types.h>
 #include <linux/fs.h>
 #include <string.h>
@@ -802,6 +803,149 @@ out:
 	}
 
 	return ret;
+}
+
+static void print_discard_stat(struct ploop_discard_stat *pds)
+{
+	ploop_log(0, "ploop=%ldMB image=%ldMB data=%ldMB balloon=%ldMB",
+			pds->ploop_size >> 20,
+			pds->image_size >> 20,
+			pds->data_size >> 20,
+			pds->balloon_size >> 20);
+}
+
+static void print_internal_stat(
+	const char *disk,
+	const struct ploop_discard_stat *pds_before,
+	const struct ploop_discard_stat *pds_after,
+	const struct timeval *tv_elapsed )
+{
+	/* write internal stats exclusively to log file */
+	int v_lvl = ploop_get_verbose_level();
+	ploop_set_verbose_level(PLOOP_LOG_NOSTDOUT);
+	ploop_log(0, "Stats: disk='%s' ploop_size=%ldMB image_size_before=%ldMB"
+		" image_size_after=%ldMB compaction_time=%ld.%03lds",
+		disk,
+		pds_before->ploop_size >> 20,
+		pds_before->image_size >> 20,
+		pds_after->image_size >> 20,
+		(long)tv_elapsed->tv_sec, (long)tv_elapsed->tv_usec / 1000
+		);
+
+	ploop_set_verbose_level(v_lvl);
+}
+
+int do_maintenance_compact(struct ploop_disk_images_data *di, double rate,
+		struct ploop_discard_stat *pds, const struct ploop_compact_param *config)
+{
+	struct ploop_discard_param param = {
+		.minlen_b = 0,
+		.automount = 1,
+		.stop = config->stop,
+		.defrag = config->defrag,
+	};
+
+	if (rate < config->threshold)
+		return 1;
+
+	rate = (rate - (config->delta < rate ? config->delta : 0))
+		* pds->ploop_size / 100;
+	param.to_free = rate;
+	ploop_log(0, "Start compacting '%s' (to free %.0fMB)",
+			config->path, rate / (1 << 20));
+	if (config->dry)
+		return 1;
+
+	return ploop_discard(di, &param);
+}
+
+int do_compact(struct ploop_disk_images_data *di,
+		struct ploop_discard_stat *pds, const struct ploop_compact_param *config)
+{
+	struct ploop_discard_param param = {
+		.automount = 1,
+		.stop = config->stop,
+		.defrag = config->defrag,
+		.image_defrag_threshold = config->threshold,
+	};
+
+	ploop_log(0, "Start compacting '%s'", config->path);
+	return ploop_discard(di, &param);
+}
+
+int ploop_compact(struct ploop_compact_param *param)
+{
+	int err = 0;
+	double rate;
+	char dev[64], part[64];
+	struct ploop_disk_images_data *di;
+	struct ploop_discard_stat pds, pds_after;
+	struct timeval tv_before, tv_after, tv_delta;
+	struct stat st;
+
+	if (ploop_open_dd(&di, param->path)) {
+		ploop_err(0, "Can't open disk %s", param->path);
+		return -1;
+	}
+
+	if (ploop_get_dev(di, dev, sizeof(dev)) ||
+			ploop_get_part(di, dev, part, sizeof(part))) {
+		ploop_close_dd(di);
+		ploop_err(0, "Can't get dev for disk %s", param->path);
+		return -1;
+	}
+
+	*param->stop = 0;
+	if (stat(part, &st) == 0)
+		*param->compact_dev = st.st_rdev;
+
+	err = ploop_discard_get_stat(di, &pds);
+	if (err) {
+		ploop_log(0, "Failed to get discard stat for '%s': %s", param->path, ploop_get_last_error());
+		ploop_close_dd(di);
+
+		return err;
+	}
+
+	if (di->nsnapshots > 1) {
+		ploop_log(0, "This ploop image '%s' contains snapshots."
+			" Trying to compact the last delta file.", param->path);
+		ploop_log(0, "For best compacting results, remove snapshots.");
+	}
+
+	print_discard_stat(&pds);
+
+	rate = ((double) pds.image_size - pds.data_size) / pds.ploop_size * 100;
+	/* Image size can be less than data size. to avoid negative rate */
+	if (rate < 0)
+		rate = 0;
+	ploop_log(0, "Rate: %.1f (threshold=%d)", rate, param->threshold);
+
+	/* store time before compacting */
+	gettimeofday(&tv_before, NULL);
+
+	if (pds.native_discard)
+		err = do_compact(di, &pds, param);
+	else
+		err = do_maintenance_compact(di, rate, &pds, param);
+
+	if (err == 0) {
+		/* store time after compacting */
+		gettimeofday(&tv_after, NULL);
+		timersub(&tv_after, &tv_before, &tv_delta);
+
+		if (ploop_discard_get_stat(di, &pds_after) == 0) {
+			print_discard_stat(&pds_after);
+			print_internal_stat(param->path, &pds, &pds_after, &tv_delta);
+		}
+		ploop_log(0, "End compacting '%s'", param->path);
+	} else
+		ploop_err(err, "ploop_discard(%s): %s", param->path, ploop_get_last_error());
+
+	ploop_close_dd(di);
+
+	*param->compact_dev = 0;
+	return err;
 }
 
 int ploop_complete_running_operation(const char *device)

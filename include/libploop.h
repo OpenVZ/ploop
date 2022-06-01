@@ -315,6 +315,17 @@ struct ploop_tg_info {
 	int blocksize;
 };
 
+struct ploop_compact_param {
+	const char *path;
+	int defrag;
+	int dry;
+	int threshold;
+	int delta;
+	volatile int *stop;
+	volatile dev_t *compact_dev;
+	char dummy[32];
+};
+
 /* Constants for ploop_set_verbose_level(): */
 #define PLOOP_LOG_NOCONSOLE	-2	/* disable all console logging */
 #define PLOOP_LOG_NOSTDOUT	-1	/* disable all but errors to stderr */
@@ -393,6 +404,7 @@ int ploop_discard_get_stat(struct ploop_disk_images_data *di,
 int ploop_discard(struct ploop_disk_images_data *di,
 			struct ploop_discard_param *param);
 
+int ploop_compact(struct ploop_compact_param *param);
 int ploop_open_dd(struct ploop_disk_images_data **di, const char *fname);
 void ploop_close_dd(struct ploop_disk_images_data *di);
 int ploop_create_dd(const char *ddxml, struct ploop_create_param *param);
