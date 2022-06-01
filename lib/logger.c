@@ -178,6 +178,11 @@ int ploop_get_log_level(void)
 	return _s_log_level;
 }
 
+int ploop_get_verbose_level(void)
+{
+	return _s_log_verbose_level;
+}
+
 void ploop_set_verbose_level(int level)
 {
 	time_init();

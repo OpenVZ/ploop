@@ -320,6 +320,7 @@ PL_EXT int ploop_fscheck(struct ploop_disk_images_data *di);
 /* Logging */
 #define LOG_BUF_SIZE	8192
 int ploop_get_log_level(void);
+int ploop_get_verbose_level(void);
 void ploop_log(int level, const char *format, ...)
 	__attribute__ ((__format__ (__printf__, 2, 3)));
 void __ploop_err(int err_no, const char *format, ...)
