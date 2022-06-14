@@ -2334,13 +2334,11 @@ static int move_mount(int from_dirfd, const char *from_pathname, int to_dirfd,
 	return syscall(429, from_dirfd, from_pathname, to_dirfd, to_pathname, flags);
 }
 
-static int do_mount_ns(const char *src_mnt, const char *dst_mnt, int pid, const char *devname)
+static int do_mount_ns(const char *src_mnt, const char *dst_mnt, int pid)
 {
 	char path[PATH_MAX];
-	char fname[PATH_MAX];
 	int fd = -1, src_nsfd = -1, nsfd = -1;
 	const char *self = "/proc/self/ns/mnt";
-	struct stat st;
 
 	ploop_log(3, "Mounting %s into %s\n", src_mnt, dst_mnt);
 	nsfd = open(self, O_RDONLY);
@@ -2382,21 +2380,9 @@ static int do_mount_ns(const char *src_mnt, const char *dst_mnt, int pid, const 
 		goto err;
 	}
 
-
 	if (move_mount(fd, "", AT_FDCWD, dst_mnt, MOVE_MOUNT_F_EMPTY_PATH)) {
 		ploop_err(errno, "Can't move_mount");
 		goto err;
-	}
-
-	// WA #PSBM-133521
-	snprintf(fname, sizeof(fname), "%s/"BALLOON_FNAME, path);
-	if (stat(fname, &st) == 0) {
-		char b[64];
-		snprintf(b, sizeof(b), "balloon_ino=%lu", st.st_ino);
-		if (mount(devname, path, NULL, MS_REMOUNT, b)) {
-			ploop_err(errno, "Can't remount");
-			goto err;
-		}
 	}
 
 	close(fd);
@@ -2410,7 +2396,7 @@ err:
 	return 1;
 }
 
-static int mount_ns(const char *src_mnt, const char *dst_mnt, int ns_pid, const char *devname)
+static int mount_ns(const char *src_mnt, const char *dst_mnt, int ns_pid)
 {
 	int p;
 
@@ -2419,7 +2405,7 @@ static int mount_ns(const char *src_mnt, const char *dst_mnt, int ns_pid, const 
 		ploop_err(errno, "Can't fork");
 		return SYSEXIT_SYS;
 	} else if (p == 0) {
-		_exit(do_mount_ns(src_mnt, dst_mnt, ns_pid, devname));
+		_exit(do_mount_ns(src_mnt, dst_mnt, ns_pid));
 	}
 
 	return wait_pid(p, "mount_ns", NULL);
@@ -2444,7 +2430,7 @@ int auto_mount_fs(struct ploop_disk_images_data *di, pid_t ns_pid,
 		if (ret < 0)
 			return SYSEXIT_SYS;
 		if (ret == 0)
-			return mount_ns(src, target, ns_pid, partname);
+			return mount_ns(src, target, ns_pid);
 		return do_mount(partname, target);
 	}
 
