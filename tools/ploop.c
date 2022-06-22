@@ -242,7 +242,7 @@ static int plooptool_init(int argc, char **argv)
 
 static void usage_mount(void)
 {
-	fprintf(stderr, "Usage: ploop mount [-r] [-f FORMAT] [-b BLOCKSIZE] [-d DEVICE]\n"
+	fprintf(stderr, "Usage: ploop mount [-r] [-n] [-f FORMAT] [-b BLOCKSIZE] [-d DEVICE]\n"
 			"             [-m MOUNT_POINT] [-t FSTYPE] [-o MOUNT_OPTS] [--sparse]\n"
 			"             BASE_DELTA [ ... TOP_DELTA ]\n"
 			"       ploop mount [-r] [-m MOUNT_POINT] [-u UUID] DiskDescriptor.xml\n"
@@ -255,6 +255,7 @@ static void usage_mount(void)
 			"       *DELTA := path to image file\n"
 			"       -r     - mount images read-only\n"
 			"       -F     - run fsck on inner filesystem before mounting it\n"
+			"       -n     - do not run partprobe during mount\n"
 		);
 }
 
@@ -265,7 +266,7 @@ static int plooptool_mount(int argc, char **argv)
 	struct ploop_mount_param mountopts = {};
 	const char *component_name = NULL;
 
-	while ((i = getopt(argc, argv, "rFf:d:m:t:u:o:b:c:q")) != EOF) {
+	while ((i = getopt(argc, argv, "nrFf:d:m:t:u:o:b:c:q")) != EOF) {
 		switch (i) {
 		case 'd':
 			strncpy(mountopts.device, optarg, sizeof(mountopts.device)-1);
@@ -275,6 +276,9 @@ static int plooptool_mount(int argc, char **argv)
 			break;
 		case 'F':
 			mountopts.fsck = E2FSCK_PREEN|E2FSCK_FORCE;
+			break;
+		case 'n':
+			mountopts.noprobe = 1;
 			break;
 		case 'f':
 			f = parse_format_opt(optarg);

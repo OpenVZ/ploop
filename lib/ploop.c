@@ -2259,8 +2259,12 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 			goto err_stop;
 	} else {
 		/* Dummy call to recreate devices */
-		reread_part(param->device);
+		if(!param->noprobe)
+			reread_part(param->device);
 	}
+
+	if (param->noprobe)
+		goto out_no_partprobe;
 
 	ret = get_part_devname(di, param->device, devname, sizeof(devname),
 			partname, sizeof(partname));
@@ -2312,6 +2316,7 @@ err_stop:
 	}
 
 err:
+out_no_partprobe:
 	if (ret == 0) {
 		ret = cn_register(param->device, di);
 		if (ret)
@@ -2320,6 +2325,7 @@ err:
 				param->target != NULL)
 			drop_statfs_info(di->images[0]->file);
 	}
+
 	ploop_free_array(i);
 
 	return ret;
