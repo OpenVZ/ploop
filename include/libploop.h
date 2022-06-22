@@ -49,7 +49,7 @@ struct ploop_mount_param {
 	char device[64];	/* returns device name */
 	int ro;			/* read-only mount */
 	int flags;		/* flags such as MS_NOATIME */
-	int unused1;
+	int noprobe;		/* do not partprobe device */
 	char *fstype;		/* filesystem type; default if not set*/
 	char *target;		/* mount point */
 	char *guid;		/* UUID; top if not set */

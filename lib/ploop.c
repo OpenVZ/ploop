@@ -2496,7 +2496,8 @@ int ploop_mount(struct ploop_disk_images_data *di, char **images,
 			goto err_stop;
 	} else {
 		/* Dummy call to recreate devices */
-		reread_part(param->device);
+		if( !param->noprobe ) 
+			reread_part(param->device);
 	}
 
 	ret = get_part_devname(di, param->device, devname, sizeof(devname),
