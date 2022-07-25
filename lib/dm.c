@@ -905,6 +905,8 @@ int dm_reload(struct ploop_disk_images_data *di, const char *device,
 {
 	int rc, rc1 = 0;
 	char **images = NULL;
+	__u32 blocksize;
+	int img_fmt;
 
 	if (flags & RELOAD_ONLINE) {
 		rc = ploop_get_names(device, &images);
@@ -922,8 +924,11 @@ int dm_reload(struct ploop_disk_images_data *di, const char *device,
 			goto err;
 	}
 
-	rc = do_reload(device, images, di->blocksize, new_size,
-			di->runtime->image_fmt, flags);
+	rc = get_image_param_online(di, device, NULL, NULL, &blocksize, NULL, &img_fmt);
+	if (rc)
+		goto err;
+
+	rc = do_reload(device, images, blocksize, new_size, img_fmt, flags);
 
 	if (!(flags & RELOAD_SKIP_SUSPEND))
 		rc1 = ploop_resume_device(device);

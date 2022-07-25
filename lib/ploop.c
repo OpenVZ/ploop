@@ -2775,8 +2775,7 @@ int get_image_param(struct ploop_disk_images_data *di, const char *guid,
 }
 
 static int grow_device(struct ploop_disk_images_data *di,
-		const char *image, const char *device,
-		__u32 blocksize, off_t new_size)
+		const char *image, const char *device, off_t new_size)
 {
 	int rc;
 
@@ -2793,19 +2792,19 @@ int ploop_grow_device(struct ploop_disk_images_data *di,
 	int rc;
 	off_t size;
 	char *top = NULL;
-	__u32 blocksize;
+	int img_fmt;
 
-	rc = get_image_param_online(di, device, &top, &size, &blocksize, NULL, NULL);
+	rc = get_image_param_online(di, device, &top, &size, NULL, NULL, &img_fmt);
 	if (rc)
 		return rc;
 
 	ploop_log(0, "Growing dev=%s size=%llu sectors (new size=%llu)",
 			device, (unsigned long long)size,
 			(unsigned long long)new_size);
-	if (di->runtime->image_fmt == QCOW_FMT)
+	if (img_fmt == QCOW_FMT)
 		rc = qcow_grow_device(di, top, device, new_size);
 	else
-		rc = grow_device(di, top, device, blocksize, new_size);
+		rc = grow_device(di, top, device, new_size);
 	free(top);
 
 	return rc;
