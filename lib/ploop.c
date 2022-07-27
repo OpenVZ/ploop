@@ -1457,10 +1457,11 @@ static int get_free_minor(void)
 {
 	int i;
 	char b[64];
-
-	srand(time(NULL));
+	struct timespec ts={0,0};
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	srand(ts.tv_nsec);
 	for (i = 0; i < 0xffff; i++) {
-		int m = rand() % 0xffff + 1000;
+		int m = (rand() + i) % 0xffff + 1000;
 		snprintf(b, sizeof(b), "/sys/block/dm-%d", m);
 		if (access(b, F_OK))
 			return m;
