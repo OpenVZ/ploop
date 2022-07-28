@@ -786,7 +786,8 @@ int qcow_add(char **images, off_t size, int minor,
 err:
 	if (rc && !param->ro)
 		qcow_update_hdr(i, QCOW2_INCOMPAT_DIRTY, 0);
-
+	if (rc)
+		remove(param->device);
 	close(fd);
 
 	return rc;

@@ -33,9 +33,27 @@
 
 #include "ploop.h"
 
+#define PLOOP_GLOBAL_LOCK_FILE	PLOOP_LOCK_DIR"/ploop.lck"
+
 #define LOCK_EXCL_BASE	200
 #define LOCK_LEN	5
 #define LOCK_EXCL_LONG	300
+static int create_file(char *fname)
+{
+	int fd;
+
+	fd = open(fname, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	if (fd == -1) {
+		ploop_err(errno, "Can't create file %s",
+				fname);
+		return -1;
+	}
+	if (fchmod(fd, 0644))
+		ploop_err(errno, "Can't chmod(0644) on %s", fname);
+
+	close(fd);
+	return 0;
+}
 
 int do_open(const char *fname, int flags)
 {
@@ -216,4 +234,18 @@ void ploop_unlock_di(struct ploop_disk_images_data *di)
 void ploop_unlock_dd(struct ploop_disk_images_data *di)
 {
 	return ploop_unlock_di(di);
+}
+
+int ploop_global_lock(void)
+{
+	if (access(PLOOP_GLOBAL_LOCK_FILE, F_OK)) {
+		if (access(PLOOP_LOCK_DIR, F_OK) &&
+				mkdir(PLOOP_LOCK_DIR, 0700) && errno != EEXIST) {
+			ploop_err(errno, "Failed to create " PLOOP_LOCK_DIR);
+			return -1;
+		}
+		if (create_file(PLOOP_GLOBAL_LOCK_FILE))
+			return -1;
+	}
+	return lock(PLOOP_GLOBAL_LOCK_FILE, 0, LOCK_TIMEOUT);
 }
