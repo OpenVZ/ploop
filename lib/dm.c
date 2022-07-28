@@ -1008,6 +1008,11 @@ int ploop_tg_init(const char *dev, const char *tg, struct ploop_tg_data *out)
 		goto err;
 
 	minor = get_dev_tg_name(dev, tg, devtg, sizeof(devtg));
+	if (minor == -1) {
+		rc = -1;
+		goto err;
+	}
+
 	if (image_fmt == QCOW_FMT) {
 		struct ploop_mount_param p = {};
 

@@ -1467,6 +1467,7 @@ static int get_free_minor(void)
 			return m;
 	}
 
+	ploop_err(errno, "Can't generate minor value");
 	return -1;
 }
 
@@ -1554,8 +1555,13 @@ int add_delta(char **images,  char *devname, int minor, int blocksize,
 		sz = d.l2_size * d.blocksize;
 	}
 
-	if (devname[0] == '\0')
+	if (devname[0] == '\0') {
 		minor = get_dev_name(devname, size);
+		if (minor == -1) {
+			rc = -1;
+			goto err;
+		}
+	}
 
 	fds = alloca(n * sizeof(int));
 	p += snprintf(p, e-p, "%d %s", ffs(blocksize) - 1,
