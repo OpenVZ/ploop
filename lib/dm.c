@@ -1012,14 +1012,19 @@ int ploop_tg_init(const char *dev, const char *tg, struct ploop_tg_data *out)
 	if (rc)
 		goto err;
 
-	minor = get_dev_tg_name(dev, tg, devtg, sizeof(devtg));
+	minor = get_dev_tg_name(tg, devtg, sizeof(devtg));
+	if (minor == -1) {
+		rc = -1;
+		goto err;
+	}
+
 	if (image_fmt == QCOW_FMT) {
 		struct ploop_mount_param p = {};
 
 		snprintf(p.device, sizeof(p.device), "%s", devtg);
 		rc = qcow_add(images, size, minor, &p, NULL);
 	} else
-		rc = add_delta(images, devtg, minor, blocksize, 0, 0, size);
+		rc = add_delta(images, devtg, minor, blocksize, 0, 0, sizeof(devtg));
 	if (rc)
 		goto err_reload;
 
@@ -1047,7 +1052,8 @@ err:
 err_reload:
 	if (do_reload(dev, images, blocksize, size, image_fmt, 0) == 0)
 		dm_remove(devtg, PLOOP_UMOUNT_TIMEOUT);
-
+	if(minor != -1)
+		remove(devtg);
 	goto err;
 }
 

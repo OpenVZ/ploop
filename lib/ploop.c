@@ -1453,39 +1453,42 @@ static void print_sys_block_ploop(void)
 			"| xargs grep -HF ''");
 }
 
-static int get_free_minor(void)
+static int get_free_minor(const char *suffix, char *out, int size)
 {
 	int i;
 	char b[64];
+	struct timespec ts={0,0};
 
-	srand(time(NULL));
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	srand(ts.tv_nsec);
 	for (i = 0; i < 0xffff; i++) {
-		int m = rand() % 0xffff + 1000;
+		int m = (rand() + i) % 0xffff + 1000;
 		snprintf(b, sizeof(b), "/sys/block/dm-%d", m);
-		if (access(b, F_OK))
+		if (!access(b, F_OK))
+			continue;
+
+		int g_lock = ploop_global_lock();
+		snprintf(out, size, "/dev/mapper/ploop%d%s%s", m, suffix ? "." : "" , suffix ? : "");
+		if (g_lock != -1 && mknod(out, S_IFBLK, makedev(253,m)) == 0) {
+			ploop_unlock(&g_lock);
 			return m;
+		}
+		ploop_unlock(&g_lock);
 	}
 
+	ploop_err(errno, "Can't generate minor value");
 	return -1;
 }
 
 int get_dev_name(char *out, int size)
 {
-	int minor = get_free_minor();
-
-	snprintf(out, size, "/dev/mapper/ploop%d", minor);
-
-	return minor;
+	return get_free_minor(NULL, out, size);
 }
 
-int get_dev_tg_name(const char *devname, const char *tg,
+int get_dev_tg_name(const char *tg,
 		char *out, int size)
 {
-	int minor = get_free_minor();
-
-	snprintf(out, size, "%s.%s", devname, tg);
-
-	return minor;
+	return get_free_minor(tg, out, size);
 }
 
 static int blockdev_set_untrusted(const char *devname)
@@ -1553,8 +1556,13 @@ int add_delta(char **images,  char *devname, int minor, int blocksize,
 		sz = d.l2_size * d.blocksize;
 	}
 
-	if (devname[0] == '\0')
+	if (devname[0] == '\0') {
 		minor = get_dev_name(devname, size);
+		if (minor == -1) {
+			rc = -1;
+			goto err;
+		}
+	}
 
 	fds = alloca(n * sizeof(int));
 	p += snprintf(p, e-p, "%d %s", ffs(blocksize) - 1,
@@ -1589,7 +1597,8 @@ err:
 	close_delta(&d);
 	for (i = 0; i < n; i++)
 		close(fds[i]);
-
+	if(rc && minor != -1)
+		remove(devname);
 	return rc;
 }
 
