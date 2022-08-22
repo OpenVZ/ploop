@@ -787,7 +787,7 @@ static int init_dd(struct ploop_disk_images_data **di, const char *ddxml,
 
 	if (access(ddxml, F_OK) == 0) {
 		ploop_err(EEXIST, "Can't create %s", ddxml);
-		return SYSEXIT_PARAM;
+		return SYSEXIT_EBUSY;
 	}
 
 	fmt_version = param->fmt_version == PLOOP_FMT_UNDEFINED ?
