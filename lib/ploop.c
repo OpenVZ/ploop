@@ -71,6 +71,12 @@ int get_part_devname(struct ploop_disk_images_data *di,
 {
 	int ret, luks, gpt;
 
+	// We should not engage with encryption if encryption fields are absent DD.xml
+	if (di && (!di->enc || !di->enc->keyid)) {
+		snprintf(devname, dlen, "%s", device);
+		return get_partition_device_name(device, partname, plen);
+	}
+
 	ret = is_luks(device, &luks);
 	if (ret)
 		return ret;
