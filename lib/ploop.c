@@ -72,7 +72,7 @@ int get_part_devname(struct ploop_disk_images_data *di,
 	int ret, luks, gpt;
 
 	// We should only engage with encryption if keyid is set in DD.xml
-	if (di != NULL && (di->enc == NULL || di->enc->keyid == NULL)) {
+	if (!(di && di->enc && di->enc->keyid)) {
 		snprintf(devname, dlen, "%s", device);
 		return get_partition_device_name(device, partname, plen);
 	}
