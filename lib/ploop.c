@@ -71,12 +71,6 @@ int get_part_devname(struct ploop_disk_images_data *di,
 {
 	int ret, luks, gpt;
 
-	// We should only engage with encryption if keyid is set in DD.xml
-	if (!(di && di->enc && di->enc->keyid)) {
-		snprintf(devname, dlen, "%s", device);
-		return get_partition_device_name(device, partname, plen);
-	}
-
 	ret = is_luks(device, &luks);
 	if (ret)
 		return ret;
@@ -93,9 +87,14 @@ int get_part_devname(struct ploop_disk_images_data *di,
 		return 0;
 	}
 	/* old dm-crypt schema */
-	snprintf(devname, dlen, "%sp1", device);
-	crypt_get_device_name(devname, partname, plen);
-	return 0;
+	if (di && di->enc && di->enc->keyid) {
+		snprintf(devname, dlen, "%sp1", device);
+		crypt_get_device_name(devname, partname, plen);
+		return 0;
+	}
+
+	snprintf(devname, dlen, "%s", device);
+	return get_partition_device_name(device, partname, plen);
 }
 
 void free_mount_param(struct ploop_mount_param *param)
