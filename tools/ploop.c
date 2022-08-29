@@ -642,10 +642,11 @@ static int plooptool_rm(int argc, char **argv)
 static void usage_snapshot(void)
 {
 	fprintf(stderr, "Usage: ploop snapshot [-u UUID] DiskDescriptor.xml\n"
-			"       ploop snapshot [-F] -d DEVICE DELTA\n"
+			"       ploop snapshot [-F] [-o] -d DEVICE DELTA\n"
 			"       DEVICE := ploop device, e.g. /dev/ploop0\n"
 			"       DELTA := path to new image file\n"
 			"       -F     - synchronize file system before taking snapshot\n"
+			"       -o     - create an offline snapshot\n"
 		);
 }
 
