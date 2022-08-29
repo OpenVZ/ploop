@@ -282,7 +282,10 @@ static int get_new_delta_fname(struct ploop_disk_images_data *di,
 			ploop_err(errno, "Error in realpath(%s)", snap_dir);
 			return SYSEXIT_CREAT;
 		}
-		snprintf(out, size, "%s/%s.%s", dir, name, guid);
+		if (*name != '/')
+			snprintf(out, size, "%s/%s.%s", dir, name, guid);
+		else
+			snprintf(out, size, "%s.%s", name, guid);
 		free(dir);
 	} else
 		snprintf(out, size, "%s.%s", name, guid);
