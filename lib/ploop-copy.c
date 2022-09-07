@@ -1031,9 +1031,15 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 		ret = SYSEXIT_DEVICE;
 		goto err;
 	}
+
 	ret = get_image_param_online(di, _h->devploop, &_h->image, &_h->size, &blocksize, &fmt, &_h->image_fmt);
-	if (ret)
-		goto err;
+	if (ret) {
+		if (param->image_fmt)
+			_h->image_fmt = param->image_fmt;
+		else
+			goto err;
+	}
+
 	_h->cluster = S2B(blocksize);
 	_h->devploopfd = open(_h->devploop, O_RDONLY|O_CLOEXEC|O_DIRECT);
 	if (_h->devploopfd == -1) {
@@ -1289,8 +1295,6 @@ int ploop_copy_stop(struct ploop_copy_handle *h,
 	ploop_dbg(3, "pcopy stop done %s", h->devname);
 
 err:
-	ploop_copy_release(h);
-
 	return ret;
 }
 

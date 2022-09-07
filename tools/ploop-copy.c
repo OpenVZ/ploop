@@ -26,12 +26,14 @@
 #include <sys/stat.h>
 #include "libploop.h"
 #include "ploop.h"
+#include "common.h"
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: ploop copy -s DEVICE { [-d FILE] | [-o OFD] [-f FFD]}\n"
+	fprintf(stderr, "Usage: ploop copy -s DEVICE -t FORMAT { [-d FILE] | [-o OFD] [-f FFD]}\n"
 			"       ploop copy -d FILE [-i IFD]\n"
 			"       DEVICE  := source ploop device, e.g. /dev/ploop0\n"
+			"       FORMAT  := " USAGE_FORMATS "\n"
 			"       FILE    := destination file name\n"
 			"       OFD     := output file descriptor\n"
 			"       IFD     := input file descriptor\n"
@@ -53,7 +55,7 @@ int plooptool_copy(int argc, char **argv)
 		.feedback_fd	= -1,	/* no feedback */
 	};
 
-	while ((i = getopt(argc, argv, "s:d:o:i:")) != EOF) {
+	while ((i = getopt(argc, argv, "s:t:d:o:i:")) != EOF) {
 		switch (i) {
 		case 'd':
 			r.file = optarg;
@@ -66,6 +68,9 @@ int plooptool_copy(int argc, char **argv)
 			break;
 		case 'i':
 			r.ifd = atoi(optarg);
+			break;
+		case 't':
+			s.image_fmt = parse_format_opt(optarg);
 			break;
 		default:
 			usage();
