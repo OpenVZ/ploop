@@ -43,9 +43,6 @@ extern int plooptool_merge(int argc, char ** argv);
 extern int plooptool_stat(int argc, char ** argv);
 extern int plooptool_copy(int argc, char ** argv);
 
-#define USAGE_FORMATS	"{ raw | ploop1 | expanded | preallocated }"
-#define USAGE_VERSIONS	"{ 1 | 2 } (default 2, if supported)"
-
 static void usage_summary(void)
 {
 	fprintf(stderr, "Usage: ploop init -s SIZE [-f FORMAT | -L LABEL] NEW_DELTA | DEVICE\n"
