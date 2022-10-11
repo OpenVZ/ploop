@@ -1097,6 +1097,26 @@ int ploop_merge_snapshot(struct ploop_disk_images_data *di, struct ploop_merge_p
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
+	if (param->merge_all) {
+		int i;
+
+		for (i=di->nimages-2; i >= 0; i--) {
+			ploop_log(0, "merge-delete: %d guid=%s parent_guid=%s img file: %s guid: %s",
+				i, di->snapshots[i]->guid, di->snapshots[i]->parent_guid,
+				di->images[i]->file, di->images[i]->guid);
+			idx = find_snapshot_by_guid(di, di->snapshots[i]->guid);
+			if (idx == -1) {
+				ploop_err(0, "Cannot find snapshot by uuid %s", param->guid);
+				ret = SYSEXIT_PARAM;
+				goto err;
+			}
+
+			ret = ploop_delete_snapshot_by_guid(di, di->snapshots[i]->guid,
+							param->new_delta);
+		}
+
+		goto err;
+	}
 	idx = find_snapshot_by_guid(di, param->guid ? param->guid : di->top_guid);
 	if (idx == -1) {
 		ploop_err(0, "Cannot find snapshot by uuid %s", param->guid);
