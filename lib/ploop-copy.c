@@ -1021,7 +1021,7 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 	_h->ofd = param->ofd;
 	_h->is_remote = is_remote;
 	_h->async = param->async;
-	_h->image_fmt = di->runtime->image_fmt;
+
 	snprintf(_h->devploop, sizeof(_h->devname), "%s", _h->tg.devname);
 	snprintf(_h->devname, sizeof(_h->devname), "%s", _h->tg.devtg);
 	snprintf(_h->part, sizeof(_h->part), "%s", _h->tg.part);
@@ -1031,7 +1031,7 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 		ret = SYSEXIT_DEVICE;
 		goto err;
 	}
-	ret = get_image_param_online(di, _h->devploop, &_h->image, &_h->size, &blocksize, &fmt, NULL);
+	ret = get_image_param_online(di, _h->devploop, &_h->image, &_h->size, &blocksize, &fmt, &_h->image_fmt);
 	if (ret)
 		goto err;
 	_h->cluster = S2B(blocksize);
