@@ -2830,6 +2830,7 @@ int ploop_grow_image(struct ploop_disk_images_data *di, off_t size, int sparse)
 	int i;
 	const char *fname = NULL;
 
+	*device = '\0';
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
 
@@ -2890,9 +2891,9 @@ int ploop_grow_image(struct ploop_disk_images_data *di, off_t size, int sparse)
 	}
 err:
 	unlink(conf_tmp);
-	if (!mounted)
+	if (!mounted && *device)
 		 ploop_umount(device, di);
-		
+
 	ploop_unlock_dd(di);
 
 	return ret;
