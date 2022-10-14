@@ -45,7 +45,7 @@ static int check_volume_layout(struct ploop_disk_images_data *d)
 		ploop_err(0, "Volume management is prohibited on non volume layout");
 		return SYSEXIT_PARAM;
 	}
-		
+
 	return 0;
 }
 
@@ -452,7 +452,12 @@ int ploop_volume_create(struct ploop_volume_data *vol,
 
 	rc = ploop_create(vol->m_path, vol->i_path, param);
 	if (rc) {
-		destroy_layout(vol->m_path, NULL);
+		/*
+		 * If ddxml exists create fails with EBUSY - do not destroy existing
+		 * It is ok to reuse layout but not the ddxml
+		 */
+		if (rc != SYSEXIT_EBUSY)
+			destroy_layout(vol->m_path, NULL);
 		return rc;
 	}
 
