@@ -821,8 +821,9 @@ static int get_mnt_info(const char *partname, struct ploop_mnt_info *info)
 
 	blkid_dev dev = blkid_get_dev(cache, partname, BLKID_DEV_NORMAL);
 	if (dev == NULL) {
-		ploop_err(0, "blkid: %s has an unsupported type", partname);
-		return -1;
+		ploop_err(0, "blkid: %s has an unsupported type, missing filesystem?", partname);
+		rc = -1;
+		goto out_err;
 	}
 
 	iter = blkid_tag_iterate_begin(dev);
@@ -840,6 +841,8 @@ static int get_mnt_info(const char *partname, struct ploop_mnt_info *info)
 	}
 
 	blkid_tag_iterate_end(iter);
+
+out_err:
 	blkid_put_cache(cache);
 
 	return rc;
