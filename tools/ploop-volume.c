@@ -224,7 +224,7 @@ static int print_info(int argc, char **argv)
 
 static void usage_snapshot(void)
 {
-	fprintf(stderr, "Usage: ploop-volume snapshot <SRC> <DST>\n");
+	fprintf(stderr, "Usage: ploop-volume snapshot <SRC> <DST> [--image snapshot_image] \n");
 }
 
 static int snapshot(int argc, char **argv)
