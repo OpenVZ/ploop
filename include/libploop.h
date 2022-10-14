@@ -271,7 +271,8 @@ struct ploop_copy_param {
 	int ofd;
 	int async;
 	const char *device;
-	char dummy[32];
+	int image_fmt;
+	char dummy[28];
 };
 
 struct ploop_copy_stat {
