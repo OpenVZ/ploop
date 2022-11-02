@@ -216,6 +216,7 @@ static int cmd(const char *devname, int cmd)
 	struct dm_task *d;
 	int rc = -1;
 	uint32_t cookie = 0;
+	int retry = 0;
 	int udev_wait_flag = cmd == DM_DEVICE_RESUME ||
 		cmd == DM_DEVICE_REMOVE;
 
@@ -232,9 +233,14 @@ static int cmd(const char *devname, int cmd)
 	if (udev_wait_flag &&
 			!dm_task_set_cookie(d, &cookie, 0))
 		goto err;
-		
-	if (!dm_task_run(d))
+retry:
+	if (!dm_task_run(d)) {
+		if (errno == EAGAIN && retry++ < 100) {
+			sleep(1);
+			goto retry;
+		}
 		goto err;
+	}
 	if (udev_wait_flag) {
 		if (pthread_mutex_lock(&_s_dm_mutex))
 			ploop_err(errno, "pthread_mutex_lock");
