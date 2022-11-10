@@ -1410,6 +1410,10 @@ static int mount_fs(struct ploop_disk_images_data *di,
 
 	snprintf(buf, sizeof(buf), "%s/" BALLOON_FNAME, param->target);
 	if (stat(buf, &st) < 0) {
+		if (errno == EPERM) {
+			ploop_log(0, "Already mounted with balloon_ino set");
+			goto done;
+		}
 		ploop_err(errno, "Can't stat balloon file %s", buf);
 		goto mnt_err;
 	}
@@ -2445,8 +2449,6 @@ int auto_mount_fs(struct ploop_disk_images_data *di, pid_t ns_pid,
 	}
 
 	ret = mount_fs(di, partname, param);
-	if (ret && errno == EPERM)
-		return do_mount(partname, target);
 
 	return ret;
 }
