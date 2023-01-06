@@ -24,7 +24,10 @@
 #include <sys/types.h>
 #include <linux/types.h>
 
-#define DISKDESCRIPTOR_XML      "DiskDescriptor.xml"
+#define DISKDESCRIPTOR_XML	"DiskDescriptor.xml"
+#define PLOOP_IMAGE_NAME	"root.hds"
+#define QCOW_IMAGE_NAME		"root.hdd"
+
 #define PLOOP_MAX_FS_SIZE	50ULL*1024*1024*1024*1024
 
 #ifndef PLOOP_DEPRECATED
