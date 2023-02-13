@@ -600,7 +600,7 @@ int cn_register(const char *devname, struct ploop_disk_images_data *di);
 const char *cn_find_dev(char **devs, struct ploop_disk_images_data *di);
 int cn_find_name(const char *devname, char *out, int size, int full);
 int get_dev_name(char *out, int size);
-int get_dev_tg_name(const char *tg,  char *out, int size);
+int mknod_with_name(const char *name);
 const char *get_full_devname(const char *devname, char *out, int size);
 int add_delta(char **images, char *devname, int minor, int blocksize,
 		int raw, int ro, int size);

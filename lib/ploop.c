@@ -1457,11 +1457,12 @@ static void print_sys_block_ploop(void)
 			"| xargs grep -HF ''");
 }
 
-static int get_free_minor(const char *suffix, char *out, int size)
+static int get_free_minor(const char *name, char *out, int size)
 {
 	int i;
 	char b[64];
 	struct timespec ts={0,0};
+	const char *path = (name) ? name : out;
 
 	clock_gettime(CLOCK_MONOTONIC, &ts);
 	srand(ts.tv_nsec);
@@ -1472,8 +1473,9 @@ static int get_free_minor(const char *suffix, char *out, int size)
 			continue;
 
 		int g_lock = ploop_global_lock();
-		snprintf(out, size, "/dev/mapper/ploop%d%s%s", m, suffix ? "." : "" , suffix ? : "");
-		if (g_lock != -1 && mknod(out, S_IFBLK, makedev(253,m)) == 0) {
+		if (!name)
+			snprintf(out, size, "/dev/mapper/ploop%d", m);
+		if (g_lock != -1 && mknod(path, S_IFBLK, makedev(253,m)) == 0) {
 			ploop_unlock(&g_lock);
 			return m;
 		}
@@ -1489,10 +1491,9 @@ int get_dev_name(char *out, int size)
 	return get_free_minor(NULL, out, size);
 }
 
-int get_dev_tg_name(const char *tg,
-		char *out, int size)
+int mknod_with_name(const char *name)
 {
-	return get_free_minor(tg, out, size);
+	return get_free_minor(name, NULL, 0);
 }
 
 static int blockdev_set_untrusted(const char *devname)
