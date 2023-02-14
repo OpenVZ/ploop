@@ -1018,7 +1018,8 @@ int ploop_tg_init(const char *dev, const char *tg, struct ploop_tg_data *out)
 	if (rc)
 		goto err;
 
-	minor = get_dev_tg_name(tg, devtg, sizeof(devtg));
+	snprintf(devtg, sizeof(devtg), "%s.%s", dev, tg);
+	minor = mknod_with_name(devtg);
 	if (minor == -1) {
 		rc = -1;
 		goto err;
