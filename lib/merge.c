@@ -1092,7 +1092,8 @@ err:
 
 int ploop_merge_snapshot(struct ploop_disk_images_data *di, struct ploop_merge_param *param)
 {
-	int ret, idx;
+	int ret = SYSEXIT_PARAM;
+	int idx;
 
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
@@ -1114,7 +1115,8 @@ int ploop_merge_snapshot(struct ploop_disk_images_data *di, struct ploop_merge_p
 			ret = ploop_delete_snapshot_by_guid(di, di->snapshots[i]->guid,
 							param->new_delta);
 		}
-
+		if (ret == SYSEXIT_PARAM)
+			ploop_err(0, "Cannot find any snapshot by uuid %s", param->guid);
 		goto err;
 	}
 	idx = find_snapshot_by_guid(di, param->guid ? param->guid : di->top_guid);
