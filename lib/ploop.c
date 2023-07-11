@@ -1771,6 +1771,220 @@ static int st_nlink(const char *file)
 	return st.st_nlink;
 }
 
+int ploop_dmreplace(struct ploop_disk_images_data *di,
+				 struct ploop_replace_param *param)
+{
+	char dev[PATH_MAX];
+	char **names = NULL;
+	int l = 0;
+	int ret, idx, level = -1;
+	int flags = RELOAD_ONLINE;
+	int raw = param->mode == PLOOP_RAW_MODE;
+	int ro = !(param->flags & PLOOP_REPLACE_RW);
+	int keep_name = (param->flags & PLOOP_REPLACE_KEEP_NAME);
+	char *tmp, *file = NULL, *oldfile;
+	char conf[PATH_MAX], conf_tmp[PATH_MAX] = "";
+	int offline = 0;
+	int check_flags = CHECK_DETAILED;
+
+	/* check a new image */
+	ret = ploop_check(param->file, check_flags, NULL, NULL);
+	if (ret) {
+		ploop_log(1, "New image check failed\n");
+		return SYSEXIT_PARAM;
+	}
+
+	if (!di)
+		return SYSEXIT_PARAM;
+
+	if (ploop_lock_dd(di))
+		return SYSEXIT_LOCK;
+
+	file = realpath(param->file, NULL);
+	if (file == NULL) {
+		ploop_err(errno, "Error in realpath(%s)", param->file);
+		goto out_unlock;
+	}
+
+	if (ploop_find_dev_by_dd(di, dev, sizeof(dev))) {
+		ploop_log(1, "Can't find running ploop device, "
+				"doing offline replace");
+		flags = 0;
+		ret = SYSEXIT_PARAM;
+		goto out_unlock;
+	}
+
+	if (param->level == -1) {
+		if (param->cur_file) {
+			/* dm-ploop does not expose via sysfs, so we have to query via get_img_name */
+			if ((ret = ploop_get_names(dev, &names)))
+					return ret;
+			for (l = 0; names[l] != NULL; l++) {
+				if (!strcmp(names[l], param->cur_file)) {
+					level = l;
+					ploop_log(0, "replace image detected at level %d\n", l);
+					break;
+				}
+			}
+			ploop_free_array(names);
+		} else if (param->guid) {
+			if (!is_valid_guid(param->guid)) {
+				ploop_err(0, "Invalid guid specified: %s", param->guid);
+				ret = SYSEXIT_PARAM;
+				goto out_unlock;
+			}
+
+			idx = find_image_idx_by_guid(di, param->guid);
+			if (idx == -1) {
+				ploop_err(0, "Can't find image by guid %s", param->guid);
+				ret = SYSEXIT_PARAM;
+				goto out_unlock;
+			}
+			ret = find_level_by_delta(dev, di->images[idx]->file, &level);
+			if (ret) {
+				ploop_log(0, "Can't find %s level by delta %s, "
+						"assuming offline replace",
+						dev, di->images[idx]->file);
+				offline = 1;
+			}
+		}
+	} else {
+		level = param->level;
+	}
+
+	check_flags = CHECK_DETAILED;
+	if (ro)
+		check_flags |= CHECK_READONLY;
+	if (raw)
+		check_flags |= CHECK_RAW;
+	/* check a new image */
+	ret = ploop_check(file, check_flags, NULL, NULL);
+	if (ret)
+		goto out_unlock;
+
+	oldfile = param->cur_file ? : di->images[idx]->file;
+
+	if (keep_name && cant_rename(file, oldfile)) {
+		ret = SYSEXIT_RENAME;
+		goto out_unlock;
+	}
+
+	/* Write new dd.xml with changed image file */
+	get_disk_descriptor_fname(di, conf, sizeof(conf));
+	snprintf(conf_tmp, sizeof(conf_tmp), "%s.tmp", conf);
+	tmp = di->images[idx]->file;
+	di->images[idx]->file = file;
+	ret = ploop_store_diskdescriptor(conf_tmp, di);
+	di->images[idx]->file = tmp;
+	if (ret)
+		goto out_unlock;
+
+	/* Do replace */
+	ploop_log(0, "Replacing %s with %s (%s, level %d)", oldfile, file,
+			(offline) ? "offline" : "online", level);
+
+	if (!offline) {
+		ret = update_delta_inuse(file, SIGNATURE_DISK_IN_USE);
+		if (ret)
+			goto out_unlock;
+
+		ret = dm_replace(di, dev, file, level, flags);
+
+		if (ret) {
+			update_delta_inuse(file, 0);
+			ploop_log(0, "Replace Failed for %d level delta with %s: err=%d",
+					level, file, ret);
+			goto out_unlock;
+		}
+	}
+
+	if (keep_name) {
+		char tmp[PATH_MAX];
+		int tmpfd = -1;
+
+		ret = SYSEXIT_SYS;
+
+		if (!offline && st_nlink(file) < 2) {
+			/* If ploop is running, we can't just rename
+			 * the file if its st.st_nlink < 2 as it is used
+			 * by ploop and the kernel checks that the last
+			 * reference to the file is not removed.
+			 *
+			 * We need to create a hardlink to it,
+			 * rename the file, then remove the hardlink.
+			 */
+			snprintf(tmp, sizeof(tmp), "%s.XXXXXX", file);
+			tmpfd = mkstemp(tmp);
+			if (tmpfd < 0) {
+				ploop_err(errno, "Can't mkstemp(%s)", tmp);
+				goto undo_keep;
+			}
+			if (link(file, tmp)) {
+				ploop_err(errno, "Can't hardlink %s to %s",
+						tmp, file);
+				goto undo_keep;
+			}
+		}
+		if (rename(file, oldfile)) {
+			ploop_err(errno, "Can't rename %s to %s",
+					file, oldfile);
+			goto undo_keep;
+		}
+
+		ret = 0;
+
+undo_keep:
+		if (tmpfd >= 0) {
+			if (unlink(tmp))
+				ploop_err(errno, "Can't delete %s", tmp);
+			close(tmpfd);
+			tmpfd = -1;
+		}
+
+		if (ret && !offline) {
+			ploop_log(0, "Rollback: replacing %s with %s",
+					file, oldfile);
+			if (replace_delta(dev, level, oldfile, 0, PLOOP_FMT_RDONLY)) {
+				/* Hmm. We can't roll back the replace, so
+				 * let's at least keep the dd.xml consistent
+				 * with the in-kernel ploop state.
+				 */
+				ploop_log(0, "Rollback replace failed, "
+						"saving new image name "
+						"to DiskDescriptor.xml");
+				ret = 0; /* FIXME: do we want error code? */
+				keep_name = 0;
+			}
+		}
+	}
+
+	if (!keep_name) {
+		/* Put a new dd.xml */
+		ret = rename(conf_tmp, conf);
+		conf_tmp[0] = '\0'; /* prevent unlink() below */
+		if (ret) {
+			ploop_err(errno, "Can't rename %s to %s",
+					conf_tmp, conf);
+			ret = SYSEXIT_RENAME;
+			/* FIXME: how to rollback now? */
+			goto out_unlock;
+		}
+		/* Change image in di */
+		free(di->images[idx]->file);
+		di->images[idx]->file = file; /* malloc()ed by realpath */
+		file = NULL; /* prevent free(file) below */
+	}
+
+	ret = 0;
+out_unlock:
+	ploop_unlock_dd(di);
+	if (file)
+		free(file);
+	if (conf_tmp[0])
+		unlink(conf_tmp);
+	return ret;
+}
+
 int ploop_replace_image(struct ploop_disk_images_data *di,
 		struct ploop_replace_param *param)
 {

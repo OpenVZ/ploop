@@ -563,7 +563,12 @@ int do_reload(const char *device, char **images, __u32 blocksize, off_t new_size
 int dm_reload(struct ploop_disk_images_data *di, const char *device,
 		off_t new_size, int flags);
 int dm_reload_other(const char *device, const char *drv, off_t new_size);
+int dm_replace(struct ploop_disk_images_data *di, const char *device,
+		char *replace_image, int level, int flags);
 int dm_get_info(const char *devname, struct ploop_tg_info *param);
+PL_EXT int ploop_dmreplace(struct ploop_disk_images_data *di,
+				 struct ploop_replace_param *param);
+
 int find_devs(struct ploop_disk_images_data *di, char ***out);
 int find_dev(struct ploop_disk_images_data *di, char *out, int len);
 int find_devs_by_delta(struct ploop_disk_images_data *di,

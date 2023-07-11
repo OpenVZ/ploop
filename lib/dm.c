@@ -960,6 +960,63 @@ err:
 	return rc ? rc : rc1;
 }
 
+int dm_replace(struct ploop_disk_images_data *di, const char *device,
+		char *replace_image, int level, int flags)
+{
+	int rc, rc1 = 0;
+	char **images = NULL;
+	off_t size;
+	__u32 blocksize;
+	int img_fmt;
+	int i;
+
+	if (flags & RELOAD_ONLINE) {
+		rc = ploop_get_names(device, &images);
+		if (rc)
+			return rc;
+	} else {
+		images = make_images_list(di, di->top_guid, 0);
+		if (images == NULL)
+			return SYSEXIT_MALLOC;
+	}
+
+	for (i=0; images[i]; i++) {
+		if (i == level) {
+			free(images[i]);
+			images[i] = strdup(replace_image);
+		}
+	}
+
+/* TODO: May be we will need to parameterize this flags */
+#define CMD_FLAGS (CMD_DM_NO_FLUSH|CMD_DM_SKIP_LOCKFS)
+	if (!(flags & RELOAD_SKIP_SUSPEND)) {
+		/*
+		 * NO FLUSH - block device is in error state and flush can cause io errors
+		 * SKIP LOCKFS - the same fs may get into error state
+		 * device is likely in standby mode so all requests are stopped anyway
+		 *
+		 * NB - no need to suspend base and partitions - DM does this for us
+		 */
+		rc = cmd_ext(device, DM_DEVICE_SUSPEND, CMD_FLAGS);
+		if (rc)
+			goto err;
+	}
+
+	rc = get_image_param_online(di, device, NULL, &size, &blocksize, NULL, &img_fmt);
+	if (rc)
+		goto err;
+
+	rc = do_reload(device, images, blocksize, size, img_fmt, flags);
+
+	if (!(flags & RELOAD_SKIP_SUSPEND))
+		rc1 = cmd_ext(device, DM_DEVICE_RESUME, CMD_FLAGS);
+#undef CMD_FLAGS
+err:
+	ploop_free_array(images);
+
+	return rc ? rc : rc1;
+}
+
 int dm_reload_other(const char *device, const char *drv, off_t size)
 {
 	char t[64];
