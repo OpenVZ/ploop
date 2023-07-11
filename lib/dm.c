@@ -32,6 +32,10 @@
 
 #include "ploop.h"
 
+#define CMD_DM_NO_FLUSH		(1<<0)
+#define CMD_DM_NO_OPENCOUNT	(1<<1)
+#define CMD_DM_SKIP_LOCKFS	(1<<2)
+
 enum {
 	PLOOP_TARGET,
 	QCOW_TARGET,
@@ -211,7 +215,7 @@ static const char *get_cmd_name(int cmd)
 	}
 }
 
-static int cmd(const char *devname, int cmd)
+static int cmd_ext(const char *devname, int cmd, int flags)
 {
 	struct dm_task *d;
 	int rc = -1;
@@ -233,6 +237,13 @@ static int cmd(const char *devname, int cmd)
 	if (udev_wait_flag &&
 			!dm_task_set_cookie(d, &cookie, 0))
 		goto err;
+	if (flags & CMD_DM_NO_FLUSH)
+		dm_task_no_flush(d);
+	if (flags & CMD_DM_NO_OPENCOUNT)
+		dm_task_no_open_count(d);
+	if (flags & CMD_DM_SKIP_LOCKFS)
+		dm_task_skip_lockfs(d);
+
 retry:
 	if (!dm_task_run(d)) {
 		if (errno == EAGAIN && retry++ < 100) {
@@ -253,6 +264,11 @@ retry:
 err:
 	dm_task_destroy(d);
 	return rc;
+}
+
+static int cmd(const char *devname, int cmd)
+{
+	return cmd_ext(devname, cmd, 0);
 }
 
 int dm_resize(const char *devname, off_t size)
