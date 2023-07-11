@@ -26,6 +26,7 @@
 #include <linux/fs.h>
 #include <sys/ioctl.h>
 #include <limits.h>
+#include <libgen.h>
 #include <string.h>
 #include <signal.h>
 #include <sys/types.h>
@@ -1195,12 +1196,23 @@ static int plooptool_list(int argc, char **argv)
 	return ploop_list(f);
 }
 
-static void usage_replace(void)
+static void usage_replace_blockdev(void)
 {
-	fprintf(stderr, "Usage: ploop replace {-d DEVICE | -m MNT} {-l LVL | -o СDELTA} [-k] -i DELTA\n"
-			"       ploop replace {-u UUID|-l LVL|-o CDELTA} [-k] -i DELTA DiskDescriptor.xml\n"
+	fprintf(stderr, "Usage: ploop replace {-d DEVICE | -m MNT} {-l LVL | -o CDELTA} {-f FORMAT} [-k] -i DELTA\n"
 			"       DEVICE := ploop device, e.g. /dev/ploop0\n"
 			"       MNT := directory where ploop is mounted to\n"
+			"       LVL := NUMBER, distance from base delta\n"
+			"       CDELTA := path to currently used image file\n"
+			"       DELTA := path to new image file\n"
+			"       -k, --keep-name    keep the file name (rename DELTA to CDELTA)\n"
+			"       FORMAT := { raw | ploop1 }\n"
+			"	--read-write	read-write image\n"
+	       );
+}
+
+static void usage_replace_device_mapper(void)
+{
+	fprintf(stderr, "Usage: ploop replace {-u UUID|-l LVL|-o CDELTA} {-f FORMAT} [-k] -i DELTA DiskDescriptor.xml\n"
 			"       LVL := NUMBER, distance from base delta\n"
 			"       UUID := UUID of image to be replaced\n"
 			"       CDELTA := path to currently used image file\n"
@@ -1211,6 +1223,12 @@ static void usage_replace(void)
 	       );
 }
 
+static void usage_replace(void)
+{
+	if (ploop_is_devicemapper())
+		return usage_replace_device_mapper();
+	return usage_replace_blockdev();
+}
 
 static int plooptool_replace(int argc, char **argv)
 {
@@ -1218,6 +1236,8 @@ static int plooptool_replace(int argc, char **argv)
 	char dev[PATH_MAX];
 	char *device = NULL;
 	char *mnt = NULL;
+	char ddxml[PATH_MAX];
+	char *ddxml_file = NULL;
 	struct ploop_replace_param param = {
 		.level = -1,
 	};
@@ -1226,6 +1246,13 @@ static int plooptool_replace(int argc, char **argv)
 		{"read-write", no_argument, NULL, 'w'},
 		{NULL, 0, NULL, 0 }
 	};
+	int is_device_mapper = ploop_is_devicemapper();
+
+	if (is_device_mapper) {
+		fprintf(stderr, "Using device mapper ploop\n");
+	} else {
+		fprintf(stderr, "Using ploop block device\n");
+	}
 
 	while ((i = getopt_long(argc, argv, "d:m:l:i:u:o:kwf:",
 					options, &idx)) != EOF) {
@@ -1274,12 +1301,39 @@ static int plooptool_replace(int argc, char **argv)
 	argv += optind;
 
 	if (!param.file) {
-		fprintf(stderr, "Error: image file not specified (use -i)\n");
+		fprintf(stderr, "Error: new image file not specified (use -i)\n");
 		usage_replace();
 		return SYSEXIT_PARAM;
 	}
 
-	if ((argc == 1) && is_xml_fname(argv[0])) {
+	if (is_device_mapper && argc == 0 && param.cur_file) {
+		/* Try to check if there is a DiskDescriptor.xml in the same directory */
+		struct stat st;
+		char *cfd = strdup(param.cur_file);
+		fprintf(stderr, "Try to detect ddxml from current image\n");
+		if (!cfd)
+			return SYSEXIT_MALLOC;
+		snprintf(ddxml, sizeof(ddxml), "%s/DiskDescriptor.xml", dirname(cfd));
+		free(cfd);
+		if (!stat(ddxml, &st)) {
+			fprintf(stderr, "Using detected DiskDescriptor.xml from current image\n");
+			ddxml_file = ddxml;
+		} else {
+			fprintf(stderr, "DiskDescriptor.xml not found at [%s]\n", ddxml);
+		}
+	}
+
+	if (!ddxml_file && (argc == 1 && is_xml_fname(argv[0]))) {
+		ddxml_file = argv[0];
+	}
+
+	if (is_device_mapper && !ddxml_file) {
+		fprintf(stderr, "Error: DiskDescriptor.xml file is required\n");
+		usage_replace();
+		return SYSEXIT_PARAM;		/* only one way of choosing delta to replace */
+	}
+
+	if (ddxml_file) {
 		int ret;
 		struct ploop_disk_images_data *di;
 
@@ -1293,11 +1347,16 @@ static int plooptool_replace(int argc, char **argv)
 			return SYSEXIT_PARAM;
 		}
 
-		ret = ploop_open_dd(&di, argv[0]);
+		ret = ploop_open_dd(&di, ddxml_file);
 		if (ret)
 			return ret;
 
-		ret = ploop_replace_image(di, &param);
+		if (is_device_mapper) {
+			ret = ploop_dmreplace(di, &param);
+		} else {
+			ret = ploop_replace_image(di, &param);
+		}
+
 		ploop_close_dd(di);
 
 		return ret;
