@@ -1862,7 +1862,7 @@ int ploop_dmreplace(struct ploop_disk_images_data *di,
 	if (ret)
 		goto out_unlock;
 
-	oldfile = param->cur_file ? : di->images[idx]->file;
+	oldfile = param->cur_file ? : di->images[level]->file;
 
 	if (keep_name && cant_rename(file, oldfile)) {
 		ret = SYSEXIT_RENAME;
@@ -1872,10 +1872,10 @@ int ploop_dmreplace(struct ploop_disk_images_data *di,
 	/* Write new dd.xml with changed image file */
 	get_disk_descriptor_fname(di, conf, sizeof(conf));
 	snprintf(conf_tmp, sizeof(conf_tmp), "%s.tmp", conf);
-	tmp = di->images[idx]->file;
-	di->images[idx]->file = file;
+	tmp = di->images[level]->file;
+	di->images[level]->file = file;
 	ret = ploop_store_diskdescriptor(conf_tmp, di);
-	di->images[idx]->file = tmp;
+	di->images[level]->file = tmp;
 	if (ret)
 		goto out_unlock;
 
@@ -1970,8 +1970,8 @@ undo_keep:
 			goto out_unlock;
 		}
 		/* Change image in di */
-		free(di->images[idx]->file);
-		di->images[idx]->file = file; /* malloc()ed by realpath */
+		free(di->images[level]->file);
+		di->images[level]->file = file; /* malloc()ed by realpath */
 		file = NULL; /* prevent free(file) below */
 	}
 
