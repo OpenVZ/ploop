@@ -545,6 +545,7 @@ int append_array_entry(const char *entry, char **ar[], int nelem);
 int merge_top_delta(const char *devname);
 int notify_merged_backward (const char *devname, int id);
 int update_delta_index(const char *devname, int delta_idx, struct grow_maps *gm);
+PL_EXT int ploop_is_devicemapper(void);
 int dm_remove(const char *devname, int tm_sec);
 int dm_create(const char *devname, int minor, const char *target,
 		__u64 start, __u64 size, int ro, const char *args);

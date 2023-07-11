@@ -250,6 +250,39 @@ static int get_temp_mountpoint(const char *file, int create, char *buf, int len)
 	return 0;
 }
 
+#if 0
+int ploop_is_devicemapper(void)
+{
+#define PROCDEVICES "/proc/devices"
+	char buf[4096];
+	/*
+	 * vz7 uses /dev/ploop* - 182 ploop
+	 * vz9 uses /dev/mapper/ploop* - 253 device-mapper
+	 */
+	int ret = 1; /* Default to true for device mapper */
+	int rc, fd = open(PROCDEVICES, O_RDONLY);
+
+	if (fd < 0)
+		return fd;
+
+	while((rc = read(fd, buf, sizeof(buf))) > 0) {
+		buf[rc-1] = '\0';
+		if (strstr(buf, "182 ploop")) {
+			ret = 0;
+			break;
+		}
+	}
+
+	close(fd);
+	return ret;
+#undef PROCDEVICES
+}
+#else
+int ploop_is_devicemapper(void) {
+	return 1;
+}
+#endif
+
 int ploop_is_large_disk_supported(void)
 {
 	return 1;
