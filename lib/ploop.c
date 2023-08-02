@@ -1777,7 +1777,7 @@ int ploop_dmreplace(struct ploop_disk_images_data *di,
 	char dev[PATH_MAX];
 	char **names = NULL;
 	int l = 0;
-	int ret, idx, level = -1;
+	int ret = SYSEXIT_PARAM, idx, level = -1;
 	int flags = RELOAD_ONLINE;
 	int raw = param->mode == PLOOP_RAW_MODE;
 	int ro = !(param->flags & PLOOP_REPLACE_RW);
@@ -1786,13 +1786,6 @@ int ploop_dmreplace(struct ploop_disk_images_data *di,
 	char conf[PATH_MAX], conf_tmp[PATH_MAX] = "";
 	int offline = 0;
 	int check_flags = CHECK_DETAILED;
-
-	/* check a new image */
-	ret = ploop_check(param->file, check_flags, NULL, NULL);
-	if (ret) {
-		ploop_log(1, "New image check failed\n");
-		return SYSEXIT_PARAM;
-	}
 
 	if (!di)
 		return SYSEXIT_PARAM;
@@ -1810,7 +1803,6 @@ int ploop_dmreplace(struct ploop_disk_images_data *di,
 		ploop_log(1, "Can't find running ploop device, "
 				"doing offline replace");
 		flags = 0;
-		ret = SYSEXIT_PARAM;
 		goto out_unlock;
 	}
 
