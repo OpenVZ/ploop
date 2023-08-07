@@ -1888,6 +1888,10 @@ int ploop_dmreplace(struct ploop_disk_images_data *di,
 					level, file, ret);
 			goto out_unlock;
 		}
+		ret = update_delta_inuse(oldfile, SIGNATURE_DISK_CLOSED_V20);
+		if (ret)
+			ploop_err(errno, "Failed to clear in use for old image(%s): %d\n",
+					oldfile, ret);
 	}
 
 	if (keep_name) {
