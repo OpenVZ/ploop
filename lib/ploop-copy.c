@@ -1013,7 +1013,7 @@ int ploop_copy_init(struct ploop_disk_images_data *di,
 		return SYSEXIT_MALLOC;
 	}
 
-	ret = ploop_tg_init(device, TG_NAME, &_h->tg);
+	ret = ploop_tg_init(device, TG_NAME, 0, &_h->tg);
 	if (ret)
 		goto err;
 

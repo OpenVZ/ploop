@@ -63,7 +63,7 @@ static void usage_summary(void)
 			"       ploop restore-descriptor [-f FORMAT] [-b BLOCKSIZE] IMAGE_DIR BASE_DELTA\n"
 			"       ploop replace -i DELTA DiskDescriptor.xml\n"
 			"       ploop encrypt [-k KEY] [-w] DiskDescriptor.xml\n"
-			"       ploop tg-init DEVICE NAME\n"
+			"       ploop tg-init DEVICE NAME TG_BLOCKSIZE\n"
 			"       ploop tg-deinit DEVICE\n"
 			"       ploop tg-status DEVICE\n"
 			"Also:  ploop { start | stop | delete | clear | merge | grow | copy |\n"
@@ -1518,13 +1518,25 @@ static int plooptool_encrypt(int argc, char **argv)
 static int plooptool_tg_init(int argc, char **argv)
 {
 	struct ploop_tg_data d;
+	unsigned int blocksize = 0;
+	char *endptr;
 
-	if (argc != 3) { 
-		fprintf(stderr, "Usage: ploop tg-init <DEV> <NAME>\n");
+	if (argc != 3 || argc != 4) {
+		fprintf(stderr, "Usage: ploop tg-init <DEV> <NAME> {<TG_BLOCKSIZE>}\n");
 		return SYSEXIT_PARAM;
 	}
 
-	return ploop_tg_init(argv[1], argv[2], &d);
+	if (argc == 4) {
+		blocksize = strtoul(argv[3], &endptr, 0);
+		if (*endptr != '\0') {
+			fprintf(stderr, "Failed to parse TG_BLOCKSIZE\n"
+					"Usage: ploop tg-init <DEV> <NAME> {<TG_BLOCKSIZE>}\n");
+			return SYSEXIT_PARAM;
+		}
+	}
+
+
+	return ploop_tg_init(argv[1], argv[2], blocksize, &d);
 }
 
 static int plooptool_tg_deinit(int argc, char **argv)

@@ -1044,7 +1044,7 @@ static int dm_tg_reload(const char *dev, const char *dev2,
 3 dmsetup reload ploopXXX --table "0 4294967296 <tg> 2048 /dev/mapper/ploopXXX_underlining"
 4 dmsetup resume ploop_XXX
  */
-int ploop_tg_init(const char *dev, const char *tg, struct ploop_tg_data *out)
+int ploop_tg_init(const char *dev, const char *tg, unsigned int tg_blocksize, struct ploop_tg_data *out)
 {
 	int rc, image_fmt, minor;
 	__u32 blocksize;
@@ -1108,7 +1108,9 @@ int ploop_tg_init(const char *dev, const char *tg, struct ploop_tg_data *out)
 	if (rc)
 		goto err_reload;
 
-	rc = dm_tg_reload(dev, devtg, tg, size, blocksize);
+	if (!tg_blocksize)
+		tg_blocksize = blocksize;
+	rc = dm_tg_reload(dev, devtg, tg, size, tg_blocksize);
 	if (rc)
 		goto err_reload;
 
