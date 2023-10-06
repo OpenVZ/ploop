@@ -250,7 +250,8 @@ retry:
 			sleep(1);
 			goto retry;
 		}
-		goto err;
+	} else {
+		rc = 0;
 	}
 	if (udev_wait_flag) {
 		if (pthread_mutex_lock(&_s_dm_mutex))
@@ -260,7 +261,6 @@ retry:
 			 ploop_err(errno, "pthread_mutex_unlock");
 	}
 
-	rc = 0;
 err:
 	dm_task_destroy(d);
 	return rc;
