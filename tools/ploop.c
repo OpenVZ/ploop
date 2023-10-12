@@ -82,7 +82,7 @@ static void usage_init(void)
 "       SIZE        := NUMBER[KMGT]\n"
 "       FORMAT      := " USAGE_FORMATS "\n"
 "       VERSION     := " USAGE_VERSIONS "\n"
-"       FSTYPE      := { none | ext3 | ext4 } (create filesystem, default ext4)\n"
+"       FSTYPE      := { none | ext3 | ext4 | xfs} (create filesystem, default xfs)\n"
 "       IMAGEFMT    := { ploop | qcow } image format, default ploop)\n"
 "       BLOCKSIZE   := cluster block size, sectors\n"
 "       FSBLOCKSIZE := file system block size, bytes\n"
