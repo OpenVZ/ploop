@@ -747,8 +747,19 @@ static int do_fs_defrag(char *tool_bin, char *dev, char *mnt, char *partname, st
 		ploop_err(errno, "Can't fork");
 		return -1;
 	} else if (pid == 0) {
+		if (!isatty(STDOUT_FILENO) && !isatty(STDERR_FILENO)) {
+			int devnull;
+			int fdlimit = (int)sysconf(_SC_OPEN_MAX);
+			for (int i = STDERR_FILENO + 1; i < fdlimit; i++) close(i);
+			devnull = open("/dev/null", O_RDONLY);
+			dup2(devnull, STDIN_FILENO);
+			close(devnull);
+			devnull = open("/dev/null", O_WRONLY|O_APPEND);
+			dup2(devnull, STDOUT_FILENO);
+			dup2(devnull, STDERR_FILENO);
+			close(devnull);
+		}
 		execv(arg[0], arg);
-
 		ploop_err(errno, "Can't exec %s", arg[0]);
 		_exit(1);
 	}
