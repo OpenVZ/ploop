@@ -45,7 +45,8 @@
 #define EXT4_IOC_OPEN_BALLOON		_IO('f', 42)
 #define XFS_IOC_OPEN_BALLOON		_IO('X', 255)
 
-#define BIN_E4DEFRAG	"/usr/sbin/ploop-e4defrag"
+#define BIN_XFS_DEFRAG 	  "/usr/sbin/xfs_fsr"
+#define BIN_E4DEFRAG	"/usr/sbin/e4defrag"
 
 char *mntn2str(int mntn_type)
 {
@@ -597,7 +598,7 @@ static void defrag_complete(const char *dev)
 	}
 	fclose(fp);
 
-	if (strcmp(BIN_E4DEFRAG, cmd) != 0) {
+	if (!strcmp(BIN_E4DEFRAG, cmd) && !strcmp(BIN_XFS_DEFRAG, cmd)) {
 		// some other process that happen to reuse our pid
 		free(cmd);
 		goto stale;
@@ -709,31 +710,37 @@ static int get_num_extents(const char *img, __u32 *out)
 	return ret;
 }
 
-static int do_kaio_ext4_defrag(const char *dev, struct ploop_discard_param *param)
+static int do_fs_defrag(char *tool_bin, char *dev, char *mnt, char *partname, struct ploop_discard_param *param)
 {
 	int ret;
 	pid_t pid;
 	char file[PATH_MAX];
-	char *arg[] = {BIN_E4DEFRAG, file, NULL};
+	char *arg[] = {tool_bin, partname, NULL};
 	__u32 num_clusters = 0, num_extents = 0, threshold = 0;
 
 	if (access(arg[0], F_OK))
 		return 0;
 
 	ret = get_num_clusters(dev, file, sizeof(file), &num_clusters);
-	if (ret)
+	if (ret) {
+		ploop_err(0, "Can not get num clusters for %s (%s)\n", dev, file);
 		return ret;
 
 	ret = get_num_extents(file, &num_extents);
-	if (ret)
+	if (ret) {
+		ploop_err(0, "Can not get num extents for %s (%s)\n", dev, file);
 		return ret;
+	}
 	if (num_clusters)
 		threshold = num_extents / num_clusters;
-	if (threshold <= param->image_defrag_threshold)
+	/* if user have specified a threshold and calculated threshold is below it - do not defrag  */
+	if (param->image_defrag_threshold > 0 && threshold <= param->image_defrag_threshold) {
+		ploop_err(0, "below threshold  %d  <= %d\n", threshold, param->image_defrag_threshold);
 		return 0;
+	}
 
-	ploop_log(0, "Start defrag threshold=%d %s %s",
-			threshold, arg[0], arg[1]);
+	ploop_log(0, "Start defrag threshold=%d (requested threshold=%d) num_clusters=%d num_extents=%d cmd=[%s %s]\n",
+			threshold, param->image_defrag_threshold, num_clusters, num_extents, arg[0], arg[1]);
 
 	pid = fork();
 	if (pid < 0) {
@@ -756,6 +763,16 @@ static int do_kaio_ext4_defrag(const char *dev, struct ploop_discard_param *para
 	return ret;
 }
 
+static int do_ext4_defrag(char *dev, char *mnt, char *partname, struct ploop_discard_param *param)
+{
+	return do_fs_defrag(BIN_E4DEFRAG, dev, mnt, partname, param);
+}
+
+static int do_xfs_defrag(char *dev, char *mnt, char *partname, struct ploop_discard_param *param)
+{
+	return do_fs_defrag(BIN_XFS_DEFRAG, dev, mnt, partname, param);
+}
+
 int ploop_discard(struct ploop_disk_images_data *di,
 		struct ploop_discard_param *param)
 {
@@ -763,6 +780,9 @@ int ploop_discard(struct ploop_disk_images_data *di,
 	char dev[64];
 	char mnt[PATH_MAX];
 	int mounted = 0;
+	int xfs;
+	char partname[64];
+	char devname[64];
 
 	if (ploop_lock_dd(di))
 		return SYSEXIT_LOCK;
@@ -774,6 +794,17 @@ int ploop_discard(struct ploop_disk_images_data *di,
 		return ret;
 	}
 
+	ret = get_part_devname(di, dev, devname, sizeof(devname),
+                                partname, sizeof(partname));
+	if (ret) {
+		ploop_unlock_dd(di);
+		return ret;
+	}
+
+	xfs = is_xfs(partname);
+	if (xfs < 0)
+		xfs = 0; // default to ext4
+
 	if (!mounted) {
 		ret = check_deltas_live(di, dev);
 		if (ret) {
@@ -783,14 +814,17 @@ int ploop_discard(struct ploop_disk_images_data *di,
 	}
 
 	ploop_unlock_dd(di);
+
+	if (param->defrag) {
+		if (xfs) {
+			do_xfs_defrag(dev, mnt, partname, param);
+		} else {
+			do_ext4_defrag(dev, mnt, partname , param);
+		}
+	}
+
 	ret = ploop_trim(di, dev, mnt, 0);
-	if (ret)
-		goto out;
 
-	if (param->defrag)
-		do_kaio_ext4_defrag(dev, param);
-
-out:
 	if (ploop_lock_dd(di) == 0) {
 		if (mounted) {
 			umnt(di, dev, mnt, mounted);
