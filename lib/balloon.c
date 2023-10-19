@@ -725,6 +725,7 @@ static int do_fs_defrag(char *tool_bin, char *dev, char *mnt, char *partname, st
 	if (ret) {
 		ploop_err(0, "Can not get num clusters for %s (%s)\n", dev, file);
 		return ret;
+	}
 
 	ret = get_num_extents(file, &num_extents);
 	if (ret) {
