@@ -815,7 +815,7 @@ int check_deltas_live(struct ploop_disk_images_data *di, const char *device)
 	raw = (di->mode == PLOOP_RAW_MODE);
 
 	ret = check_deltas(di, images, raw, &blocksize, NULL, CHECK_LIVE);
-	if (ret && ploop_suspend_device(device) == 0) {
+	if (ret && device && ploop_suspend_device(device) == 0) {
 		ret = check_deltas(di, images, raw, &blocksize, NULL, CHECK_LIVE);
 		ploop_resume_device(device);
 	}
