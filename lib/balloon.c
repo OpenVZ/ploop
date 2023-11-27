@@ -782,7 +782,20 @@ static int do_ext4_defrag(char *dev, char *mnt, char *partname, struct ploop_dis
 
 static int do_xfs_defrag(char *dev, char *mnt, char *partname, struct ploop_discard_param *param)
 {
+	/*
+	 * Disable xfs defrag until it works properly
+	 * We want to defragment filesystem and release unused blocks
+	 * but xfs_fsr only does defragment files. The problem is that
+	 * defragmentation process makes copies of each file and allocates
+	 * more clusters instead of releasing free space.
+	 * After the temporary files are removed we encounter x5-8 grow of
+	 * used space.
+	 */
+#if 0
 	return do_fs_defrag(BIN_XFS_DEFRAG, dev, mnt, partname, param);
+#else
+	return 0;
+#endif
 }
 
 int ploop_discard(struct ploop_disk_images_data *di,
