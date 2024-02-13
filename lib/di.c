@@ -266,6 +266,20 @@ void ploop_di_set_temporary(struct ploop_disk_images_data *di, const char *guid)
 		di->snapshots[i]->temporary = 1;
 }
 
+static struct ploop_disk_images_runtime_data *ploop_runtime_alloc(void)
+{
+	return calloc(1, sizeof(struct ploop_disk_images_runtime_data));
+}
+
+static void ploop_runtime_free(struct ploop_disk_images_runtime_data *p)
+{
+	free(p->xml_fname);
+	free(p->component_name);
+	free(p->last_image_file);
+	free(p->fmt_data);
+	free(p);
+}
+
 struct ploop_disk_images_data *alloc_diskdescriptor(void)
 {
 	struct ploop_disk_images_data *p;
@@ -276,7 +290,7 @@ struct ploop_disk_images_data *alloc_diskdescriptor(void)
 		return NULL;
 	}
 
-	p->runtime = calloc(1, sizeof(struct ploop_disk_images_runtime_data));
+	p->runtime = ploop_runtime_alloc();
 	if (p->runtime == NULL)
 		goto err;
 
@@ -327,9 +341,7 @@ void ploop_close_dd(struct ploop_disk_images_data *di)
 
 	ploop_clear_dd(di);
 
-	free(di->runtime->xml_fname);
-	free(di->runtime->component_name);
-	free(di->runtime);
+	ploop_runtime_free(di->runtime);
 	free(di);
 }
 
