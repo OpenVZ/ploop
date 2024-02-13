@@ -167,7 +167,7 @@ static const char *json_get_uuid(json_object *bmps)
 	json_object_array_length(bmps) == 0)
 		return NULL;
 
-	for (i = 0; i < json_object_array_length(bmps); i++) {
+	for (i=0; i < json_object_array_length(bmps); i++) {
 		struct json_object *el = json_object_array_get_idx(bmps, i);
 		struct json_object *flags = json_get_key(el, "flags");
 		const char *name = json_get_key_string(el, "name");
@@ -265,20 +265,98 @@ static int qcow_info(const char *image, struct qcow_info *info)
 	return rc;
 }
 
+int qcow_check_valid_images(char **images, int count)
+{
+	struct qcow_info info;
+	int rc, i;
+
+	ploop_log(0, "Validate qcow2 images:");
+	for (i=0; i < count; i++) {
+		memset(&info, 0, sizeof(struct qcow_info));
+		rc = qcow_info(images[i], &info);
+		qcow_free_info_data(&info);
+		ploop_log(0, "image %s is %svalid", images[i], (rc ? "in" : "" ));
+		if (rc)
+			break;
+	}
+	return rc;
+}
+
 int qcow_open(const char *image, struct ploop_disk_images_data *di)
 {
 	int rc;
 	struct qcow_info i;
+	const char *guid = TOPDELTA_UUID;
+	const char *parent_guid = NONE_UUID;
+	int ignore_backing_image = 0;
 
+	// TODO: cache info into fmt_data
 	rc = qcow_info(image, &i);
 	if (rc)
-		return rc;
+		goto out;
+	/*
+	 * Images are processed from bottom to top virtual_size is
+	 * image size, we will use the last (top) image size for
+	 * device size. Kernel handles differences between lower and
+	 * upper deltas but we need to pass device size to device mapper
+	 */
 	di->size = i.virtual_size;
 	di->blocksize = i.cluster_size;
+
+	/* FIXME: does cbt need backing  */
+	/* TODO: add an option to skip this check */
+	if (di->runtime->last_image_file && !ignore_backing_image) {
+		ploop_log(0, "backing image:[%s] expected backing image:[%s]", di->runtime->last_image_file,
+			i.backing_filename ? : "");
+		if (i.backing_filename) {
+			if (strcmp(i.backing_filename, di->runtime->last_image_file)) {
+				ploop_err(0, "Invalid image - expected:[%s] got:[%s]",
+					di->runtime->last_image_file,
+					i.backing_filename);
+				rc = -1;
+				goto out;
+			}
+		}
+	}
+
 	di->runtime->image_fmt = QCOW_FMT;
-	if (i.cbt_enable)
+	if (i.cbt_enable) {
+		if (di->cbt_uuid) {
+			free(di->cbt_uuid);
+		}
+		// if cbt is enable only one image can be loaded
 		di->cbt_uuid = strdup(i.cbt_uuid);
-	return ploop_di_add_image(di, image, TOPDELTA_UUID, NONE_UUID);
+		// FIXME: use only cbt from top image
+	}
+	// FIXME: need to specify order here
+	if (di->nimages == 0) {
+		if (i.backing_filename) {
+			ploop_err(0, "%s needs a backing file", image);
+			rc = -1;
+			goto out;
+		}
+		rc = ploop_di_add_image(di, image, guid, parent_guid);
+	} else {
+		/* qcow_info fills backing files into qcow_info */
+		char gtmp[256];
+		parent_guid = di->images[di->nimages-1]->guid;
+		// need to fake valid guid here to pass the validation
+		snprintf(gtmp, sizeof(gtmp), "{5fbaabe3-CAFE-B03A-4A4A-4A0e329aab%02X}", (unsigned)di->nimages);
+		guid = gtmp;
+		rc = ploop_di_add_image(di, image, guid, parent_guid);
+	}
+	free(di->runtime->last_image_file);
+	{
+		char *bn = basename(image);
+		if (!bn) {
+			rc = -1;
+			goto out;
+		}
+		di->runtime->last_image_file = strdup(bn);
+	}
+out:
+	qcow_free_info_data(&i);
+	return rc;
 }
 
 static int do_qcow_check(const char *image)
@@ -308,7 +386,15 @@ static int do_qcow_check(const char *image)
 
 int qcow_check(struct ploop_disk_images_data *di)
 {
-	return do_qcow_check(find_image_by_guid(di, get_top_delta_guid(di)));
+	int rc, i;
+
+	for (i=0; i < di->nimages;  i++) {
+		rc = do_qcow_check(di->images[i]->file);
+		if (rc)
+			return rc;
+	}
+
+	return rc;
 }
 
 int qcow_live_check(const char *device)
@@ -547,7 +633,7 @@ static int qmp_launch_qemu(const char *dev, int fd, const char *image,
 	if (log) {
 		char b[4096];
 
-		for (i = 0; arg[i] != NULL; i++) {
+		for (i=0; arg[i] != NULL; i++) {
 			strcat(b, arg[i]);
 			if (arg[i + 1] != NULL)
 				strcat(b, " ");
@@ -575,7 +661,7 @@ static int qmp_launch_qemu(const char *dev, int fd, const char *image,
 	addr.sun_family = AF_UNIX;
 	strcpy(addr.sun_path, qmp_file);
 
-	for (i = 0; i < 300; i++) {
+	for (i=0; i < 300; i++) {
 		ret = connect(*qmp_fd, (struct sockaddr *)&addr, sizeof(addr));
 		if (ret == 0)
 			break;
@@ -763,72 +849,131 @@ static int qcow_save_cbt(const char *uuid, const char *dev,
 
 	return rc;
 }
+/*
+ * images - NULL term list of images bottom to top
+ * size - size of the image /device size/ - what to do if resized - only raw can be resized
+ * minor - device minor
+ * param - mount params build from args
+ * di - images data, it also have list of images
+ * ploop_tg_init - is the only caller that pass images without di
+ */
 
+
+// this is qcow_open or qcow_create really
 int qcow_add(char **images, off_t size, int minor,
 	 struct ploop_mount_param *param, struct ploop_disk_images_data *di)
 {
-	int fd, rc;
+	int i, fd, rc;
 	char b[4096];
-	const char *i = images[0];
+	const char *img = images[0];
+	const char *dirty_img = NULL;
+	int nimages;
+	int sz = 0;
+	int fds[256] = { -1 };
+
+	for (i=0; images[i]; i++) {
+		ploop_log(0, "Adding delta %d - %s", i+1, images[i]);
+	}
+
+	nimages = i;
+
+	if (nimages > 255) {
+		ploop_err(0, "Too many images %d\n", nimages);
+		return SYSEXIT_PARAM;
+	}
+
+	ploop_log(0, "Total %d deltas", nimages);
 
 	if (param->device[0] == '\0')
 		get_dev_name(param->device, sizeof(param->device));
-	ploop_log(0, "Adding qcow delta dev=%s img=%s size=%lu (%s)",
-			param->device, i, size, param->ro ? "ro":"rw");
 
-	fd = open(i, O_DIRECT | (param->ro ? O_RDONLY : O_RDWR));
-	if (fd < 0) {
-		ploop_err(errno, "Can't open file %s", i);
-		return SYSEXIT_OPEN;
-	}
+	ploop_log(0, "Using qcow top delta on dev=%s img=%s size=%lu (%s)",
+			param->device, images[nimages-1], size, param->ro ? "ro":"rw");
 
-	if (!param->ro) {
-		rc = qcow_update_hdr(i, QCOW2_INCOMPAT_DIRTY, 1);
-		if (rc)
-			goto err;
-	}
-
+	// FIXME: Only use cbt from last iamge
 	if ((di && di->cbt_uuid) && !param->ro) {
+		img = images[di->nimages-1];
+		fd = open(img, O_DIRECT | O_RDWR | O_CLOEXEC);
+		if (fd < 0) {
+			ploop_err(errno, "Can't open file %s", img);
+			return SYSEXIT_OPEN;
+		}
 		rc = dm_create(param->device, minor, "zero-rq", 0, size, 0, "");
 		if (rc)
 			goto err;
 
-		rc = qcow_load_cbt(param->device, fd, i, di->cbt_uuid);
+		rc = qcow_load_cbt(param->device, fd, img, di->cbt_uuid);
 		if (rc)
 			goto err;
 
 		rc = dm_reload(di, param->device, size, 0);
-	} else {
-		snprintf(b, sizeof(b), "%d", fd);
-		rc = dm_create(param->device, minor, "qcow2", 0, size, param->ro, b);
+
+		close(fd);
+		return rc;
 	}
 
+	/*
+	 * dm-qcow2-target.c: Userspace passes deltas in bottom to top order
+	 */
+	for (i=0; i < nimages ; i++) {
+		/* Only top delta is writeable */
+		int is_ro = (i == nimages - 1) ? (param->ro ? O_RDONLY : O_RDWR) : O_RDONLY;
+		img = images[i];
+		fd = open(img, O_DIRECT | is_ro | O_CLOEXEC);
+		ploop_log(0, "Adding delta %d img=%s (%s) fd=%d",
+				i, images[i], (is_ro & O_RDWR )? "rw":"ro", fd);
+		if (fd < 0) {
+			ploop_err(errno, "Can't open file %s", img);
+			rc =  SYSEXIT_OPEN;
+			goto err;
+		}
+		fds[i] = fd;
+		/* If not readonly then mark dirty */
+		if (is_ro & O_RDWR) {
+			rc = qcow_update_hdr(img, QCOW2_INCOMPAT_DIRTY, 1);
+			if (rc)
+				goto err;
+			dirty_img = img;
+		}
+		sz += snprintf(b+sz, sizeof(b)-sz, "%d ", fd);
+	}
+	b[sz] = '\0'; /* kill the trailing space */
+	ploop_log(0, "Creating device:%d", minor);
+	rc = dm_create(param->device, minor, "qcow2", 0, size, param->ro, b);
 err:
-	if (rc && !param->ro)
-		qcow_update_hdr(i, QCOW2_INCOMPAT_DIRTY, 0);
+	if (rc && dirty_img /*  && !param->ro*/) // only on the top delta
+		qcow_update_hdr(dirty_img, QCOW2_INCOMPAT_DIRTY, 0);
 	if (rc)
 		remove(param->device);
-	close(fd);
+	for (i=0; i < nimages; i++) {
+		if (fds[i] == -1)
+			break;
+		close(fds[i]);
+	}
 
 	return rc;
-}
-
-static int add_image(struct ploop_disk_images_data *di, struct ploop_mount_param *param)
-{
-	char *images[] = {find_image_by_guid(di, get_top_delta_guid(di)), NULL};
-
-	return qcow_add(images, di->size, 0, param, di);
 }
 
 int qcow_mount(struct ploop_disk_images_data *di,
 		struct ploop_mount_param *param)
 {
-	int rc;
+	int i, rc;
+	char *images[di->nimages+1];
 
 	rc = qcow_check(di);
 	if (rc)
 		return rc;
-	return add_image(di, param);
+	for (i=0; i < di->nimages; i++)
+		images[i] = di->images[i]->file;
+
+	images[i]= NULL;
+
+	/* qcow_add creates the device */
+	rc = qcow_add(images, di->size, 0, param, di);
+	if (rc)
+		return rc;
+
+	return rc;
 }
 
 int qcow_umount(struct ploop_disk_images_data *di,
@@ -1117,7 +1262,7 @@ int qcow_alloc_active_bitmap(int fd, __u64 **bitmap, __u32 *bitmap_size,
 	bzero(*bitmap, size);
 	*nr_clusters = 0;
 
-	for (i = 0; i < l1_entries; i++) {
+	for (i=0; i < l1_entries; i++) {
 		uint64_t l1_entry = bswap_64(l1[i]);
 		if (l1_entry & L1_CLUSTER_USED && l1_entry & L1_OFFSET_MASK) {
 			uint64_t offset = l1_entry & L1_OFFSET_MASK;
@@ -1128,7 +1273,7 @@ int qcow_alloc_active_bitmap(int fd, __u64 **bitmap, __u32 *bitmap_size,
 				goto err;
 			}
 
-			for (j = 0; j < l2_entries && (i * l2_entries + j) < *bitmap_size; j++) {
+			for (j=0; j < l2_entries && (i * l2_entries + j) < *bitmap_size; j++) {
 				uint64_t l2_entry = bswap_64(l2[j]);
 				if ((l2_entry & L2_CLUSTER_STANDARD ||
 				l2_entry & L2_CLUSTER_COMPRESSED) && l2_entry & L2_OFFSET_MASK) {
@@ -1221,7 +1366,7 @@ int qcow_alloc_bitmap(int fd, __u64 **bitmap, __u32 *bitmap_size,
 		goto err;
 	}
 
-	for (i = 0; i < table_entries; i++) {
+	for (i=0; i < table_entries; i++) {
 		uint64_t offset = bswap_64(table[i]);
 		if (offset) {
 			size = pread(fd, block, cluster_size, offset);
@@ -1231,7 +1376,7 @@ int qcow_alloc_bitmap(int fd, __u64 **bitmap, __u32 *bitmap_size,
 				goto err;
 			}
 
-			for (j = 0; j < block_entries && (i * block_entries + j) < *bitmap_size; j++) {
+			for (j=0; j < block_entries && (i * block_entries + j) < *bitmap_size; j++) {
 				uint64_t refcount;
 				switch (refcount_bits) {
 				case 8:
