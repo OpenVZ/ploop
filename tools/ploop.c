@@ -243,7 +243,7 @@ static int plooptool_init(int argc, char **argv)
 
 static void usage_mount(void)
 {
-	fprintf(stderr, "Usage: ploop mount [-r] [-n] [-f FORMAT] [-b BLOCKSIZE] [-d DEVICE]\n"
+	fprintf(stderr, "Usage: ploop mount [-a] [-r] [-n] [-f FORMAT] [-b BLOCKSIZE] [-d DEVICE]\n"
 			"             [-m MOUNT_POINT] [-t FSTYPE] [-o MOUNT_OPTS] [--sparse]\n"
 			"             BASE_DELTA [ ... TOP_DELTA ]\n"
 			"       ploop mount [-r] [-m MOUNT_POINT] [-u UUID] DiskDescriptor.xml\n"
@@ -254,6 +254,7 @@ static void usage_mount(void)
 			"       FSTYPE := in-image filesystem type (ext4 by default)\n"
 			"       MOUNT_OPTS := additional mount options, comma-separated\n"
 			"       *DELTA := path to image file\n"
+			"       -a     - mount list of qcow2 images bottom to top order\n"
 			"       -r     - mount images read-only\n"
 			"       -F     - run fsck on inner filesystem before mounting it\n"
 			"       -n     - do not run partprobe during mount\n"
@@ -264,11 +265,15 @@ static int plooptool_mount(int argc, char **argv)
 {
 	int i, f, ret = 0;
 	int raw = 0;
+	int loadimages = 0;
 	struct ploop_mount_param mountopts = {};
 	const char *component_name = NULL;
 
-	while ((i = getopt(argc, argv, "nrFf:d:m:t:u:o:b:c:q")) != EOF) {
+	while ((i = getopt(argc, argv, "anrFf:d:m:t:u:o:b:c:q")) != EOF) {
 		switch (i) {
+		case 'a':
+			loadimages = 1;
+			break;
 		case 'd':
 			strncpy(mountopts.device, optarg, sizeof(mountopts.device)-1);
 			break;
@@ -334,10 +339,14 @@ static int plooptool_mount(int argc, char **argv)
 		return SYSEXIT_PARAM;
 	}
 
-	if (argc == 1)
+	if (argc == 1 || loadimages)
 	{
 		struct ploop_disk_images_data *di;
-		ret = ploop_open_dd(&di, argv[0]);
+		fprintf(stderr, "load ddxml\n");
+		if (argv[1] || loadimages)
+			ret = ploop_make_dd_from_imgs(&di, argv);
+		else
+			ret = ploop_open_dd(&di, argv[0]);
 		if (ret)
 			return ret;
 
@@ -348,8 +357,10 @@ static int plooptool_mount(int argc, char **argv)
 
 		ploop_close_dd(di);
 	}
-	else
+	else {
+		fprintf(stderr, "load images\n");
 		ret = ploop_mount(NULL, argv, &mountopts, raw);
+	}
 
 	return ret;
 }
@@ -546,7 +557,7 @@ static int plooptool_umount(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if (argc != 1 && !umountopts.device && !mnt) {
+	if (argc <= 1 && !umountopts.device && !mnt) {
 		usage_umount();
 		return SYSEXIT_PARAM;
 	}
@@ -569,7 +580,10 @@ static int plooptool_umount(int argc, char **argv)
 		ret = ploop_umount(device, NULL);
 	} else {
 		struct ploop_disk_images_data *di;
-		ret = ploop_open_dd(&di, argv[0]);
+		if (argv[1])
+			ret = ploop_make_dd_from_imgs(&di, argv);
+		else
+			ret = ploop_open_dd(&di, argv[0]);
 		if (ret)
 			return ret;
 
