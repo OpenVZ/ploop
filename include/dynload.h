@@ -76,6 +76,7 @@ struct ploop_functions {
 	void (*close_dd)(struct ploop_disk_images_data *di);
 	int (*create_temporary_snapshot)(struct ploop_disk_images_data *di, struct ploop_tsnapshot_param *param, int *holder_fd);
 	int (*is_mounted)(struct ploop_disk_images_data *di);
+	int (*make_dd_from_imgs)(struct ploop_disk_images_data **di, char **imgs);
 	/* 1.12 */
 	int (*copy_receiver)(struct ploop_copy_receive_param *arg);
 	int (*get_max_size)(unsigned int blocksize, unsigned long long *max);

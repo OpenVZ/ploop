@@ -411,6 +411,7 @@ int ploop_discard(struct ploop_disk_images_data *di,
 
 int ploop_compact(struct ploop_compact_param *param);
 int ploop_open_dd(struct ploop_disk_images_data **di, const char *fname);
+int ploop_make_dd_from_imgs(struct ploop_disk_images_data **di, char **imgs);
 void ploop_close_dd(struct ploop_disk_images_data *di);
 int ploop_create_dd(const char *ddxml, struct ploop_create_param *param);
 int ploop_read_dd(struct ploop_disk_images_data *di);

@@ -131,7 +131,7 @@ int ploop_add_image_entry(struct ploop_disk_images_data *di, const char *fname, 
 		return SYSEXIT_MALLOC;
 	}
 
-	tmp = realloc(di->images, sizeof(struct ploop_image_data *) * (di->nimages+1));
+	tmp = realloc(di->images, sizeof(struct ploop_image_data *) * (di->nimages+2));
 	if (tmp == NULL) {
 		ploop_err(0, "realloc failed");
 		free(image);
@@ -149,6 +149,7 @@ int ploop_add_image_entry(struct ploop_disk_images_data *di, const char *fname, 
 
 	di->images[di->nimages] = image;
 	di->nimages++;
+	di->images[di->nimages] = NULL;
 
 	return 0;
 }
@@ -231,6 +232,7 @@ int ploop_di_add_image(struct ploop_disk_images_data *di, const char *fname,
 	}
 
 	ploop_log(3, "Adding snapshot %s", guid);
+	/* last image becomes the top guid */
 	free(di->top_guid);
 	di->top_guid = top_guid;
 
@@ -401,7 +403,7 @@ int ploop_open_dd(struct ploop_disk_images_data **di, const char *fname)
 		if (!access(path, F_OK))
 			image_fmt = PLOOP_FMT;
 		else {
-			//possibly it is qcow format in the directory
+			/* possibly it is qcow format in the directory */
 			strcpy(path + pathLength, "/"QCOW_IMAGE_NAME);
 			if (access(path, F_OK)) {
 				ploop_err(0, "Can't open ploop image %s", fname);
@@ -440,6 +442,97 @@ err:
 	ploop_close_dd(p);
 
 	return rc;
+}
+
+int ploop_dd_add_image(struct ploop_disk_images_data *di, const char *fname)
+{
+	int rc, image_fmt = -1;
+	char path[PATH_MAX];
+	struct stat st;
+
+	if (stat(fname, &st)) {
+		ploop_err(errno, "Can't open %s", fname);
+		return SYSEXIT_OPEN;
+	}
+
+	if (realpath(fname, path) == NULL) {
+		ploop_err(errno, "Can't resolve %s", fname);
+		return SYSEXIT_DISKDESCR;
+	}
+
+	/* already in qcow2 mode */
+	if (!S_ISDIR(st.st_mode) && di->runtime->image_fmt == QCOW_FMT)
+		goto handle_qcow2;
+
+	/* TODO: move detection to separate functions */
+	if (S_ISDIR(st.st_mode)) {
+		int pathLength = strlen(path);
+		strcpy(path + pathLength, "/"DISKDESCRIPTOR_XML);
+		if (!access(path, F_OK))
+			image_fmt = PLOOP_FMT;
+		else {
+			/* FIXME: should this be supported with multiple images */
+			strcpy(path + pathLength, "/"QCOW_IMAGE_NAME);
+			if (access(path, F_OK)) {
+				ploop_err(0, "Can't open ploop image %s", fname);
+				return SYSEXIT_DISKDESCR;
+			}
+			image_fmt = QCOW_FMT;
+		}
+	} else if (strcmp(get_basename(path), DISKDESCRIPTOR_XML) == 0) {
+		image_fmt = PLOOP_FMT;
+	} else {
+		rc = detect_image_fmt(path, &image_fmt);
+		if (rc)
+			return rc;
+	}
+
+	if (image_fmt == QCOW_FMT) {
+handle_qcow2:
+		rc = qcow_open(path, di);
+		if (rc)
+			goto err;
+	}
+
+	return 0;
+err:
+	return rc;
+}
+
+int ploop_make_dd_from_imgs(struct ploop_disk_images_data **di, char **imgs)
+{
+	const char *img = *imgs;
+	int rc;
+	struct ploop_disk_images_data *p;
+
+	*di = NULL;
+	p = alloc_diskdescriptor();
+	if (p == NULL)
+		return SYSEXIT_MALLOC;
+
+	p->runtime->xml_fname = strdup(img);
+	if (!p->runtime->xml_fname) {
+		ploop_free_diskdescriptor(p);
+		return SYSEXIT_MALLOC;
+	}
+
+	while (img) {
+		rc = ploop_dd_add_image(p, img);
+		if (rc) {
+			ploop_close_dd(p);
+			return rc;
+		}
+		if (p->nimages == 1 && p->runtime->image_fmt != QCOW_FMT) {
+			ploop_err(errno, "Opening multiple image files is only supported for QCOW2\n");
+			ploop_close_dd(p);
+			return SYSEXIT_DISKDESCR;
+		}
+		img = *(++imgs);
+	}
+
+	*di = p;
+
+	return 0;
 }
 
 int find_image_idx_by_file(struct ploop_disk_images_data *di, const char *file)
