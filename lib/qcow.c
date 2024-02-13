@@ -77,6 +77,8 @@ struct qcow_info {
 	int cluster_size;
 	int cbt_enable;
 	char cbt_uuid[UUID_SIZE];
+	char *full_backing_filename;
+	char *backing_filename;
 };
 
 
@@ -177,12 +179,19 @@ static const char *json_get_uuid(json_object *bmps)
 	return NULL;
 }
 
+static void qcow_free_info_data(struct qcow_info *info)
+{
+	free(info->backing_filename);
+	free(info->full_backing_filename);
+}
+
 static int json_parse(struct json_object* obj, struct qcow_info *info)
 {
 	struct json_object_iterator it,	ie;
 
 	info->cbt_enable = 0;
 
+	memset(info, 0, sizeof(*info));
 	it = json_object_iter_begin(obj);
 	ie = json_object_iter_end(obj);
 	for (; !json_object_iter_equal(&it, &ie); json_object_iter_next(&it)) {
@@ -204,8 +213,19 @@ static int json_parse(struct json_object* obj, struct qcow_info *info)
 					info->cbt_enable = 1;
 				}
 			}
+		} else if (json_object_get_type(val) == json_type_string) {
+			if (!strcmp(name, "full-backing-filename")) {
+				info->full_backing_filename = strdup(json_object_get_string(val));
+				if (!info->full_backing_filename)
+					return -1;
+			}
+			if (!strcmp(name, "backing-filename")) {
+				info->backing_filename = strdup(json_object_get_string(val));
+				if (!info->backing_filename)
+					return -1;
+			}
 		}
-	} 
+	}
 	return 0;
 }
 
