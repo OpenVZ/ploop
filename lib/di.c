@@ -436,6 +436,10 @@ int ploop_open_dd(struct ploop_disk_images_data **di, const char *fname)
 		return SYSEXIT_MALLOC;
 
 	p->runtime->xml_fname = strdup(path);
+	if (!p->runtime->xml_fname) {
+		ploop_free_diskdescriptor(p);
+		return SYSEXIT_MALLOC;
+	}
 
 	if (image_fmt == QCOW_FMT) {
 		rc = qcow_open(path, p);
