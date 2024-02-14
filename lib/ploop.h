@@ -636,4 +636,9 @@ int qcow_alloc_active_bitmap(int fd, __u64 **bitmap, __u32 *bitmap_size,
 		int *nr_clusters);
 int qcow_alloc_bitmap(int fd, __u64 **bitmap, __u32 *bitmap_size,
 		int *nr_clusters);
+PL_EXT int qcow_check_valid_images(char **images, int count);
+PL_EXT int ploop_dmreplace_qcow(struct ploop_disk_images_data *di,
+			 struct ploop_replace_param *param, char *device,
+			 int flags);
+
 #endif

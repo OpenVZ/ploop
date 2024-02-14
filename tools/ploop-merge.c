@@ -50,6 +50,7 @@ int plooptool_merge(int argc, char ** argv)
 	char **names = NULL;
 	const char *new_delta = NULL;
 	int i, f, ret;
+	int is_dm = ploop_is_devicemapper();
 
 	while ((i = getopt(argc, argv, "f:d:l:n:u:A")) != EOF) {
 		switch (i) {
@@ -119,7 +120,26 @@ int plooptool_merge(int argc, char ** argv)
 #endif
 		}
 
-		ret = merge_image(device, start_level, end_level, raw, merge_top, names, new_delta);
+		if (is_dm && !qcow_check_valid_images(argv, argc)) {
+			/* we only support backward merge all */
+			// need to reload with last two deltas writeable otherwise we get EACCESS
+			int ret;
+			struct ploop_disk_images_data *di;
+			ret = ploop_make_dd_from_imgs(&di, argv);
+			if (ret)
+				return ret;
+
+			ret = ploop_dmreplace_qcow(di, NULL, device, RELOAD_RW2);
+			if (!ret)
+				ret = merge_qcow2_backward(device);
+
+			ploop_close_dd(di);
+
+			return ret;
+
+		} else {
+			ret = merge_image(device, start_level, end_level, raw, merge_top, names, new_delta);
+		}
 	}
 
 	return ret;

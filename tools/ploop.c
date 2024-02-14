@@ -1227,6 +1227,7 @@ static void usage_replace_blockdev(void)
 static void usage_replace_device_mapper(void)
 {
 	fprintf(stderr, "Usage: ploop replace {-u UUID|-l LVL|-o CDELTA} {-f FORMAT} [-k] -i DELTA DiskDescriptor.xml\n"
+			"       ploop replace -d {device} image.qcow2 [image2.qcow2]...\n"
 			"       LVL := NUMBER, distance from base delta\n"
 			"       UUID := UUID of image to be replaced\n"
 			"       CDELTA := path to currently used image file\n"
@@ -1314,7 +1315,7 @@ static int plooptool_replace(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if (!param.file) {
+	if (!is_device_mapper && !device && argc == 0 && !param.file) {
 		fprintf(stderr, "Error: new image file not specified (use -i)\n");
 		usage_replace();
 		return SYSEXIT_PARAM;
@@ -1342,9 +1343,23 @@ static int plooptool_replace(int argc, char **argv)
 	}
 
 	if (is_device_mapper && !ddxml_file) {
-		fprintf(stderr, "Error: DiskDescriptor.xml file is required\n");
-		usage_replace();
-		return SYSEXIT_PARAM;		/* only one way of choosing delta to replace */
+		if (argc >= 1 && !qcow_check_valid_images(argv, argc)) {
+			int ret;
+			struct ploop_disk_images_data *di;
+			ret = ploop_make_dd_from_imgs(&di, argv);
+			if (ret)
+				return ret;
+
+			ret = ploop_dmreplace_qcow(di, &param, device, 0);
+
+			ploop_close_dd(di);
+
+			return ret;
+		} else {
+			fprintf(stderr, "Error: DiskDescriptor.xml file or qcow2 image(s) are required\n");
+			usage_replace();
+			return SYSEXIT_PARAM;		/* only one way of choosing delta to replace */
+		}
 	}
 
 	if (ddxml_file) {

@@ -1771,6 +1771,38 @@ static int st_nlink(const char *file)
 	return st.st_nlink;
 }
 
+int ploop_dmreplace_qcow(struct ploop_disk_images_data *di,
+			 struct ploop_replace_param *param, char *device, int flags)
+{
+	int rc,i;
+	char *images[di->nimages+1];
+
+	if (!di)
+		return SYSEXIT_PARAM;
+
+	for (i = 0; i < di->nimages; i++)
+		images[i] = di->images[i]->file;
+
+	images[i]= NULL;
+
+	i = 0;
+	while(images[i]!= NULL) {
+		ploop_log(0, "%d %s", i, images[i]);
+		i++;
+	}
+
+	if (ploop_lock_dd(di))
+		return SYSEXIT_LOCK;
+
+	rc = do_reload(device, images, 0, di->size, QCOW_FMT, flags);
+	if (!rc) /* Resume to apply new table */
+		ploop_resume_device(device);
+
+	ploop_unlock_dd(di);
+
+	return rc;
+}
+
 int ploop_dmreplace(struct ploop_disk_images_data *di,
 				 struct ploop_replace_param *param)
 {

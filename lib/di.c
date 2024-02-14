@@ -442,11 +442,8 @@ int ploop_open_dd(struct ploop_disk_images_data **di, const char *fname)
 	}
 
 	if (image_fmt == QCOW_FMT) {
+		p->runtime->image_fmt = QCOW_FMT;
 		rc = qcow_open(path, p);
-		if (rc)
-			goto err;
-
-		rc = ploop_di_add_image(p, path, TOPDELTA_UUID, NONE_UUID);
 		if (rc)
 			goto err;
 	}
