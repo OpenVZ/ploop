@@ -73,6 +73,11 @@ static void usage_summary(void)
 		);
 }
 
+static void usage_summary_devicemapper(void)
+{
+	fprintf(stderr, "Usage: ploop degrade -d DEVICE\n");
+}
+
 static void usage_init(void)
 {
 	fprintf(stderr,
@@ -520,6 +525,43 @@ static int plooptool_clear(int argc, char **argv)
 	}
 
 	close(lfd);
+	return 0;
+}
+
+static void usage_degrade(void)
+{
+	fprintf(stderr, "Usage: ploop degrade -d DEVICE\n"
+			"       DEVICE := ploop device, e.g. /dev/mapper/ploop12345\n");
+}
+
+static int plooptool_degrade(int argc, char **argv)
+{
+	int i;
+	struct {
+		const char * device;
+	} frelopts = { };
+
+	while ((i = getopt(argc, argv, "d:")) != EOF) {
+		switch (i) {
+		case 'd':
+			frelopts.device = optarg;
+			break;
+		default:
+			usage_degrade();
+			return SYSEXIT_PARAM;
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc || !frelopts.device) {
+		usage_degrade();
+		return SYSEXIT_PARAM;
+	}
+
+	ploop_degrade_device(frelopts.device);
+
 	return 0;
 }
 
@@ -1632,6 +1674,7 @@ int main(int argc, char **argv)
 {
 	char * cmd;
 	int v = 3;
+	int is_dm = 0;
 
 	/* global options */
 	while (argc > 1 && argv[1][0] == '-') {
@@ -1734,6 +1777,11 @@ int main(int argc, char **argv)
 		return plooptool_tg_deinit(argc, argv);
 	if (strcmp(cmd, "tg-status") == 0)
 		return plooptool_tg_status(argc, argv);
+	is_dm = ploop_is_devicemapper();
+	if (is_dm) {
+		if (strcmp(cmd, "degrade") == 0)
+			return plooptool_degrade(argc, argv);
+	}
 
 	if (cmd[0] != '-') {
 		char ** nargs;
@@ -1748,5 +1796,8 @@ int main(int argc, char **argv)
 	}
 
 	usage_summary();
+	if (is_dm)
+		usage_summary_devicemapper();
+
 	return SYSEXIT_PARAM;
 }

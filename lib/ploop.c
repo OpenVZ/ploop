@@ -2606,6 +2606,27 @@ out_no_partprobe:
 	return ret;
 }
 
+int ploop_degrade_device(const char *device)
+{
+	char t[PATH_MAX];
+	char *a[7];
+	int rc;
+
+	/* we can use any size here - anyio results in EIO */
+	sprintf(t, "0 2097152 error");
+	a[0] = "dmsetup";
+	a[1] = "reload";
+	a[2] = (char *) get_basename(device);
+	a[3] = "--table";
+	a[4] = t;
+	a[5] = NULL;
+	rc = run_prg(a);
+	if (!rc) /* apply new table */
+		ploop_resume_device(device);
+
+	return rc;
+}
+
 static int do_mount(const char *part, const char *target)
 {
 	struct ploop_mount_param param = {

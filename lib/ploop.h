@@ -644,4 +644,5 @@ PL_EXT int ploop_dmreplace_qcow(struct ploop_disk_images_data *di,
 			 struct ploop_replace_param *param, char *device,
 			 int flags);
 
+PL_EXT int ploop_degrade_device(const char *device);
 #endif
