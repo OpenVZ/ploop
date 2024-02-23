@@ -634,4 +634,5 @@ int qcow_alloc_active_bitmap(int fd, __u64 **bitmap, __u32 *bitmap_size,
 		int *nr_clusters);
 int qcow_alloc_bitmap(int fd, __u64 **bitmap, __u32 *bitmap_size,
 		int *nr_clusters);
+PL_EXT int ploop_degrade_device(const char *device);
 #endif
