@@ -104,9 +104,10 @@ struct ploop_functions {
 	struct ploop_bitmap *(*get_tracking_bitmap_from_image)(struct ploop_disk_images_data *di, const char *guid);
 	int (*get_fs_info)(const char *descr, struct ploop_fs_info *info, int size);
 	int (*image_defrag)(const char *image, int flags);
+	int (*store_statfs_info)(const char *mnt, char *image);
 	int (*suspend_device)(const char *part);
 	int (*resume_device)(const char *part);
-	void *padding[57];
+	void *padding[56];
 }; /* struct ploop_functions */
 
 __attribute__ ((visibility("default")))

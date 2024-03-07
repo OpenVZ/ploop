@@ -2730,6 +2730,11 @@ static int ploop_umount_fs(const char *mnt, struct ploop_disk_images_data *di)
 	return ret;
 }
 
+int ploop_store_statfs_info(const char *mnt, char *image)
+{
+	return store_statfs_info(mnt, image);
+}
+
 int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 {
 	int ret;
