@@ -104,6 +104,7 @@ struct ploop_functions {
 	int (*get_names)(const char *devname, char **names[]);
 	int (*dm_message)(const char *devname, const char *msg, char **out);
 	int (*resume_device)(const char *devname);
+	int (*store_statfs_info)(const char *mnt, char *image);
 	int (*suspend_device)(const char *devname);
 	void (*free_dm_message)(char *msg);
 	int (*tg_deinit)(const char *devtg, struct ploop_tg_data *data);
@@ -111,7 +112,7 @@ struct ploop_functions {
 	int (*tg_init)(const char *dev, const char *tg, unsigned int tg_blocksize, struct ploop_tg_data *out);
 	int (*get_mnt_info)(const char *partname, struct ploop_mnt_info *info);
 	int (*compact)(struct ploop_compact_param *param);
-	void *padding[52];
+	void *padding[51];
 }; /* struct ploop_functions */
 
 __attribute__ ((visibility("default")))

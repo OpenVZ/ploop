@@ -2837,6 +2837,11 @@ static int save_cbt(struct ploop_disk_images_data *di, const char *device,
 	return 0;
 }
 
+int ploop_store_statfs_info(const char *mnt, char *image)
+{
+	return store_statfs_info(mnt, image);
+}
+
 int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 {
 	int ret, last;

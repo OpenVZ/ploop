@@ -361,6 +361,7 @@ int ploop_init_image(struct ploop_disk_images_data *di, struct ploop_create_para
 int ploop_init_device(const char *device, struct ploop_create_param *param);
 int ploop_mount_image(struct ploop_disk_images_data *di, struct ploop_mount_param *param);
 int ploop_mount_snapshot(struct ploop_disk_images_data *di, struct ploop_mount_param *param);
+int ploop_store_statfs_info(const char *mnt, char *image);
 int ploop_umount(const char *device, struct ploop_disk_images_data *di);
 int ploop_umount_image(struct ploop_disk_images_data *di);
 int ploop_replace_image(struct ploop_disk_images_data *di, struct ploop_replace_param *param);
