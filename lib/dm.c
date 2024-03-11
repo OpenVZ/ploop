@@ -115,6 +115,21 @@ int dm_get_delta_name(const char *devname, int idx, char **out)
 	return 0;
 }
 
+/*
+ * Merge dm-qcow2 top detla into lower delta
+ */
+int merge_qcow2_backward(const char *devname)
+{
+	int rc;
+
+	ploop_log(0, "Merging top delta backwards");
+	rc = ploop_dm_message(devname, "merge_backward", NULL);
+	if (rc)
+		ploop_err(errno, "Failed to backward online merge");
+
+	return rc;
+}
+
 int merge_top_delta(const char *devname)
 {
 	int rc;	

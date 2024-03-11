@@ -546,6 +546,7 @@ PL_EXT int dm_get_delta_name(const char *devname, int idx, char **out);
 int append_array_entry(const char *entry, char **ar[], int nelem);
 int merge_top_delta(const char *devname);
 int notify_merged_backward (const char *devname, int id);
+PL_EXT int merge_qcow2_backward(const char *devname);
 int update_delta_index(const char *devname, int delta_idx, struct grow_maps *gm);
 PL_EXT int ploop_is_devicemapper(void);
 int dm_remove(const char *devname, int tm_sec);
