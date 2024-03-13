@@ -483,15 +483,6 @@ int ploop_dd_add_image(struct ploop_disk_images_data *di, const char *fname)
 		strcpy(path + pathLength, "/"DISKDESCRIPTOR_XML);
 		if (!access(path, F_OK))
 			image_fmt = PLOOP_FMT;
-		else {
-			/* FIXME: should this be supported with multiple images */
-			strcpy(path + pathLength, "/"QCOW_IMAGE_NAME);
-			if (access(path, F_OK)) {
-				ploop_err(0, "Can't open ploop image %s", fname);
-				return SYSEXIT_DISKDESCR;
-			}
-			image_fmt = QCOW_FMT;
-		}
 	} else if (strcmp(get_basename(path), DISKDESCRIPTOR_XML) == 0) {
 		image_fmt = PLOOP_FMT;
 	} else {
