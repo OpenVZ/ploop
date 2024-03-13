@@ -543,6 +543,7 @@ int get_dev_by_loop(char **devs, char **out[]);
 int get_dev_from_sys(const char *devname, const char *type,char *out, int len);
 int get_top_delta(const char*ldev, char *out, int size);
 PL_EXT int dm_get_delta_name(const char *devname, int idx, char **out);
+PL_EXT int dm_get_delta_fd(const char *devname, int idx, char **out);
 int append_array_entry(const char *entry, char **ar[], int nelem);
 int merge_top_delta(const char *devname);
 int notify_merged_backward (const char *devname, int id);

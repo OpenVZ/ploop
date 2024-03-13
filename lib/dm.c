@@ -115,6 +115,27 @@ int dm_get_delta_name(const char *devname, int idx, char **out)
 	return 0;
 }
 
+int dm_get_delta_fd(const char *devname, int idx, char **out)
+{
+	char m[64];
+
+	snprintf(m, sizeof(m), "get_img_fd %d", idx);
+	if (ploop_dm_message(devname, m, out)) {
+		if (errno == ENOENT)
+			return 1;
+		ploop_err(errno, "Failed %s %s", devname, m);
+		return -1;
+	}
+
+	if (**out == '\0') {
+		free(*out);
+		*out = NULL;
+		return 1;
+	}
+
+	return 0;
+}
+
 /*
  * Merge dm-qcow2 top detla into lower delta
  */
