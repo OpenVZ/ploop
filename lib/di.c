@@ -526,11 +526,6 @@ int ploop_make_dd_from_imgs(struct ploop_disk_images_data **di, char **imgs)
 			ploop_close_dd(p);
 			return rc;
 		}
-		if (p->nimages == 1 && p->runtime->image_fmt != QCOW_FMT) {
-			ploop_err(errno, "Opening multiple image files is only supported for QCOW2\n");
-			ploop_close_dd(p);
-			return SYSEXIT_DISKDESCR;
-		}
 		img = *(++imgs);
 	}
 

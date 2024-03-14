@@ -343,8 +343,14 @@ static int plooptool_mount(int argc, char **argv)
 	{
 		struct ploop_disk_images_data *di;
 		fprintf(stderr, "load ddxml\n");
-		if (argv[1] || loadimages)
+		if (argv[1] || loadimages) {
+			if (qcow_check_valid_images(argv, argc)){
+				ret = SYSEXIT_OPEN;
+				fprintf(stderr, "images are not in qcow2 format\n");
+				return ret;
+			}
 			ret = ploop_make_dd_from_imgs(&di, argv);
+		}
 		else
 			ret = ploop_open_dd(&di, argv[0]);
 		if (ret)
