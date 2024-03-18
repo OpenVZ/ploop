@@ -356,6 +356,7 @@ int normalize_image_name(const char *basedir, const char *image, char *out, int 
 int PWRITE(struct delta * delta, void * buf, unsigned int size, off_t off);
 int PREAD(struct delta * delta, void *buf, unsigned int size, off_t off);
 struct ploop_disk_images_data *alloc_diskdescriptor(void);
+void ploop_free_diskdescriptor(struct ploop_disk_images_data *di);
 int ploop_store_diskdescriptor(const char *fname, struct ploop_disk_images_data *di);
 PL_EXT int ploop_read_disk_descr(struct ploop_disk_images_data **di, const char *file);
 void get_disk_descriptor_fname(struct ploop_disk_images_data *di, char *buf, int size);

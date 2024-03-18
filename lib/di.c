@@ -503,6 +503,48 @@ err:
 	return rc;
 }
 
+int ploop_make_dd_from_device(struct ploop_disk_images_data **di, const char *device)
+{
+	int i, rc;
+	char **images;
+	struct ploop_disk_images_data *p;
+
+	rc = ploop_get_names(device, &images);
+	if (rc != 0 || !*images) {
+		fprintf(stderr, "Failed to get image names: %s\n", device);
+		return 1;
+	}
+
+	*di = NULL;
+	p = alloc_diskdescriptor();
+	if (p == NULL) {
+		rc = SYSEXIT_MALLOC;
+		goto out_err;
+	}
+
+	i = 0;
+	p->runtime->xml_fname = strdup(images[i]);
+
+	while(images[i]) {
+		rc = ploop_dd_add_image(p, images[i]);
+		if (rc) {
+			fprintf(stderr, "Failed to add image:%s\n", images[i]);
+			ploop_free_array(images);
+			goto out_err;
+		}
+		i++;
+	}
+
+	*di = p;
+	rc = 0;
+out_err:
+	ploop_free_array(images);
+	return rc;
+}
+
+/*
+ * Caller must provide a list of images of the same format QCOW2
+ */
 int ploop_make_dd_from_imgs(struct ploop_disk_images_data **di, char **imgs)
 {
 	const char *img = *imgs;

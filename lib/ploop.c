@@ -2886,6 +2886,8 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	struct delta d = {.fd = -1};
 	struct ploop_pvd_header *vh;
 	int image_fmt;
+	struct ploop_disk_images_data *ldi = NULL;
+	int is_device_mapper = ploop_is_devicemapper();
 
 	if (!device) {
 		ploop_err(0, "ploop_umount: device is not specified");
@@ -2893,56 +2895,66 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 	}
 
 	ploop_log(0, "Umount %s", device);
+	ldi = di;
+	if (is_device_mapper && !ldi) {
+		ret = ploop_make_dd_from_device(&ldi, device);
+		if (ret) {
+			ploop_err(0, "failed to create ddxml from device");
+			return SYSEXIT_MALLOC;
+		}
+	}
 	ret = get_part_devname_from_sys(device, devname, sizeof(devname),
 			partname, sizeof(partname));
 	if (ret)
-		return ret;
+		goto out_frdd;
 
 	if (get_mount_dir(partname, 0, mnt, sizeof(mnt)) == 0) {
-		ret = ploop_umount_fs(mnt, di);
+		ret = ploop_umount_fs(mnt, ldi);
 		if (ret)
-			return ret;
+			goto out_frdd;
 	}
 
 	if (get_crypt_layout(devname, partname)) {
 		ret = crypt_close(devname, partname);
 		if (ret)
-			return ret;
+			goto out_frdd;
 	}
 
 	do {
 		ret = get_part_devname_from_sys(device, devname, sizeof(devname),
 				partname, sizeof(partname));
 		if (ret)
-			return ret;
+			goto out_frdd;
 
 		last = strcmp(devname, partname) == 0;
 		if (!last) {
 			ret = dm_remove(partname, get_umount_tm(di));
 			if (ret)
-				return ret;
+				goto out_frdd;
 		}
 	} while (!last);
 
-	ret = get_image_param_online(di, device, &top, NULL, NULL,
+	ret = get_image_param_online(ldi, device, &top, NULL, NULL,
 			&fmt, &image_fmt);
 	if (ret)
-		return ret;
+		goto out_frdd;
+
+	ldi->runtime->image_fmt = image_fmt;
 
 	if (image_fmt == PLOOP_FMT) {
 		if (open_delta(&d, top, O_RDWR, OD_ALLOW_DIRTY) == 0) {
-			ret = save_cbt(di, device, &d);
+			ret = save_cbt(ldi, device, &d);
 			if (ret)
 				goto err;
 		}
 	} else if (image_fmt == QCOW_FMT) {
-		ret = qcow_umount(di, device, top);
+		ret = qcow_umount(ldi, device, top);
 		if (ret)
 			goto err;
 	}
 
 	cn_find_name(device, cn, sizeof(cn), 1);
-	ret = ploop_stop(device, di);
+	ret = ploop_stop(device, ldi);
 	if (ret)
 		goto err;
 
@@ -2951,8 +2963,8 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 		unlink(cn);
 	}
 
-	if (di != NULL) {
-		get_temp_mountpoint(di->images[0]->file, 0, mnt, sizeof(mnt));
+	if (ldi != NULL) {
+		get_temp_mountpoint(ldi->images[0]->file, 0, mnt, sizeof(mnt));
 		if (access(mnt, F_OK) == 0)
 			rmdir(mnt);
 	}
@@ -2966,11 +2978,14 @@ int ploop_umount(const char *device, struct ploop_disk_images_data *di)
 		}
 	}
 
-	ret = check_deltas_live(di, NULL);
+	ret = check_deltas_live(ldi, NULL);
 err:
 
 	close_delta(&d);
 	free(top);
+out_frdd:
+	if (ldi && !di)
+		ploop_free_diskdescriptor(ldi);
 
 	return ret;
 }

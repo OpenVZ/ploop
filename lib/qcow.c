@@ -400,9 +400,9 @@ int qcow_check(struct ploop_disk_images_data *di)
 int qcow_live_check(const char *device)
 {
 	int rc;
-	char *top;
+	struct ploop_disk_images_data *di;
 
-	rc = get_image_param_online(NULL, device, &top, NULL, NULL, NULL, NULL);
+	rc = ploop_make_dd_from_device(&di, device);
 	if (rc)
 		return rc;
 
@@ -410,11 +410,11 @@ int qcow_live_check(const char *device)
 	if (rc)
 		goto err;
 
-	rc = do_qcow_check(top);
+	rc = qcow_check(di);
 	ploop_resume_device(device);
 
 err:
-	free(top);
+	ploop_free_diskdescriptor(di);
 	return rc;
 }
 
@@ -1013,8 +1013,10 @@ int qcow_umount(struct ploop_disk_images_data *di,
 	rc = cbt_get_dirty_bitmap_metadata(fd, uuid, NULL);
 	close(fd);
 	if (rc) {
-		if (rc == SYSEXIT_NOCBT)
+		if (rc == SYSEXIT_NOCBT) {
+			ploop_log(0, "Clean no dirty bitmap");
 			rc = 0;
+		}
 		goto err;
 	}
 
