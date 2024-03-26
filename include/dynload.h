@@ -114,7 +114,7 @@ struct ploop_functions {
 	int (*compact)(struct ploop_compact_param *param);
 	int (*make_dd_from_imgs)(struct ploop_disk_images_data **di, char **imgs);
 	int (*make_dd_from_device)(struct ploop_disk_images_data **di, const char *device);
-	void *padding[51];
+	void *padding[49];
 }; /* struct ploop_functions */
 
 __attribute__ ((visibility("default")))
