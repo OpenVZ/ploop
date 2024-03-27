@@ -220,7 +220,7 @@ static int json_parse(struct json_object* obj, struct qcow_info *info)
 					return -1;
 			}
 			if (!strcmp(name, "backing-filename")) {
-				info->backing_filename = strdup(json_object_get_string(val));
+				info->backing_filename = strdup(basename(json_object_get_string(val)));
 				if (!info->backing_filename)
 					return -1;
 			}
