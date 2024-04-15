@@ -59,7 +59,7 @@ const char *get_dm_name(const char *devname, char *out, int size)
 int get_dev_from_sys(const char *devname, const char *type, char *out,
 		int len)
 {
-	char buf[64];
+	char buf[PATH_MAX];
 	struct stat st;
 	char **devs = NULL;
 
@@ -385,7 +385,7 @@ static int get_dm_offset(dev_t dev, dev_t *parent, __u32 *offset)
 	char b[PATH_MAX];
 	char *token, *savedptr = NULL;
 	unsigned int found = 0, major, minor;
-	char name[64];
+	char name[PATH_MAX];
 
 	snprintf(b, sizeof(b), "/sys/dev/block/%d:%d/dm/name",
 			major(dev), minor(dev));
@@ -491,7 +491,7 @@ int get_part_devname_from_sys(const char *device, char *devname, int dsize,
 		char *part, int psize)
 {
 	int rc, i = 0;
-	char dev[64];
+	char dev[PATH_MAX];
 
 	snprintf(devname, dsize, "%s", device);
 	snprintf(part, psize, "%s", device);
