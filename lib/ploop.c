@@ -2844,7 +2844,7 @@ static int ploop_umount_fs(const char *mnt, struct ploop_disk_images_data *di)
 	/* The component_name feature allows multiple image mount.
 	 * Skip store statfs in custom case.
 	 */
-	if (di != NULL && di->runtime->component_name == NULL)
+	if (di != NULL && di->images != NULL && di->runtime->component_name == NULL)
 		store_statfs_info(mnt, di->images[0]->file);
 
 	ploop_log(0, "Unmounting file system at %s", mnt);
