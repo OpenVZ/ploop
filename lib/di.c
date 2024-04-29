@@ -462,6 +462,7 @@ int ploop_dd_add_image(struct ploop_disk_images_data *di, const char *fname)
 	int rc, image_fmt = -1;
 	char path[PATH_MAX];
 	struct stat st;
+	int is_ddxml = 0;
 
 	if (stat(fname, &st)) {
 		ploop_err(errno, "Can't open %s", fname);
@@ -481,10 +482,13 @@ int ploop_dd_add_image(struct ploop_disk_images_data *di, const char *fname)
 	if (S_ISDIR(st.st_mode)) {
 		int pathLength = strlen(path);
 		strcpy(path + pathLength, "/"DISKDESCRIPTOR_XML);
-		if (!access(path, F_OK))
+		if (!access(path, F_OK)) {
 			image_fmt = PLOOP_FMT;
+			is_ddxml = 1;
+		}
 	} else if (strcmp(get_basename(path), DISKDESCRIPTOR_XML) == 0) {
 		image_fmt = PLOOP_FMT;
+		is_ddxml = 1;
 	} else {
 		rc = detect_image_fmt(path, &image_fmt);
 		if (rc)
@@ -498,7 +502,18 @@ handle_qcow2:
 			goto err;
 	}
 
-	return 0;
+	rc = 0;
+	if (!is_ddxml && image_fmt == PLOOP_FMT) {
+		const char *guid = TOPDELTA_UUID;
+		const char *parent_guid = NONE_UUID;
+		char gtmp[256];
+		// need to fake valid guid here to pass the validation in make_images_list
+		snprintf(gtmp, sizeof(gtmp), "{5fbaabe3-CAFE-B03A-4A4A-4A0e329aab%02X}", (unsigned)di->nimages);
+		if (di->nimages > 0)
+			parent_guid = di->images[di->nimages-1]->guid;
+		rc = ploop_di_add_image(di, fname, guid, parent_guid);
+	}
+
 err:
 	return rc;
 }
@@ -535,6 +550,10 @@ int ploop_make_dd_from_device(struct ploop_disk_images_data **di, const char *de
 		i++;
 	}
 
+	if (!p->images) {
+		rc = SYSEXIT_MALLOC;
+		goto out_err;
+	}
 	*di = p;
 	rc = 0;
 out_err:
